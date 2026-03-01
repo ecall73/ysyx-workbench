@@ -26,7 +26,7 @@ const char *regs[] = {
 void isa_reg_display() {
   int i;
   for (i = 0; i < 32; i ++) {
-    printf(ANSI_FG_RED"(x%02d) "ANSI_FG_GREEN"%-4s "ANSI_FG_YELLOW"0x%08x\t\t"ANSI_NONE, i, regs[i], cpu.gpr[i]);
+    printf(ANSI_FG_RED"(x%02d) "ANSI_FG_GREEN"%-4s "ANSI_FG_BLUE"0x%08x\t\t"ANSI_NONE, i, regs[i], cpu.gpr[i]);
     if (i % 4 == 3) {
       printf("\n");
     }
