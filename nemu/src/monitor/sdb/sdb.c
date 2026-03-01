@@ -23,6 +23,7 @@ static int is_batch_mode = false;
 
 void init_regex();
 void init_wp_pool();
+word_t vaddr_read(vaddr_t addr, int len);
 
 /* We use the `readline' library to provide more flexibility to read from stdin. */
 static char* rl_gets() {
@@ -49,8 +50,51 @@ static int cmd_c(char *args) {
 
 
 static int cmd_q(char *args) {
+  // PA1 RTFSC 优美地退出
   nemu_state.state = NEMU_QUIT;
   return -1;
+}
+
+// PA1 基础设施 单步执行
+static int cmd_si(char *args) {
+  int n = 1;
+  if (args != NULL) {
+    n = strtol(args, NULL, 0);
+  }
+  cpu_exec(n);
+  return 0;
+}
+
+// PA1 基础设施 打印寄存器
+static int cmd_info(char *args) {
+  if (args == NULL || strcmp(args, "r") == 0) {
+    isa_reg_display();
+  }
+  else if (strcmp(args, "w") == 0) {
+    // wp_display();
+  }
+  else {
+    printf("Unknown info type '%s'\n", args);
+  }
+  return 0;
+}
+
+// PA1 基础设施 扫描内存
+static int cmd_x(char *args) {
+  int num = 0;
+  vaddr_t addr = 0;
+  char *N = strtok(args, " ");
+  char *EXPR = strtok(NULL, " ");
+  if (N == NULL || EXPR == NULL) {
+    printf("Usage: x <n> <addr>\n");
+    return 0;
+  }
+  sscanf(N, "%d", &num);
+  sscanf(EXPR, "%x", &addr);
+  for (int i = 0; i < num; i ++) {
+    printf(ANSI_FG_GREEN"0x%08x: "ANSI_FG_BLUE"0x%08x\n"ANSI_NONE, addr + i * 4, vaddr_read(addr + i * 4, 4));
+  }
+  return 0;
 }
 
 static int cmd_help(char *args);
@@ -63,6 +107,9 @@ static struct {
   { "help", "Display information about all supported commands", cmd_help },
   { "c", "Continue the execution of the program", cmd_c },
   { "q", "Exit NEMU", cmd_q },
+  { "si", "Pause after executing [N] instructions", cmd_si },
+  { "info", "r: Print register status, w: Print watchpoint information", cmd_info },
+  { "x", "Scan [N] words starting from address [addr]", cmd_x },
 
   /* TODO: Add more commands */
 

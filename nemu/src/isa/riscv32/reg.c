@@ -24,6 +24,15 @@ const char *regs[] = {
 };
 
 void isa_reg_display() {
+  // PA1 基础设施 打印寄存器
+  int i;
+  for (i = 0; i < 32; i ++) {
+    printf(ANSI_FG_RED"(x%02d) "ANSI_FG_GREEN"%-4s "ANSI_FG_BLUE"0x%08x\t\t"ANSI_NONE, i, regs[i], cpu.gpr[i]);
+    if (i % 4 == 3) {
+      printf("\n");
+    }
+  }
+  printf("      "ANSI_FG_GREEN"PC   "ANSI_FG_BLUE"0x%08x\n"ANSI_NONE, cpu.pc);
 }
 
 word_t isa_reg_str2val(const char *s, bool *success) {
