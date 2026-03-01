@@ -84,7 +84,7 @@ static int cmd_x(char *args) {
   int num = 0;
   vaddr_t addr = 0;
   char *N = strtok(args, " ");
-  char *EXPR = strtok(args, " ");
+  char *EXPR = strtok(NULL, " ");
   if (N == NULL || EXPR == NULL) {
     printf("Usage: x <n> <addr>\n");
     return 0;
