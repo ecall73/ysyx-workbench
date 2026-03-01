@@ -92,7 +92,7 @@ static int cmd_x(char *args) {
   sscanf(N, "%d", &num);
   sscanf(EXPR, "%x", &addr);
   for (int i = 0; i < num; i ++) {
-    printf(ANSI_FG_BLUE"0x%08x: "ANSI_FG_GREEN"%08x\n"ANSI_NONE, addr + i * 4, vaddr_read(addr + i * 4, 4));
+    printf(ANSI_FG_GREEN"0x%08x: "ANSI_FG_BLUE"0x%08x\n"ANSI_NONE, addr + i * 4, vaddr_read(addr + i * 4, 4));
   }
   return 0;
 }
