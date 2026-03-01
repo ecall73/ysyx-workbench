@@ -26,10 +26,11 @@ const char *regs[] = {
 void isa_reg_display() {
   int i;
   for (i = 0; i < 32; i ++) {
-    printf("(x%2d) %-4s 0x%08x\t\t", i, regs[i], gpr(i));
+    printf(ANSI_FG_GREEN"%-3s: "ANSI_FG_MAGENTA FMT_WORD" "ANSI_NONE, regs[i], cpu.gpr[i]);
     if (i % 4 == 3) {
       printf("\n");
     }
+    printf("aa\n");
   }
 }
 
