@@ -98,18 +98,16 @@ static int cmd_x(char *args) {
 }
 
 static int cmd_p(char* args) {
-  bool success = true;
+  bool success = false;
   if (args == NULL) {
       printf("Usage: p <EXPR>\n");
       return 0;
   }
   word_t ans = expr(args, &success);
-  if (success) {
-      Log(ANSI_FG_GREEN"Successfully evaluate the EXPR!"ANSI_NONE);
-      Log(ANSI_FG_MAGENTA"EXPR: %s"ANSI_NONE, args);
-      Log(ANSI_FG_MAGENTA"ANSWER:\n[Dec] unsigned: %u signed: %d\n[Hex]"FMT_WORD ANSI_NONE, ans, ans, ans);
-  } else
-      Log(ANSI_FG_RED"EXPR is illegal!"ANSI_NONE);
+  if (success)
+    printf(ANSI_FG_GREEN"EXPR=\n[DEC] unsigned: %u signed: %d\n[HEX] %x\n"ANSI_NONE, ans, ans, ans);
+  else
+    printf(ANSI_FG_RED"EXPR is illegal!"ANSI_NONE);
   return 0;
 }
 
