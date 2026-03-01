@@ -81,20 +81,18 @@ static int cmd_info(char *args) {
 
 // PA1 基础设施 扫描内存
 static int cmd_x(char *args) {
-  char *arg = strtok(NULL, " ");
-  if (arg == NULL) {
+  int num = 0;
+  vaddr_t addr = 0;
+  char *N = strtok(args, " ");
+  char *EXPR = strtok(args, " ");
+  if (N == NULL || EXPR == NULL) {
     printf("Usage: x <n> <addr>\n");
     return 0;
   }
-  int n = strtol(arg, NULL, 0);
-  arg = strtok(NULL, " ");
-  if (arg == NULL) {
-    printf("Usage: x <n> <addr>\n");
-    return 0;
-  }
-  paddr_t addr = strtoul(arg, NULL, 0);
-  for (int i = 0; i < n; i ++) {
-    printf(ANSI_FG_BLUE"0x%08x: "ANSI_NONE ANSI_FG_GREEN"%08x\n"ANSI_NONE, addr + i * 4, vaddr_read(addr + i * 4, 4));
+  sscanf(N, "%d", &num);
+  sscanf(EXPR, "%x", &addr);
+  for (int i = 0; i < num; i ++) {
+    printf(ANSI_FG_BLUE"0x%08x: "ANSI_FG_GREEN"%08x\n"ANSI_NONE, addr + i * 4, vaddr_read(addr + i * 4, 4));
   }
   return 0;
 }
