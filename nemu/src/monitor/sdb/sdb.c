@@ -23,6 +23,7 @@ static int is_batch_mode = false;
 
 void init_regex();
 void init_wp_pool();
+word_t paddr_read(vaddr_t addr, int len);
 
 /* We use the `readline' library to provide more flexibility to read from stdin. */
 static char* rl_gets() {
@@ -64,6 +65,7 @@ static int cmd_si(char *args) {
   return 0;
 }
 
+// PA1 基础设施 打印寄存器
 static int cmd_info(char *args) {
   if (args == NULL || strcmp(args, "r") == 0) {
     isa_reg_display();
@@ -73,6 +75,26 @@ static int cmd_info(char *args) {
   }
   else {
     printf("Unknown info type '%s'\n", args);
+  }
+  return 0;
+}
+
+// PA1 基础设施 扫描内存
+static int cmd_x(char *args) {
+  char *arg = strtok(NULL, " ");
+  if (arg == NULL) {
+    printf("Usage: x <n> <addr>\n");
+    return 0;
+  }
+  int n = strtol(arg, NULL, 0);
+  arg = strtok(NULL, " ");
+  if (arg == NULL) {
+    printf("Usage: x <n> <addr>\n");
+    return 0;
+  }
+  paddr_t addr = strtoul(arg, NULL, 0);
+  for (int i = 0; i < n; i ++) {
+    printf(ANSI_FG_BLUE"0x%08x: "ANSI_NONE ANSI_FG_GREEN"%08x\n"ANSI_NONE, addr + i * 4, paddr_read(addr + i * 4, 4));
   }
   return 0;
 }
@@ -89,6 +111,7 @@ static struct {
   { "q", "Exit NEMU", cmd_q },
   { "si", "Pause after executing [N] instructions", cmd_si },
   { "info", "r: Print register status, w: Print watchpoint information", cmd_info },
+  { "x", "Scan memory", cmd_x },
 
   /* TODO: Add more commands */
 
