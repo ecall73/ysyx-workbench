@@ -102,13 +102,23 @@ static bool make_token(char *e) {
          */
 
         switch (rules[i].token_type) {
-          case TK_NOTYPE: break;
+          case TK_NOTYPE:
+            break;
           default:
             tokens[nr_token].type = rules[i].token_type;
-            strncpy(tokens[nr_token].str, substr_start, substr_len);
-          // default:
-            tokens[nr_token].str[substr_len] = '\0';
+            if (substr_len < 32) {
+              strncpy(tokens[nr_token].str, substr_start, substr_len);
+              tokens[nr_token].str[substr_len] = '\0';
+            } else {
+              strncpy(tokens[nr_token].str, substr_start, 31);
+              tokens[nr_token].str[31] = '\0';
+              Log("Token too long, truncated: %.*s", 31, substr_start);
+            }
             nr_token ++;
+            if (nr_token >= 32) {
+              Log("Too many tokens");
+              return false;
+            }
             break;
         }
 
