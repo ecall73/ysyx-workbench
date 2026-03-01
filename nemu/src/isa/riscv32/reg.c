@@ -30,7 +30,6 @@ void isa_reg_display() {
     if (i % 4 == 3) {
       printf("\n");
     }
-    printf("aa\n");
   }
 }
 
