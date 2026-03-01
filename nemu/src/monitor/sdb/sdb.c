@@ -97,6 +97,22 @@ static int cmd_x(char *args) {
   return 0;
 }
 
+static int cmd_p(char* args) {
+  bool success = true;
+  if (args == NULL) {
+      Log("Usage: p <EXPR>");
+      return 0;
+  }
+  word_t ans = expr(args, &success);
+  if (success) {
+      Log(ANSI_FG_GREEN"Successfully evaluate the EXPR!"ANSI_NONE);
+      Log(ANSI_FG_MAGENTA"EXPR: %s"ANSI_NONE, args);
+      Log(ANSI_FG_MAGENTA"ANSWER:\n[Dec] unsigned: %u signed: %d\n[Hex]"FMT_WORD ANSI_NONE, ans, ans, ans);
+  } else
+      Log(ANSI_FG_RED"EXPR is illegal!"ANSI_NONE);
+  return 0;
+}
+
 static int cmd_help(char *args);
 
 static struct {
@@ -110,6 +126,7 @@ static struct {
   { "si", "Pause after executing [N] instructions", cmd_si },
   { "info", "r: Print register status, w: Print watchpoint information", cmd_info },
   { "x", "Scan [N] words starting from address [addr]", cmd_x },
+  { "p", "Find the value of the expression [EXPR]", cmd_p },
 
   /* TODO: Add more commands */
 
