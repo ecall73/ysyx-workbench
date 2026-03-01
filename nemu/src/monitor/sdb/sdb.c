@@ -100,7 +100,7 @@ static int cmd_x(char *args) {
 static int cmd_p(char* args) {
   bool success = true;
   if (args == NULL) {
-      Log("Usage: p <EXPR>");
+      printf("Usage: p <EXPR>\n");
       return 0;
   }
   word_t ans = expr(args, &success);
