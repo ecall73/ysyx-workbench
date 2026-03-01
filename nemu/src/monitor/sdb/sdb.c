@@ -23,7 +23,7 @@ static int is_batch_mode = false;
 
 void init_regex();
 void init_wp_pool();
-word_t paddr_read(vaddr_t addr, int len);
+word_t vaddr_read(vaddr_t addr, int len);
 
 /* We use the `readline' library to provide more flexibility to read from stdin. */
 static char* rl_gets() {
@@ -94,7 +94,7 @@ static int cmd_x(char *args) {
   }
   paddr_t addr = strtoul(arg, NULL, 0);
   for (int i = 0; i < n; i ++) {
-    printf(ANSI_FG_BLUE"0x%08x: "ANSI_NONE ANSI_FG_GREEN"%08x\n"ANSI_NONE, addr + i * 4, paddr_read(addr + i * 4, 4));
+    printf(ANSI_FG_BLUE"0x%08x: "ANSI_NONE ANSI_FG_GREEN"%08x\n"ANSI_NONE, addr + i * 4, vaddr_read(addr + i * 4, 4));
   }
   return 0;
 }
