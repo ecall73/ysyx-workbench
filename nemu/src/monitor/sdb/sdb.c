@@ -109,7 +109,7 @@ static struct {
   { "q", "Exit NEMU", cmd_q },
   { "si", "Pause after executing [N] instructions", cmd_si },
   { "info", "r: Print register status, w: Print watchpoint information", cmd_info },
-  { "x", "Scan memory", cmd_x },
+  { "x", "Scan [N] words starting from address [addr]", cmd_x },
 
   /* TODO: Add more commands */
 
