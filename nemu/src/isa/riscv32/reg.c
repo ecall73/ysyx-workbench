@@ -31,7 +31,7 @@ void isa_reg_display() {
       printf("\n");
     }
   }
-  printf("     PC   0x%08x\n", cpu.pc);
+  printf("      "ANSI_FG_GREEN"PC   "ANSI_FG_BLUE"0x%08x\n"ANSI_NONE, cpu.pc);
 }
 
 word_t isa_reg_str2val(const char *s, bool *success) {
