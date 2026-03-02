@@ -105,7 +105,7 @@ static int cmd_p(char* args) {
   }
   word_t ans = expr(args, &success);
   if (success)
-    printf(ANSI_FG_GREEN"EXPR =\n[DEC] unsigned: %u signed: %d\n[HEX] %x\n"ANSI_NONE, ans, ans, ans);
+    printf(ANSI_FG_GREEN"EXPR =\n[DEC] %u\n[HEX] %x\n"ANSI_NONE, ans, ans);
   else
     printf(ANSI_FG_RED"EXPR is illegal!\n"ANSI_NONE);
   return 0;

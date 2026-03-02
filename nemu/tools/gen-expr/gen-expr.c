@@ -22,29 +22,39 @@
 
 // this should be enough
 static char buf[65536] = {};
+static char ubuf[65536] = {};
 static char code_buf[65536 + 128] = {}; // a little larger than `buf`
 static char *code_format =
 "#include <stdio.h>\n"
+"#include <stdint.h>\n"
 "int main() { "
-"  unsigned result = %s; "
+"  uint32_t result = (uint32_t)(%s); "
 "  printf(\"%%u\", result); "
 "  return 0; "
 "}";
 
 static void gen(char c) {
   int len = strlen(buf);
-  if (len < 65535) {
+  int ulen = strlen(ubuf);
+  if (len < 65535 && ulen < 65535) {
     buf[len] = c;
     buf[len + 1] = '\0';
+    ubuf[ulen] = c;
+    ubuf[ulen + 1] = '\0';
   }
 }
 
 static void gen_num() {
   char num_buf[32];
-  sprintf(num_buf, "%u", rand() % 100);
+  char unum_buf[32];
+  unsigned n = (unsigned)(rand() % 100);
+  sprintf(num_buf, "%u", n);
+  sprintf(unum_buf, "%uu", n);
   int len = strlen(buf);
-  if (len + strlen(num_buf) < 65535) {
+  int ulen = strlen(ubuf);
+  if (len + (int)strlen(num_buf) < 65535 && ulen + (int)strlen(unum_buf) < 65535) {
     strcat(buf, num_buf);
+    strcat(ubuf, unum_buf);
   }
 }
 
@@ -95,9 +105,10 @@ int main(int argc, char *argv[]) {
   int i;
   for (i = 0; i < loop; i ++) {
     buf[0] = '\0';
+    ubuf[0] = '\0';
     gen_rand_expr();
 
-    sprintf(code_buf, code_format, buf);
+    sprintf(code_buf, code_format, ubuf);
 
     FILE *fp = fopen("/tmp/.code.c", "w");
     assert(fp != NULL);
