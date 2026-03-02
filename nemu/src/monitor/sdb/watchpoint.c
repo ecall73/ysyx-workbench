@@ -134,8 +134,8 @@ bool wp_check() {
     if (success) {
       if (new_val != wp->old_val) {
         printf("Watchpoint %d: %s\n", wp->NO, wp->expr);
-        printf("Old value = %u\n", wp->old_val);
-        printf("New value = %u\n", new_val);
+        printf("Old value = [HEX] 0x%08x\t[DEC] %u\n", wp->old_val, wp->old_val);
+        printf("New value = [HEX] 0x%08x\t[DEC] %u\n", new_val, new_val);
         wp->old_val = new_val;
         trigger = true;
       }
