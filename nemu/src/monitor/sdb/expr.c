@@ -135,6 +135,102 @@ static bool make_token(char *e) {
   return true;
 }
 
+static bool check_parentheses(int p, int q) {
+  if (tokens[p].type != '(' || tokens[q].type != ')') {
+    return false;
+  }
+  int balance = 0;
+  for (int i = p; i <= q; i++) {
+    if (tokens[i].type == '(') {
+      balance++;
+    } else if (tokens[i].type == ')') {
+      balance--;
+      if (balance == 0 && i < q) {
+        return false;
+      }
+    }
+    if (balance < 0) return false;
+  }
+  return balance == 0;
+}
+
+static word_t eval(int p, int q, bool *success) {
+  if (p > q) {
+    /* Bad expression */
+    *success = false;
+    return 0;
+  }
+  else if (p == q) {
+    /* Single token.
+     * For now this token should be a number.
+     * Return the value of the number.
+     */
+    if (tokens[p].type == TK_HEX) {
+      return strtol(tokens[p].str, NULL, 16);
+    }
+    else if (tokens[p].type == TK_DEC) {
+      return strtol(tokens[p].str, NULL, 10);
+    }
+    else {
+      *success = false;
+      return 0;
+    }
+  }
+  else if (check_parentheses(p, q) == true) {
+    /* The expression is surrounded by a matched pair of parentheses.
+     * If that is the case, just throw away the parentheses.
+     */
+    return eval(p + 1, q - 1, success);
+  }
+  else {
+    int op = -1;
+    int balance = 0;
+    // Priority: + - (1), * / (2)
+    // We want lowest priority.
+    int min_prec = 100;
+
+    for (int i = p; i <= q; i++) {
+      if (tokens[i].type == '(') balance++;
+      else if (tokens[i].type == ')') balance--;
+      else if (balance == 0) {
+        int curr_prec = 0;
+        switch (tokens[i].type) {
+          case '+': case '-': curr_prec = 1; break;
+          case '*': case '/': curr_prec = 2; break;
+          default: continue;
+        }
+        if (curr_prec <= min_prec) {
+          min_prec = curr_prec;
+          op = i;
+        }
+      }
+    }
+
+    if (op == -1) {
+      *success = false;
+      return 0;
+    }
+
+    word_t val1 = eval(p, op - 1, success);
+    if (!*success) return 0;
+    word_t val2 = eval(op + 1, q, success);
+    if (!*success) return 0;
+
+    switch (tokens[op].type) {
+      case '+': return val1 + val2;
+      case '-': return val1 - val2;
+      case '*': return val1 * val2;
+      case '/': 
+        if (val2 == 0) {
+          Log("Division by zero");
+          *success = false;
+          return 0;
+        }
+        return val1 / val2;
+      default: assert(0);
+    }
+  }
+}
 
 word_t expr(char *e, bool *success) {
   if (!make_token(e)) {
@@ -142,8 +238,6 @@ word_t expr(char *e, bool *success) {
     return 0;
   }
 
-  /* TODO: Insert codes to evaluate the expression. */
-  TODO();
-
-  return 0;
+  *success = true;
+  return eval(0, nr_token - 1, success);
 }
