@@ -22,7 +22,9 @@ typedef struct watchpoint {
   struct watchpoint *next;
 
   /* TODO: Add more members if necessary */
-
+  char expr[128];      // The expression to watch
+  word_t old_val;      // The previous value of the expression
+  bool enabled;        // Whether the watchpoint is enabled (though NO is enough, this helps)
 } WP;
 
 static WP wp_pool[NR_WP] = {};
@@ -40,4 +42,110 @@ void init_wp_pool() {
 }
 
 /* TODO: Implement the functionality of watchpoint */
+
+// PA1 监视点 实现监视点池的管理
+WP* new_wp() {
+  if (free_ == NULL) {
+    panic("No more watchpoints available");
+  }
+
+  WP *wp = free_;
+  free_ = free_->next;
+
+  wp->next = head;
+  head = wp;
+
+  wp->enabled = true;
+  wp->expr[0] = '\0';
+  wp->old_val = 0;
+
+  return wp;
+}
+
+void free_wp(WP *wp) {
+  if (wp == NULL) return;
+
+  if (head == wp) {
+    head = wp->next;
+  } else {
+    WP *prev = head;
+    while (prev != NULL && prev->next != wp) {
+      prev = prev->next;
+    }
+    if (prev != NULL) {
+      prev->next = wp->next;
+    }
+  }
+
+  wp->next = free_;
+  free_ = wp;
+  wp->enabled = false;
+}
+
+// PA1 监视点 实现监视点
+// Add a new watchpoint
+int wp_new(char *e) {
+  bool success;
+  word_t val = expr(e, &success);
+  if (!success) {
+    return -1;
+  }
+
+  WP *wp = new_wp();
+  strncpy(wp->expr, e, 127);
+  wp->expr[127] = '\0';
+  wp->old_val = val;
+  return wp->NO;
+}
+
+// Delete a watchpoint
+bool wp_free(int no) {
+  WP *wp = head;
+  while (wp != NULL) {
+    if (wp->NO == no) {
+      free_wp(wp);
+      return true;
+    }
+    wp = wp->next;
+  }
+  return false;
+}
+
+// List all watchpoints
+void wp_display() {
+  if (head == NULL) {
+    printf("No watchpoints.\n");
+    return;
+  }
+  
+  printf("%-8s %-16s %s\n", "Num", "Value", "Expression");
+  WP *wp = head;
+  while (wp != NULL) {
+    printf("%-8d %-16u %s\n", wp->NO, wp->old_val, wp->expr);
+    wp = wp->next;
+  }
+}
+
+// Check if any watchpoint triggers
+bool wp_check() {
+  bool trigger = false;
+  WP *wp = head;
+  while (wp != NULL) {
+    bool success;
+    word_t new_val = expr(wp->expr, &success);
+    if (success) {
+      if (new_val != wp->old_val) {
+        printf("Watchpoint %d: %s\n", wp->NO, wp->expr);
+        printf("Old value = [HEX] 0x%08x\t[DEC] %u\n", wp->old_val, wp->old_val);
+        printf("New value = [HEX] 0x%08x\t[DEC] %u\n", new_val, new_val);
+        wp->old_val = new_val;
+        trigger = true;
+      }
+    } else {
+      printf("Error evaluating watchpoint %d: %s\n", wp->NO, wp->expr);
+    }
+    wp = wp->next;
+  }
+  return trigger;
+}
 

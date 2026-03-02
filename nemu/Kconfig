@@ -191,6 +191,14 @@ config DIFFTEST_REF_NAME
   default "kvm" if DIFFTEST_REF_KVM
   default "spike" if DIFFTEST_REF_SPIKE
   default "none"
+
+config WATCHPOINT
+  bool "Enable watchpoint"
+  default y
+  help
+    Enable watchpoint to monitor the change of expressions.
+    Note that this will significantly reduce the performance of NEMU.
+
 endmenu
 
 if MODE_SYSTEM

@@ -67,11 +67,14 @@ static int cmd_si(char *args) {
 
 // PA1 基础设施 打印寄存器
 static int cmd_info(char *args) {
-  if (args == NULL || strcmp(args, "r") == 0) {
+  if (args == NULL) {
+    printf("Usage: info r (registers) or info w (watchpoints)\n");
+  }
+  else if (strcmp(args, "r") == 0) {
     isa_reg_display();
   }
   else if (strcmp(args, "w") == 0) {
-    // wp_display();
+    wp_display();
   }
   else {
     printf("Unknown info type '%s'\n", args);
@@ -111,6 +114,35 @@ static int cmd_p(char* args) {
   return 0;
 }
 
+// PA1 监视点 实现监视点
+static int cmd_w(char *args) {
+  if (args == NULL) {
+    printf("Usage: w <EXPR>\n");
+    return 0;
+  }
+  int no = wp_new(args);
+  if (no == -1) {
+    printf("Failed to create watchpoint\n");
+  } else {
+    printf("Watchpoint %d: %s\n", no, args);
+  }
+  return 0;
+}
+
+static int cmd_d(char *args) {
+  if (args == NULL) {
+    printf("Usage: d <NO>\n");
+    return 0;
+  }
+  int no = strtol(args, NULL, 0);
+  if (wp_free(no)) {
+    printf("Watchpoint %d deleted\n", no);
+  } else {
+    printf("Watchpoint %d not found\n", no);
+  }
+  return 0;
+}
+
 static int cmd_help(char *args);
 
 static struct {
@@ -125,6 +157,8 @@ static struct {
   { "info", "r: Print register status, w: Print watchpoint information", cmd_info },
   { "x", "Scan <N> words starting from <addr>", cmd_x },
   { "p", "Find the value of <EXPR>", cmd_p },
+  { "w", "Set watchpoint <EXPR>", cmd_w },
+  { "d", "Delete watchpoint <NO>", cmd_d },
 
   /* TODO: Add more commands */
 

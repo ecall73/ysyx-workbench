@@ -16,7 +16,19 @@ typedef uint32_t word_t;
 #include <regex.h>
 #define __ISA_H__
 
+word_t isa_reg_str2val(const char *s, bool *success);
+word_t vaddr_read(word_t addr, int len);
+
 #include "../../src/monitor/sdb/expr.c"
+
+word_t isa_reg_str2val(const char *s, bool *success) {
+    *success = true;
+    return 0x1234; 
+}
+
+word_t vaddr_read(word_t addr, int len) {
+    return addr; 
+}
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
