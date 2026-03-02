@@ -33,14 +33,13 @@ static char *code_format =
 "  return 0; "
 "}";
 
-static void gen(char c) {
+static void gen(char *s) {
   int len = strlen(buf);
   int ulen = strlen(ubuf);
-  if (len < 65535 && ulen < 65535) {
-    buf[len] = c;
-    buf[len + 1] = '\0';
-    ubuf[ulen] = c;
-    ubuf[ulen + 1] = '\0';
+  int slen = strlen(s);
+  if (len + slen < 65535 && ulen + slen < 65535) {
+    strcat(buf, s);
+    strcat(ubuf, s);
   }
 }
 
@@ -59,17 +58,20 @@ static void gen_num() {
 }
 
 static void gen_rand_op() {
-  switch (rand() % 4) {
-    case 0: gen('+'); break;
-    case 1: gen('-'); break;
-    case 2: gen('*'); break;
-    case 3: gen('/'); break;
+  switch (rand() % 7) {
+    case 0: gen("+"); break;
+    case 1: gen("-"); break;
+    case 2: gen("*"); break;
+    case 3: gen("/"); break;
+    case 4: gen("=="); break;
+    case 5: gen("!="); break;
+    case 6: gen("&&"); break;
   }
 }
 
 static inline void gen_rand_expr() {
   static int depth = 0;
-  if (depth > 10) { // Limit depth to avoid stack overflow and too long expressions
+  if (depth > 10) { 
       gen_num(); 
       return;
   }
@@ -79,11 +81,11 @@ static inline void gen_rand_expr() {
       gen_num(); 
       break;
     case 1: 
-      gen('('); 
+      gen("("); 
       depth++;
       gen_rand_expr(); 
       depth--;
-      gen(')'); 
+      gen(")"); 
       break;
     default: 
       depth++;

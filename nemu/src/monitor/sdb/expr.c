@@ -20,11 +20,10 @@
  */
 #include <regex.h>
 
+word_t vaddr_read(vaddr_t addr, int len);
+
 enum {
-  TK_NOTYPE = 256, TK_HEX, TK_DEC, TK_EQ, TK_NEG,
-
-  /* TODO: Add more token types */
-
+  TK_NOTYPE = 256, TK_HEX, TK_DEC, TK_EQ, TK_NEG, TK_NEQ, TK_AND, TK_DEREF, TK_REG,
 };
 
 static struct rule {
@@ -39,6 +38,7 @@ static struct rule {
   {" +", TK_NOTYPE},              // spaces
   {"0[xX][0-9a-fA-F]+", TK_HEX},  // hexadecimal num
   {"[0-9]+", TK_DEC},             // decimal num
+  {"\\$[a-zA-Z0-9]+", TK_REG},    // register
   {"\\+", '+'},                   // plus
   {"\\-", '-'},                   // minus
   {"\\*", '*'},                   // multiply
@@ -46,6 +46,8 @@ static struct rule {
   {"\\(", '('},                   // left parenthesis
   {"\\)", ')'},                   // right parenthesis
   {"==", TK_EQ},                  // equal
+  {"!=", TK_NEQ},                 // not equal
+  {"&&", TK_AND},                 // logical and
 };
 
 #define NR_REGEX ARRLEN(rules)
@@ -171,6 +173,9 @@ static word_t eval(int p, int q, bool *success) {
     else if (tokens[p].type == TK_DEC) {
       return strtol(tokens[p].str, NULL, 10);
     }
+    else if (tokens[p].type == TK_REG) {
+      return isa_reg_str2val(tokens[p].str, success);
+    }
     else {
       *success = false;
       return 0;
@@ -183,15 +188,9 @@ static word_t eval(int p, int q, bool *success) {
     return eval(p + 1, q - 1, success);
   }
   else {
-    if (tokens[p].type == TK_NEG) {
-      word_t val = eval(p + 1, q, success);
-      if (!*success) return 0;
-      return (word_t)(0u - val);
-    }
-
     int op = -1;
     int balance = 0;
-    // Priority: + - (1), * / (2)
+    // Priority: && (0), == != (1), + - (2), * / (3)
     // We want lowest priority.
     int min_prec = 100;
 
@@ -201,8 +200,10 @@ static word_t eval(int p, int q, bool *success) {
       else if (balance == 0) {
         int curr_prec = 0;
         switch (tokens[i].type) {
-          case '+': case '-': curr_prec = 1; break;
-          case '*': case '/': curr_prec = 2; break;
+          case TK_AND: curr_prec = 0; break;
+          case TK_EQ: case TK_NEQ: curr_prec = 1; break;
+          case '+': case '-': curr_prec = 2; break;
+          case '*': case '/': curr_prec = 3; break;
           default: continue;
         }
         if (curr_prec <= min_prec) {
@@ -213,6 +214,16 @@ static word_t eval(int p, int q, bool *success) {
     }
 
     if (op == -1) {
+      if (tokens[p].type == TK_NEG) {
+        word_t val = eval(p + 1, q, success);
+        if (!*success) return 0;
+        return (word_t)(0u - val);
+      }
+      if (tokens[p].type == TK_DEREF) {
+        word_t addr = eval(p + 1, q, success);
+        if (!*success) return 0;
+        return vaddr_read(addr, 4);
+      }
       *success = false;
       return 0;
     }
@@ -233,6 +244,9 @@ static word_t eval(int p, int q, bool *success) {
           return 0;
         }
         return val1 / val2;
+      case TK_EQ: return val1 == val2;
+      case TK_NEQ: return val1 != val2;
+      case TK_AND: return val1 && val2;
       default: assert(0);
     }
   }
@@ -245,14 +259,28 @@ word_t expr(char *e, bool *success) {
   }
 
   for (int i = 0; i < nr_token; i++) {
-    if (tokens[i].type != '-') continue;
-    if (i == 0) {
-      tokens[i].type = TK_NEG;
-      continue;
+    // Unary Minus
+    if (tokens[i].type == '-') {
+      if (i == 0) {
+        tokens[i].type = TK_NEG;
+      } else {
+        int prev_type = tokens[i - 1].type;
+        if (prev_type != TK_DEC && prev_type != TK_HEX && prev_type != TK_REG && prev_type != ')') {
+          tokens[i].type = TK_NEG;
+        }
+      }
     }
-    int prev_type = tokens[i - 1].type;
-    if (prev_type != TK_DEC && prev_type != TK_HEX && prev_type != ')') {
-      tokens[i].type = TK_NEG;
+    
+    // Pointer Dereference
+    if (tokens[i].type == '*') {
+      if (i == 0) {
+        tokens[i].type = TK_DEREF;
+      } else {
+        int prev_type = tokens[i - 1].type;
+        if (prev_type != TK_DEC && prev_type != TK_HEX && prev_type != TK_REG && prev_type != ')') {
+          tokens[i].type = TK_DEREF;
+        }
+      }
     }
   }
 

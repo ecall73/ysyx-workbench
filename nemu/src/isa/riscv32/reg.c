@@ -36,5 +36,40 @@ void isa_reg_display() {
 }
 
 word_t isa_reg_str2val(const char *s, bool *success) {
+  *success = true;
+  if (strcmp(s, "$pc") == 0 || strcmp(s, "$PC") == 0) {
+    return cpu.pc;
+  }
+  
+  // Try to match x0-x31
+  if (s[0] == '$' && s[1] == 'x') {
+      int reg_idx = -1;
+      if (sscanf(s + 2, "%d", &reg_idx) == 1) {
+          if (reg_idx >= 0 && reg_idx < 32) {
+              return cpu.gpr[reg_idx];
+          }
+      }
+  }
+
+  // Try to match register names (e.g. $ra, $sp)
+  for (int i = 0; i < 32; i++) {
+    // regs[i] names are without '$' in the array, but user input has '$'
+    // Actually regs array has "$0" for the first one, but others are like "ra", "sp"
+    // Wait, let's check the regs array definition again.
+    // "$0", "ra", "sp"...
+    // So if user types "$0", s is "$0". regs[0] is "$0". Match.
+    // If user types "$ra", s is "$ra". regs[1] is "ra". Need to compare s+1 with regs[i].
+    
+    if (strcmp(s, regs[i]) == 0) { // Check for exact match first (like "$0")
+        return cpu.gpr[i];
+    }
+    
+    // Check if s starts with '$' and the rest matches regs[i]
+    if (s[0] == '$' && strcmp(s + 1, regs[i]) == 0) {
+        return cpu.gpr[i];
+    }
+  }
+
+  *success = false;
   return 0;
 }

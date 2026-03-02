@@ -13,10 +13,33 @@ typedef uint32_t word_t;
 
 #define ARRLEN(arr) (int)(sizeof(arr) / sizeof(arr[0]))
 
+// Include necessary headers but mock isa.h to avoid complex dependencies
 #include <regex.h>
 #define __ISA_H__
+// Manually define what we need from isa.h or other headers
+// We only need basic types which are already defined in common.h or by us
+// expr.c includes isa.h, so we need to prevent it from failing
 
+word_t isa_reg_str2val(const char *s, bool *success);
+word_t vaddr_read(word_t addr, int len);
+
+// Directly include expr.c to access static functions
+// This avoids complex linking and dependency issues
+// But we need to define some things first
 #include "../../src/monitor/sdb/expr.c"
+
+word_t isa_reg_str2val(const char *s, bool *success) {
+    // Mock register reading
+    // For testing, we can return some dummy values or even parse specific test values
+    *success = true;
+    return 0x1234; 
+}
+
+word_t vaddr_read(word_t addr, int len) {
+    // Mock memory reading
+    // Return the address itself as the value for simplicity, or some pattern
+    return addr; 
+}
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
