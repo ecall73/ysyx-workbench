@@ -81,3 +81,70 @@ void free_wp(WP *wp) {
   wp->enabled = false;
 }
 
+// Add a new watchpoint
+int wp_new(char *e) {
+  bool success;
+  word_t val = expr(e, &success);
+  if (!success) {
+    return -1;
+  }
+
+  WP *wp = new_wp();
+  strncpy(wp->expr, e, 127);
+  wp->expr[127] = '\0';
+  wp->old_val = val;
+  return wp->NO;
+}
+
+// Delete a watchpoint by NO
+bool wp_free(int no) {
+  WP *wp = head;
+  while (wp != NULL) {
+    if (wp->NO == no) {
+      free_wp(wp);
+      return true;
+    }
+    wp = wp->next;
+  }
+  return false;
+}
+
+// List all watchpoints
+void wp_display() {
+  if (head == NULL) {
+    printf("No watchpoints.\n");
+    return;
+  }
+  
+  printf("%-8s %-16s %s\n", "Num", "Value", "Expression");
+  WP *wp = head;
+  while (wp != NULL) {
+    printf("%-8d %-16u %s\n", wp->NO, wp->old_val, wp->expr);
+    wp = wp->next;
+  }
+}
+
+// Check if any watchpoint triggers
+bool wp_check() {
+  bool trigger = false;
+  WP *wp = head;
+  while (wp != NULL) {
+    bool success;
+    word_t new_val = expr(wp->expr, &success);
+    if (success) {
+      if (new_val != wp->old_val) {
+        printf("Watchpoint %d: %s\n", wp->NO, wp->expr);
+        printf("Old value = %u\n", wp->old_val);
+        printf("New value = %u\n", new_val);
+        wp->old_val = new_val;
+        trigger = true;
+      }
+    } else {
+      // If evaluation fails (shouldn't happen if created successfully), warn user?
+      // Or maybe expression became invalid?
+    }
+    wp = wp->next;
+  }
+  return trigger;
+}
+

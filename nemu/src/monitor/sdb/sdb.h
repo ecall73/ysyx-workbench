@@ -20,4 +20,8 @@
 
 word_t expr(char *e, bool *success);
 
+int wp_new(char *e);
+bool wp_free(int no);
+void wp_display();
+
 #endif
