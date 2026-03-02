@@ -16,3 +16,7 @@
 NAME = gen-expr
 SRCS = gen-expr.c
 include $(NEMU_HOME)/scripts/build.mk
+
+test:
+	gcc -o test_expr test_expr.c -I$(NEMU_HOME)/include -DCONFIG_ISA32=1
+	./test_expr input

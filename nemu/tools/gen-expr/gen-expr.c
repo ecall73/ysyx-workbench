@@ -31,8 +31,58 @@ static char *code_format =
 "  return 0; "
 "}";
 
-static void gen_rand_expr() {
-  buf[0] = '\0';
+static void gen(char c) {
+  int len = strlen(buf);
+  if (len < 65535) {
+    buf[len] = c;
+    buf[len + 1] = '\0';
+  }
+}
+
+static void gen_num() {
+  char num_buf[32];
+  sprintf(num_buf, "%u", rand() % 100);
+  int len = strlen(buf);
+  if (len + strlen(num_buf) < 65535) {
+    strcat(buf, num_buf);
+  }
+}
+
+static void gen_rand_op() {
+  switch (rand() % 4) {
+    case 0: gen('+'); break;
+    case 1: gen('-'); break;
+    case 2: gen('*'); break;
+    case 3: gen('/'); break;
+  }
+}
+
+static inline void gen_rand_expr() {
+  static int depth = 0;
+  if (depth > 10) { // Limit depth to avoid stack overflow and too long expressions
+      gen_num(); 
+      return;
+  }
+
+  switch (rand() % 3) {
+    case 0: 
+      gen_num(); 
+      break;
+    case 1: 
+      gen('('); 
+      depth++;
+      gen_rand_expr(); 
+      depth--;
+      gen(')'); 
+      break;
+    default: 
+      depth++;
+      gen_rand_expr(); 
+      gen_rand_op(); 
+      gen_rand_expr(); 
+      depth--;
+      break;
+  }
 }
 
 int main(int argc, char *argv[]) {
@@ -44,6 +94,7 @@ int main(int argc, char *argv[]) {
   }
   int i;
   for (i = 0; i < loop; i ++) {
+    buf[0] = '\0';
     gen_rand_expr();
 
     sprintf(code_buf, code_format, buf);
@@ -59,11 +110,12 @@ int main(int argc, char *argv[]) {
     fp = popen("/tmp/.expr", "r");
     assert(fp != NULL);
 
-    int result;
-    ret = fscanf(fp, "%d", &result);
+    unsigned result;
+    if (fscanf(fp, "%u", &result) == 1) {
+        printf("%u %s\n", result, buf);
+    }
+    
     pclose(fp);
-
-    printf("%u %s\n", result, buf);
   }
   return 0;
 }
