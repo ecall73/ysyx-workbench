@@ -17,6 +17,14 @@ NAME = gen-expr
 SRCS = gen-expr.c
 include $(NEMU_HOME)/scripts/build.mk
 
-test:
+.PHONY: test gen clean
+
+# Compile and run test
+test: $(BINARY)
+	$(call git_commit, "generate expr test cases")
+	$(BINARY) 100 > input
 	gcc -o test_expr test_expr.c -I$(NEMU_HOME)/include -DCONFIG_ISA32=1
 	./test_expr input
+
+clean:
+	rm -rf .code.c .expr test_expr input 

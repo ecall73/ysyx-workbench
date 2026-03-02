@@ -8,23 +8,14 @@
 
 typedef uint32_t word_t;
 
-// Mock logging
 #define Log(format, ...) 
 #define panic(format, ...) exit(1)
 
-// Mock common macros
 #define ARRLEN(arr) (int)(sizeof(arr) / sizeof(arr[0]))
 
-// Include necessary headers but mock isa.h to avoid complex dependencies
 #include <regex.h>
 #define __ISA_H__
-// Manually define what we need from isa.h or other headers
-// We only need basic types which are already defined in common.h or by us
-// expr.c includes isa.h, so we need to prevent it from failing
 
-// Directly include expr.c to access static functions
-// This avoids complex linking and dependency issues
-// But we need to define some things first
 #include "../../src/monitor/sdb/expr.c"
 
 int main(int argc, char *argv[]) {
