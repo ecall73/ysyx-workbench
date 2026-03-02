@@ -20,10 +20,10 @@
  */
 #include <regex.h>
 
-word_t vaddr_read(vaddr_t addr, int len);
+word_t vaddr_read(word_t addr, int len);
 
 enum {
-  TK_NOTYPE = 256, TK_HEX, TK_DEC, TK_EQ, TK_NEG, TK_NEQ, TK_AND, TK_DEREF, TK_REG,
+  TK_NOTYPE = 256, TK_HEX, TK_DEC, TK_EQ, TK_NEG, TK_NEQ, TK_AND, TK_OR, TK_NOT, TK_DEREF, TK_REG, TK_LE, TK_GE, TK_SHL, TK_SHR,
 };
 
 static struct rule {
@@ -38,16 +38,29 @@ static struct rule {
   {" +", TK_NOTYPE},              // spaces
   {"0[xX][0-9a-fA-F]+", TK_HEX},  // hexadecimal num
   {"[0-9]+", TK_DEC},             // decimal num
-  {"\\$[a-zA-Z0-9]+", TK_REG},    // register
+  {"\\$(\\$0|ra|sp|gp|tp|t[0-6]|s[0-9]|s1[0-1]|a[0-7]|x[0-9]{1,2}|pc|PC)", TK_REG}, // register
   {"\\+", '+'},                   // plus
   {"\\-", '-'},                   // minus
   {"\\*", '*'},                   // multiply
   {"\\/", '/'},                   // divide
+  {"\\%", '%'},                   // mod
   {"\\(", '('},                   // left parenthesis
   {"\\)", ')'},                   // right parenthesis
   {"==", TK_EQ},                  // equal
   {"!=", TK_NEQ},                 // not equal
   {"&&", TK_AND},                 // logical and
+  {"\\|\\|", TK_OR},              // logical or
+  {"!", TK_NOT},                  // logical not
+  {"<=", TK_LE},                  // less than or equal
+  {">=", TK_GE},                  // greater than or equal
+  {"<<", TK_SHL},                 // shift left
+  {">>", TK_SHR},                 // shift right
+  {"<", '<'},                     // less than
+  {">", '>'},                     // greater than
+  {"&", '&'},                     // bitwise and
+  {"\\|", '|'},                   // bitwise or
+  {"\\^", '^'},                   // bitwise xor
+  {"~", '~'},                     // bitwise not
 };
 
 #define NR_REGEX ARRLEN(rules)
@@ -190,20 +203,35 @@ static word_t eval(int p, int q, bool *success) {
   else {
     int op = -1;
     int balance = 0;
-    // Priority: && (0), == != (1), + - (2), * / (3)
-    // We want lowest priority.
+    // Priority (lowest to highest):
+    // 0: ||
+    // 1: &&
+    // 2: |
+    // 3: ^
+    // 4: &
+    // 5: == !=
+    // 6: < > <= >=
+    // 7: << >>
+    // 8: + -
+    // 9: * / %
     int min_prec = 100;
 
     for (int i = p; i <= q; i++) {
       if (tokens[i].type == '(') balance++;
       else if (tokens[i].type == ')') balance--;
       else if (balance == 0) {
-        int curr_prec = 0;
+        int curr_prec = 100;
         switch (tokens[i].type) {
-          case TK_AND: curr_prec = 0; break;
-          case TK_EQ: case TK_NEQ: curr_prec = 1; break;
-          case '+': case '-': curr_prec = 2; break;
-          case '*': case '/': curr_prec = 3; break;
+          case TK_OR: curr_prec = 0; break;
+          case TK_AND: curr_prec = 1; break;
+          case '|': curr_prec = 2; break;
+          case '^': curr_prec = 3; break;
+          case '&': curr_prec = 4; break;
+          case TK_EQ: case TK_NEQ: curr_prec = 5; break;
+          case '<': case '>': case TK_LE: case TK_GE: curr_prec = 6; break;
+          case TK_SHL: case TK_SHR: curr_prec = 7; break;
+          case '+': case '-': curr_prec = 8; break;
+          case '*': case '/': case '%': curr_prec = 9; break;
           default: continue;
         }
         if (curr_prec <= min_prec) {
@@ -223,6 +251,16 @@ static word_t eval(int p, int q, bool *success) {
         word_t addr = eval(p + 1, q, success);
         if (!*success) return 0;
         return vaddr_read(addr, 4);
+      }
+      if (tokens[p].type == TK_NOT) {
+        word_t val = eval(p + 1, q, success);
+        if (!*success) return 0;
+        return !val;
+      }
+      if (tokens[p].type == '~') {
+        word_t val = eval(p + 1, q, success);
+        if (!*success) return 0;
+        return ~val;
       }
       *success = false;
       return 0;
@@ -244,9 +282,26 @@ static word_t eval(int p, int q, bool *success) {
           return 0;
         }
         return val1 / val2;
+      case '%': 
+        if (val2 == 0) {
+          Log("Division by zero");
+          *success = false;
+          return 0;
+        }
+        return val1 % val2;
       case TK_EQ: return val1 == val2;
       case TK_NEQ: return val1 != val2;
       case TK_AND: return val1 && val2;
+      case TK_OR: return val1 || val2;
+      case TK_LE: return val1 <= val2;
+      case TK_GE: return val1 >= val2;
+      case TK_SHL: return val1 << val2;
+      case TK_SHR: return val1 >> val2;
+      case '<': return val1 < val2;
+      case '>': return val1 > val2;
+      case '&': return val1 & val2;
+      case '|': return val1 | val2;
+      case '^': return val1 ^ val2;
       default: assert(0);
     }
   }

@@ -58,7 +58,7 @@ static void gen_num() {
 }
 
 static void gen_rand_op() {
-  switch (rand() % 7) {
+  switch (rand() % 16) {
     case 0: gen("+"); break;
     case 1: gen("-"); break;
     case 2: gen("*"); break;
@@ -66,6 +66,15 @@ static void gen_rand_op() {
     case 4: gen("=="); break;
     case 5: gen("!="); break;
     case 6: gen("&&"); break;
+    case 7: gen("||"); break;
+    case 8: gen("&"); break;
+    case 9: gen("|"); break;
+    case 10: gen("^"); break;
+    case 11: gen("<<"); break;
+    case 12: gen(">>"); break;
+    case 13: gen("<"); break;
+    case 14: gen(">"); break;
+    case 15: gen("%"); break;
   }
 }
 
