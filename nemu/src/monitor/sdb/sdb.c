@@ -97,6 +97,20 @@ static int cmd_x(char *args) {
   return 0;
 }
 
+static int cmd_p(char* args) {
+  bool success = false;
+  if (args == NULL) {
+      printf("Usage: p <EXPR>\n");
+      return 0;
+  }
+  word_t ans = expr(args, &success);
+  if (success)
+    printf(ANSI_FG_GREEN"[DEC] %u\n[HEX] 0x%x\n"ANSI_NONE, ans, ans);
+  else
+    printf(ANSI_FG_RED"EXPR is illegal!\n"ANSI_NONE);
+  return 0;
+}
+
 static int cmd_help(char *args);
 
 static struct {
@@ -109,7 +123,8 @@ static struct {
   { "q", "Exit NEMU", cmd_q },
   { "si", "Pause after executing [N] instructions", cmd_si },
   { "info", "r: Print register status, w: Print watchpoint information", cmd_info },
-  { "x", "Scan [N] words starting from address [addr]", cmd_x },
+  { "x", "Scan <N> words starting from <addr>", cmd_x },
+  { "p", "Find the value of <EXPR>", cmd_p },
 
   /* TODO: Add more commands */
 
