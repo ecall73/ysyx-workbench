@@ -22,7 +22,9 @@ typedef struct watchpoint {
   struct watchpoint *next;
 
   /* TODO: Add more members if necessary */
-
+  char expr[128];      // The expression to watch
+  word_t old_val;      // The previous value of the expression
+  bool enabled;        // Whether the watchpoint is enabled (though NO is enough, this helps)
 } WP;
 
 static WP wp_pool[NR_WP] = {};
@@ -40,4 +42,42 @@ void init_wp_pool() {
 }
 
 /* TODO: Implement the functionality of watchpoint */
+
+WP* new_wp() {
+  if (free_ == NULL) {
+    panic("No more watchpoints available");
+  }
+
+  WP *wp = free_;
+  free_ = free_->next;
+
+  wp->next = head;
+  head = wp;
+
+  wp->enabled = true;
+  wp->expr[0] = '\0';
+  wp->old_val = 0;
+
+  return wp;
+}
+
+void free_wp(WP *wp) {
+  if (wp == NULL) return;
+
+  if (head == wp) {
+    head = wp->next;
+  } else {
+    WP *prev = head;
+    while (prev != NULL && prev->next != wp) {
+      prev = prev->next;
+    }
+    if (prev != NULL) {
+      prev->next = wp->next;
+    }
+  }
+
+  wp->next = free_;
+  free_ = wp;
+  wp->enabled = false;
+}
 
