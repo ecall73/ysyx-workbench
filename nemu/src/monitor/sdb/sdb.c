@@ -114,6 +114,7 @@ static int cmd_p(char* args) {
   return 0;
 }
 
+// PA1 监视点 实现监视点
 static int cmd_w(char *args) {
   if (args == NULL) {
     printf("Usage: w <EXPR>\n");
@@ -130,7 +131,7 @@ static int cmd_w(char *args) {
 
 static int cmd_d(char *args) {
   if (args == NULL) {
-    printf("Usage: d <N>\n");
+    printf("Usage: d <NO>\n");
     return 0;
   }
   int no = strtol(args, NULL, 0);
@@ -156,8 +157,8 @@ static struct {
   { "info", "r: Print register status, w: Print watchpoint information", cmd_info },
   { "x", "Scan <N> words starting from <addr>", cmd_x },
   { "p", "Find the value of <EXPR>", cmd_p },
-  { "w", "Set a watchpoint", cmd_w },
-  { "d", "Delete a watchpoint", cmd_d },
+  { "w", "Set watchpoint <EXPR>", cmd_w },
+  { "d", "Delete watchpoint <NO>", cmd_d },
 
   /* TODO: Add more commands */
 

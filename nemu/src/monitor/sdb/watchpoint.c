@@ -43,6 +43,7 @@ void init_wp_pool() {
 
 /* TODO: Implement the functionality of watchpoint */
 
+// PA1 监视点 实现监视点池的管理
 WP* new_wp() {
   if (free_ == NULL) {
     panic("No more watchpoints available");
@@ -81,6 +82,7 @@ void free_wp(WP *wp) {
   wp->enabled = false;
 }
 
+// PA1 监视点 实现监视点
 // Add a new watchpoint
 int wp_new(char *e) {
   bool success;
@@ -96,7 +98,7 @@ int wp_new(char *e) {
   return wp->NO;
 }
 
-// Delete a watchpoint by NO
+// Delete a watchpoint
 bool wp_free(int no) {
   WP *wp = head;
   while (wp != NULL) {
@@ -140,8 +142,7 @@ bool wp_check() {
         trigger = true;
       }
     } else {
-      // If evaluation fails (shouldn't happen if created successfully), warn user?
-      // Or maybe expression became invalid?
+      printf("Error evaluating watchpoint %d: %s\n", wp->NO, wp->expr);
     }
     wp = wp->next;
   }
