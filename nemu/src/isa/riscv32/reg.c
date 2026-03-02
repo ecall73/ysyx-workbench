@@ -52,22 +52,14 @@ word_t isa_reg_str2val(const char *s, bool *success) {
   }
 
   // Try to match register names (e.g. $ra, $sp)
-  for (int i = 0; i < 32; i++) {
-    // regs[i] names are without '$' in the array, but user input has '$'
-    // Actually regs array has "$0" for the first one, but others are like "ra", "sp"
-    // Wait, let's check the regs array definition again.
-    // "$0", "ra", "sp"...
-    // So if user types "$0", s is "$0". regs[0] is "$0". Match.
-    // If user types "$ra", s is "$ra". regs[1] is "ra". Need to compare s+1 with regs[i].
-    
-    if (strcmp(s, regs[i]) == 0) { // Check for exact match first (like "$0")
+  for (int i = 0; i < 32; i++) {    
+    if (strcmp(s, regs[i]) == 0) {
         return cpu.gpr[i];
     }
     
-    // Check if s starts with '$' and the rest matches regs[i]
-    if (s[0] == '$' && strcmp(s + 1, regs[i]) == 0) {
+    /*if (s[0] == '$' && strcmp(s + 1, regs[i]) == 0) {
         return cpu.gpr[i];
-    }
+    }*/
   }
 
   *success = false;
