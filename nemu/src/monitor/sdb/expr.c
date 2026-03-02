@@ -21,7 +21,7 @@
 #include <regex.h>
 
 enum {
-  TK_NOTYPE = 256, TK_HEX, TK_DEC, TK_EQ,
+  TK_NOTYPE = 256, TK_HEX, TK_DEC, TK_EQ, TK_NEG,
 
   /* TODO: Add more token types */
 
@@ -183,6 +183,12 @@ static word_t eval(int p, int q, bool *success) {
     return eval(p + 1, q - 1, success);
   }
   else {
+    if (tokens[p].type == TK_NEG) {
+      word_t val = eval(p + 1, q, success);
+      if (!*success) return 0;
+      return (word_t)(0u - val);
+    }
+
     int op = -1;
     int balance = 0;
     // Priority: + - (1), * / (2)
@@ -236,6 +242,18 @@ word_t expr(char *e, bool *success) {
   if (!make_token(e)) {
     *success = false;
     return 0;
+  }
+
+  for (int i = 0; i < nr_token; i++) {
+    if (tokens[i].type != '-') continue;
+    if (i == 0) {
+      tokens[i].type = TK_NEG;
+      continue;
+    }
+    int prev_type = tokens[i - 1].type;
+    if (prev_type != TK_DEC && prev_type != TK_HEX && prev_type != ')') {
+      tokens[i].type = TK_NEG;
+    }
   }
 
   *success = true;
