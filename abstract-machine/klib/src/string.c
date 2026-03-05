@@ -7,7 +7,7 @@
 size_t strlen(const char *s) {
   const char *a = s;
   for (; *s; s++);
-  return s - a + 1;
+  return s - a;
 }
 
 char *strcpy(char *dst, const char *src) {
@@ -24,10 +24,8 @@ char *strncpy(char *dst, const char *src, size_t n) {
 }
 
 char *strcat(char *dst, const char *src) {
-  char *tmp = dst;
-  for (; *dst; dst++);
-  for (; (*dst = *src); src++, dst++);
-  return tmp;
+  strcpy(dst + strlen(dst), src);
+	return dst;
 }
 
 int strcmp(const char *s1, const char *s2) {
