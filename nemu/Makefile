@@ -27,7 +27,8 @@ remove_quote = $(patsubst "%",%,$(1))
 # Extract variabls from menuconfig
 GUEST_ISA ?= $(call remove_quote,$(CONFIG_ISA))
 ENGINE ?= $(call remove_quote,$(CONFIG_ENGINE))
-NAME    = $(GUEST_ISA)-nemu-$(ENGINE)
+DEBUG_ENABLED := $(if $(filter 1 y yes true,$(DEBUG)),1,$(if $(filter 1 y yes true,$(debug)),1,))
+NAME    = $(GUEST_ISA)-nemu-$(ENGINE)$(if $(DEBUG_ENABLED),-debug,)
 
 # Include all filelist.mk to merge file lists
 FILELIST_MK = $(shell find -L ./src -name "filelist.mk")
@@ -48,6 +49,7 @@ CFLAGS_BUILD += $(call remove_quote,$(CONFIG_CC_OPT))
 CFLAGS_BUILD += $(if $(CONFIG_CC_LTO),-flto,)
 CFLAGS_BUILD += $(if $(CONFIG_CC_DEBUG),-Og -ggdb3,)
 CFLAGS_BUILD += $(if $(CONFIG_CC_ASAN),-fsanitize=address,)
+CFLAGS_BUILD += $(if $(DEBUG_ENABLED),-DDEBUG,)
 CFLAGS_TRACE += -DITRACE_COND=$(if $(CONFIG_ITRACE_COND),$(call remove_quote,$(CONFIG_ITRACE_COND)),true)
 CFLAGS  += $(CFLAGS_BUILD) $(CFLAGS_TRACE) -D__GUEST_ISA__=$(GUEST_ISA)
 LDFLAGS += $(CFLAGS_BUILD)
