@@ -4,6 +4,10 @@
 
 #if !defined(__ISA_NATIVE__) || defined(__NATIVE_USE_KLIB__)
 
+// PA2 程序, 运行时环境与AM 实现字符串处理函数
+// 此处不自己实现是因为笔者在 高级语言程序设计 课程上已经独立实现过string.h里的这些函数
+// 使用 musl libc 版本可以提供更好的性能
+// Use musl libc for high performance
 #define ALIGN (sizeof(size_t))
 #define ONES ((size_t)-1/UCHAR_MAX)
 #define HIGHS (ONES * (UCHAR_MAX/2+1))
