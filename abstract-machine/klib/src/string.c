@@ -12,21 +12,21 @@ size_t strlen(const char *s) {
 
 char *strcpy(char *dst, const char *src) {
   char *tmp = dst;
-  for (; (*dst = *src); src++, dst++) {}
+  for (; (*dst = *src); src++, dst++);
   return tmp;
 }
 
 char *strncpy(char *dst, const char *src, size_t n) {
   char *tmp = dst;
-  for (; n && (*dst = *src); n--, src++, dst++) {}
+  for (; n && (*dst = *src); n--, src++, dst++);
   memset(dst, 0, n);
   return tmp;
 }
 
 char *strcat(char *dst, const char *src) {
   char *tmp = dst;
-  for (; *dst; dst++) {}
-  for (; (*dst = *src); src++, dst++) {}
+  for (; *dst; dst++);
+  for (; (*dst = *src); src++, dst++);
   return tmp;
 }
 
