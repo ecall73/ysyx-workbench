@@ -28,9 +28,10 @@ char *strncpy(char *dst, const char *src, size_t n) {
   return tmp;
 }
 
-char *strcat(char *dst, const char *src) {
-  strcpy(dst + strlen(dst), src);
-	return dst;
+char *strcat(char *restrict dest, const char *restrict src)
+{
+	strcpy(dest + strlen(dest), src);
+	return dest;
 }
 
 int strcmp(const char *l, const char *r)
