@@ -141,9 +141,8 @@ void *memmove(void *dst, const void *src, size_t n) {
 
 void *memcpy(void *out, const void *in, size_t n) {
   uint8_t *d = out;
-  const uint8_t *s = in;
-  for (; n; n--, d++, s++) *d = *s;
-  return out;
+
+  return d;
 }
 
 int memcmp(const void *s1, const void *s2, size_t n) {
