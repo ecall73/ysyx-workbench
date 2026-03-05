@@ -34,10 +34,10 @@ int strcmp(const char *s1, const char *s2) {
 }
 
 int strncmp(const char *s1, const char *s2, size_t n) {
-  for (; n && *s1 == *s2; n--, s1++, s2++) {
-    if (!*s1) return 0;
-  }
-  return (n == 0) ? 0 : (*s1 - *s2);
+  const unsigned char *l=(void *)s1, *r=(void *)s2;
+	if (!n--) return 0;
+	for (; *l && *r && n && *l == *r ; l++, r++, n--);
+	return *l - *r;
 }
 
 void *memset(void *s, int c, size_t n) {
