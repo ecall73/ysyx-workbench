@@ -18,7 +18,7 @@ NEMU_MAKEFLAGS :=
 ifeq ($(filter 1 y yes true,$(DEBUG)),)
 NEMUFLAGS += -b
 else
-NEMU_MAKEFLAGS += CFLAGS+=-DDEBUG
+NEMU_MAKEFLAGS += -B CFLAGS+=-DDEBUG
 endif
 
 MAINARGS_MAX_LEN = 64
