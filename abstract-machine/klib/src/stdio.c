@@ -2,6 +2,7 @@
 #include <klib.h>
 #include <klib-macros.h>
 #include <stdarg.h>
+#include <limits.h>
 
 #if !defined(__ISA_NATIVE__) || defined(__NATIVE_USE_KLIB__)
 
@@ -9,8 +10,9 @@ int printf(const char *fmt, ...) {
   panic("Not implemented");
 }
 
-int vsprintf(char *out, const char *fmt, va_list ap) {
-  panic("Not implemented");
+int vsprintf(char *restrict s, const char *restrict fmt, va_list ap)
+{
+	return vsnprintf(s, INT_MAX, fmt, ap);
 }
 
 int sprintf(char *restrict s, const char *restrict fmt, ...)
