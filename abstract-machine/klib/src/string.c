@@ -33,9 +33,10 @@ char *strcat(char *dst, const char *src) {
 	return dst;
 }
 
-int strcmp(const char *s1, const char *s2) {
-  for (; *s1==*s2 && *s1; s1++, s2++);
-  return *(unsigned char *)s1 - *(unsigned char *)s2;
+int strcmp(const char *l, const char *r)
+{
+	for (; *l==*r && *l; l++, r++);
+	return *(unsigned char *)l - *(unsigned char *)r;
 }
 
 int strncmp(const char *_l, const char *_r, size_t n)
