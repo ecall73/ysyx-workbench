@@ -32,8 +32,14 @@ int sprintf(char *restrict s, const char *restrict fmt, ...)
 	return ret;
 }
 
-int snprintf(char *out, size_t n, const char *fmt, ...) {
-  panic("Not implemented");
+int snprintf(char *restrict s, size_t n, const char *restrict fmt, ...)
+{
+	int ret;
+	va_list ap;
+	va_start(ap, fmt);
+	ret = vsnprintf(s, n, fmt, ap);
+	va_end(ap);
+	return ret;
 }
 
 int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
