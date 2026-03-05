@@ -260,13 +260,11 @@ void *memcpy(void *restrict dest, const void *restrict src, size_t n)
 	return dest;
 }
 
-int memcmp(const void *s1, const void *s2, size_t n) {
-  const uint8_t *a = s1;
-  const uint8_t *b = s2;
-  for (; n; n--, a++, b++) {
-    if (*a != *b) return *a - *b;
-  }
-  return 0;
+int memcmp(const void *vl, const void *vr, size_t n)
+{
+	const unsigned char *l=vl, *r=vr;
+	for (; n && *l == *r; n--, l++, r++);
+	return n ? *l-*r : 0;
 }
 
 #endif
