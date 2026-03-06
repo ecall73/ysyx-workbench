@@ -270,6 +270,21 @@ static word_t eval(int p, int q, bool *success) {
 
     word_t val1 = eval(p, op - 1, success);
     if (!*success) return 0;
+    
+    // Short-circuit evaluation for logical operators
+    if (tokens[op].type == TK_OR) {
+      if (val1) return 1;  // If left operand is true, don't evaluate right
+      word_t val2 = eval(op + 1, q, success);
+      if (!*success) return 0;
+      return val1 || val2;
+    }
+    if (tokens[op].type == TK_AND) {
+      if (!val1) return 0;  // If left operand is false, don't evaluate right
+      word_t val2 = eval(op + 1, q, success);
+      if (!*success) return 0;
+      return val1 && val2;
+    }
+    
     word_t val2 = eval(op + 1, q, success);
     if (!*success) return 0;
 
