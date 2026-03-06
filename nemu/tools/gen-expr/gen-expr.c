@@ -19,11 +19,13 @@
 #include <time.h>
 #include <assert.h>
 #include <string.h>
+#include <sys/wait.h>
 
-// this should be enough
+#define MAX_DEPTH 10
+
 static char buf[65536] = {};
 static char ubuf[65536] = {};
-static char code_buf[65536 + 128] = {}; // a little larger than `buf`
+static char code_buf[65536] = {};
 static char *code_format =
 "#include <stdio.h>\n"
 "#include <stdint.h>\n"
@@ -80,7 +82,7 @@ static void gen_rand_op() {
 
 static inline void gen_rand_expr() {
   static int depth = 0;
-  if (depth > 10) { 
+  if (depth >= MAX_DEPTH) { 
       gen_num(); 
       return;
   }
@@ -113,8 +115,8 @@ int main(int argc, char *argv[]) {
   if (argc > 1) {
     sscanf(argv[1], "%d", &loop);
   }
-  int i;
-  for (i = 0; i < loop; i ++) {
+  int count = 0;
+  while (count < loop) {
     buf[0] = '\0';
     ubuf[0] = '\0';
     gen_rand_expr();
@@ -126,18 +128,23 @@ int main(int argc, char *argv[]) {
     fputs(code_buf, fp);
     fclose(fp);
 
-    int ret = system("gcc /tmp/.code.c -o /tmp/.expr");
+    int ret = system("gcc /tmp/.code.c -o /tmp/.expr -Werror=shift-count-overflow -Werror=div-by-zero >/dev/null 2>&1");
     if (ret != 0) continue;
 
-    fp = popen("/tmp/.expr", "r");
+    fp = popen("/tmp/.expr 2>/dev/null", "r");
     assert(fp != NULL);
 
     unsigned result;
     if (fscanf(fp, "%u", &result) == 1) {
-        printf("%u %s\n", result, buf);
+        // Check if the program terminated abnormally (e.g., division by zero)
+        int pclose_ret = pclose(fp);
+        if (WIFEXITED(pclose_ret) && WEXITSTATUS(pclose_ret) == 0) {
+            printf("%u %s\n", result, buf);
+            count++;
+        }
+    } else {
+        pclose(fp);
     }
-    
-    pclose(fp);
   }
   return 0;
 }
