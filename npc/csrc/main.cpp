@@ -45,6 +45,31 @@ extern "C" void npc_trap() {
     is_finished = true;
 }
 
+long load_image(char *img_file) {
+    if (img_file == NULL) {
+        printf("No image file specified.\n");
+        return 0;
+    }
+
+    FILE *fp = fopen(img_file, "rb");
+    if (fp == NULL) {
+        printf("Can not open '%s'\n", img_file);
+        return 0;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    long size = ftell(fp);
+
+    printf("The image is %s, size = %ld\n", img_file, size);
+
+    fseek(fp, 0, SEEK_SET);
+    int ret = fread(pmem, size, 1, fp);
+    assert(ret == 1);
+
+    fclose(fp);
+    return size;
+}
+
 int main(int argc, char** argv) {
     VerilatedContext* contextp = new VerilatedContext;
     contextp->commandArgs(argc, argv);
@@ -56,21 +81,25 @@ int main(int argc, char** argv) {
     top->trace(tfp, 99); // Trace 99 levels of hierarchy
     tfp->open("waveform.vcd");
 
-    // Load simple program: 
-    // 0x80000000: auipc t0, 0          (0x00000297)
-    // 0x80000004: sb zero, 16(t0)      (0x00028823) -> [0x80000000 + 16] = 0
-    // 0x80000008: lbu a0, 16(t0)       (0x0102c503) -> a0 = 0
-    // 0x8000000C: ebreak               (0x00100073)
-    // 0x80000010: deadbeef             (0xdeadbeef)
-    uint32_t *inst = (uint32_t *)&pmem[0];
-    inst[0] = 0x00900293; 
-    inst[1] = 0xfff00313;
-    inst[2] = 0x00000393;
-    inst[3] = 0x00200e13;
-    inst[4] = 0x01c30333;
-    inst[5] = 0x006383b3;
-    inst[6] = 0xfe629ce3;
-    inst[7] = 0x00100073;
+    if (argc > 1) {
+        load_image(argv[1]);
+    } else {
+        // Load default program: 
+        // 0x80000000: auipc t0, 0          (0x00000297)
+        // 0x80000004: sb zero, 16(t0)      (0x00028823) -> [0x80000000 + 16] = 0
+        // 0x80000008: lbu a0, 16(t0)       (0x0102c503) -> a0 = 0
+        // 0x8000000C: ebreak               (0x00100073)
+        // 0x80000010: deadbeef             (0xdeadbeef)
+        uint32_t *inst = (uint32_t *)&pmem[0];
+        inst[0] = 0x00900293; 
+        inst[1] = 0xfff00313;
+        inst[2] = 0x00000393;
+        inst[3] = 0x00200e13;
+        inst[4] = 0x01c30333;
+        inst[5] = 0x006383b3;
+        inst[6] = 0xfe629ce3;
+        inst[7] = 0x00100073;
+    }
 
     top->clk = 0;
     top->rst = 1;

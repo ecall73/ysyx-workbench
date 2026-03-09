@@ -30,7 +30,7 @@ $(BIN): $(VSRCS) $(CSRCS)
 		--Mdir $(OBJ_DIR) --exe -o $(abspath $(BIN))
 
 run: $(BIN)
-	@$^
+	@$^ $(ARGS)
 
 clean:
 	rm -rf $(BUILD_DIR)
