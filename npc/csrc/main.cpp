@@ -63,13 +63,14 @@ int main(int argc, char** argv) {
     // 0x8000000C: ebreak               (0x00100073)
     // 0x80000010: deadbeef             (0xdeadbeef)
     uint32_t *inst = (uint32_t *)&pmem[0];
-    inst[0] = 0x00000297; 
-    inst[1] = 0x00028823;
-    inst[2] = 0x0102c503;
-    inst[3] = 0x00100073;
-    inst[4] = 0x00100073;
-    inst[5] = 0x00100073;
-    inst[6] = 0x00100073;
+    inst[0] = 0x00900293; 
+    inst[1] = 0xfff00313;
+    inst[2] = 0x00000393;
+    inst[3] = 0x00200e13;
+    inst[4] = 0x01c30333;
+    inst[5] = 0x006383b3;
+    inst[6] = 0xfe629ce3;
+    inst[7] = 0x00100073;
 
     top->clk = 0;
     top->rst = 1;
