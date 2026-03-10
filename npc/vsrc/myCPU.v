@@ -30,7 +30,8 @@ module myCPU (
         output wire        debug_wb_ena,
         output wire [ 4:0] debug_wb_reg,
         output wire [31:0] debug_wb_value,
-        output wire        debug_wb_ebreak
+        output wire        debug_wb_ebreak,
+        output wire [31:0] debug_reg_file [0:31]
     `endif
 );
 
@@ -220,6 +221,7 @@ module myCPU (
 
         `ifdef RUN_TRACE
         ,   .have_inst_ID       (have_inst_ID)
+        ,   .id_reg_file        (debug_reg_file)
         `endif
     );
 

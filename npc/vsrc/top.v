@@ -12,7 +12,8 @@ module top
     output            debug_wb_ena,
     output [ 4:0]     debug_wb_reg,
     output [31:0]     debug_wb_value,
-    output            debug_wb_ebreak
+    output            debug_wb_ebreak,
+    output [31:0]     debug_reg_file [0:31]
 `endif
 );
 
@@ -62,14 +63,15 @@ module top
         .debug_wb_ena       (debug_wb_ena),
         .debug_wb_reg       (debug_wb_reg),
         .debug_wb_value     (debug_wb_value),
-        .debug_wb_ebreak    (debug_wb_ebreak)
+        .debug_wb_ebreak    (debug_wb_ebreak),
+        .debug_reg_file     (debug_reg_file)
     `endif
     );
 
     `ifdef RUN_TRACE
-        import "DPI-C" function void npc_trap();
+        import "DPI-C" function void npc_trap(input int pc, input int a0);
         always @(posedge clk) begin
-            if (debug_wb_ebreak) npc_trap();
+            if (debug_wb_ebreak) npc_trap(debug_wb_pc, debug_reg_file[10]);
         end
     `endif
 

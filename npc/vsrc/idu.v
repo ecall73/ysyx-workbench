@@ -35,6 +35,7 @@ module idu (
 
     `ifdef RUN_TRACE
     , output wire      have_inst_ID
+    , output wire [31:0] id_reg_file [0:31]
     `endif
 );
 
@@ -173,6 +174,10 @@ module idu (
 
         .rR1_data               (id_rR1_data),
         .rR2_data               (id_rR2_data)
+
+        `ifdef RUN_TRACE
+        ,.reg_file              (id_reg_file)
+        `endif
     );
 
     // Expanded IMMGEN module logic

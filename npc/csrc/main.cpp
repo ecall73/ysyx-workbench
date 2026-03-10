@@ -7,7 +7,7 @@
 
 // Memory size 128MB
 #define MEM_SIZE (128 * 1024 * 1024)
-#define MAX_SIM_TIME 1000000
+#define MAX_SIM_TIME 10000
 static uint8_t pmem[MEM_SIZE];
 static Vtop* g_top = NULL;
 
@@ -41,9 +41,13 @@ extern "C" void pmem_write(int waddr, int wdata, char wmask) {
 }
 
 bool is_finished = false;
+int trap_a0 = 0;
+int trap_pc = 0;
 
-extern "C" void npc_trap() {
+extern "C" void npc_trap(int pc, int a0) {
     is_finished = true;
+    trap_pc = pc;
+    trap_a0 = a0;
 }
 
 long load_image(char *img_file) {
@@ -70,6 +74,13 @@ long load_image(char *img_file) {
     fclose(fp);
     return size;
 }
+
+const char *regs[] = {
+  "$0", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
+  "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
+  "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7",
+  "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
+};
 
 int main(int argc, char** argv) {
     VerilatedContext* contextp = new VerilatedContext;
@@ -131,15 +142,34 @@ int main(int argc, char** argv) {
         }
     }
 
+    int exit_code = 0;
+
     if (is_finished) {
+        if (trap_a0 == 0) {
+            printf("npc: HIT GOOD TRAP at pc = 0x%08x\n", trap_pc);
+            exit_code = 0;
+        } else {
+            printf("npc: HIT BAD TRAP at pc = 0x%08x\n", trap_pc);
+            exit_code = -1;
+        }
         printf("Simulation finished by ebreak.\n");
     } else {
         printf("Simulation finished by timeout or unknown reason.\n");
+        exit_code = -1;
+    }
+
+    // Print register values
+    printf("Register File Content:\n");
+    for (int i = 0; i < 32; i++) {
+        printf("\033[1;31m(x%02d) \033[1;32m%-4s \033[1;34m0x%08x\033[0m\t", i, regs[i], top->debug_reg_file[i]);
+        if (i % 4 == 3) {
+            printf("\n");
+        }
     }
 
     tfp->close();
     delete tfp;
     delete top;
     delete contextp;
-    return 0;
+    return exit_code;
 }
