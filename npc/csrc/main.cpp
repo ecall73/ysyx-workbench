@@ -9,25 +9,26 @@
 #define MEM_SIZE (128 * 1024 * 1024)
 #define MAX_SIM_TIME 1000000
 static uint8_t pmem[MEM_SIZE];
+static Vtop* g_top = NULL;
 
 // Check boundary
-void check_bound(int addr) {
+bool check_bound(int addr, const char* type) {
     if (addr < 0x80000000 || addr >= 0x80000000 + MEM_SIZE) {
-        printf("Error: address %x out of bound\n", addr);
-        // exit(1);
+        return false;
     }
+    return true;
 }
 
 extern "C" int pmem_read(int raddr) {
     // 总是读取地址为`raddr & ~0x3u`的4字节返回
-    check_bound(raddr);
+    if (!check_bound(raddr, "READ")) return 0;
     int index = (raddr - 0x80000000) & ~0x3u;
     return *(int *)&pmem[index];
 }
 
 extern "C" void pmem_write(int waddr, int wdata, char wmask) {
     // 总是往地址为`waddr & ~0x3u`的4字节按写掩码`wmask`写入`wdata`
-    check_bound(waddr);
+    if (!check_bound(waddr, "WRITE")) return;
     int index = (waddr - 0x80000000) & ~0x3u;
     uint32_t *p = (uint32_t *)&pmem[index];
     uint32_t orig = *p;
@@ -75,6 +76,7 @@ int main(int argc, char** argv) {
     contextp->commandArgs(argc, argv);
     Verilated::traceEverOn(true);
     Vtop* top = new Vtop{contextp};
+    g_top = top;
 
     // Enable Trace
     VerilatedVcdC* tfp = new VerilatedVcdC;
