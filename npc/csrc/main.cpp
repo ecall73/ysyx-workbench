@@ -7,7 +7,7 @@
 
 // Memory size 128MB
 #define MEM_SIZE 0x8000000
-#define MAX_SIM_TIME 10000
+#define MAX_SIM_TIME 100000
 static uint8_t pmem[MEM_SIZE];
 static Vtop* g_top = NULL;
 
