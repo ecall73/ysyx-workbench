@@ -6,7 +6,7 @@
 #include "verilated_vcd_c.h"
 
 // Memory size 128MB
-#define MEM_SIZE (128 * 1024 * 1024)
+#define MEM_SIZE 0x8000000
 #define MAX_SIM_TIME 10000
 static uint8_t pmem[MEM_SIZE];
 static Vtop* g_top = NULL;
