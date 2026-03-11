@@ -100,8 +100,6 @@ int vfprintf(FILE *stream, const char *fmt, va_list ap) {
   return count;
 }
 
-
-
 // printf: 直接用vfprintf，忽略stdout
 int printf(const char *fmt, ...) {
   int ret;
