@@ -131,6 +131,11 @@ config TRACE
   bool "Enable tracer"
   default y
 
+config DTRACE
+  depends on TRACE
+  bool "Enable device trace (dtrace)"
+  default n
+
 config TRACE_START
   depends on TRACE
   int "When tracing is enabled (unit: number of instructions)"
