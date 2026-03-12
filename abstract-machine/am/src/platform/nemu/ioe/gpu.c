@@ -7,6 +7,7 @@ static int w = 0;
 static int h = 0;
 
 void __am_gpu_init() {
+  /*  PA2 输入输出 VGA 静态渐变测试
   int i;
   uint32_t wh = inl(VGACTL_ADDR);
   w = wh >> 16;
@@ -15,6 +16,7 @@ void __am_gpu_init() {
   uint32_t *fb = (uint32_t *)(uintptr_t)FB_ADDR;
   for (i = 0; i < w * h; i ++) fb[i] = i;
   outl(SYNC_ADDR, 1);
+  */
 }
 
 void __am_gpu_config(AM_GPU_CONFIG_T *cfg) {
