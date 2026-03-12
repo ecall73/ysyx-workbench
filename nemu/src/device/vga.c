@@ -72,9 +72,8 @@ static inline void update_screen() {
 #endif
 
 void vga_update_screen() {
-  // 检查同步寄存器是否为非零，若是则刷新屏幕并清零
-  if (vgactl_port_base != NULL && vgactl_port_base[1] != 0) {
-    update_screen();
+  if (vgactl_port_base[1]) {
+    IFDEF(CONFIG_VGA_SHOW_SCREEN, update_screen());
     vgactl_port_base[1] = 0;
   }
 }

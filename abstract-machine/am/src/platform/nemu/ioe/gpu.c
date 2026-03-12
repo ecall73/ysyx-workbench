@@ -1,35 +1,40 @@
 #include <am.h>
 #include <nemu.h>
 
-#define SYNC_ADDR   (VGACTL_ADDR + 4)
+#define SYNC_ADDR (VGACTL_ADDR + 4)
+
+static int w = 0;
+static int h = 0;
 
 void __am_gpu_init() {
+  int i;
+  uint32_t wh = inl(VGACTL_ADDR);
+  w = wh >> 16;
+  h = wh & 0xffff;
+
+  uint32_t *fb = (uint32_t *)(uintptr_t)FB_ADDR;
+  for (i = 0; i < w * h; i ++) fb[i] = i;
+  outl(SYNC_ADDR, 1);
 }
 
 void __am_gpu_config(AM_GPU_CONFIG_T *cfg) {
-  uint32_t size = inl(VGACTL_ADDR);
-  cfg->width = size >> 16;
-  cfg->height = size & 0xffff;
-  cfg->vmemsz = cfg->width * cfg->height * sizeof(uint32_t);
-  cfg->present = true;
-  cfg->has_accel = false;
+  *cfg = (AM_GPU_CONFIG_T) {
+    .present = true, .has_accel = false,
+    .width = w, .height = h,
+    .vmemsz = 0
+  };
 }
 
 void __am_gpu_fbdraw(AM_GPU_FBDRAW_T *ctl) {
-  uint32_t size = inl(VGACTL_ADDR);
-  int screen_w = size >> 16;
-  int screen_h = size & 0xffff;
-  uint32_t *fb = (uint32_t *)(uintptr_t)FB_ADDR;
-  uint32_t *pixels = (uint32_t *)ctl->pixels;
+  if (ctl->pixels) {
+    int x = ctl->x, y = ctl->y, draw_w = ctl->w, draw_h = ctl->h;
+    uint32_t *pixels = (uint32_t *)ctl->pixels;
+    uint32_t *fb = (uint32_t *)(uintptr_t)FB_ADDR;
 
-  for (int j = 0; j < ctl->h; j++) {
-    int y = ctl->y + j;
-    if (y < 0 || y >= screen_h) continue;
-
-    for (int i = 0; i < ctl->w; i++) {
-      int x = ctl->x + i;
-      if (x < 0 || x >= screen_w) continue;
-      fb[y * screen_w + x] = pixels[j * ctl->w + i];
+    for (int j = 0; j < draw_h; j ++) {
+      for (int i = 0; i < draw_w; i ++) {
+        fb[(y + j) * w + (x + i)] = pixels[j * draw_w + i];
+      }
     }
   }
 
