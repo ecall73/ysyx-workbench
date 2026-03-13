@@ -36,12 +36,12 @@ extern "C" int pmem_read(int raddr) {
 }
 
 extern "C" void pmem_write(int waddr, int wdata, char wmask) {
-    // MMIO: 串口
+    // MMIO: 串口输出
     if (waddr == 0x10000000) {
         putchar(wdata & 0xff);
         return;
     }
-    // 总是往地址为`waddr & ~0x3u`的4字节按写掩码`wmask`写入`wdata`
+    // 正常访存
     if (!check_bound(waddr, "WRITE")) return;
     int index = (waddr - 0x80000000) & ~0x3u;
     uint32_t *p = (uint32_t *)&pmem[index];
