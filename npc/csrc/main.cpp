@@ -5,6 +5,8 @@
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 
+#include <sys/time.h>
+
 // Memory size 128MB
 #define MEM_SIZE 0x8000000
 #define MAX_SIM_TIME 100000000
@@ -20,6 +22,13 @@ bool check_bound(int addr, const char* type) {
 }
 
 extern "C" int pmem_read(int raddr) {
+    // MMIO: 时钟
+    if (raddr == 0x20000000) {
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        uint64_t us = tv.tv_sec * 1000000 + tv.tv_usec;
+        return (int)us;
+    }
     // 总是读取地址为`raddr & ~0x3u`的4字节返回
     if (!check_bound(raddr, "READ")) return 0;
     int index = (raddr - 0x80000000) & ~0x3u;
@@ -27,6 +36,11 @@ extern "C" int pmem_read(int raddr) {
 }
 
 extern "C" void pmem_write(int waddr, int wdata, char wmask) {
+    // MMIO: 串口
+    if (waddr == 0x10000000) {
+        putchar(wdata & 0xff);
+        return;
+    }
     // 总是往地址为`waddr & ~0x3u`的4字节按写掩码`wmask`写入`wdata`
     if (!check_bound(waddr, "WRITE")) return;
     int index = (waddr - 0x80000000) & ~0x3u;
