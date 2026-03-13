@@ -1,4 +1,5 @@
 #include <am.h>
+#include "include/npc.h"
 #include <klib-macros.h>
 
 extern char _heap_start;
@@ -12,9 +13,7 @@ Area heap = RANGE(&_heap_start, PMEM_END);
 static const char mainargs[MAINARGS_MAX_LEN] = TOSTRING(MAINARGS_PLACEHOLDER); // defined in CFLAGS
 
 void putch(char ch) {
-  // 参考nemu，直接写MMIO串口
-  volatile uint8_t *serial = (volatile uint8_t *)0x10000000;
-  *serial = (uint8_t)ch;
+  outb(SERIAL_PORT, ch);
 }
 
 void halt(int code) {

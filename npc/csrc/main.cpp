@@ -1,17 +1,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <time.h>
 #include "Vtop.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 
-#include <sys/time.h>
-
 // Memory size 128MB
 #define MEM_SIZE 0x8000000
 #define MAX_SIM_TIME 100000000
+#define SERIAL_PORT 0x10000000
+#define RTC_ADDR    0x10000048
 static uint8_t pmem[MEM_SIZE];
 static Vtop* g_top = NULL;
+
+static uint64_t get_time_us() {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (uint64_t)ts.tv_sec * 1000000 + (uint64_t)ts.tv_nsec / 1000;
+}
 
 // Check boundary
 bool check_bound(int addr, const char* type) {
@@ -22,26 +29,25 @@ bool check_bound(int addr, const char* type) {
 }
 
 extern "C" int pmem_read(int raddr) {
-    // MMIO: 时钟
-    if (raddr == 0x20000000) {
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-        uint64_t us = tv.tv_sec * 1000000 + tv.tv_usec;
-        return (int)us;
-    }
     // 总是读取地址为`raddr & ~0x3u`的4字节返回
-    if (!check_bound(raddr, "READ")) return 0;
-    int index = (raddr - 0x80000000) & ~0x3u;
+    uint32_t aligned = (uint32_t)raddr & ~0x3u;
+    if (aligned == RTC_ADDR || aligned == RTC_ADDR + 4) {
+        uint64_t now = get_time_us();
+        return (aligned == RTC_ADDR) ? (uint32_t)now : (uint32_t)(now >> 32);
+    }
+
+    if (!check_bound(aligned, "READ")) return 0;
+    int index = (aligned - 0x80000000);
     return *(int *)&pmem[index];
 }
 
 extern "C" void pmem_write(int waddr, int wdata, char wmask) {
-    // MMIO: 串口输出
-    if (waddr == 0x10000000) {
-        putchar(wdata & 0xff);
+    // 总是往地址为`waddr & ~0x3u`的4字节按写掩码`wmask`写入`wdata`
+    if (waddr == SERIAL_PORT) {
+        putchar((char)(wdata & 0xff));
+        fflush(stdout);
         return;
     }
-    // 正常访存
     if (!check_bound(waddr, "WRITE")) return;
     int index = (waddr - 0x80000000) & ~0x3u;
     uint32_t *p = (uint32_t *)&pmem[index];
