@@ -31,14 +31,12 @@ static uint64_t g_timer = 0; // unit: us
 static bool g_print_step = false;
 
 #ifdef CONFIG_IRINGBUF
-#define IRINGBUF_SIZE CONFIG_IRINGBUF_SIZE
-
 typedef struct {
   bool valid;
   char text[128];
 } IRingBufSlot;
 
-static IRingBufSlot iringbuf[IRINGBUF_SIZE] = {};
+static IRingBufSlot iringbuf[CONFIG_IRINGBUF_SIZE] = {};
 static int iringbuf_wptr = 0;
 static int iringbuf_count = 0;
 static Decode *cur_exec = NULL;
@@ -75,8 +73,8 @@ static void iringbuf_format_inst(const Decode *s, char *buf, size_t size) {
 static void iringbuf_push(const Decode *s) {
   iringbuf_format_inst(s, iringbuf[iringbuf_wptr].text, sizeof(iringbuf[iringbuf_wptr].text));
   iringbuf[iringbuf_wptr].valid = true;
-  iringbuf_wptr = (iringbuf_wptr + 1) % IRINGBUF_SIZE;
-  if (iringbuf_count < IRINGBUF_SIZE) iringbuf_count ++;
+  iringbuf_wptr = (iringbuf_wptr + 1) % CONFIG_IRINGBUF_SIZE;
+  if (iringbuf_count < CONFIG_IRINGBUF_SIZE) iringbuf_count ++;
 }
 
 static void iringbuf_dump(int focus) {
@@ -84,7 +82,7 @@ static void iringbuf_dump(int focus) {
 
   puts("Instruction ring buffer (oldest -> newest):");
   for (int i = 0; i < iringbuf_count; i ++) {
-    int idx = (iringbuf_wptr - iringbuf_count + i + IRINGBUF_SIZE) % IRINGBUF_SIZE;
+    int idx = (iringbuf_wptr - iringbuf_count + i + CONFIG_IRINGBUF_SIZE) % CONFIG_IRINGBUF_SIZE;
     if (!iringbuf[idx].valid) continue;
     printf("%s %s\n", (idx == focus ? "-->" : "   "), iringbuf[idx].text);
   }
@@ -173,7 +171,7 @@ void assert_fail_msg() {
   int focus = -1;
   if (cur_exec != NULL) {
     iringbuf_push(cur_exec);
-    focus = (iringbuf_wptr + IRINGBUF_SIZE - 1) % IRINGBUF_SIZE;
+    focus = (iringbuf_wptr + CONFIG_IRINGBUF_SIZE - 1) % CONFIG_IRINGBUF_SIZE;
   }
   iringbuf_dump(focus);
 #endif
