@@ -30,7 +30,8 @@ uint64_t g_nr_guest_inst = 0;
 static uint64_t g_timer = 0; // unit: us
 static bool g_print_step = false;
 
-#define IRINGBUF_SIZE 16
+#ifdef CONFIG_IRINGBUF
+#define IRINGBUF_SIZE CONFIG_IRINGBUF_SIZE
 
 typedef struct {
   bool valid;
@@ -41,7 +42,9 @@ static IRingBufSlot iringbuf[IRINGBUF_SIZE] = {};
 static int iringbuf_wptr = 0;
 static int iringbuf_count = 0;
 static Decode *cur_exec = NULL;
+#endif
 
+#if defined(CONFIG_ITRACE) || defined(CONFIG_IRINGBUF)
 static void format_inst_trace(const Decode *s, char *buf, size_t size) {
   char *p = buf;
   p += snprintf(p, size, FMT_WORD ":", s->pc);
@@ -66,13 +69,15 @@ static void format_inst_trace(const Decode *s, char *buf, size_t size) {
   memset(p, ' ', space_len);
   p += space_len;
 
-#if defined(CONFIG_ITRACE) || defined(CONFIG_IQUEUE)
+#if defined(CONFIG_ITRACE) || defined(CONFIG_IQUEUE) || defined(CONFIG_IRINGBUF)
   void disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
   disassemble(p, buf + size - p,
       MUXDEF(CONFIG_ISA_x86, s->snpc, s->pc), (uint8_t *)&s->isa.inst, ilen);
 #endif
 }
+#endif
 
+#ifdef CONFIG_IRINGBUF
 static void iringbuf_push(const Decode *s) {
   format_inst_trace(s, iringbuf[iringbuf_wptr].text, sizeof(iringbuf[iringbuf_wptr].text));
   iringbuf[iringbuf_wptr].valid = true;
@@ -90,6 +95,7 @@ static void iringbuf_dump(int focus) {
     printf("%s %s\n", (idx == focus ? "-->" : "   "), iringbuf[idx].text);
   }
 }
+#endif
 
 void device_update();
 
@@ -111,14 +117,20 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 static void exec_once(Decode *s, vaddr_t pc) {
   s->pc = pc;
   s->snpc = pc;
+#ifdef CONFIG_IRINGBUF
   cur_exec = s;
+#endif
   isa_exec_once(s);
+#ifdef CONFIG_IRINGBUF
   cur_exec = NULL;
+#endif
   cpu.pc = s->dnpc;
 #ifdef CONFIG_ITRACE
   format_inst_trace(s, s->logbuf, sizeof(s->logbuf));
 #endif
+#ifdef CONFIG_IRINGBUF
   iringbuf_push(s);
+#endif
 }
 
 static void execute(uint64_t n) {
@@ -142,12 +154,14 @@ static void statistic() {
 }
 
 void assert_fail_msg() {
+#ifdef CONFIG_IRINGBUF
   int focus = -1;
   if (cur_exec != NULL) {
     iringbuf_push(cur_exec);
     focus = (iringbuf_wptr + IRINGBUF_SIZE - 1) % IRINGBUF_SIZE;
   }
   iringbuf_dump(focus);
+#endif
   isa_reg_display();
   statistic();
 }
