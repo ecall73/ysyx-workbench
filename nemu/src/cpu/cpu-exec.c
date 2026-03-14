@@ -42,10 +42,8 @@ static IRingBufSlot iringbuf[IRINGBUF_SIZE] = {};
 static int iringbuf_wptr = 0;
 static int iringbuf_count = 0;
 static Decode *cur_exec = NULL;
-#endif
 
-#if defined(CONFIG_ITRACE) || defined(CONFIG_IRINGBUF)
-static void format_inst_trace(const Decode *s, char *buf, size_t size) {
+static void iringbuf_format_inst(const Decode *s, char *buf, size_t size) {
   char *p = buf;
   p += snprintf(p, size, FMT_WORD ":", s->pc);
 
@@ -69,17 +67,13 @@ static void format_inst_trace(const Decode *s, char *buf, size_t size) {
   memset(p, ' ', space_len);
   p += space_len;
 
-#if defined(CONFIG_ITRACE) || defined(CONFIG_IQUEUE) || defined(CONFIG_IRINGBUF)
   void disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
   disassemble(p, buf + size - p,
       MUXDEF(CONFIG_ISA_x86, s->snpc, s->pc), (uint8_t *)&s->isa.inst, ilen);
-#endif
 }
-#endif
 
-#ifdef CONFIG_IRINGBUF
 static void iringbuf_push(const Decode *s) {
-  format_inst_trace(s, iringbuf[iringbuf_wptr].text, sizeof(iringbuf[iringbuf_wptr].text));
+  iringbuf_format_inst(s, iringbuf[iringbuf_wptr].text, sizeof(iringbuf[iringbuf_wptr].text));
   iringbuf[iringbuf_wptr].valid = true;
   iringbuf_wptr = (iringbuf_wptr + 1) % IRINGBUF_SIZE;
   if (iringbuf_count < IRINGBUF_SIZE) iringbuf_count ++;
@@ -126,7 +120,28 @@ static void exec_once(Decode *s, vaddr_t pc) {
 #endif
   cpu.pc = s->dnpc;
 #ifdef CONFIG_ITRACE
-  format_inst_trace(s, s->logbuf, sizeof(s->logbuf));
+  char *p = s->logbuf;
+  p += snprintf(p, sizeof(s->logbuf), FMT_WORD ":", s->pc);
+  int ilen = s->snpc - s->pc;
+  int i;
+  uint8_t *inst = (uint8_t *)&s->isa.inst;
+#ifdef CONFIG_ISA_x86
+  for (i = 0; i < ilen; i ++) {
+#else
+  for (i = ilen - 1; i >= 0; i --) {
+#endif
+    p += snprintf(p, 4, " %02x", inst[i]);
+  }
+  int ilen_max = MUXDEF(CONFIG_ISA_x86, 8, 4);
+  int space_len = ilen_max - ilen;
+  if (space_len < 0) space_len = 0;
+  space_len = space_len * 3 + 1;
+  memset(p, ' ', space_len);
+  p += space_len;
+
+  void disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
+  disassemble(p, s->logbuf + sizeof(s->logbuf) - p,
+      MUXDEF(CONFIG_ISA_x86, s->snpc, s->pc), (uint8_t *)&s->isa.inst, ilen);
 #endif
 #ifdef CONFIG_IRINGBUF
   iringbuf_push(s);
