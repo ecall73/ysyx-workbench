@@ -141,6 +141,16 @@ config TRACE_END
   int "When tracing is disabled (unit: number of instructions)"
   default 10000
 
+config IRINGBUF
+  depends on TRACE
+  bool "Enable instruction ring buffer (iringbuf)"
+  default n
+
+config IRINGBUF_SIZE
+  depends on IRINGBUF
+  int "Instruction ring buffer size"
+  default 16
+
 config ITRACE
   depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
   bool "Enable instruction tracer"
@@ -149,6 +159,16 @@ config ITRACE
 config ITRACE_COND
   depends on ITRACE
   string "Only trace instructions when the condition is true"
+  default "true"
+
+config MTRACE
+  depends on TRACE
+  bool "Enable memory tracer (mtrace)"
+  default n
+
+config MTRACE_COND
+  depends on MTRACE
+  string "Only trace memory access when the condition is true"
   default "true"
 
 config DTRACE
