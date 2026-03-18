@@ -25,7 +25,7 @@ module top
     // perip
     wire [31:0] perip_addr, perip_wdata, perip_rdata;
     wire perip_wen, perip_ren;
-    wire [2:0] perip_mask;
+    wire [3:0] perip_wmask;
 
     wire external_stall;
     wire [3:0] exception, interrupt;
@@ -52,7 +52,7 @@ module top
         .perip_addr         (perip_addr),
         .perip_ren          (perip_ren),
         .perip_wen          (perip_wen),
-        .perip_mask         (perip_mask),
+        .perip_wmask        (perip_wmask),
         .perip_wdata        (perip_wdata),
         .perip_rdata        (perip_rdata)
 
@@ -89,7 +89,7 @@ module top
         .perip_wdata		(perip_wdata),
         .perip_ren          (perip_ren),
         .perip_wen			(perip_wen),
-        .perip_mask			(perip_mask),
+        .perip_wmask			(perip_wmask),
         .perip_rdata		(perip_rdata)
     );
 
