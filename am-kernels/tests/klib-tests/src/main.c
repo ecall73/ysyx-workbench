@@ -1,5 +1,6 @@
 #include <am.h>
 #include <klib.h>
+#include <limits.h>
 #include <stdint.h>
 
 #define N 32
@@ -74,6 +75,122 @@ static int model_strncmp(const char *a, const char *b, int n) {
     }
   }
   return 0;
+}
+
+static void assert_sprintf_eq(const char *exp, const char *fmt, ...) {
+  char buf[128];
+  va_list ap;
+  va_start(ap, fmt);
+  int ret = vsprintf(buf, fmt, ap);
+  va_end(ap);
+  assert(ret == (int)strlen(exp));
+  assert(strcmp(buf, exp) == 0);
+}
+
+static void test_sprintf_int_d(void) {
+  int data[] = {
+    0,
+    INT_MAX / 17,
+    INT_MAX,
+    INT_MIN,
+    INT_MIN + 1,
+    (int)(UINT_MAX / 17u),
+    (int)(INT_MAX / 17u),
+    (int)UINT_MAX,
+  };
+
+  static const char *exp_d[] = {
+    "0",
+    "126322567",
+    "2147483647",
+    "-2147483648",
+    "-2147483647",
+    "252645135",
+    "126322567",
+    "-1",
+  };
+
+  static const char *exp_d10[] = {
+    "         0",
+    " 126322567",
+    "2147483647",
+    "-2147483648",
+    "-2147483647",
+    " 252645135",
+    " 126322567",
+    "        -1",
+  };
+
+  static const char *exp_d010[] = {
+    "0000000000",
+    "0126322567",
+    "2147483647",
+    "-2147483648",
+    "-2147483647",
+    "0252645135",
+    "0126322567",
+    "-000000001",
+  };
+
+  static const char *exp_d_left[] = {
+    "0         |",
+    "126322567 |",
+    "2147483647|",
+    "-2147483648|",
+    "-2147483647|",
+    "252645135 |",
+    "126322567 |",
+    "-1        |",
+  };
+
+  int cnt = (int)(sizeof(data) / sizeof(data[0]));
+  for (int i = 0; i < cnt; i++) {
+    assert_sprintf_eq(exp_d[i], "%d", data[i]);
+    assert_sprintf_eq(exp_d10[i], "%10d", data[i]);
+    assert_sprintf_eq(exp_d010[i], "%010d", data[i]);
+    assert_sprintf_eq(exp_d_left[i], "%-10d|", data[i]);
+  }
+}
+
+static void test_sprintf_uint_hex(void) {
+  unsigned data[] = {0u, UINT_MAX / 17u, (unsigned)INT_MAX, (unsigned)INT_MIN, UINT_MAX};
+
+  static const char *exp_u[] = {
+    "0",
+    "252645135",
+    "2147483647",
+    "2147483648",
+    "4294967295",
+  };
+
+  static const char *exp_x[] = {
+    "0",
+    "f0f0f0f",
+    "7fffffff",
+    "80000000",
+    "ffffffff",
+  };
+
+  int cnt = (int)(sizeof(data) / sizeof(data[0]));
+  for (int i = 0; i < cnt; i++) {
+    assert_sprintf_eq(exp_u[i], "%u", data[i]);
+    assert_sprintf_eq(exp_x[i], "%x", data[i]);
+  }
+}
+
+static void test_sprintf_misc(void) {
+  assert_sprintf_eq("hello", "%s", "hello");
+  assert_sprintf_eq("      hi", "%8s", "hi");
+  assert_sprintf_eq("hi      |", "%-8s|", "hi");
+  assert_sprintf_eq("A", "%c", 'A');
+  assert_sprintf_eq("%", "%%");
+}
+
+static void test_snprintf_truncation(void) {
+  char buf[8];
+  int ret = snprintf(buf, sizeof(buf), "%d-%x", INT_MIN, UINT_MAX);
+  assert(ret == (int)strlen("-2147483648-ffffffff"));
+  assert(strcmp(buf, "-214748") == 0);
 }
 
 static void test_memset(void) {
@@ -349,6 +466,22 @@ static void run_read_tests(void) {
   printf("[klib-tests] all read-function tests passed\n");
 }
 
+static void run_format_tests(void) {
+  test_sprintf_int_d();
+  printf("[klib-tests] sprintf %%d/width OK\n");
+
+  test_sprintf_uint_hex();
+  printf("[klib-tests] sprintf %%u/%%x OK\n");
+
+  test_sprintf_misc();
+  printf("[klib-tests] sprintf string/char/%% OK\n");
+
+  test_snprintf_truncation();
+  printf("[klib-tests] snprintf truncation OK\n");
+
+  printf("[klib-tests] all format-function tests passed\n");
+}
+
 int main(const char *args) {
   char mode = (args && args[0]) ? args[0] : 'w';
 
@@ -361,10 +494,14 @@ int main(const char *args) {
       break;
     case 'h':
     default:
-      printf("Usage: make run mainargs={w|r}\n");
+      printf("Usage: make run mainargs={w|r|f}\n");
       printf("  w: write-function tests (memset/memcpy/memmove/strcpy/strncpy/strcat)\n");
       printf("  r: read-function tests (memcmp/strlen/strcmp/strncmp)\n");
+      printf("  f: format-function tests (sprintf/snprintf)\n");
       return 1;
+    case 'f':
+      run_format_tests();
+      break;
   }
 
   return 0;
