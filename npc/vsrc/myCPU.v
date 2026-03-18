@@ -18,7 +18,7 @@ module myCPU (
     // Interface to Bridge
     output wire [31:0] perip_addr,
     input  wire [31:0] perip_rdata,
-    output wire [ 2:0] perip_mask,
+    output wire [ 3:0] perip_wmask,
     output wire        perip_ren,
     output wire        perip_wen,
     output wire [31:0] perip_wdata
@@ -34,6 +34,15 @@ module myCPU (
         output wire [31:0] debug_reg_file [0:31]
     `endif
 );
+
+    // Debug Interface
+    `ifdef RUN_TRACE
+        reg [31:0] pc_EX, pc_ME1, pc_ME2, pc_WB;
+        wire        have_inst_ID;
+        reg         have_inst_EX, have_inst_ME1, have_inst_ME2, have_inst_WB;
+        wire        id_ebreak = (id_inst == 32'h00100073);
+        reg         ex_ebreak, me1_ebreak, me2_ebreak, wb_ebreak;
+    `endif
 
     wire [31:0] npc;
     // IF
@@ -105,21 +114,13 @@ module myCPU (
     reg         wb_RegWrite;
     reg  [ 4:0] wb_RFwaddr;
     reg  [31:0] wb_RFwdata;
+    
 
     // Hazard
     wire        waste1, waste3;
     wire        MDUStall;
     wire        stall_PC, stall_IF_ID, stall_ID_EX;
     wire        flush_IF_ID, flush_ID_EX, flush_EX_ME1;
-
-    // Debug Interface
-    `ifdef RUN_TRACE
-        reg [31:0] pc_EX, pc_ME1, pc_ME2, pc_WB;
-        wire        have_inst_ID;
-        reg         have_inst_EX, have_inst_ME1, have_inst_ME2, have_inst_WB;
-        wire        id_ebreak = (id_inst == 32'h00100073);
-        reg         ex_ebreak, me1_ebreak, me2_ebreak, wb_ebreak;
-    `endif
 
     
 ////////////////////////////////////////////////////////////////
@@ -487,7 +488,7 @@ module myCPU (
 
         .perip_rdata            (perip_rdata),
         .perip_addr             (perip_addr),
-        .perip_mask             (perip_mask),
+        .perip_wmask            (perip_wmask),
         .perip_wen              (perip_wen),
         .perip_ren              (perip_ren),
         .perip_wdata            (perip_wdata),
