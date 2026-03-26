@@ -19,8 +19,10 @@ CSRCS = $(shell find $(abspath ./csrc) -name "*.c" -or -name "*.cc" -or -name "*
 
 # rules for verilator
 INC_PATH ?= $(abspath ./vsrc)
-INCFLAGS = $(addprefix -I, $(INC_PATH))
+INCFLAGS = $(addprefix -I, $(INC_PATH)) -I$(abspath ./csrc) -I$(NEMU_HOME)/tools/capstone/repo/include
 CFLAGS += $(INCFLAGS) -DTOP_NAME="\"V$(TOPNAME)\""
+
+LDFLAGS += -lreadline $(NEMU_HOME)/tools/capstone/repo/libcapstone.a
 
 $(BIN): $(VSRCS) $(CSRCS)
 	$(VERILATOR) $(VERILATOR_CFLAGS) $(INCFLAGS) \
