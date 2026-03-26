@@ -111,7 +111,7 @@ VerilatedVcdC* g_tfp = NULL;
 
 void cpu_exec(uint64_t n) {
     if (is_finished) {
-        printf("Program execution has ended.\n");
+        printf("Program execution has ended. To restart the program, exit NPC and run again.\n");
         return;
     }
     for (uint64_t i = 0; i < n; i++) {
@@ -136,8 +136,20 @@ void cpu_exec(uint64_t n) {
                 break; // One instruction retired
             }
         }
-        if (is_finished || g_contextp->gotFinish()) break;
+        if (is_finished) {
+            if (trap_a0 == 0) {
+                printf("npc: HIT GOOD TRAP at pc = 0x%08x\n", trap_pc);
+            } else {
+                printf("npc: HIT BAD TRAP at pc = 0x%08x\n", trap_pc);
+            }
+            break;
+        }
+        if (g_contextp->gotFinish()) break;
     }
+}
+
+static int cmd_q(char *args) {
+    return -1;
 }
 
 static int cmd_c(char *args) {
@@ -190,6 +202,7 @@ static struct {
   int (*handler) (char *);
 } cmd_table [] = {
   { "help", "Display information about all supported commands", cmd_help },
+  { "q", "Exit NPC", cmd_q },
   { "c", "Continue the execution of the program", cmd_c },
   { "si", "Step one instruction exactly", cmd_si },
   { "info", "Generic command for showing things about the program being debugged", cmd_info },
@@ -222,7 +235,7 @@ void sdb_mainloop() {
         bool found = false;
         for (int i = 0; i < sizeof(cmd_table) / sizeof(cmd_table[0]); i++) {
             if (strcmp(cmd, cmd_table[i].name) == 0) {
-                cmd_table[i].handler(args);
+                if (cmd_table[i].handler(args) < 0) { return; }
                 found = true;
                 break;
             }
@@ -300,25 +313,12 @@ int main(int argc, char** argv) {
 
     if (is_finished) {
         if (trap_a0 == 0) {
-            printf("npc: HIT GOOD TRAP at pc = 0x%08x\n", trap_pc);
             exit_code = 0;
         } else {
-            printf("npc: HIT BAD TRAP at pc = 0x%08x\n", trap_pc);
             exit_code = -1;
         }
-        printf("Simulation finished by ebreak.\n");
     } else {
-        printf("Simulation finished by timeout or unknown reason.\n");
         exit_code = -1;
-    }
-
-    // Print register values
-    printf("Register File Content:\n");
-    for (int i = 0; i < 32; i++) {
-        printf("\033[1;31m(x%02d) \033[1;32m%-4s \033[1;34m0x%08x\033[0m\t", i, regs[i], top->debug_reg_file[i]);
-        if (i % 4 == 3) {
-            printf("\n");
-        }
     }
 
     tfp->close();
