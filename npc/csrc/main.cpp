@@ -95,12 +95,144 @@ long load_image(char *img_file) {
     return size;
 }
 
+#include <readline/readline.h>
+#include <readline/history.h>
+
 const char *regs[] = {
   "$0", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
   "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
   "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7",
   "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
 };
+
+bool sdb_batch_mode = false;
+VerilatedContext* g_contextp = NULL;
+VerilatedVcdC* g_tfp = NULL;
+
+void cpu_exec(uint64_t n) {
+    if (is_finished) {
+        printf("Program execution has ended.\n");
+        return;
+    }
+    for (uint64_t i = 0; i < n; i++) {
+        while (!is_finished && !g_contextp->gotFinish()) {
+            g_top->clk = 0;
+            g_top->eval();
+            g_contextp->timeInc(1);
+            g_tfp->dump(g_contextp->time());
+            
+            g_top->clk = 1;
+            g_top->eval();
+            g_contextp->timeInc(1);
+            g_tfp->dump(g_contextp->time());
+
+            if (g_contextp->time() > MAX_SIM_TIME) {
+                printf("Simulation timed out at time %ld\n", g_contextp->time());
+                is_finished = true;
+                break;
+            }
+
+            if (g_top->debug_wb_have_inst) {
+                break; // One instruction retired
+            }
+        }
+        if (is_finished || g_contextp->gotFinish()) break;
+    }
+}
+
+static int cmd_c(char *args) {
+    cpu_exec(-1);
+    return 0;
+}
+
+static int cmd_si(char *args) {
+    uint64_t n = 1;
+    if (args != NULL) {
+        sscanf(args, "%lu", &n);
+    }
+    cpu_exec(n);
+    return 0;
+}
+
+static int cmd_info(char *args) {
+    if (args != NULL && strcmp(args, "r") == 0) {
+        for (int i = 0; i < 32; i++) {
+            printf("\033[1;31m(x%02d) \033[1;32m%-4s \033[1;34m0x%08x\033[0m\t", i, regs[i], g_top->debug_reg_file[i]);
+            if (i % 4 == 3) printf("\n");
+        }
+    }
+    return 0;
+}
+
+static int cmd_x(char *args) {
+    if (args == NULL) return 0;
+    int n;
+    uint32_t base_addr;
+    if (sscanf(args, "%d %x", &n, &base_addr) == 2) {
+        for (int i = 0; i < n; i++) {
+            uint32_t addr = base_addr + i * 4;
+            if (check_bound(addr, "SDB")) {
+                int index = addr - 0x80000000;
+                printf("0x%08x: 0x%08x\n", addr, *(uint32_t *)&pmem[index]);
+            } else {
+                printf("0x%08x: OUT OF BOUNDS\n", addr);
+            }
+        }
+    }
+    return 0;
+}
+
+static int cmd_help(char *args);
+
+static struct {
+  const char *name;
+  const char *description;
+  int (*handler) (char *);
+} cmd_table [] = {
+  { "help", "Display information about all supported commands", cmd_help },
+  { "c", "Continue the execution of the program", cmd_c },
+  { "si", "Step one instruction exactly", cmd_si },
+  { "info", "Generic command for showing things about the program being debugged", cmd_info },
+  { "x", "Examine memory: x N ADDR", cmd_x },
+};
+
+static int cmd_help(char *args) {
+  for (int i = 0; i < sizeof(cmd_table) / sizeof(cmd_table[0]); i ++) {
+    printf("%s - %s\n", cmd_table[i].name, cmd_table[i].description);
+  }
+  return 0;
+}
+
+void sdb_mainloop() {
+    if (sdb_batch_mode) {
+        cmd_c(NULL);
+        return;
+    }
+
+    for (char *str; (str = readline("(npc) ")) != NULL; ) {
+        char *str_end = str + strlen(str);
+        char *cmd = strtok(str, " ");
+        if (cmd == NULL) { continue; }
+        
+        char *args = cmd + strlen(cmd) + 1;
+        if (args >= str_end) { args = NULL; }
+        
+        add_history(str);
+        
+        bool found = false;
+        for (int i = 0; i < sizeof(cmd_table) / sizeof(cmd_table[0]); i++) {
+            if (strcmp(cmd, cmd_table[i].name) == 0) {
+                cmd_table[i].handler(args);
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            printf("Unknown command '%s'\n", cmd);
+        }
+        free(str);
+    }
+}
 
 int main(int argc, char** argv) {
     VerilatedContext* contextp = new VerilatedContext;
@@ -114,9 +246,17 @@ int main(int argc, char** argv) {
     top->trace(tfp, 99); // Trace 99 levels of hierarchy
     tfp->open("waveform.vcd");
 
-    if (argc > 1) {
-        load_image(argv[1]);
-    } else {
+    bool img_loaded = false;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-b") == 0) {
+            sdb_batch_mode = true;
+        } else if (argv[i][0] != '-') {
+            load_image(argv[i]);
+            img_loaded = true;
+        }
+    }
+
+    if (!img_loaded) {
         // Load default program: 
         // 0x80000000: auipc t0, 0          (0x00000297)
         // 0x80000004: sb zero, 16(t0)      (0x00028823) -> [0x80000000 + 16] = 0
@@ -151,16 +291,10 @@ int main(int argc, char** argv) {
 
     printf("Simulation started. Waiting for ebreak...\n");
 
-    while (!is_finished && !contextp->gotFinish()) {
-        top->clk = !top->clk;
-        top->eval();
-        contextp->timeInc(1);
-        tfp->dump(contextp->time());
-        if (contextp->time() > MAX_SIM_TIME) {
-            printf("Simulation timed out at time %ld\n", contextp->time());
-            break;
-        }
-    }
+    g_contextp = contextp;
+    g_tfp = tfp;
+
+    sdb_mainloop();
 
     int exit_code = 0;
 

@@ -22,6 +22,8 @@ INC_PATH ?= $(abspath ./vsrc)
 INCFLAGS = $(addprefix -I, $(INC_PATH))
 CFLAGS += $(INCFLAGS) -DTOP_NAME="\"V$(TOPNAME)\""
 
+LDFLAGS += -lreadline
+
 $(BIN): $(VSRCS) $(CSRCS)
 	$(VERILATOR) $(VERILATOR_CFLAGS) $(INCFLAGS) \
 		--top-module $(TOPNAME) $^ \
