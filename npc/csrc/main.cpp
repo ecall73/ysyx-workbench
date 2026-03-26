@@ -5,60 +5,9 @@
 #include "Vtop.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
+#include "npc.h"
 
-// Memory size 128MB
-#define MEM_SIZE 0x8000000
-#define MAX_SIM_TIME 100000000
-#define SERIAL_PORT 0x10000000
-#define RTC_ADDR    0x10000048
-static uint8_t pmem[MEM_SIZE];
 static Vtop* g_top = NULL;
-
-static uint64_t get_time_us() {
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    return (uint64_t)ts.tv_sec * 1000000 + (uint64_t)ts.tv_nsec / 1000;
-}
-
-// Check boundary
-bool check_bound(int addr, const char* type) {
-    if (addr < 0x80000000 || addr >= 0x80000000 + MEM_SIZE) {
-        return false;
-    }
-    return true;
-}
-
-extern "C" int pmem_read(int raddr) {
-    // 总是读取地址为`raddr & ~0x3u`的4字节返回
-    uint32_t aligned = (uint32_t)raddr & ~0x3u;
-    if (aligned == RTC_ADDR || aligned == RTC_ADDR + 4) {
-        uint64_t now = get_time_us();
-        return (aligned == RTC_ADDR) ? (uint32_t)now : (uint32_t)(now >> 32);
-    }
-
-    if (!check_bound(aligned, "READ")) return 0;
-    int index = (aligned - 0x80000000);
-    return *(int *)&pmem[index];
-}
-
-extern "C" void pmem_write(int waddr, int wdata, char wmask) {
-    // 总是往地址为`waddr & ~0x3u`的4字节按写掩码`wmask`写入`wdata`
-    if (waddr == SERIAL_PORT) {
-        putchar((char)(wdata & 0xff));
-        fflush(stdout);
-        return;
-    }
-    if (!check_bound(waddr, "WRITE")) return;
-    int index = (waddr - 0x80000000) & ~0x3u;
-    uint32_t *p = (uint32_t *)&pmem[index];
-    uint32_t orig = *p;
-    uint32_t mask = 0;
-    if (wmask & 0x1) mask |= 0x000000FF;
-    if (wmask & 0x2) mask |= 0x0000FF00;
-    if (wmask & 0x4) mask |= 0x00FF0000;
-    if (wmask & 0x8) mask |= 0xFF000000;
-    *p = (orig & ~mask) | (wdata & mask);
-}
 
 bool is_finished = false;
 int trap_a0 = 0;
@@ -69,34 +18,6 @@ extern "C" void npc_trap(int pc, int a0) {
     trap_pc = pc;
     trap_a0 = a0;
 }
-
-long load_image(char *img_file) {
-    if (img_file == NULL) {
-        printf("No image file specified.\n");
-        return 0;
-    }
-
-    FILE *fp = fopen(img_file, "rb");
-    if (fp == NULL) {
-        printf("Can not open '%s'\n", img_file);
-        return 0;
-    }
-
-    fseek(fp, 0, SEEK_END);
-    long size = ftell(fp);
-
-    printf("The image is %s, size = %ld\n", img_file, size);
-
-    fseek(fp, 0, SEEK_SET);
-    int ret = fread(pmem, size, 1, fp);
-    assert(ret == 1);
-
-    fclose(fp);
-    return size;
-}
-
-#include <readline/readline.h>
-#include <readline/history.h>
 
 const char *regs[] = {
   "$0", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
@@ -133,6 +54,16 @@ void cpu_exec(uint64_t n) {
             }
 
             if (g_top->debug_wb_have_inst) {
+                if (n < 10) {
+                    uint32_t pc = g_top->debug_wb_pc;
+                    uint32_t inst_val = 0;
+                    if (check_bound(pc, "FETCH")) {
+                        inst_val = *(uint32_t*)&pmem[pc - 0x80000000];
+                    }
+                    char asm_buf[128];
+                    disassemble(asm_buf, sizeof(asm_buf), pc, (uint8_t*)&inst_val, 4);
+                    printf("0x%08x: %08x\t%s\n", pc, inst_val, asm_buf);
+                }
                 break; // One instruction retired
             }
         }
@@ -147,6 +78,9 @@ void cpu_exec(uint64_t n) {
         if (g_contextp->gotFinish()) break;
     }
 }
+
+#include <readline/readline.h>
+#include <readline/history.h>
 
 static int cmd_q(char *args) {
     return -1;
@@ -172,6 +106,7 @@ static int cmd_info(char *args) {
             printf("\033[1;31m(x%02d) \033[1;32m%-4s \033[1;34m0x%08x\033[0m\t", i, regs[i], g_top->debug_reg_file[i]);
             if (i % 4 == 3) printf("\n");
         }
+        printf("      \033[1;32mPC   \033[1;34m0x%08x\033[0m\n", g_top->debug_wb_pc);
     }
     return 0;
 }
@@ -253,6 +188,9 @@ int main(int argc, char** argv) {
     Verilated::traceEverOn(true);
     Vtop* top = new Vtop{contextp};
     g_top = top;
+
+    extern void init_disasm();
+    init_disasm();
 
     // Enable Trace
     VerilatedVcdC* tfp = new VerilatedVcdC;
