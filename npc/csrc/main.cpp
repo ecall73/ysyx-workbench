@@ -69,9 +69,9 @@ void cpu_exec(uint64_t n) {
         }
         if (is_finished) {
             if (trap_a0 == 0) {
-                printf("npc: HIT GOOD TRAP at pc = 0x%08x\n", trap_pc);
+                printf("npc: " ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN) " at pc = 0x%08x\n", trap_pc);
             } else {
-                printf("npc: HIT BAD TRAP at pc = 0x%08x\n", trap_pc);
+                printf("npc: " ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED) " at pc = 0x%08x\n", trap_pc);
             }
             break;
         }
@@ -103,10 +103,10 @@ static int cmd_si(char *args) {
 static int cmd_info(char *args) {
     if (args != NULL && strcmp(args, "r") == 0) {
         for (int i = 0; i < 32; i++) {
-            printf("\033[1;31m(x%02d) \033[1;32m%-4s \033[1;34m0x%08x\033[0m\t", i, regs[i], g_top->debug_reg_file[i]);
+            printf(ANSI_FMT("(x%02d) ", ANSI_FG_RED) ANSI_FMT("%-4s ", ANSI_FG_GREEN) ANSI_FMT("0x%08x\t", ANSI_FG_BLUE), i, regs[i], g_top->debug_reg_file[i]);
             if (i % 4 == 3) printf("\n");
         }
-        printf("      \033[1;32mPC   \033[1;34m0x%08x\033[0m\n", g_top->debug_wb_pc);
+        printf("      " ANSI_FMT("PC   ", ANSI_FG_GREEN) ANSI_FMT("0x%08x\n", ANSI_FG_BLUE), g_top->debug_wb_pc);
     }
     return 0;
 }
