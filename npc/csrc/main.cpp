@@ -230,20 +230,17 @@ int main(int argc, char** argv) {
 
     if (!img_loaded) {
         // Load default program: 
-        // 0x80000000: auipc t0, 0          (0x00000297)
-        // 0x80000004: sb zero, 16(t0)      (0x00028823) -> [0x80000000 + 16] = 0
-        // 0x80000008: lbu a0, 16(t0)       (0x0102c503) -> a0 = 0
-        // 0x8000000C: ebreak               (0x00100073)
-        // 0x80000010: deadbeef             (0xdeadbeef)
         uint32_t *inst = (uint32_t *)&pmem[0];
-        inst[0] = 0x00900293; 
-        inst[1] = 0xfff00313;
-        inst[2] = 0x00000393;
-        inst[3] = 0x00200e13;
-        inst[4] = 0x01c30333;
-        inst[5] = 0x006383b3;
-        inst[6] = 0xfe629ce3;
-        inst[7] = 0x00100073;
+        inst[0] = 0x00000297;   // auipc t0, 0
+        inst[1] = 0x00028823;   // sb zero, 0x10(t0)
+        inst[2] = 0x0102c503;   // lbu a0, 0x10(t0)
+        inst[3] = 0x00100073;   // ebreak
+        inst[4] = 0xdeadbeef;
+        inst[5] = 0xdeadbeef;
+        inst[6] = 0xdeadbeef;
+        inst[7] = 0xdeadbeef;
+        inst[8] = 0xdeadbeef;
+        inst[9] = 0xdeadbeef;
     }
 
     top->clk = 0;
