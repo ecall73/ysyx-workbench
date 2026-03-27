@@ -16,6 +16,7 @@ typedef struct {
 
 static void *ref_handle = NULL;
 static bool difftest_enabled = false;
+static uint32_t dut_gpr_shadow[32] = {};
 
 static void (*ref_difftest_memcpy)(uint32_t addr, void *buf, size_t n, bool direction) = NULL;
 static void (*ref_difftest_regcpy)(void *dut, bool direction) = NULL;
@@ -78,6 +79,9 @@ void init_difftest(const char *ref_so_file, long img_size, int port) {
 
     RefCPUState dut_r;
     collect_dut_regs(&dut_r);
+    for (int i = 0; i < 32; i++) {
+        dut_gpr_shadow[i] = dut_r.gpr[i];
+    }
     ref_difftest_regcpy(&dut_r, DIFFTEST_TO_REF);
 
     difftest_enabled = true;
@@ -85,7 +89,7 @@ void init_difftest(const char *ref_so_file, long img_size, int port) {
     Log("The result of every instruction will be compared with %s", ref_so_file);
 }
 
-bool difftest_step(uint32_t dut_pc) {
+bool difftest_step(uint32_t dut_pc, bool dut_wen, uint8_t dut_waddr, uint32_t dut_wdata) {
     if (!difftest_enabled) {
         return true;
     }
@@ -105,9 +109,13 @@ bool difftest_step(uint32_t dut_pc) {
     RefCPUState dut_post;
     ref_difftest_regcpy(&ref_post, DIFFTEST_TO_DUT);
 
-    // DUT state after retirement.
+    // DUT architectural state after this retirement, built from WB commit info.
+    if (dut_wen && dut_waddr != 0) {
+        dut_gpr_shadow[dut_waddr] = dut_wdata;
+    }
+    dut_gpr_shadow[0] = 0;
     for (int i = 0; i < 32; i++) {
-        dut_post.gpr[i] = g_top->debug_reg_file[i];
+        dut_post.gpr[i] = dut_gpr_shadow[i];
     }
     dut_post.pc = ref_post.pc;
 
