@@ -155,10 +155,12 @@ module idu (
     */
 
     `ifdef RUN_TRACE
-        wire op_jal, op_jalr;
+        wire op_jal, op_jalr, op_sys;
         assign op_jal = opcode == `J_TYPE;
         assign op_jalr = opcode == `IJ_TYPE;
-        assign have_inst_ID = op_rtype | op_itype | op_load | op_jalr | op_store | op_branch | op_lui | op_auipc | op_jal;
+        // Keep retire trace aligned with NEMU: treat SYSTEM opcode (CSR/ecall/ebreak/mret) as real instructions.
+        assign op_sys = opcode == `CSR_TYPE;
+        assign have_inst_ID = op_rtype | op_itype | op_load | op_jalr | op_store | op_branch | op_lui | op_auipc | op_jal | op_sys;
     `endif
 
     RF u_RF (
