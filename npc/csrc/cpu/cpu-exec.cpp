@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <inttypes.h>
 #include "Vtop.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
@@ -35,6 +36,7 @@ void cpu_exec(uint64_t n) {
             }
 
             if (g_top->debug_wb_have_inst) {
+                g_nr_guest_inst++;
                 uint32_t pc = g_top->debug_wb_pc;
                 uint32_t inst_val = 0;
                 if (check_bound(pc, "FETCH")) {
@@ -65,6 +67,7 @@ void cpu_exec(uint64_t n) {
             } else {
                 printf("npc: " ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED) " at pc = 0x%08x\n", trap_pc);
             }
+            printf(ANSI_FG_BLUE "total guest instructions = %" PRIu64 ANSI_NONE "\n", g_nr_guest_inst);
             break;
         }
 

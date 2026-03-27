@@ -14,6 +14,7 @@ VerilatedVcdC *g_tfp = NULL;
 bool is_finished = false;
 int trap_a0 = 0;
 int trap_pc = 0;
+uint64_t g_nr_guest_inst = 0;
 
 bool sdb_batch_mode = false;
 FILE *log_fp = NULL;
