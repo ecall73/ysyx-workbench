@@ -73,6 +73,11 @@ void sdb_mainloop();
 void cpu_exec(uint64_t n);
 extern "C" void npc_trap(int pc, int a0);
 
+// difftest
+void init_difftest(const char *ref_so_file, long img_size, int port);
+bool difftest_step(uint32_t dut_pc);
+bool difftest_is_enabled();
+
 // memory and image
 bool check_bound(int addr, const char *type);
 long load_image(char *img_file);
