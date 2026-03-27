@@ -19,6 +19,18 @@ ifeq ($(filter 1 y yes true,$(DEBUG)),)
 NPCFLAGS += -b
 endif
 
+DIFFTEST ?= 0
+DIFF_REF_SO ?= $(NEMU_HOME)/build/riscv32-nemu-interpreter-so
+DIFF_PORT ?= 1234
+
+ifeq ($(filter 1 y yes true,$(DIFFTEST)),)
+else
+ifeq ($(strip $(NEMU_HOME)),)
+$(error NEMU_HOME is required when DIFFTEST=1)
+endif
+NPCFLAGS += -d $(DIFF_REF_SO) -p $(DIFF_PORT)
+endif
+
 MAINARGS_MAX_LEN = 64
 MAINARGS_PLACEHOLDER = the_insert-arg_rule_in_Makefile_will_insert_mainargs_here
 CFLAGS += -DMAINARGS_MAX_LEN=$(MAINARGS_MAX_LEN) -DMAINARGS_PLACEHOLDER=$(MAINARGS_PLACEHOLDER)

@@ -34,13 +34,32 @@ static void load_default_image() {
     inst[9] = 0xdeadbeef;
 }
 
-static void parse_args_and_load_image(int argc, char **argv) {
+static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file, int *diff_port) {
     bool img_loaded = false;
     char *log_file = NULL;
+    long img_size = 0;
+    *diff_so_file = NULL;
+    *diff_port = 1234;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-b") == 0) {
             sdb_set_batch_mode();
+        } else if (strncmp(argv[i], "-d", 2) == 0) {
+            if (strlen(argv[i]) > 2) {
+                *diff_so_file = argv[i] + 2;
+            } else if (i + 1 < argc) {
+                *diff_so_file = argv[++i];
+            }
+        } else if (strncmp(argv[i], "-p", 2) == 0) {
+            char *port_arg = NULL;
+            if (strlen(argv[i]) > 2) {
+                port_arg = argv[i] + 2;
+            } else if (i + 1 < argc) {
+                port_arg = argv[++i];
+            }
+            if (port_arg != NULL) {
+                sscanf(port_arg, "%d", diff_port);
+            }
         } else if (strncmp(argv[i], "-l", 2) == 0) {
             if (strlen(argv[i]) > 2) {
                 log_file = argv[i] + 2;
@@ -48,7 +67,7 @@ static void parse_args_and_load_image(int argc, char **argv) {
                 log_file = argv[++i];
             }
         } else if (argv[i][0] != '-') {
-            load_image(argv[i]);
+            img_size = load_image(argv[i]);
             img_loaded = true;
         }
     }
@@ -57,7 +76,10 @@ static void parse_args_and_load_image(int argc, char **argv) {
 
     if (!img_loaded) {
         load_default_image();
+        img_size = 40;
     }
+
+    return img_size;
 }
 
 void init_monitor(int argc, char **argv) {
@@ -77,7 +99,9 @@ void init_monitor(int argc, char **argv) {
     g_contextp = contextp;
     g_tfp = tfp;
 
-    parse_args_and_load_image(argc, argv);
+    char *diff_so_file = NULL;
+    int diff_port = 1234;
+    long img_size = parse_args_and_load_image(argc, argv, &diff_so_file, &diff_port);
 
     top->clk = 0;
     top->rst = 1;
@@ -94,6 +118,7 @@ void init_monitor(int argc, char **argv) {
     }
     top->rst = 0;
 
+    init_difftest(diff_so_file, img_size, diff_port);
     Log("Simulation started...");
 }
 

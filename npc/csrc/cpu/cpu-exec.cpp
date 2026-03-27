@@ -77,6 +77,13 @@ void cpu_exec(uint64_t n) {
                     printf("0x%08x: %08x\t%s\n", pc, inst_val, asm_buf);
                 }
 
+                if (!difftest_step(pc, g_top->debug_wb_ena, g_top->debug_wb_reg, g_top->debug_wb_value)) {
+                    is_finished = true;
+                    trap_pc = pc;
+                    trap_a0 = -1;
+                    break;
+                }
+
                 // Keep trap response at the same retire point as instruction trace.
                 if (g_top->debug_wb_ebreak) {
                     npc_trap(pc, g_top->debug_reg_file[10]);
