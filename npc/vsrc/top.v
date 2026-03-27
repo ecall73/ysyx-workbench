@@ -68,13 +68,6 @@ module top
     `endif
     );
 
-    `ifdef RUN_TRACE
-        import "DPI-C" function void npc_trap(input int pc, input int a0);
-        always @(posedge clk) begin
-            if (debug_wb_ebreak) npc_trap(debug_wb_pc, debug_reg_file[10]);
-        end
-    `endif
-
     irom irom_inst (
         .clk                (clk),
         .irom_ren           (irom_ren),

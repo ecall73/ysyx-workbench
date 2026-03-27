@@ -1,0 +1,130 @@
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "Vtop.h"
+#include "verilated.h"
+#include "verilated_vcd_c.h"
+#include "npc.h"
+
+Vtop *g_top = NULL;
+VerilatedContext *g_contextp = NULL;
+VerilatedVcdC *g_tfp = NULL;
+
+bool is_finished = false;
+int trap_a0 = 0;
+int trap_pc = 0;
+
+bool sdb_batch_mode = false;
+FILE *log_fp = NULL;
+
+static void load_default_image() {
+    // Keep default program aligned with NEMU's built-in behavior.
+    uint32_t *inst = (uint32_t *)&pmem[0];
+    inst[0] = 0x00000297;   // auipc t0, 0
+    inst[1] = 0x00028823;   // sb zero, 0x10(t0)
+    inst[2] = 0x0102c503;   // lbu a0, 0x10(t0)
+    inst[3] = 0x00100073;   // ebreak
+    inst[4] = 0xdeadbeef;
+    inst[5] = 0xdeadbeef;
+    inst[6] = 0xdeadbeef;
+    inst[7] = 0xdeadbeef;
+    inst[8] = 0xdeadbeef;
+    inst[9] = 0xdeadbeef;
+}
+
+static void parse_args_and_load_image(int argc, char **argv) {
+    bool img_loaded = false;
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-b") == 0) {
+            sdb_set_batch_mode();
+        } else if (strncmp(argv[i], "-l", 2) == 0) {
+            char *log_file = NULL;
+            if (strlen(argv[i]) > 2) {
+                log_file = argv[i] + 2;
+            } else if (i + 1 < argc) {
+                log_file = argv[++i];
+            }
+            if (log_file) {
+                log_fp = fopen(log_file, "w");
+                if (log_fp) {
+                    printf("Log is written to %s\n", log_file);
+                } else {
+                    printf("Failed to open log file %s\n", log_file);
+                }
+            }
+        } else if (argv[i][0] != '-') {
+            load_image(argv[i]);
+            img_loaded = true;
+        }
+    }
+
+    if (!img_loaded) {
+        load_default_image();
+    }
+}
+
+void init_monitor(int argc, char **argv) {
+    VerilatedContext *contextp = new VerilatedContext;
+    contextp->commandArgs(argc, argv);
+    Verilated::traceEverOn(true);
+
+    Vtop *top = new Vtop{contextp};
+    VerilatedVcdC *tfp = new VerilatedVcdC;
+
+    init_disasm();
+
+    top->trace(tfp, 99);
+    tfp->open("waveform.vcd");
+
+    g_top = top;
+    g_contextp = contextp;
+    g_tfp = tfp;
+
+    parse_args_and_load_image(argc, argv);
+
+    top->clk = 0;
+    top->rst = 1;
+    top->eval();
+    contextp->timeInc(1);
+    tfp->dump(contextp->time());
+
+    // Reset for a few cycles.
+    for (int i = 0; i < 9; i++) {
+        top->clk = !top->clk;
+        top->eval();
+        contextp->timeInc(1);
+        tfp->dump(contextp->time());
+    }
+    top->rst = 0;
+
+    printf("Simulation started...\n");
+}
+
+void npc_cleanup() {
+    if (log_fp) {
+        fclose(log_fp);
+        log_fp = NULL;
+    }
+
+    if (g_tfp) {
+        g_tfp->close();
+        delete g_tfp;
+        g_tfp = NULL;
+    }
+
+    if (g_top) {
+        delete g_top;
+        g_top = NULL;
+    }
+
+    if (g_contextp) {
+        delete g_contextp;
+        g_contextp = NULL;
+    }
+}
+
+int is_exit_status_bad() {
+    return !(is_finished && trap_a0 == 0);
+}
