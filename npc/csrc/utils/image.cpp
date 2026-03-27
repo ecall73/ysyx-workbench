@@ -13,7 +13,6 @@ long load_image(char *img_file) {
 
     FILE *fp = fopen(img_file, "rb");
     if (fp == NULL) {
-        printf("Can not open '%s'\n", img_file);
         return 0;
     }
 

@@ -36,6 +36,7 @@ extern bool is_finished;
 extern int trap_a0;
 extern int trap_pc;
 extern bool sdb_batch_mode;
+extern FILE *log_fp;
 
 extern uint8_t pmem[];
 

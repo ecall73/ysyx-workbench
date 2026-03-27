@@ -27,6 +27,7 @@ const char *regs[] = {
 };
 
 bool sdb_batch_mode = false;
+FILE *log_fp = NULL;
 VerilatedContext* g_contextp = NULL;
 VerilatedVcdC* g_tfp = NULL;
 
@@ -54,14 +55,19 @@ void cpu_exec(uint64_t n) {
             }
 
             if (g_top->debug_wb_have_inst) {
+                uint32_t pc = g_top->debug_wb_pc;
+                uint32_t inst_val = 0;
+                if (check_bound(pc, "FETCH")) {
+                    inst_val = *(uint32_t*)&pmem[pc - 0x80000000];
+                }
+                char asm_buf[128];
+                disassemble(asm_buf, sizeof(asm_buf), pc, (uint8_t*)&inst_val, 4);
+                
+                if (log_fp) {
+                    fprintf(log_fp, "0x%08x: %08x\t%s\n", pc, inst_val, asm_buf);
+                }
+
                 if (n < 10) {
-                    uint32_t pc = g_top->debug_wb_pc;
-                    uint32_t inst_val = 0;
-                    if (check_bound(pc, "FETCH")) {
-                        inst_val = *(uint32_t*)&pmem[pc - 0x80000000];
-                    }
-                    char asm_buf[128];
-                    disassemble(asm_buf, sizeof(asm_buf), pc, (uint8_t*)&inst_val, 4);
                     printf("0x%08x: %08x\t%s\n", pc, inst_val, asm_buf);
                 }
                 break; // One instruction retired
@@ -201,6 +207,21 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-b") == 0) {
             sdb_batch_mode = true;
+        } else if (strncmp(argv[i], "-l", 2) == 0) {
+            char *log_file = NULL;
+            if (strlen(argv[i]) > 2) {
+                log_file = argv[i] + 2;
+            } else if (i + 1 < argc) {
+                log_file = argv[++i];
+            }
+            if (log_file) {
+                log_fp = fopen(log_file, "w");
+                if (log_fp) {
+                    printf("Log is written to %s\n", log_file);
+                } else {
+                    printf("Failed to open log file %s\n", log_file);
+                }
+            }
         } else if (argv[i][0] != '-') {
             load_image(argv[i]);
             img_loaded = true;
@@ -232,7 +253,7 @@ int main(int argc, char** argv) {
     tfp->dump(contextp->time());
     
     // Reset for a few cycles
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 9; i++) {
         top->clk = !top->clk;
         top->eval();
         contextp->timeInc(1);
@@ -240,7 +261,7 @@ int main(int argc, char** argv) {
     }
     top->rst = 0;
 
-    printf("Simulation started. Waiting for ebreak...\n");
+    printf("Simulation started...\n");
 
     g_contextp = contextp;
     g_tfp = tfp;
@@ -257,6 +278,10 @@ int main(int argc, char** argv) {
         }
     } else {
         exit_code = -1;
+    }
+
+    if (log_fp) {
+        fclose(log_fp);
     }
 
     tfp->close();
