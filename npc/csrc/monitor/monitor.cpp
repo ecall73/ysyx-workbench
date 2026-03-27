@@ -36,30 +36,24 @@ static void load_default_image() {
 
 static void parse_args_and_load_image(int argc, char **argv) {
     bool img_loaded = false;
+    char *log_file = NULL;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-b") == 0) {
             sdb_set_batch_mode();
         } else if (strncmp(argv[i], "-l", 2) == 0) {
-            char *log_file = NULL;
             if (strlen(argv[i]) > 2) {
                 log_file = argv[i] + 2;
             } else if (i + 1 < argc) {
                 log_file = argv[++i];
-            }
-            if (log_file) {
-                log_fp = fopen(log_file, "w");
-                if (log_fp) {
-                    printf("Log is written to %s\n", log_file);
-                } else {
-                    printf("Failed to open log file %s\n", log_file);
-                }
             }
         } else if (argv[i][0] != '-') {
             load_image(argv[i]);
             img_loaded = true;
         }
     }
+
+    init_log(log_file);
 
     if (!img_loaded) {
         load_default_image();
@@ -100,7 +94,7 @@ void init_monitor(int argc, char **argv) {
     }
     top->rst = 0;
 
-    printf("Simulation started...\n");
+    Log("Simulation started...");
 }
 
 void npc_cleanup() {

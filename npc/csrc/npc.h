@@ -31,6 +31,14 @@ class VerilatedVcdC;
 
 #define ANSI_FMT(str, fmt) fmt str ANSI_NONE
 
+const char *npc_log_file(const char *file);
+void _Log(const char *fmt, ...);
+void init_log(const char *log_file);
+
+#define Log(format, ...) \
+    _Log(ANSI_FMT("[%s:%d %s] " format, ANSI_FG_BLUE) "\n", \
+         npc_log_file(__FILE__), __LINE__, __func__, ##__VA_ARGS__)
+
 // Memory size 128MB
 #define MEM_SIZE 0x8000000
 #define MAX_SIM_TIME 100000000
