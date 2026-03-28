@@ -15,7 +15,7 @@
 
 #include <isa.h>
 
-#ifdef CONFIG_ETRACE
+#if CONFIG_ETRACE
 static inline void etrace_log_raise(word_t no, vaddr_t epc, vaddr_t target) {
   log_write("etrace: raise NO=%u epc=" FMT_WORD " -> mtvec=" FMT_WORD
             " mstatus=" FMT_WORD "\n",
@@ -38,7 +38,7 @@ word_t isa_raise_intr(word_t NO, vaddr_t epc) {
   cpu.mepc = epc;
   cpu.mcause = NO;
   vaddr_t target = cpu.mtvec & ~0x3;
-  IFDEF(CONFIG_ETRACE, etrace_log_raise(NO, epc, target));
+  IFONE(CONFIG_ETRACE, etrace_log_raise(NO, epc, target));
   return target;
 }
 
