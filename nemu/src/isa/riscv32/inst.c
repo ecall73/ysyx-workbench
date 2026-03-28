@@ -85,6 +85,12 @@ static inline void csr_write(uint32_t addr, word_t data) {
   }
 }
 
+#ifdef CONFIG_ETRACE
+static inline void etrace_log_mret(vaddr_t target) {
+  log_write("etrace: mret -> " FMT_WORD " mstatus=" FMT_WORD "\n", target, cpu.mstatus);
+}
+#endif
+
 static int decode_exec(Decode *s) {
   s->dnpc = s->snpc;
 
@@ -228,6 +234,7 @@ static int decode_exec(Decode *s) {
       mstatus &= ~MSTATUS_MPP;                                        // MPP <- U(0)
       cpu.mstatus = mstatus;
       s->dnpc = cpu.mepc;
+      IFDEF(CONFIG_ETRACE, etrace_log_mret(s->dnpc));
   );
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
 
