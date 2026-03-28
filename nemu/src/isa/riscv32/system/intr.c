@@ -15,12 +15,31 @@
 
 #include <isa.h>
 
-word_t isa_raise_intr(word_t NO, vaddr_t epc) {
-  /* TODO: Trigger an interrupt/exception with ``NO''.
-   * Then return the address of the interrupt/exception vector.
-   */
+#if CONFIG_ETRACE
+static inline void etrace_log_raise(word_t no, vaddr_t epc, vaddr_t target) {
+  log_write("etrace: raise NO=%u epc=" FMT_WORD " -> mtvec=" FMT_WORD
+            " mstatus=" FMT_WORD "\n",
+            (uint32_t)no, epc, target, cpu.mstatus);
+}
+#endif
 
-  return 0;
+word_t isa_raise_intr(word_t NO, vaddr_t epc) {
+  const word_t MSTATUS_MIE  = (1u << 3);
+  const word_t MSTATUS_MPIE = (1u << 7);
+  const word_t MSTATUS_MPP  = (3u << 11);
+
+  word_t mstatus = cpu.mstatus;
+  word_t mie = (mstatus & MSTATUS_MIE) ? 1 : 0;
+  mstatus = (mstatus & ~MSTATUS_MPIE) | (mie ? MSTATUS_MPIE : 0);
+  mstatus &= ~MSTATUS_MIE;
+  mstatus = (mstatus & ~MSTATUS_MPP) | MSTATUS_MPP; // trap to M-mode
+
+  cpu.mstatus = mstatus;
+  cpu.mepc = epc;
+  cpu.mcause = NO;
+  vaddr_t target = cpu.mtvec & ~0x3;
+  IFONE(CONFIG_ETRACE, etrace_log_raise(NO, epc, target));
+  return target;
 }
 
 word_t isa_query_intr() {
