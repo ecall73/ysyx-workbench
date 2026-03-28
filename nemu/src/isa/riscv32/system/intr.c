@@ -16,6 +16,17 @@
 #include <isa.h>
 
 word_t isa_raise_intr(word_t NO, vaddr_t epc) {
+  const word_t MSTATUS_MIE  = (1u << 3);
+  const word_t MSTATUS_MPIE = (1u << 7);
+  const word_t MSTATUS_MPP  = (3u << 11);
+
+  word_t mstatus = cpu.mstatus;
+  word_t mie = (mstatus & MSTATUS_MIE) ? 1 : 0;
+  mstatus = (mstatus & ~MSTATUS_MPIE) | (mie ? MSTATUS_MPIE : 0);
+  mstatus &= ~MSTATUS_MIE;
+  mstatus = (mstatus & ~MSTATUS_MPP) | MSTATUS_MPP; // trap to M-mode
+
+  cpu.mstatus = mstatus;
   cpu.mepc = epc;
   cpu.mcause = NO;
   return cpu.mtvec & ~0x3;

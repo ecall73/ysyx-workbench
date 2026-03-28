@@ -28,6 +28,18 @@ bool isa_difftest_checkregs(CPU_state *ref_r, vaddr_t pc) {
     printf("difftest error at pc = 0x%08x: pc mismatch, ref = 0x%08x, dut = 0x%08x\n", pc, ref_r->pc, cpu.pc);
     return false;
   }
+  if (ref_r->mstatus != cpu.mstatus) {
+    printf("difftest error at pc = 0x%08x: mstatus mismatch, ref = 0x%08x, dut = 0x%08x\n", pc, ref_r->mstatus, cpu.mstatus);
+    return false;
+  }
+  if (ref_r->mepc != cpu.mepc) {
+    printf("difftest error at pc = 0x%08x: mepc mismatch, ref = 0x%08x, dut = 0x%08x\n", pc, ref_r->mepc, cpu.mepc);
+    return false;
+  }
+  if (ref_r->mcause != cpu.mcause) {
+    printf("difftest error at pc = 0x%08x: mcause mismatch, ref = 0x%08x, dut = 0x%08x\n", pc, ref_r->mcause, cpu.mcause);
+    return false;
+  }
   return true;
 }
 
