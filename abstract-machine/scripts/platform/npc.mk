@@ -19,11 +19,6 @@ ifeq ($(filter 1 y yes true,$(DEBUG)),)
 NPCFLAGS += -b
 endif
 
-# Enable NPC difftest with one switch:
-#   make ... DIFFTEST=1
-# Optional overrides:
-#   DIFF_REF_SO=/path/to/riscv32-nemu-interpreter-so
-#   DIFF_PORT=1234
 DIFFTEST ?= 0
 DIFF_REF_SO ?= $(NEMU_HOME)/build/riscv32-nemu-interpreter-so
 DIFF_PORT ?= 1234
