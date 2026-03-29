@@ -29,13 +29,7 @@ static kctx_switch_req_t *kctx_get_switch_req(rt_thread_t self) {
   if (self == RT_NULL || self->user_data == 0) {
     return RT_NULL;
   }
-  uintptr_t p = self->user_data;
-  uintptr_t lo = (uintptr_t)self->stack_addr;
-  uintptr_t hi = lo + self->stack_size;
-  if (!(lo <= p && p + sizeof(kctx_switch_req_t) <= hi)) {
-    return RT_NULL;
-  }
-  kctx_switch_req_t *req = (kctx_switch_req_t *)p;
+  kctx_switch_req_t *req = (kctx_switch_req_t *)(uintptr_t)self->user_data;
   if (req->magic != KCTX_SWITCH_MAGIC) {
     return RT_NULL;
   }
