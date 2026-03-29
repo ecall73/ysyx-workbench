@@ -9,12 +9,9 @@ typedef struct {
 } kctx_boot_t;
 
 typedef struct {
-  uintptr_t magic;
   Context **from;
   Context **to;
 } kctx_switch_req_t;
-
-#define KCTX_SWITCH_MAGIC 0x63747873u /* "ctxs" */
 
 static void rt_kthread_bootstrap(void *arg) {
   kctx_boot_t *boot = (kctx_boot_t *)arg;
@@ -29,11 +26,7 @@ static kctx_switch_req_t *kctx_get_switch_req(rt_thread_t self) {
   if (self == RT_NULL || self->user_data == 0) {
     return RT_NULL;
   }
-  kctx_switch_req_t *req = (kctx_switch_req_t *)(uintptr_t)self->user_data;
-  if (req->magic != KCTX_SWITCH_MAGIC) {
-    return RT_NULL;
-  }
-  return req;
+  return (kctx_switch_req_t *)(uintptr_t)self->user_data;
 }
 
 static Context* ev_handler(Event e, Context *c) {
@@ -70,7 +63,6 @@ void rt_hw_context_switch_to(rt_ubase_t to) {
   RT_ASSERT(self != RT_NULL);
   uintptr_t saved_user_data = self->user_data;
   kctx_switch_req_t req = {
-    .magic = KCTX_SWITCH_MAGIC,
     .from = RT_NULL,
     .to = (Context **)to,
   };
@@ -84,7 +76,6 @@ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
   RT_ASSERT(self != RT_NULL);
   uintptr_t saved_user_data = self->user_data;
   kctx_switch_req_t req = {
-    .magic = KCTX_SWITCH_MAGIC,
     .from = (Context **)from,
     .to = (Context **)to,
   };
