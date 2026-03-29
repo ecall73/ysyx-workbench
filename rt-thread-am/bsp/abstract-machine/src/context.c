@@ -8,8 +8,10 @@ typedef struct {
   void *texit;
 } kctx_boot_t;
 
-static Context **ctx_from = RT_NULL;
-static Context **ctx_to = RT_NULL;
+typedef struct {
+  Context **from;
+  Context **to;
+} kctx_switch_req_t;
 
 static void rt_kthread_bootstrap(void *arg) {
   kctx_boot_t *boot = (kctx_boot_t *)arg;
@@ -20,19 +22,26 @@ static void rt_kthread_bootstrap(void *arg) {
   halt(1);
 }
 
+static kctx_switch_req_t *kctx_get_switch_req(rt_thread_t self) {
+  if (self == RT_NULL || self->user_data == 0) {
+    return RT_NULL;
+  }
+  return (kctx_switch_req_t *)(uintptr_t)self->user_data;
+}
+
 static Context* ev_handler(Event e, Context *c) {
   switch (e.event) {
     case EVENT_YIELD: {
-      if (ctx_to == RT_NULL) {
+      rt_thread_t self = rt_thread_self();
+      kctx_switch_req_t *req = kctx_get_switch_req(self);
+      if (req == RT_NULL) {
         return c;
       }
-      if (ctx_from != RT_NULL) {
-        *ctx_from = c;
+      if (req->from != RT_NULL) {
+        *req->from = c;
       }
-      Context *next = *ctx_to;
+      Context *next = *req->to;
       RT_ASSERT(next != RT_NULL);
-      ctx_from = RT_NULL;
-      ctx_to = RT_NULL;
       return next;
     }
     case EVENT_IRQ_TIMER:
@@ -50,15 +59,29 @@ void __am_cte_init() {
 }
 
 void rt_hw_context_switch_to(rt_ubase_t to) {
-  ctx_from = RT_NULL;
-  ctx_to = (Context **)to;
+  rt_thread_t self = rt_thread_self();
+  RT_ASSERT(self != RT_NULL);
+  uintptr_t saved_user_data = self->user_data;
+  kctx_switch_req_t req = {
+    .from = RT_NULL,
+    .to = (Context **)to,
+  };
+  self->user_data = (rt_ubase_t)(uintptr_t)&req;
   yield();
+  self->user_data = saved_user_data;
 }
 
 void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
-  ctx_from = (Context **)from;
-  ctx_to = (Context **)to;
+  rt_thread_t self = rt_thread_self();
+  RT_ASSERT(self != RT_NULL);
+  uintptr_t saved_user_data = self->user_data;
+  kctx_switch_req_t req = {
+    .from = (Context **)from,
+    .to = (Context **)to,
+  };
+  self->user_data = (rt_ubase_t)(uintptr_t)&req;
   yield();
+  self->user_data = saved_user_data;
 }
 
 void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
