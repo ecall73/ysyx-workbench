@@ -4,6 +4,11 @@
 
 static Context* (*user_handler)(Event, Context*) = NULL;
 
+static void __am_kcontext_start(void *entry, void *arg) {
+  ((void (*)(void *))entry)(arg);
+  halt(1);
+}
+
 Context* __am_irq_handle(Context *c) {
   if (user_handler) {
     Event ev = {0};
@@ -35,7 +40,15 @@ bool cte_init(Context*(*handler)(Event, Context*)) {
 }
 
 Context *kcontext(Area kstack, void (*entry)(void *), void *arg) {
-  return NULL;
+  Context *c = (Context *)kstack.end - 1;
+  assert(kstack.start <= (void *)c && (void *)c < kstack.end);
+  *c = (Context) {0};
+  c->mepc = (uintptr_t)__am_kcontext_start;
+  c->mstatus = 0x1800;
+  c->gpr[10] = (uintptr_t)entry; // a0: __am_kcontext_start(entry, arg)
+  c->gpr[11] = (uintptr_t)arg;   // a1
+  c->pdir = NULL;
+  return c;
 }
 
 void yield() {
