@@ -15,6 +15,10 @@
 `define CSR_mcause      12'h342
 `define CSR_mtval       12'h343
 `define CSR_mip         12'h344
+`define CSR_mcycle      12'hB00
+`define CSR_mcycleh     12'hB80
+`define CSR_mvendorid   12'hF11
+`define CSR_marchid     12'hF12
 
 // CSRControl
 `define CCTL_csrrw      5'b00001
@@ -45,6 +49,7 @@ module CSR (
 
     reg  [31:0] mstatus, mtvec;
     reg  [31:0] mscratch, mepc, mcause, mtval;
+    reg  [63:0] mcycle;
 
     reg  [31:0] cause;
     wire        interrupt_valid;
@@ -67,6 +72,10 @@ module CSR (
             `CSR_mepc:      CSRrdata = mepc;
             `CSR_mcause:    CSRrdata = mcause;
 			`CSR_mtval:		CSRrdata = mtval;
+            `CSR_mcycle:    CSRrdata = mcycle[31:0];
+            `CSR_mcycleh:   CSRrdata = mcycle[63:32];
+            `CSR_mvendorid: CSRrdata = 32'h7973_7978;
+            `CSR_marchid:   CSRrdata = 32'd26030082;
             default:        CSRrdata = 0;
         endcase
     end
@@ -209,6 +218,15 @@ module CSR (
 				/*`CCTL_ecall: mtval <= '0;*/
                 default: mtval <= mtval;
             endcase
+        end
+    end
+
+    // mcycle/mcycleh
+    always @(posedge clk) begin
+        if (rst) begin
+            mcycle <= 64'b0;
+        end else begin
+            mcycle <= mcycle + 64'd1;
         end
     end
 
