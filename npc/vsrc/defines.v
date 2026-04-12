@@ -108,6 +108,10 @@
 `define CSR_time        12'hC01
 `define CSR_instret     12'hC02
 
+// 机器信息寄存器
+`define CSR_mvendorid   12'hF11
+`define CSR_marchid     12'hF12
+
 // 软件中断、定时器中断、外部中断相关位定义(用于mie、mip寄存器)
 `define MIP_MSIP        (1 << 3)
 `define MIP_MTIP        (1 << 7)

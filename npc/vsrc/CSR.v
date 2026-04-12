@@ -2,20 +2,6 @@
 
 `include "defines.v"
 
-// 机器状态寄存器
-`define CSR_mstatus     12'h300
-`define CSR_medeleg     12'h302
-`define CSR_mideleg     12'h303
-`define CSR_mie         12'h304
-`define CSR_mtvec       12'h305
-
-// 机器模式异常/中断管理
-`define CSR_mscratch    12'h340
-`define CSR_mepc        12'h341
-`define CSR_mcause      12'h342
-`define CSR_mtval       12'h343
-`define CSR_mip         12'h344
-
 // CSRControl
 `define CCTL_csrrw      5'b00001
 `define CCTL_csrrs      5'b00010
@@ -43,46 +29,63 @@ module CSR (
     output reg  [31:0] CSRnpc      // CSR跳转pc
 );
 
+    localparam [11:0] CSR_mstatus   = 12'h300;
+    localparam [11:0] CSR_mtvec     = 12'h305;
+    localparam [11:0] CSR_mscratch  = 12'h340;
+    localparam [11:0] CSR_mepc      = 12'h341;
+    localparam [11:0] CSR_mcause    = 12'h342;
+    localparam [11:0] CSR_mtval     = 12'h343;
+    localparam [11:0] CSR_mcycle    = 12'hB00;
+    localparam [11:0] CSR_mcycleh   = 12'hB80;
+    localparam [11:0] CSR_mvendorid = 12'hF11;
+    localparam [11:0] CSR_marchid   = 12'hF12;
+
     reg  [31:0] mstatus, mtvec;
     reg  [31:0] mscratch, mepc, mcause, mtval;
+    reg  [63:0] mcycle;
 
-    reg  [31:0] cause;
-    wire        interrupt_valid;
+    localparam [3:0]  EXC_NONE      = 4'd10;
+    localparam [31:0] CAUSE_NONE    = 32'd10;
+    localparam [31:0] CAUSE_ECALL_M = 32'd11;
 
-    wire [31:0] CSRwdata;
+    wire        ecall = CSRControl[3];
+    wire        mret  = CSRControl[4];
+    wire [31:0] CSRwdata = CSRSrc ? imm : rR1_data;  // csrrxi: imm, csrrx: rR1
 
-    wire        ecall, mret;
-    assign ecall = CSRControl[3];
-    assign mret = CSRControl[4];
-
-    // csrrwi/csrrsi/csrrci写入imm，csrrw/csrrs/csrrc写入rR1_data
-    assign CSRwdata = CSRSrc ? imm : rR1_data;
+    wire        has_exception   = (exception != EXC_NONE);
+    wire        has_interrupt   = (interrupt != 0);
+    wire        sync_trap_req   = (ecall || has_exception) && !flush;
+    wire        irq_trap_req    = has_interrupt && mstatus[3] && (pc != 0) && !flush;
+    wire        trap_taken      = sync_trap_req || irq_trap_req;
+    wire        trap_is_interrupt = irq_trap_req && !sync_trap_req;
+    wire        mret_taken      = mret && !flush;
+    wire [31:0] trap_cause_code = ecall ? CAUSE_ECALL_M :
+                                   has_exception ? {28'b0, exception} :
+                                   has_interrupt ? {28'b0, interrupt} :
+                                                   CAUSE_NONE;
+    wire [31:0] trap_vector_base = {mtvec[31:2], 2'b0};
+    wire [31:0] trap_vector = (mtvec[0] && trap_is_interrupt) ?
+                               (trap_vector_base + (trap_cause_code << 2)) :
+                               trap_vector_base;
 
     // CSR read
     always @(*) begin
         case(CSRaddr)
-            `CSR_mstatus:   CSRrdata = mstatus;
-            `CSR_mtvec:     CSRrdata = mtvec;
-            `CSR_mscratch:  CSRrdata = mscratch;
-            `CSR_mepc:      CSRrdata = mepc;
-            `CSR_mcause:    CSRrdata = mcause;
-			`CSR_mtval:		CSRrdata = mtval;
+            CSR_mstatus:   CSRrdata = mstatus;
+            CSR_mtvec:     CSRrdata = mtvec;
+            CSR_mscratch:  CSRrdata = mscratch;
+            CSR_mepc:      CSRrdata = mepc;
+            CSR_mcause:    CSRrdata = mcause;
+			CSR_mtval:		CSRrdata = mtval;
+            CSR_mcycle:    CSRrdata = mcycle[31:0];
+            CSR_mcycleh:   CSRrdata = mcycle[63:32];
+            CSR_mvendorid: CSRrdata = 32'h7973_7978;
+            CSR_marchid:   CSRrdata = 32'd26030082;
             default:        CSRrdata = 0;
         endcase
     end
 
-    // cause
-    always @(*) begin
-        if (ecall)                  cause = 11;         // ecall
-        else if (exception != 10)   cause = {28'b0, exception};
-        else if (interrupt != 0)    cause = {28'b0, interrupt};
-        else                        cause = 10;
-    end
-
-    // interrupt_valid
-    assign interrupt_valid = (interrupt != 0) && mstatus[3] && (pc != 0) && ~flush;
-
-    assign CSRjump = (cause != 10 && exception != 10) || interrupt_valid || mret;
+    assign CSRjump = trap_taken || mret_taken;
 
     // mstatus
     always @(posedge clk) begin
@@ -90,15 +93,15 @@ module CSR (
             mstatus <= 32'b1010;
 		end else if (flush) begin
 			mstatus <= mstatus;
-        end else if ((cause != 10 && exception != 10) || (interrupt_valid)) begin
+        end else if (trap_taken) begin
             mstatus[3] <= 0;
             mstatus[7] <= mstatus[3];
             mstatus[12:11] <= 3;        // privilege M-mode 3
         end else begin
 			case (CSRControl)
-				`CCTL_csrrw: if (CSRaddr == `CSR_mstatus) mstatus <= CSRwdata;
-				`CCTL_csrrs: if (CSRaddr == `CSR_mstatus) mstatus <= (mstatus | CSRwdata);
-                `CCTL_csrrc: if (CSRaddr == `CSR_mstatus) mstatus <= (mstatus & ~CSRwdata);
+				`CCTL_csrrw: if (CSRaddr == CSR_mstatus) mstatus <= CSRwdata;
+				`CCTL_csrrs: if (CSRaddr == CSR_mstatus) mstatus <= (mstatus | CSRwdata);
+                `CCTL_csrrc: if (CSRaddr == CSR_mstatus) mstatus <= (mstatus & ~CSRwdata);
 
 				/*`CCTL_ecall: begin
 					mstatus[7]  	<= mstatus[3];  	// MPIE <= 当前 MIE
@@ -119,13 +122,13 @@ module CSR (
 			mcause <= 32'h0;
 		end else if (flush) begin
 			mcause <= mcause;
-        end else if ((cause != 10 && exception != 10) || (interrupt_valid)) begin
-            mcause <= {((interrupt != 0) && !(exception != 10 || ecall)) ? 1'b1 : 1'b0, cause[30:0]};
+        end else if (trap_taken) begin
+            mcause <= {trap_is_interrupt, trap_cause_code[30:0]};
         end else begin
 			case (CSRControl)
-                /*`CCTL_csrrw: if (CSRaddr == `CSR_mcause) mcause <= CSRwdata;
-				`CCTL_csrrs: if (CSRaddr == `CSR_mcause) mcause <= mcause | CSRwdata;
-                `CCTL_csrrc: if (CSRaddr == `CSR_mcause) mcause <= mcause & ~CSRwdata;*/
+                /*`CCTL_csrrw: if (CSRaddr == CSR_mcause) mcause <= CSRwdata;
+				`CCTL_csrrs: if (CSRaddr == CSR_mcause) mcause <= mcause | CSRwdata;
+                `CCTL_csrrc: if (CSRaddr == CSR_mcause) mcause <= mcause & ~CSRwdata;*/
 
 				/*`CCTL_ecall: mcause <= 32'h0b;  // environment call from M-mode*/
 				default: mcause <= mcause;
@@ -139,13 +142,13 @@ module CSR (
 			mepc <= 32'h0;
 		end else if (flush) begin
 			mepc <= mepc;
-        end else if ((cause != 10 && exception != 10) || (interrupt_valid)) begin
+        end else if (trap_taken) begin
             mepc <= pc;
         end else begin
 			case (CSRControl)
-                `CCTL_csrrw: if (CSRaddr == `CSR_mepc) mepc <= CSRwdata;
-				`CCTL_csrrs: if (CSRaddr == `CSR_mepc) mepc <= mepc | CSRwdata;
-                `CCTL_csrrc: if (CSRaddr == `CSR_mepc) mepc <= mepc & ~CSRwdata;
+                `CCTL_csrrw: if (CSRaddr == CSR_mepc) mepc <= CSRwdata;
+				`CCTL_csrrs: if (CSRaddr == CSR_mepc) mepc <= mepc | CSRwdata;
+                `CCTL_csrrc: if (CSRaddr == CSR_mepc) mepc <= mepc & ~CSRwdata;
 
 				/*`CCTL_ecall: mepc <= pc;*/
 				default: mepc <= mepc;
@@ -159,13 +162,13 @@ module CSR (
             mscratch <= 0;
 		end else if (flush) begin
 			mscratch <= mscratch;
-        end else if ((cause != 10 && exception != 10) || (interrupt_valid)) begin
+        end else if (trap_taken) begin
             mscratch <= mscratch;
         end else begin
             case (CSRControl)
-                `CCTL_csrrw: if (CSRaddr == `CSR_mscratch) mscratch <= CSRwdata;              // CSRRW
-                `CCTL_csrrs: if (CSRaddr == `CSR_mscratch) mscratch <= mscratch | CSRwdata;   // CSRRS
-                `CCTL_csrrc: if (CSRaddr == `CSR_mscratch) mscratch <= mscratch & ~CSRwdata;  // CSRRC
+                `CCTL_csrrw: if (CSRaddr == CSR_mscratch) mscratch <= CSRwdata;              // CSRRW
+                `CCTL_csrrs: if (CSRaddr == CSR_mscratch) mscratch <= mscratch | CSRwdata;   // CSRRS
+                `CCTL_csrrc: if (CSRaddr == CSR_mscratch) mscratch <= mscratch & ~CSRwdata;  // CSRRC
 
                 default: mscratch <= mscratch;
             endcase
@@ -179,13 +182,13 @@ module CSR (
             mtvec <= 1;
 		end else if (flush) begin
 			mtvec <= mtvec;
-        end else if ((cause != 10 && exception != 10) || (interrupt_valid)) begin
+        end else if (trap_taken) begin
             mtvec <= mtvec;
 		end else begin
 			case (CSRControl)
-                `CCTL_csrrw: if (CSRaddr == `CSR_mtvec) mtvec <= CSRwdata;
-				`CCTL_csrrs: if (CSRaddr == `CSR_mtvec) mtvec <= mtvec | CSRwdata;
-                `CCTL_csrrc: if (CSRaddr == `CSR_mtvec) mtvec <= mtvec & ~CSRwdata;
+                `CCTL_csrrw: if (CSRaddr == CSR_mtvec) mtvec <= CSRwdata;
+				`CCTL_csrrs: if (CSRaddr == CSR_mtvec) mtvec <= mtvec | CSRwdata;
+                `CCTL_csrrc: if (CSRaddr == CSR_mtvec) mtvec <= mtvec & ~CSRwdata;
 
 				default: mtvec <= mtvec;
 			endcase
@@ -198,13 +201,13 @@ module CSR (
             mtval <= 32'b0;
 		end else if (flush) begin
 			mtval <= mtval;
-        end else if ((cause != 10 && exception != 10) || (interrupt_valid)) begin
+        end else if (trap_taken) begin
             mtval <= mtval;
         end else begin
             case (CSRControl)
-                `CCTL_csrrw: if (CSRaddr == `CSR_mtval) mtval <= CSRwdata;
-                `CCTL_csrrs: if (CSRaddr == `CSR_mtval) mtval <= mtval | CSRwdata;
-                `CCTL_csrrc: if (CSRaddr == `CSR_mtval) mtval <= mtval & ~CSRwdata;
+                `CCTL_csrrw: if (CSRaddr == CSR_mtval) mtval <= CSRwdata;
+                `CCTL_csrrs: if (CSRaddr == CSR_mtval) mtval <= mtval | CSRwdata;
+                `CCTL_csrrc: if (CSRaddr == CSR_mtval) mtval <= mtval & ~CSRwdata;
 
 				/*`CCTL_ecall: mtval <= '0;*/
                 default: mtval <= mtval;
@@ -212,11 +215,20 @@ module CSR (
         end
     end
 
+    // mcycle/mcycleh
+    always @(posedge clk) begin
+        if (rst) begin
+            mcycle <= 64'b0;
+        end else begin
+            mcycle <= mcycle + 64'd1;
+        end
+    end
+
     // CSRnpc
     always @(*) begin
         if (rst)                                    CSRnpc = 0;
-        else if ((cause != 10 && exception != 10) || (interrupt_valid))  CSRnpc = (mtvec[0] && (interrupt != 0) && !(exception != 10 || ecall)) ? ({mtvec[31:2], 2'b0} + 4 * cause) : {mtvec[31:2], 2'b0};
-        else if (mret)                              CSRnpc = mepc;
+        else if (trap_taken)                        CSRnpc = trap_vector;
+        else if (mret_taken)                        CSRnpc = mepc;
         else                                        CSRnpc = mepc;
     end
     
