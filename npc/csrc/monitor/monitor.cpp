@@ -85,36 +85,39 @@ static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file
 void init_monitor(int argc, char **argv) {
     VerilatedContext *contextp = new VerilatedContext;
     contextp->commandArgs(argc, argv);
-    Verilated::traceEverOn(true);
 
     Vtop *top = new Vtop{contextp};
-    VerilatedVcdC *tfp = new VerilatedVcdC;
-
-    init_disasm();
-
-    top->trace(tfp, 99);
-    tfp->open("waveform.vcd");
-
-    g_top = top;
-    g_contextp = contextp;
-    g_tfp = tfp;
+    VerilatedVcdC *tfp = NULL;
 
     char *diff_so_file = NULL;
     int diff_port = 1234;
     long img_size = parse_args_and_load_image(argc, argv, &diff_so_file, &diff_port);
 
+    init_disasm();
+
+    if (!sdb_batch_mode) {
+        Verilated::traceEverOn(true);
+        tfp = new VerilatedVcdC;
+        top->trace(tfp, 99);
+        tfp->open("waveform.vcd");
+    }
+
+    g_top = top;
+    g_contextp = contextp;
+    g_tfp = tfp;
+
     top->clk = 0;
     top->rst = 1;
     top->eval();
     contextp->timeInc(1);
-    tfp->dump(contextp->time());
+    if (tfp) tfp->dump(contextp->time());
 
     // Reset for a few cycles.
     for (int i = 0; i < 9; i++) {
         top->clk = !top->clk;
         top->eval();
         contextp->timeInc(1);
-        tfp->dump(contextp->time());
+        if (tfp) tfp->dump(contextp->time());
     }
     top->rst = 0;
 

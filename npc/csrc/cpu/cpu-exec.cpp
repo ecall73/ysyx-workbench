@@ -45,12 +45,12 @@ void cpu_exec(uint64_t n) {
             g_top->clk = 0;
             g_top->eval();
             g_contextp->timeInc(1);
-            g_tfp->dump(g_contextp->time());
+            if (g_tfp) g_tfp->dump(g_contextp->time());
 
             g_top->clk = 1;
             g_top->eval();
             g_contextp->timeInc(1);
-            g_tfp->dump(g_contextp->time());
+            if (g_tfp) g_tfp->dump(g_contextp->time());
 
             if (g_contextp->time() > MAX_SIM_TIME) {
                 Log("Simulation timed out at time %ld", g_contextp->time());
