@@ -8,6 +8,10 @@
 // 此处不自己实现是因为笔者在 高级语言程序设计 课程上已经独立实现过string.h里的这些函数
 // 使用 musl libc 版本可以提供更好的性能
 // Use musl libc for high performance
+#ifndef USE_MUSL
+#define USE_MUSL 1
+#endif
+
 #define ALIGN (sizeof(size_t))
 #define ONES ((size_t)-1/UCHAR_MAX)
 #define HIGHS (ONES * (UCHAR_MAX/2+1))
@@ -59,6 +63,7 @@ int strncmp(const char *_l, const char *_r, size_t n)
 
 void *memset(void *dest, int c, size_t n)
 {
+#if USE_MUSL
 	unsigned char *s = dest;
 	size_t k;
 
@@ -143,6 +148,14 @@ void *memset(void *dest, int c, size_t n)
 #endif
 
 	return dest;
+#else
+	unsigned char *s = (unsigned char *)dest;
+	unsigned char v = (unsigned char)c;
+	for (size_t i = 0; i < n; i++) {
+		s[i] = v;
+	}
+	return dest;
+#endif
 }
 
 void *memmove(void *dest, const void *src, size_t n)
@@ -182,6 +195,7 @@ void *memmove(void *dest, const void *src, size_t n)
 
 void *memcpy(void *restrict dest, const void *restrict src, size_t n)
 {
+#if USE_MUSL
 	unsigned char *d = dest;
 	const unsigned char *s = src;
 
@@ -299,6 +313,14 @@ void *memcpy(void *restrict dest, const void *restrict src, size_t n)
 
 	for (; n; n--) *d++ = *s++;
 	return dest;
+#else
+	unsigned char *d = (unsigned char *)dest;
+	const unsigned char *s = (const unsigned char *)src;
+	for (size_t i = 0; i < n; i++) {
+		d[i] = s[i];
+	}
+	return dest;
+#endif
 }
 
 int memcmp(const void *vl, const void *vr, size_t n)
