@@ -9,7 +9,7 @@
 // 使用 musl libc 版本可以提供更好的性能
 // Use musl libc for high performance
 #ifndef USE_MUSL
-#define USE_MUSL 1
+#define USE_MUSL 0
 #endif
 
 #define ALIGN (sizeof(size_t))
