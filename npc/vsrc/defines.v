@@ -1,17 +1,5 @@
 // run sel
 `define RUN_TRACE
-// `define RUN_ONBOARD
-
-// Ultrascale(+): DSP48E2, 7Series: DSP48E1
-// `define DSP48E2_MULT
-// `define DSP48E1_MULT
-
-`define RV32IM
-// `define RV32I
-
-`define mul_stall 3
-`define divu_stall 18
-`define divs_stall 18
 
 // opcode
 `define R_TYPE   7'b011_0011

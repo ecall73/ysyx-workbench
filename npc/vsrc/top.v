@@ -27,21 +27,9 @@ module top
     wire perip_wen, perip_ren;
     wire [3:0] perip_wmask;
 
-    wire external_stall;
-    wire [3:0] exception, interrupt;
-
-    // No external_stall, exception or interrupt
-    assign external_stall = 0;
-    assign exception = 10;
-    assign interrupt = 0;
-
     myCPU Core_cpu (
         .clk                (clk),
         .rst                (rst),
-        .external_stall     (external_stall),
-
-        .exception          (exception),
-        .interrupt          (interrupt),
 
         // Interface to IROM
         .irom_ren           (irom_ren),

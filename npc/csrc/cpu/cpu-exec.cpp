@@ -14,6 +14,7 @@ extern "C" void npc_trap(int pc, int a0) {
 }
 
 static uint64_t g_timer_us = 0;
+static uint64_t g_nr_sim_cycle = 0;
 
 static uint64_t get_time_us() {
     struct timespec ts;
@@ -24,6 +25,14 @@ static uint64_t get_time_us() {
 static void statistic() {
     Log("host time spent = %" PRIu64 " us", g_timer_us);
     Log("total guest instructions = %" PRIu64, g_nr_guest_inst);
+    Log("total simulation cycles = %" PRIu64, g_nr_sim_cycle);
+
+    if (g_nr_sim_cycle > 0) {
+        Log("IPC = %.4f", (double)g_nr_guest_inst / (double)g_nr_sim_cycle);
+    } else {
+        Log("No simulation cycle counted, can not calculate IPC");
+    }
+
     if (g_timer_us > 0) {
         Log("simulation frequency = %" PRIu64 " inst/s", g_nr_guest_inst * 1000000 / g_timer_us);
     } else {
@@ -51,6 +60,7 @@ void cpu_exec(uint64_t n) {
             g_top->eval();
             g_contextp->timeInc(1);
             if (g_tfp) g_tfp->dump(g_contextp->time());
+            g_nr_sim_cycle++;
 
             if (g_contextp->time() > MAX_SIM_TIME) {
                 Log("Simulation timed out at time %ld", g_contextp->time());

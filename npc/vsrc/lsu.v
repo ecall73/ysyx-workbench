@@ -5,16 +5,23 @@ module lsu (
     input  wire        clk,
     input  wire        rst,
 
-    // ME1 Stage inputs
-    input  wire [31:0] me1_ALUResult,
-    input  wire [ 2:0] me1_mask,
-    input  wire        me1_MemWrite,
-    input  wire        me1_MemRead,
-    input  wire [31:0] me1_rR2_data,
+    // Handshake
+    input  wire        ls1_in_valid,
+    output wire        ls1_in_ready,
+    output wire        ls1_out_valid,
+    output reg         ls2_out_valid,
+    input  wire        ls2_out_ready,
 
-    input  wire        me1_RegWrite,
-    input  wire [ 4:0] me1_RFwaddr,
-    input  wire [31:0] me1_RFwdata,
+    // LS1 Stage payload inputs
+    input  wire [31:0] ls1_ALUResult,
+    input  wire [ 2:0] ls1_mask,
+    input  wire        ls1_MemWrite,
+    input  wire        ls1_MemRead,
+    input  wire [31:0] ls1_rR2_data,
+
+    input  wire        ls1_RegWrite,
+    input  wire [ 4:0] ls1_RFwaddr,
+    input  wire [31:0] ls1_RFwdata,
 
     // Peripheral Interface
     input  wire [31:0] perip_rdata,
@@ -24,164 +31,195 @@ module lsu (
     output wire        perip_ren,
     output wire [31:0] perip_wdata,
 
-    // ME2 Stage outputs
-    output reg         me2_RegWrite,
-    output reg  [ 4:0] me2_RFwaddr,
-    output wire [31:0] me2_RFwdata
+    // LS2 Stage payload outputs
+    output reg         ls2_RegWrite,
+    output reg  [ 4:0] ls2_RFwaddr,
+    output wire [31:0] ls2_RFwdata
 
     `ifdef RUN_TRACE
-    ,   input  wire [31:0] pc_ME1,
-        input  wire        have_inst_ME1,
-        input  wire        me1_ebreak,
-        output reg  [31:0] pc_ME2,
-        output reg         have_inst_ME2,
-        output reg         me2_ebreak
+    ,   input  wire [31:0] pc_LS1,
+        input  wire        have_inst_LS1,
+        input  wire        ls1_ebreak,
+        output reg  [31:0] pc_LS2,
+        output reg         have_inst_LS2,
+        output reg         ls2_ebreak
     `endif
 );
 
-    reg [31:0] me2_RFwdata_tmp;
-    reg        me2_MemRead;
-    reg [ 2:0] me2_mask;
-    reg [ 1:0] me2_offset;
+    reg [31:0] ls2_RFwdata_tmp;
+    reg        ls2_MemRead;
+    reg [ 2:0] ls2_mask;
+    reg [ 1:0] ls2_offset;
+
+    // LSU has 2 stages, so keep full local handshake semantics:
+    // ls1_in -> ls1_out -> ls2_in -> ls2_out
+    wire       ls1_out_ready;
+    wire       ls2_in_valid;
+    wire       ls2_in_ready;
+
+    assign ls1_out_valid = ls1_in_valid;
+    assign ls1_in_ready  = ~ls1_in_valid || ls1_out_ready;
 
     // ================================================================
-    // ME1: Write masking and address preparation
+    // LS1: Write masking and address preparation
     // ================================================================
-    wire [ 1:0] me1_offset;
-    reg  [ 3:0] me1_wmask;
-    reg  [31:0] me1_wdata_aligned;
+    wire [ 1:0] ls1_offset;
+    reg  [ 3:0] ls1_wmask;
+    reg  [31:0] ls1_wdata_aligned;
 
-    assign me1_offset  = me1_ALUResult[1:0];
-    assign perip_addr  = {me1_ALUResult[31:2], 2'b0};  // Word-aligned address
-    assign perip_wmask = me1_wmask;
-    assign perip_wen   = me1_MemWrite;
-    assign perip_ren   = me1_MemRead;
-    assign perip_wdata = me1_wdata_aligned;
+    assign ls1_offset  = ls1_ALUResult[1:0];
+    assign perip_addr  = {ls1_ALUResult[31:2], 2'b0};  // Word-aligned address
+    assign perip_wmask = ls1_wmask;
+    assign perip_wen   = ls1_out_valid && ls1_out_ready && ls1_MemWrite;
+    assign perip_ren   = ls1_out_valid && ls1_out_ready && ls1_MemRead;
+    assign perip_wdata = ls1_wdata_aligned;
 
     // Generate write mask and aligned data based on mask type and offset
     always @(*) begin
-        me1_wmask = 4'b0000;
-        me1_wdata_aligned = me1_rR2_data;
-        case (me1_mask)
+        ls1_wmask = 4'b0000;
+        ls1_wdata_aligned = ls1_rR2_data;
+        case (ls1_mask)
             3'b000: begin // sb
-                case (me1_offset)
+                case (ls1_offset)
                     2'b00: begin
-                        me1_wmask = 4'b0001;
-                        me1_wdata_aligned = {24'b0, me1_rR2_data[7:0]};
+                        ls1_wmask = 4'b0001;
+                        ls1_wdata_aligned = {24'b0, ls1_rR2_data[7:0]};
                     end
                     2'b01: begin
-                        me1_wmask = 4'b0010;
-                        me1_wdata_aligned = {16'b0, me1_rR2_data[7:0], 8'b0};
+                        ls1_wmask = 4'b0010;
+                        ls1_wdata_aligned = {16'b0, ls1_rR2_data[7:0], 8'b0};
                     end
                     2'b10: begin
-                        me1_wmask = 4'b0100;
-                        me1_wdata_aligned = {8'b0, me1_rR2_data[7:0], 16'b0};
+                        ls1_wmask = 4'b0100;
+                        ls1_wdata_aligned = {8'b0, ls1_rR2_data[7:0], 16'b0};
                     end
                     2'b11: begin
-                        me1_wmask = 4'b1000;
-                        me1_wdata_aligned = {me1_rR2_data[7:0], 24'b0};
+                        ls1_wmask = 4'b1000;
+                        ls1_wdata_aligned = {ls1_rR2_data[7:0], 24'b0};
                     end
                 endcase
             end
             3'b001: begin // sh
-                case (me1_offset[1])
+                case (ls1_offset[1])
                     1'b0: begin
-                        me1_wmask = 4'b0011;
-                        me1_wdata_aligned = {16'b0, me1_rR2_data[15:0]};
+                        ls1_wmask = 4'b0011;
+                        ls1_wdata_aligned = {16'b0, ls1_rR2_data[15:0]};
                     end
                     1'b1: begin
-                        me1_wmask = 4'b1100;
-                        me1_wdata_aligned = {me1_rR2_data[15:0], 16'b0};
+                        ls1_wmask = 4'b1100;
+                        ls1_wdata_aligned = {ls1_rR2_data[15:0], 16'b0};
                     end
                 endcase
             end
             default: begin // sw
-                me1_wmask = 4'b1111;
-                me1_wdata_aligned = me1_rR2_data;
+                ls1_wmask = 4'b1111;
+                ls1_wdata_aligned = ls1_rR2_data;
             end
         endcase
     end
+
     // ================================================================
-    // ME1_ME2 Pipeline Register
+    // LS1_LS2 Pipeline Register
     // ================================================================
+    // LS1 -> LS2 handshake coupling
+    assign ls2_in_valid  = ls1_out_valid;
+    assign ls2_in_ready  = ~ls2_out_valid || ls2_out_ready;
+    assign ls1_out_ready = ls2_in_ready;
+
     always @(posedge clk) begin
         if (rst) begin
-            me2_RegWrite    <= 0;
-            me2_RFwaddr     <= 0;
-            me2_MemRead     <= 0;
-            me2_RFwdata_tmp <= 0;
-            me2_mask        <= 3'b0;
-            me2_offset      <= 2'b0;
-        end else begin
-            me2_RegWrite    <= me1_RegWrite;
-            me2_RFwaddr     <= me1_RFwaddr;
-            me2_MemRead     <= me1_MemRead;
-            me2_RFwdata_tmp <= me1_RFwdata;
-            me2_mask        <= me1_mask;
-            me2_offset      <= me1_offset;
+            ls2_out_valid   <= 0;
+            ls2_RegWrite    <= 0;
+            ls2_RFwaddr     <= 0;
+            ls2_MemRead     <= 0;
+            ls2_RFwdata_tmp <= 0;
+            ls2_mask        <= 3'b0;
+            ls2_offset      <= 2'b0;
+        end else if (ls2_in_ready) begin
+            ls2_out_valid <= ls2_in_valid;
+            if (ls2_in_valid) begin
+                ls2_RegWrite    <= ls1_RegWrite;
+                ls2_RFwaddr     <= ls1_RFwaddr;
+                ls2_MemRead     <= ls1_MemRead;
+                ls2_RFwdata_tmp <= ls1_RFwdata;
+                ls2_mask        <= ls1_mask;
+                ls2_offset      <= ls1_offset;
+            end else begin
+                ls2_RegWrite    <= 0;
+                ls2_RFwaddr     <= 0;
+                ls2_MemRead     <= 0;
+                ls2_RFwdata_tmp <= 0;
+                ls2_mask        <= 3'b0;
+                ls2_offset      <= 2'b0;
+            end
         end
     end
 
     // trace
     `ifdef RUN_TRACE
         always @(posedge clk) begin
-            if (rst)    pc_ME2 <= 32'b0;
-            else        pc_ME2 <= pc_ME1;
-        end
-        always @(posedge clk) begin
-            if (rst)    have_inst_ME2 <= 1'b0;
-            else        have_inst_ME2 <= have_inst_ME1;
-        end
-        always @(posedge clk) begin
-            if (rst)    me2_ebreak <= 1'b0;
-            else        me2_ebreak <= me1_ebreak;
+            if (rst) begin
+                pc_LS2 <= 32'b0;
+                have_inst_LS2 <= 1'b0;
+                ls2_ebreak <= 1'b0;
+            end else if (ls2_in_ready) begin
+                if (ls2_in_valid) begin
+                    pc_LS2 <= pc_LS1;
+                    have_inst_LS2 <= have_inst_LS1;
+                    ls2_ebreak <= ls1_ebreak;
+                end else begin
+                    pc_LS2 <= 32'b0;
+                    have_inst_LS2 <= 1'b0;
+                    ls2_ebreak <= 1'b0;
+                end
+            end
         end
     `endif
 
     // ================================================================
-    // ME2: Read masking and sign extension
+    // LS2: Read masking and sign extension
     // ================================================================
-    reg [31:0] me2_rdata_decoded;
+    reg [31:0] ls2_rdata_decoded;
 
     always @(*) begin
-        me2_rdata_decoded = perip_rdata;  // Default: lw
-        case (me2_mask)
+        ls2_rdata_decoded = perip_rdata;  // Default: lw
+        case (ls2_mask)
             3'b000: begin   // lb
-                case (me2_offset)
-                    2'b00: me2_rdata_decoded = {{24{perip_rdata[7]}}, perip_rdata[7:0]};
-                    2'b01: me2_rdata_decoded = {{24{perip_rdata[15]}}, perip_rdata[15:8]};
-                    2'b10: me2_rdata_decoded = {{24{perip_rdata[23]}}, perip_rdata[23:16]};
-                    2'b11: me2_rdata_decoded = {{24{perip_rdata[31]}}, perip_rdata[31:24]};
-                    default: me2_rdata_decoded = 32'b0;
+                case (ls2_offset)
+                    2'b00: ls2_rdata_decoded = {{24{perip_rdata[7]}}, perip_rdata[7:0]};
+                    2'b01: ls2_rdata_decoded = {{24{perip_rdata[15]}}, perip_rdata[15:8]};
+                    2'b10: ls2_rdata_decoded = {{24{perip_rdata[23]}}, perip_rdata[23:16]};
+                    2'b11: ls2_rdata_decoded = {{24{perip_rdata[31]}}, perip_rdata[31:24]};
+                    default: ls2_rdata_decoded = 32'b0;
                 endcase
             end
             3'b001: begin   // lh
-                case (me2_offset[1])
-                    1'b0: me2_rdata_decoded = {{16{perip_rdata[15]}}, perip_rdata[15:0]};
-                    1'b1: me2_rdata_decoded = {{16{perip_rdata[31]}}, perip_rdata[31:16]};
-                    default: me2_rdata_decoded = 32'b0;
+                case (ls2_offset[1])
+                    1'b0: ls2_rdata_decoded = {{16{perip_rdata[15]}}, perip_rdata[15:0]};
+                    1'b1: ls2_rdata_decoded = {{16{perip_rdata[31]}}, perip_rdata[31:16]};
+                    default: ls2_rdata_decoded = 32'b0;
                 endcase
             end
             3'b100: begin   // lbu
-                case (me2_offset)
-                    2'b00: me2_rdata_decoded = {24'b0, perip_rdata[7:0]};
-                    2'b01: me2_rdata_decoded = {24'b0, perip_rdata[15:8]};
-                    2'b10: me2_rdata_decoded = {24'b0, perip_rdata[23:16]};
-                    2'b11: me2_rdata_decoded = {24'b0, perip_rdata[31:24]};
-                    default: me2_rdata_decoded = 32'b0;
+                case (ls2_offset)
+                    2'b00: ls2_rdata_decoded = {24'b0, perip_rdata[7:0]};
+                    2'b01: ls2_rdata_decoded = {24'b0, perip_rdata[15:8]};
+                    2'b10: ls2_rdata_decoded = {24'b0, perip_rdata[23:16]};
+                    2'b11: ls2_rdata_decoded = {24'b0, perip_rdata[31:24]};
+                    default: ls2_rdata_decoded = 32'b0;
                 endcase
             end
             3'b101: begin   // lhu
-                case (me2_offset[1])
-                    1'b0: me2_rdata_decoded = {16'b0, perip_rdata[15:0]};
-                    1'b1: me2_rdata_decoded = {16'b0, perip_rdata[31:16]};
-                    default: me2_rdata_decoded = 32'b0;
+                case (ls2_offset[1])
+                    1'b0: ls2_rdata_decoded = {16'b0, perip_rdata[15:0]};
+                    1'b1: ls2_rdata_decoded = {16'b0, perip_rdata[31:16]};
+                    default: ls2_rdata_decoded = 32'b0;
                 endcase
             end
-            default: me2_rdata_decoded = perip_rdata; // lw
+            default: ls2_rdata_decoded = perip_rdata; // lw
         endcase
     end
 
-    assign me2_RFwdata = me2_MemRead ? me2_rdata_decoded : me2_RFwdata_tmp;
+    assign ls2_RFwdata = ls2_MemRead ? ls2_rdata_decoded : ls2_RFwdata_tmp;
 
 endmodule
