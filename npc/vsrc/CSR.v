@@ -90,7 +90,7 @@ module CSR (
     // mstatus
     always @(posedge clk) begin
 		if (rst) begin
-            mstatus <= 32'b1010;
+            mstatus <= 32'h1800;
 		end else if (flush) begin
 			mstatus <= mstatus;
         end else if (trap_taken) begin
