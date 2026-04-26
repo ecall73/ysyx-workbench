@@ -6,13 +6,12 @@ module perip_bridge (
     input [3:0] perip_wmask,
     input [31:0] perip_addr,
     input [31:0] perip_wdata,
-    output reg [31:0] perip_rdata
+    output wire [31:0] perip_rdata
 );
 
     import "DPI-C" function int pmem_read(input int raddr);
     import "DPI-C" function void pmem_write(input int waddr, input int wdata, input byte wmask);
 
-    reg [31:0] perip_rdata_raw;
     reg [7:0] wmask_byte;
 
     always @(*) begin
@@ -20,20 +19,11 @@ module perip_bridge (
     end
 
     always @(posedge clk) begin
-        if (rst) begin
-            perip_rdata_raw <= 32'b0;
-        end else begin
-            if (perip_ren) begin
-                perip_rdata_raw <= pmem_read(perip_addr);
-            end
-            if (perip_wen) begin
-                pmem_write(perip_addr, perip_wdata, wmask_byte);
-            end
+        if (!rst && perip_wen) begin
+            pmem_write(perip_addr, perip_wdata, wmask_byte);
         end
     end
 
-    always @(*) begin
-        perip_rdata = perip_rdata_raw;
-    end
+    assign perip_rdata = perip_ren ? pmem_read(perip_addr) : 32'b0;
 
 endmodule
