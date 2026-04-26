@@ -1,6 +1,16 @@
 // run sel
 `define RUN_TRACE
 
+// IFU SimpleBus delay config (1~15)
+`ifndef IFU_MAX_DELAY
+`define IFU_MAX_DELAY 4
+`endif
+
+// IFU reqReady delay config (1~15)
+`ifndef IFU_REQREADY_MAX_DELAY
+`define IFU_REQREADY_MAX_DELAY 4
+`endif
+
 // opcode
 `define R_TYPE   7'b011_0011
 `define I_TYPE   7'b001_0011

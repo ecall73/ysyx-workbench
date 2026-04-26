@@ -6,9 +6,13 @@ module myCPU (
     input  wire        clk,
     input  wire        rst,
 
-    // Interface to IROM
-    output wire [31:0] irom_addr,
-    input  wire [31:0] irom_data,
+    // Interface to IFU SimpleBus
+    output wire        ifu_reqValid,
+    input  wire        ifu_reqReady,
+    output wire [31:0] ifu_addr,
+    input  wire        ifu_respValid,
+    output wire        ifu_respReady,
+    input  wire [31:0] ifu_rdata,
     
     // Interface to Bridge
     output wire [31:0] perip_addr,
@@ -170,8 +174,12 @@ module myCPU (
         .if_out_ready           (if_out_ready),
         .redirect_flush         (redirect_flush),
 
-        .irom_data              (irom_data),
-        .irom_addr              (irom_addr),
+        .ifu_reqValid           (ifu_reqValid),
+        .ifu_reqReady           (ifu_reqReady),
+        .ifu_addr               (ifu_addr),
+        .ifu_respValid          (ifu_respValid),
+        .ifu_respReady          (ifu_respReady),
+        .ifu_rdata              (ifu_rdata),
 
         .if_out_valid           (if_out_valid),
         .if_pc                  (if_pc),

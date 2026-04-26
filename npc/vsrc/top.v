@@ -17,9 +17,13 @@ module top
 `endif
 );
 
-    // IROM
-    wire [31:0] irom_addr;
-    wire [31:0] irom_data;
+    // IFU SimpleBus
+    wire        ifu_reqValid;
+    wire        ifu_reqReady;
+    wire [31:0] ifu_addr;
+    wire        ifu_respValid;
+    wire        ifu_respReady;
+    wire [31:0] ifu_rdata;
 
     // perip
     wire [31:0] perip_addr, perip_wdata, perip_rdata;
@@ -30,9 +34,13 @@ module top
         .clk                (clk),
         .rst                (rst),
 
-        // Interface to IROM
-        .irom_addr          (irom_addr),
-        .irom_data          (irom_data),
+        // Interface to IFU SimpleBus
+        .ifu_reqValid       (ifu_reqValid),
+        .ifu_reqReady       (ifu_reqReady),
+        .ifu_addr           (ifu_addr),
+        .ifu_respValid      (ifu_respValid),
+        .ifu_respReady      (ifu_respReady),
+        .ifu_rdata          (ifu_rdata),
 
         // Interface to DRAM & periphera
         .perip_addr         (perip_addr),
@@ -55,8 +63,14 @@ module top
     );
 
     irom irom_inst (
-        .irom_addr          (irom_addr),
-        .irom_data          (irom_data)
+        .clk                (clk),
+        .rst                (rst),
+        .ifu_reqValid       (ifu_reqValid),
+        .ifu_reqReady       (ifu_reqReady),
+        .ifu_addr           (ifu_addr),
+        .ifu_respValid      (ifu_respValid),
+        .ifu_respReady      (ifu_respReady),
+        .ifu_rdata          (ifu_rdata)
     );
     
     perip_bridge bridge_inst (
