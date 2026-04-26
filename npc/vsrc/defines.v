@@ -11,6 +11,16 @@
 `define IFU_REQREADY_MAX_DELAY 4
 `endif
 
+// LSU resp delay config (1~15)
+`ifndef LSU_MAX_DELAY
+`define LSU_MAX_DELAY 4
+`endif
+
+// LSU reqReady delay config (1~15)
+`ifndef LSU_REQREADY_MAX_DELAY
+`define LSU_REQREADY_MAX_DELAY 4
+`endif
+
 // opcode
 `define R_TYPE   7'b011_0011
 `define I_TYPE   7'b001_0011

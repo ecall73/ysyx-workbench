@@ -25,10 +25,16 @@ module top
     wire        ifu_respReady;
     wire [31:0] ifu_rdata;
 
-    // perip
-    wire [31:0] perip_addr, perip_wdata, perip_rdata;
-    wire perip_wen, perip_ren;
-    wire [3:0] perip_wmask;
+    // LSU SimpleBus
+    wire        lsu_reqValid;
+    wire        lsu_reqReady;
+    wire [31:0] lsu_addr;
+    wire        lsu_wen;
+    wire [31:0] lsu_wdata;
+    wire [ 3:0] lsu_wmask;
+    wire        lsu_respValid;
+    wire        lsu_respReady;
+    wire [31:0] lsu_rdata;
 
     myCPU Core_cpu (
         .clk                (clk),
@@ -42,13 +48,16 @@ module top
         .ifu_respReady      (ifu_respReady),
         .ifu_rdata          (ifu_rdata),
 
-        // Interface to DRAM & periphera
-        .perip_addr         (perip_addr),
-        .perip_ren          (perip_ren),
-        .perip_wen          (perip_wen),
-        .perip_wmask        (perip_wmask),
-        .perip_wdata        (perip_wdata),
-        .perip_rdata        (perip_rdata)
+        // Interface to LSU SimpleBus
+        .lsu_reqValid       (lsu_reqValid),
+        .lsu_reqReady       (lsu_reqReady),
+        .lsu_addr           (lsu_addr),
+        .lsu_wen            (lsu_wen),
+        .lsu_wdata          (lsu_wdata),
+        .lsu_wmask          (lsu_wmask),
+        .lsu_respValid      (lsu_respValid),
+        .lsu_respReady      (lsu_respReady),
+        .lsu_rdata          (lsu_rdata)
 
     `ifdef RUN_TRACE
         ,
@@ -76,12 +85,15 @@ module top
     perip_bridge bridge_inst (
         .clk				(clk),
         .rst                (rst),
-        .perip_addr			(perip_addr),
-        .perip_wdata		(perip_wdata),
-        .perip_ren          (perip_ren),
-        .perip_wen			(perip_wen),
-        .perip_wmask			(perip_wmask),
-        .perip_rdata		(perip_rdata)
+        .lsu_reqValid       (lsu_reqValid),
+        .lsu_reqReady       (lsu_reqReady),
+        .lsu_addr           (lsu_addr),
+        .lsu_wen            (lsu_wen),
+        .lsu_wdata          (lsu_wdata),
+        .lsu_wmask          (lsu_wmask),
+        .lsu_respValid      (lsu_respValid),
+        .lsu_respReady      (lsu_respReady),
+        .lsu_rdata          (lsu_rdata)
     );
 
 endmodule

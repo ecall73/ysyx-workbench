@@ -14,13 +14,16 @@ module myCPU (
     output wire        ifu_respReady,
     input  wire [31:0] ifu_rdata,
     
-    // Interface to Bridge
-    output wire [31:0] perip_addr,
-    input  wire [31:0] perip_rdata,
-    output wire [ 3:0] perip_wmask,
-    output wire        perip_ren,
-    output wire        perip_wen,
-    output wire [31:0] perip_wdata
+    // Interface to LSU SimpleBus
+    output wire        lsu_reqValid,
+    input  wire        lsu_reqReady,
+    output wire [31:0] lsu_addr,
+    output wire        lsu_wen,
+    output wire [31:0] lsu_wdata,
+    output wire [ 3:0] lsu_wmask,
+    input  wire        lsu_respValid,
+    output wire        lsu_respReady,
+    input  wire [31:0] lsu_rdata
 
     // Debug Interface
     `ifdef RUN_TRACE
@@ -160,7 +163,9 @@ module myCPU (
     );
 
     // EX stage redirect decision (flush IF/ID and ID/EX)
-    assign redirect_flush = ex_out_valid && waste2;
+    // Redirect only when EX really handshakes out; otherwise a stalled EX jump
+    // could be flushed away before it reaches commit order.
+    assign redirect_flush = ex_out_valid && ex_out_ready && waste2;
 
     // IF stage handshake defaults
     assign if_in_valid = 1'b1;
@@ -286,6 +291,7 @@ module myCPU (
         .ls_RegWrite            (ls_out_valid && ls_RegWrite),
         .ls_RFwaddr             (ls_RFwaddr),
         .ls_RFwdata             (ls_RFwdata_out),
+        .ls_load_pending        (ls_in_valid && ls_MemRead && ~ls_out_valid),
 
         .wb_RegWrite            (wb_in_valid && wb_RegWrite),
         .wb_RFwaddr             (wb_RFwaddr),
@@ -513,6 +519,8 @@ module myCPU (
     assign ls_out_ready = 1'b1;
 
     lsu u_lsu (
+        .clk                     (clk),
+        .rst                     (rst),
         .ls_in_valid             (ls_in_valid),
         .ls_in_ready             (ls_in_ready),
         .ls_out_valid            (ls_out_valid),
@@ -526,12 +534,15 @@ module myCPU (
 
         .ls_RFwdata              (ls_RFwdata),
 
-        .perip_rdata             (perip_rdata),
-        .perip_addr              (perip_addr),
-        .perip_wmask             (perip_wmask),
-        .perip_wen               (perip_wen),
-        .perip_ren               (perip_ren),
-        .perip_wdata             (perip_wdata),
+        .lsu_reqValid            (lsu_reqValid),
+        .lsu_reqReady            (lsu_reqReady),
+        .lsu_addr                (lsu_addr),
+        .lsu_wen                 (lsu_wen),
+        .lsu_wdata               (lsu_wdata),
+        .lsu_wmask               (lsu_wmask),
+        .lsu_respValid           (lsu_respValid),
+        .lsu_respReady           (lsu_respReady),
+        .lsu_rdata               (lsu_rdata),
 
         .ls_RFwdata_out          (ls_RFwdata_out)
     );
