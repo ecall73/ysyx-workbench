@@ -12,7 +12,6 @@ module ifu (
     // IROM Interface
     input  wire [31:0] irom_data,
     output wire [31:0] irom_addr,
-    output wire        irom_ren,
 
     // To ID stage
     output wire        if_out_valid,
@@ -22,7 +21,6 @@ module ifu (
 
     input  wire [31:0] npc
 );
-    reg [31:0] pre_pc;
     wire if_advance;
 
     assign if_pc4 = if_pc + 4;
@@ -38,18 +36,7 @@ module ifu (
         end
     end
 
-    always @(*) begin
-        if (rst) begin
-            pre_pc = 32'h8000_0000;
-        end else if (if_advance) begin
-            pre_pc = npc;
-        end else begin
-            pre_pc = if_pc;
-        end
-    end
-
-    assign irom_ren = rst || if_advance;
-    assign irom_addr = pre_pc;
+    assign irom_addr = if_pc;
     assign if_inst = irom_data;
 
 endmodule

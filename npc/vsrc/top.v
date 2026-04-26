@@ -18,7 +18,6 @@ module top
 );
 
     // IROM
-    wire irom_ren;
     wire [31:0] irom_addr;
     wire [31:0] irom_data;
 
@@ -32,7 +31,6 @@ module top
         .rst                (rst),
 
         // Interface to IROM
-        .irom_ren           (irom_ren),
         .irom_addr          (irom_addr),
         .irom_data          (irom_data),
 
@@ -57,8 +55,6 @@ module top
     );
 
     irom irom_inst (
-        .clk                (clk),
-        .irom_ren           (irom_ren),
         .irom_addr          (irom_addr),
         .irom_data          (irom_data)
     );

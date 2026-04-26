@@ -8,7 +8,6 @@ module myCPU (
 
     // Interface to IROM
     output wire [31:0] irom_addr,
-    output wire        irom_ren,
     input  wire [31:0] irom_data,
     
     // Interface to Bridge
@@ -187,7 +186,6 @@ module myCPU (
 
         .irom_data              (irom_data),
         .irom_addr              (irom_addr),
-        .irom_ren               (irom_ren),
 
         .if_out_valid           (if_out_valid),
         .if_pc                  (if_pc),
