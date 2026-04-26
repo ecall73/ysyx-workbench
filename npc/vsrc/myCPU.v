@@ -117,8 +117,7 @@ module myCPU (
     // Local handshake control
     wire        waste2;
     wire        redirect_flush;
-    wire        lw_ID_EX;
-    wire        id_block;
+    wire        forward_pending;
     wire        ex_out_ready;
     wire        id_in_ready;
     wire        ex_in_ready;
@@ -210,11 +209,6 @@ module myCPU (
         end
     end
 
-    // ID stage RAW(load-use) hazard check
-    assign lw_ID_EX = id_in_valid && ex_out_valid && ex_MemRead &&
-                      ((id_inst[19:15] == ex_RFwaddr) || (id_inst[24:20] == ex_RFwaddr));
-    assign id_block = lw_ID_EX;
-
     idu u_idu (
         .clk                    (clk),
         .rst                    (rst),
@@ -222,7 +216,7 @@ module myCPU (
         .id_in_ready            (id_in_ready),
         .id_out_valid           (id_out_valid),
         .id_out_ready           (ex_in_ready),
-        .id_block               (id_block),
+        .id_block               (forward_pending),
 
         .id_inst                (id_inst),
 
@@ -269,11 +263,14 @@ module myCPU (
     );
 
     forward u_forward (
+        .id_in_valid            (id_in_valid),
         .id_rR1                 (id_inst[19:15]),
         .id_rR2                 (id_inst[24:20]),
         .id_rR1_data            (id_rR1_data),
         .id_rR2_data            (id_rR2_data),
 
+        .ex_out_valid           (ex_out_valid),
+        .ex_MemRead             (ex_MemRead),
         .ex_RegWrite            (ex_in_valid && ex_RegWrite),
         .ex_RFwaddr             (ex_RFwaddr),
         .ex_RFwdata             (ex_RFwdata),
@@ -286,6 +283,7 @@ module myCPU (
         .wb_RFwaddr             (wb_RFwaddr),
         .wb_RFwdata             (wb_RFwdata),
 
+        .forward_pending        (forward_pending),
         .id_rR1_data_forward    (id_rR1_data_forward),
         .id_rR2_data_forward    (id_rR2_data_forward)
     );
