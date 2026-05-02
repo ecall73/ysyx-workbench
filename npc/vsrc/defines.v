@@ -1,24 +1,36 @@
 // run sel
 `define RUN_TRACE
 
-// IFU SimpleBus delay config (1~15)
-`ifndef IFU_MAX_DELAY
-`define IFU_MAX_DELAY 4
+// IFU AXI delay configs (1~15)
+// Read address ready
+`ifndef IFU_ARREADY_MAX_DELAY
+`define IFU_ARREADY_MAX_DELAY 4
+`endif
+// Read data valid
+`ifndef IFU_RVALID_MAX_DELAY
+`define IFU_RVALID_MAX_DELAY 4
 `endif
 
-// IFU reqReady delay config (1~15)
-`ifndef IFU_REQREADY_MAX_DELAY
-`define IFU_REQREADY_MAX_DELAY 4
+// LSU AXI delay configs (1~15)
+// Read address ready
+`ifndef LSU_ARREADY_MAX_DELAY
+`define LSU_ARREADY_MAX_DELAY 4
 `endif
-
-// LSU resp delay config (1~15)
-`ifndef LSU_MAX_DELAY
-`define LSU_MAX_DELAY 4
+// Read data valid
+`ifndef LSU_RVALID_MAX_DELAY
+`define LSU_RVALID_MAX_DELAY 4
 `endif
-
-// LSU reqReady delay config (1~15)
-`ifndef LSU_REQREADY_MAX_DELAY
-`define LSU_REQREADY_MAX_DELAY 4
+// Write address ready
+`ifndef LSU_AWREADY_MAX_DELAY
+`define LSU_AWREADY_MAX_DELAY 4
+`endif
+// Write data ready
+`ifndef LSU_WREADY_MAX_DELAY
+`define LSU_WREADY_MAX_DELAY 4
+`endif
+// Write response valid
+`ifndef LSU_BVALID_MAX_DELAY
+`define LSU_BVALID_MAX_DELAY 4
 `endif
 
 // opcode

@@ -17,59 +17,87 @@ module lsu (
     input  wire [31:0] ls_rR2_data,
     input  wire [31:0] ls_RFwdata,
 
-    // LSU SimpleBus interface
-    output wire        lsu_reqValid,
-    input  wire        lsu_reqReady,
-    output wire [31:0] lsu_addr,
-    output wire        lsu_wen,
-    output wire [31:0] lsu_wdata,
-    output wire [ 3:0] lsu_wmask,
-    input  wire        lsu_respValid,
-    output wire        lsu_respReady,
-    input  wire [31:0] lsu_rdata,
+    // LSU AXI4-Lite interface
+    // Read address channel
+    output wire [31:0] lsu_axi_araddr,
+    output wire        lsu_axi_arvalid,
+    input  wire        lsu_axi_arready,
+    // Read data channel
+    input  wire [31:0] lsu_axi_rdata,
+    input  wire [ 1:0] lsu_axi_rresp,
+    input  wire        lsu_axi_rvalid,
+    output wire        lsu_axi_rready,
+    // Write address channel
+    output wire [31:0] lsu_axi_awaddr,
+    output wire        lsu_axi_awvalid,
+    input  wire        lsu_axi_awready,
+    // Write data channel
+    output wire [31:0] lsu_axi_wdata,
+    output wire [ 3:0] lsu_axi_wstrb,
+    output wire        lsu_axi_wvalid,
+    input  wire        lsu_axi_wready,
+    // Write response channel
+    input  wire [ 1:0] lsu_axi_bresp,
+    input  wire        lsu_axi_bvalid,
+    output wire        lsu_axi_bready,
 
     // LS payload outputs
     output wire [31:0] ls_RFwdata_out
 );
 
-    localparam L_IDLE            = 2'd0;
-    localparam L_REQ_VALID       = 2'd1;
-    localparam L_WAIT_RESP_VALID = 2'd2;
-    localparam L_RESP_READY      = 2'd3;
+    localparam L_IDLE      = 3'd0;
+    localparam L_RD_AR     = 3'd1;
+    localparam L_RD_WAIT_R = 3'd2;
+    localparam L_WR_AW_W   = 3'd3;
+    localparam L_WR_WAIT_B = 3'd4;
 
-    reg  [1:0]  state;
+    reg  [2:0]  state;
+    reg         wr_aw_done;
+    reg         wr_w_done;
 
     wire        ls_is_mem;
-    wire        req_fire;
-    wire        resp_fire;
+    wire        ls_is_load;
+    wire        ar_fire;
+    wire        r_fire;
+    wire        aw_fire;
+    wire        w_fire;
+    wire        b_fire;
     wire [1:0]  ls_offset;
     reg  [3:0]  ls_wmask_calc;
     reg  [31:0] ls_wdata_aligned;
     reg  [31:0] ls_rdata_decoded;
 
     assign ls_is_mem = ls_MemRead || ls_MemWrite;
-    assign req_fire = lsu_reqValid && lsu_reqReady;
-    assign resp_fire = lsu_respValid && lsu_respReady;
+    assign ls_is_load = ls_MemRead && ~ls_MemWrite;
+
+    assign ar_fire = lsu_axi_arvalid && lsu_axi_arready;
+    assign r_fire = lsu_axi_rvalid && lsu_axi_rready;
+    assign aw_fire = lsu_axi_awvalid && lsu_axi_awready;
+    assign w_fire = lsu_axi_wvalid && lsu_axi_wready;
+    assign b_fire = lsu_axi_bvalid && lsu_axi_bready;
     assign ls_offset = ls_ALUResult[1:0];
 
     // Non-memory ops pass through in IDLE with zero extra delay.
-    // For memory ops, ls_in_ready is only released when the response handshakes,
-    // so LS payload can advance exactly once and avoid replaying the same request.
+    // For memory ops, ls_in_ready is only released when R/B handshakes.
     assign ls_in_ready = (state == L_IDLE) ? ((ls_in_valid && ls_is_mem) ? 1'b0 : ls_out_ready) :
-                         (state == L_RESP_READY) ? (lsu_respValid && ls_out_ready) : 1'b0;
+                         (state == L_RD_WAIT_R) ? (lsu_axi_rvalid && ls_out_ready) :
+                         (state == L_WR_WAIT_B) ? (lsu_axi_bvalid && ls_out_ready) : 1'b0;
     assign ls_out_valid = (state == L_IDLE) ? (ls_in_valid && ~ls_is_mem) :
-                          (state == L_RESP_READY) ? lsu_respValid : 1'b0;
+                          (state == L_RD_WAIT_R) ? lsu_axi_rvalid :
+                          (state == L_WR_WAIT_B) ? lsu_axi_bvalid : 1'b0;
 
-    assign lsu_reqValid = (state == L_REQ_VALID);
-    assign lsu_addr = (state == L_REQ_VALID) ? {ls_ALUResult[31:2], 2'b0} : 32'b0;
-    assign lsu_wen = (state == L_REQ_VALID) ? ls_MemWrite : 1'b0;
-    assign lsu_wdata = (state == L_REQ_VALID) ? ls_wdata_aligned : 32'b0;
-    assign lsu_wmask = (state == L_REQ_VALID) ? ls_wmask_calc : 4'b0;
+    assign lsu_axi_araddr = {ls_ALUResult[31:2], 2'b0};
+    assign lsu_axi_arvalid = (state == L_RD_AR);
+    assign lsu_axi_rready = (state == L_RD_WAIT_R) && ls_out_ready;
 
-    // No LSU response buffer is needed because WB is always ready.
-    assign lsu_respReady = (state == L_RESP_READY) && ls_out_ready;
+    assign lsu_axi_awaddr = {ls_ALUResult[31:2], 2'b0};
+    assign lsu_axi_awvalid = (state == L_WR_AW_W) && ~wr_aw_done;
+    assign lsu_axi_wdata = ls_wdata_aligned;
+    assign lsu_axi_wstrb = ls_wmask_calc;
+    assign lsu_axi_wvalid = (state == L_WR_AW_W) && ~wr_w_done;
+    assign lsu_axi_bready = (state == L_WR_WAIT_B) && ls_out_ready;
 
-    assign ls_RFwdata_out = ((state == L_RESP_READY) && lsu_respValid && ls_MemRead) ? ls_rdata_decoded : ls_RFwdata;
+    assign ls_RFwdata_out = ((state == L_RD_WAIT_R) && lsu_axi_rvalid && ls_MemRead) ? ls_rdata_decoded : ls_RFwdata;
 
     // Store alignment
     always @(*) begin
@@ -117,74 +145,115 @@ module lsu (
 
     // Load sign/zero extension
     always @(*) begin
-        ls_rdata_decoded = lsu_rdata; // lw
+        ls_rdata_decoded = lsu_axi_rdata; // lw
         case (ls_mask)
             3'b000: begin // lb
                 case (ls_offset)
-                    2'b00: ls_rdata_decoded = {{24{lsu_rdata[7]}}, lsu_rdata[7:0]};
-                    2'b01: ls_rdata_decoded = {{24{lsu_rdata[15]}}, lsu_rdata[15:8]};
-                    2'b10: ls_rdata_decoded = {{24{lsu_rdata[23]}}, lsu_rdata[23:16]};
-                    2'b11: ls_rdata_decoded = {{24{lsu_rdata[31]}}, lsu_rdata[31:24]};
+                    2'b00: ls_rdata_decoded = {{24{lsu_axi_rdata[7]}}, lsu_axi_rdata[7:0]};
+                    2'b01: ls_rdata_decoded = {{24{lsu_axi_rdata[15]}}, lsu_axi_rdata[15:8]};
+                    2'b10: ls_rdata_decoded = {{24{lsu_axi_rdata[23]}}, lsu_axi_rdata[23:16]};
+                    2'b11: ls_rdata_decoded = {{24{lsu_axi_rdata[31]}}, lsu_axi_rdata[31:24]};
                     default: ls_rdata_decoded = 32'b0;
                 endcase
             end
             3'b001: begin // lh
                 case (ls_offset[1])
-                    1'b0: ls_rdata_decoded = {{16{lsu_rdata[15]}}, lsu_rdata[15:0]};
-                    1'b1: ls_rdata_decoded = {{16{lsu_rdata[31]}}, lsu_rdata[31:16]};
+                    1'b0: ls_rdata_decoded = {{16{lsu_axi_rdata[15]}}, lsu_axi_rdata[15:0]};
+                    1'b1: ls_rdata_decoded = {{16{lsu_axi_rdata[31]}}, lsu_axi_rdata[31:16]};
                     default: ls_rdata_decoded = 32'b0;
                 endcase
             end
             3'b100: begin // lbu
                 case (ls_offset)
-                    2'b00: ls_rdata_decoded = {24'b0, lsu_rdata[7:0]};
-                    2'b01: ls_rdata_decoded = {24'b0, lsu_rdata[15:8]};
-                    2'b10: ls_rdata_decoded = {24'b0, lsu_rdata[23:16]};
-                    2'b11: ls_rdata_decoded = {24'b0, lsu_rdata[31:24]};
+                    2'b00: ls_rdata_decoded = {24'b0, lsu_axi_rdata[7:0]};
+                    2'b01: ls_rdata_decoded = {24'b0, lsu_axi_rdata[15:8]};
+                    2'b10: ls_rdata_decoded = {24'b0, lsu_axi_rdata[23:16]};
+                    2'b11: ls_rdata_decoded = {24'b0, lsu_axi_rdata[31:24]};
                     default: ls_rdata_decoded = 32'b0;
                 endcase
             end
             3'b101: begin // lhu
                 case (ls_offset[1])
-                    1'b0: ls_rdata_decoded = {16'b0, lsu_rdata[15:0]};
-                    1'b1: ls_rdata_decoded = {16'b0, lsu_rdata[31:16]};
+                    1'b0: ls_rdata_decoded = {16'b0, lsu_axi_rdata[15:0]};
+                    1'b1: ls_rdata_decoded = {16'b0, lsu_axi_rdata[31:16]};
                     default: ls_rdata_decoded = 32'b0;
                 endcase
             end
-            default: ls_rdata_decoded = lsu_rdata;
+            default: ls_rdata_decoded = lsu_axi_rdata;
         endcase
     end
 
     always @(posedge clk) begin
         if (rst) begin
             state <= L_IDLE;
+            wr_aw_done <= 1'b0;
+            wr_w_done <= 1'b0;
         end else begin
             case (state)
                 L_IDLE: begin
+                    wr_aw_done <= 1'b0;
+                    wr_w_done <= 1'b0;
                     if (ls_in_valid && ls_is_mem) begin
-                        state <= L_REQ_VALID;
+                        if (ls_is_load) begin
+                            state <= L_RD_AR;
+                        end else begin
+                            state <= L_WR_AW_W;
+                        end
                     end
                 end
-                L_REQ_VALID: begin
-                    if (req_fire) begin
-                        state <= L_WAIT_RESP_VALID;
+
+                L_RD_AR: begin
+                    if (ar_fire) begin
+                        state <= L_RD_WAIT_R;
                     end
                 end
-                L_WAIT_RESP_VALID: begin
-                    if (lsu_respValid) begin
-                        state <= L_RESP_READY;
-                    end
-                end
-                L_RESP_READY: begin
-                    if (resp_fire) begin
+
+                L_RD_WAIT_R: begin
+                    if (r_fire) begin
                         state <= L_IDLE;
                     end
                 end
+
+                L_WR_AW_W: begin
+                    if (aw_fire) begin
+                        wr_aw_done <= 1'b1;
+                    end
+                    if (w_fire) begin
+                        wr_w_done <= 1'b1;
+                    end
+                    if ((wr_aw_done || aw_fire) && (wr_w_done || w_fire)) begin
+                        wr_aw_done <= 1'b0;
+                        wr_w_done <= 1'b0;
+                        state <= L_WR_WAIT_B;
+                    end
+                end
+
+                L_WR_WAIT_B: begin
+                    if (b_fire) begin
+                        state <= L_IDLE;
+                    end
+                end
+
                 default: begin
                     state <= L_IDLE;
+                    wr_aw_done <= 1'b0;
+                    wr_w_done <= 1'b0;
                 end
             endcase
         end
     end
+
+`ifndef SYNTHESIS
+    always @(posedge clk) begin
+        if (!rst) begin
+            if ((state == L_RD_WAIT_R) && lsu_axi_rvalid && (lsu_axi_rresp !== 2'b00)) begin
+                $fatal(1, "lsu: AXI RRESP is not OKAY");
+            end
+            if ((state == L_WR_WAIT_B) && lsu_axi_bvalid && (lsu_axi_bresp !== 2'b00)) begin
+                $fatal(1, "lsu: AXI BRESP is not OKAY");
+            end
+        end
+    end
+`endif
 
 endmodule

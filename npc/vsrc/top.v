@@ -36,16 +36,24 @@ module top
     wire        ifu_axi_bvalid;
     wire        ifu_axi_bready;
 
-    // LSU SimpleBus
-    wire        lsu_reqValid;
-    wire        lsu_reqReady;
-    wire [31:0] lsu_addr;
-    wire        lsu_wen;
-    wire [31:0] lsu_wdata;
-    wire [ 3:0] lsu_wmask;
-    wire        lsu_respValid;
-    wire        lsu_respReady;
-    wire [31:0] lsu_rdata;
+    // LSU AXI4-Lite (no PROT)
+    wire [31:0] lsu_axi_araddr;
+    wire        lsu_axi_arvalid;
+    wire        lsu_axi_arready;
+    wire [31:0] lsu_axi_rdata;
+    wire [ 1:0] lsu_axi_rresp;
+    wire        lsu_axi_rvalid;
+    wire        lsu_axi_rready;
+    wire [31:0] lsu_axi_awaddr;
+    wire        lsu_axi_awvalid;
+    wire        lsu_axi_awready;
+    wire [31:0] lsu_axi_wdata;
+    wire [ 3:0] lsu_axi_wstrb;
+    wire        lsu_axi_wvalid;
+    wire        lsu_axi_wready;
+    wire [ 1:0] lsu_axi_bresp;
+    wire        lsu_axi_bvalid;
+    wire        lsu_axi_bready;
 
     myCPU Core_cpu (
         .clk                (clk),
@@ -70,16 +78,24 @@ module top
         .ifu_axi_bvalid     (ifu_axi_bvalid),
         .ifu_axi_bready     (ifu_axi_bready),
 
-        // Interface to LSU SimpleBus
-        .lsu_reqValid       (lsu_reqValid),
-        .lsu_reqReady       (lsu_reqReady),
-        .lsu_addr           (lsu_addr),
-        .lsu_wen            (lsu_wen),
-        .lsu_wdata          (lsu_wdata),
-        .lsu_wmask          (lsu_wmask),
-        .lsu_respValid      (lsu_respValid),
-        .lsu_respReady      (lsu_respReady),
-        .lsu_rdata          (lsu_rdata)
+        // Interface to LSU AXI4-Lite
+        .lsu_axi_araddr     (lsu_axi_araddr),
+        .lsu_axi_arvalid    (lsu_axi_arvalid),
+        .lsu_axi_arready    (lsu_axi_arready),
+        .lsu_axi_rdata      (lsu_axi_rdata),
+        .lsu_axi_rresp      (lsu_axi_rresp),
+        .lsu_axi_rvalid     (lsu_axi_rvalid),
+        .lsu_axi_rready     (lsu_axi_rready),
+        .lsu_axi_awaddr     (lsu_axi_awaddr),
+        .lsu_axi_awvalid    (lsu_axi_awvalid),
+        .lsu_axi_awready    (lsu_axi_awready),
+        .lsu_axi_wdata      (lsu_axi_wdata),
+        .lsu_axi_wstrb      (lsu_axi_wstrb),
+        .lsu_axi_wvalid     (lsu_axi_wvalid),
+        .lsu_axi_wready     (lsu_axi_wready),
+        .lsu_axi_bresp      (lsu_axi_bresp),
+        .lsu_axi_bvalid     (lsu_axi_bvalid),
+        .lsu_axi_bready     (lsu_axi_bready)
 
     `ifdef RUN_TRACE
         ,
@@ -118,15 +134,23 @@ module top
     perip_bridge bridge_inst (
         .clk				(clk),
         .rst                (rst),
-        .lsu_reqValid       (lsu_reqValid),
-        .lsu_reqReady       (lsu_reqReady),
-        .lsu_addr           (lsu_addr),
-        .lsu_wen            (lsu_wen),
-        .lsu_wdata          (lsu_wdata),
-        .lsu_wmask          (lsu_wmask),
-        .lsu_respValid      (lsu_respValid),
-        .lsu_respReady      (lsu_respReady),
-        .lsu_rdata          (lsu_rdata)
+        .lsu_axi_araddr     (lsu_axi_araddr),
+        .lsu_axi_arvalid    (lsu_axi_arvalid),
+        .lsu_axi_arready    (lsu_axi_arready),
+        .lsu_axi_rdata      (lsu_axi_rdata),
+        .lsu_axi_rresp      (lsu_axi_rresp),
+        .lsu_axi_rvalid     (lsu_axi_rvalid),
+        .lsu_axi_rready     (lsu_axi_rready),
+        .lsu_axi_awaddr     (lsu_axi_awaddr),
+        .lsu_axi_awvalid    (lsu_axi_awvalid),
+        .lsu_axi_awready    (lsu_axi_awready),
+        .lsu_axi_wdata      (lsu_axi_wdata),
+        .lsu_axi_wstrb      (lsu_axi_wstrb),
+        .lsu_axi_wvalid     (lsu_axi_wvalid),
+        .lsu_axi_wready     (lsu_axi_wready),
+        .lsu_axi_bresp      (lsu_axi_bresp),
+        .lsu_axi_bvalid     (lsu_axi_bvalid),
+        .lsu_axi_bready     (lsu_axi_bready)
     );
 
 endmodule

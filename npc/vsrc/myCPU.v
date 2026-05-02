@@ -30,16 +30,29 @@ module myCPU (
     input  wire        ifu_axi_bvalid,
     output wire        ifu_axi_bready,
     
-    // Interface to LSU SimpleBus
-    output wire        lsu_reqValid,
-    input  wire        lsu_reqReady,
-    output wire [31:0] lsu_addr,
-    output wire        lsu_wen,
-    output wire [31:0] lsu_wdata,
-    output wire [ 3:0] lsu_wmask,
-    input  wire        lsu_respValid,
-    output wire        lsu_respReady,
-    input  wire [31:0] lsu_rdata
+    // Interface to LSU AXI4-Lite
+    // Read address channel
+    output wire [31:0] lsu_axi_araddr,
+    output wire        lsu_axi_arvalid,
+    input  wire        lsu_axi_arready,
+    // Read data channel
+    input  wire [31:0] lsu_axi_rdata,
+    input  wire [ 1:0] lsu_axi_rresp,
+    input  wire        lsu_axi_rvalid,
+    output wire        lsu_axi_rready,
+    // Write address channel
+    output wire [31:0] lsu_axi_awaddr,
+    output wire        lsu_axi_awvalid,
+    input  wire        lsu_axi_awready,
+    // Write data channel
+    output wire [31:0] lsu_axi_wdata,
+    output wire [ 3:0] lsu_axi_wstrb,
+    output wire        lsu_axi_wvalid,
+    input  wire        lsu_axi_wready,
+    // Write response channel
+    input  wire [ 1:0] lsu_axi_bresp,
+    input  wire        lsu_axi_bvalid,
+    output wire        lsu_axi_bready
 
     // Debug Interface
     `ifdef RUN_TRACE
@@ -561,15 +574,23 @@ module myCPU (
 
         .ls_RFwdata              (ls_RFwdata),
 
-        .lsu_reqValid            (lsu_reqValid),
-        .lsu_reqReady            (lsu_reqReady),
-        .lsu_addr                (lsu_addr),
-        .lsu_wen                 (lsu_wen),
-        .lsu_wdata               (lsu_wdata),
-        .lsu_wmask               (lsu_wmask),
-        .lsu_respValid           (lsu_respValid),
-        .lsu_respReady           (lsu_respReady),
-        .lsu_rdata               (lsu_rdata),
+        .lsu_axi_araddr          (lsu_axi_araddr),
+        .lsu_axi_arvalid         (lsu_axi_arvalid),
+        .lsu_axi_arready         (lsu_axi_arready),
+        .lsu_axi_rdata           (lsu_axi_rdata),
+        .lsu_axi_rresp           (lsu_axi_rresp),
+        .lsu_axi_rvalid          (lsu_axi_rvalid),
+        .lsu_axi_rready          (lsu_axi_rready),
+        .lsu_axi_awaddr          (lsu_axi_awaddr),
+        .lsu_axi_awvalid         (lsu_axi_awvalid),
+        .lsu_axi_awready         (lsu_axi_awready),
+        .lsu_axi_wdata           (lsu_axi_wdata),
+        .lsu_axi_wstrb           (lsu_axi_wstrb),
+        .lsu_axi_wvalid          (lsu_axi_wvalid),
+        .lsu_axi_wready          (lsu_axi_wready),
+        .lsu_axi_bresp           (lsu_axi_bresp),
+        .lsu_axi_bvalid          (lsu_axi_bvalid),
+        .lsu_axi_bready          (lsu_axi_bready),
 
         .ls_RFwdata_out          (ls_RFwdata_out)
     );

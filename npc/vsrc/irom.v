@@ -63,8 +63,8 @@ module irom (
     assign ar_fire = ifu_axi_arvalid && ifu_axi_arready;
     assign r_fire = ifu_axi_rvalid && ifu_axi_rready;
 
-    assign arready_delay_sampled = (lfsr_arready_random % `IFU_REQREADY_MAX_DELAY) + 4'd1;
-    assign rvalid_delay_sampled  = (lfsr_resp_random % `IFU_MAX_DELAY) + 4'd1;
+    assign arready_delay_sampled = (lfsr_arready_random % `IFU_ARREADY_MAX_DELAY) + 4'd1;
+    assign rvalid_delay_sampled  = (lfsr_resp_random % `IFU_RVALID_MAX_DELAY) + 4'd1;
 
     lfsr4 u_lfsr4_resp (
         .clk                    (clk),
