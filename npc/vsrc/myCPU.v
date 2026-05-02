@@ -6,13 +6,29 @@ module myCPU (
     input  wire        clk,
     input  wire        rst,
 
-    // Interface to IFU SimpleBus
-    output wire        ifu_reqValid,
-    input  wire        ifu_reqReady,
-    output wire [31:0] ifu_addr,
-    input  wire        ifu_respValid,
-    output wire        ifu_respReady,
-    input  wire [31:0] ifu_rdata,
+    // Interface to IFU AXI4-Lite
+    // Read address channel
+    output wire [31:0] ifu_axi_araddr,
+    output wire        ifu_axi_arvalid,
+    input  wire        ifu_axi_arready,
+    // Read data channel
+    input  wire [31:0] ifu_axi_rdata,
+    input  wire [ 1:0] ifu_axi_rresp,
+    input  wire        ifu_axi_rvalid,
+    output wire        ifu_axi_rready,
+    // Write address channel (unused by IFU)
+    output wire [31:0] ifu_axi_awaddr,
+    output wire        ifu_axi_awvalid,
+    input  wire        ifu_axi_awready,
+    // Write data channel (unused by IFU)
+    output wire [31:0] ifu_axi_wdata,
+    output wire [ 3:0] ifu_axi_wstrb,
+    output wire        ifu_axi_wvalid,
+    input  wire        ifu_axi_wready,
+    // Write response channel (unused by IFU)
+    input  wire [ 1:0] ifu_axi_bresp,
+    input  wire        ifu_axi_bvalid,
+    output wire        ifu_axi_bready,
     
     // Interface to LSU SimpleBus
     output wire        lsu_reqValid,
@@ -179,12 +195,23 @@ module myCPU (
         .if_out_ready           (if_out_ready),
         .redirect_flush         (redirect_flush),
 
-        .ifu_reqValid           (ifu_reqValid),
-        .ifu_reqReady           (ifu_reqReady),
-        .ifu_addr               (ifu_addr),
-        .ifu_respValid          (ifu_respValid),
-        .ifu_respReady          (ifu_respReady),
-        .ifu_rdata              (ifu_rdata),
+        .ifu_axi_araddr         (ifu_axi_araddr),
+        .ifu_axi_arvalid        (ifu_axi_arvalid),
+        .ifu_axi_arready        (ifu_axi_arready),
+        .ifu_axi_rdata          (ifu_axi_rdata),
+        .ifu_axi_rresp          (ifu_axi_rresp),
+        .ifu_axi_rvalid         (ifu_axi_rvalid),
+        .ifu_axi_rready         (ifu_axi_rready),
+        .ifu_axi_awaddr         (ifu_axi_awaddr),
+        .ifu_axi_awvalid        (ifu_axi_awvalid),
+        .ifu_axi_awready        (ifu_axi_awready),
+        .ifu_axi_wdata          (ifu_axi_wdata),
+        .ifu_axi_wstrb          (ifu_axi_wstrb),
+        .ifu_axi_wvalid         (ifu_axi_wvalid),
+        .ifu_axi_wready         (ifu_axi_wready),
+        .ifu_axi_bresp          (ifu_axi_bresp),
+        .ifu_axi_bvalid         (ifu_axi_bvalid),
+        .ifu_axi_bready         (ifu_axi_bready),
 
         .if_out_valid           (if_out_valid),
         .if_pc                  (if_pc),

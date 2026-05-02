@@ -17,13 +17,24 @@ module top
 `endif
 );
 
-    // IFU SimpleBus
-    wire        ifu_reqValid;
-    wire        ifu_reqReady;
-    wire [31:0] ifu_addr;
-    wire        ifu_respValid;
-    wire        ifu_respReady;
-    wire [31:0] ifu_rdata;
+    // IFU AXI4-Lite
+    wire [31:0] ifu_axi_araddr;
+    wire        ifu_axi_arvalid;
+    wire        ifu_axi_arready;
+    wire [31:0] ifu_axi_rdata;
+    wire [ 1:0] ifu_axi_rresp;
+    wire        ifu_axi_rvalid;
+    wire        ifu_axi_rready;
+    wire [31:0] ifu_axi_awaddr;
+    wire        ifu_axi_awvalid;
+    wire        ifu_axi_awready;
+    wire [31:0] ifu_axi_wdata;
+    wire [ 3:0] ifu_axi_wstrb;
+    wire        ifu_axi_wvalid;
+    wire        ifu_axi_wready;
+    wire [ 1:0] ifu_axi_bresp;
+    wire        ifu_axi_bvalid;
+    wire        ifu_axi_bready;
 
     // LSU SimpleBus
     wire        lsu_reqValid;
@@ -40,13 +51,24 @@ module top
         .clk                (clk),
         .rst                (rst),
 
-        // Interface to IFU SimpleBus
-        .ifu_reqValid       (ifu_reqValid),
-        .ifu_reqReady       (ifu_reqReady),
-        .ifu_addr           (ifu_addr),
-        .ifu_respValid      (ifu_respValid),
-        .ifu_respReady      (ifu_respReady),
-        .ifu_rdata          (ifu_rdata),
+        // Interface to IFU AXI4-Lite
+        .ifu_axi_araddr     (ifu_axi_araddr),
+        .ifu_axi_arvalid    (ifu_axi_arvalid),
+        .ifu_axi_arready    (ifu_axi_arready),
+        .ifu_axi_rdata      (ifu_axi_rdata),
+        .ifu_axi_rresp      (ifu_axi_rresp),
+        .ifu_axi_rvalid     (ifu_axi_rvalid),
+        .ifu_axi_rready     (ifu_axi_rready),
+        .ifu_axi_awaddr     (ifu_axi_awaddr),
+        .ifu_axi_awvalid    (ifu_axi_awvalid),
+        .ifu_axi_awready    (ifu_axi_awready),
+        .ifu_axi_wdata      (ifu_axi_wdata),
+        .ifu_axi_wstrb      (ifu_axi_wstrb),
+        .ifu_axi_wvalid     (ifu_axi_wvalid),
+        .ifu_axi_wready     (ifu_axi_wready),
+        .ifu_axi_bresp      (ifu_axi_bresp),
+        .ifu_axi_bvalid     (ifu_axi_bvalid),
+        .ifu_axi_bready     (ifu_axi_bready),
 
         // Interface to LSU SimpleBus
         .lsu_reqValid       (lsu_reqValid),
@@ -74,12 +96,23 @@ module top
     irom irom_inst (
         .clk                (clk),
         .rst                (rst),
-        .ifu_reqValid       (ifu_reqValid),
-        .ifu_reqReady       (ifu_reqReady),
-        .ifu_addr           (ifu_addr),
-        .ifu_respValid      (ifu_respValid),
-        .ifu_respReady      (ifu_respReady),
-        .ifu_rdata          (ifu_rdata)
+        .ifu_axi_araddr     (ifu_axi_araddr),
+        .ifu_axi_arvalid    (ifu_axi_arvalid),
+        .ifu_axi_arready    (ifu_axi_arready),
+        .ifu_axi_rdata      (ifu_axi_rdata),
+        .ifu_axi_rresp      (ifu_axi_rresp),
+        .ifu_axi_rvalid     (ifu_axi_rvalid),
+        .ifu_axi_rready     (ifu_axi_rready),
+        .ifu_axi_awaddr     (ifu_axi_awaddr),
+        .ifu_axi_awvalid    (ifu_axi_awvalid),
+        .ifu_axi_awready    (ifu_axi_awready),
+        .ifu_axi_wdata      (ifu_axi_wdata),
+        .ifu_axi_wstrb      (ifu_axi_wstrb),
+        .ifu_axi_wvalid     (ifu_axi_wvalid),
+        .ifu_axi_wready     (ifu_axi_wready),
+        .ifu_axi_bresp      (ifu_axi_bresp),
+        .ifu_axi_bvalid     (ifu_axi_bvalid),
+        .ifu_axi_bready     (ifu_axi_bready)
     );
     
     perip_bridge bridge_inst (
