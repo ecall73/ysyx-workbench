@@ -1,36 +1,26 @@
 // run sel
 `define RUN_TRACE
 
-// IFU AXI delay configs (1~15)
+// Shared MEM AXI delay configs (1~15)
 // Read address ready
-`ifndef IFU_ARREADY_MAX_DELAY
-`define IFU_ARREADY_MAX_DELAY 4
+`ifndef MEM_ARREADY_MAX_DELAY
+`define MEM_ARREADY_MAX_DELAY 4
 `endif
 // Read data valid
-`ifndef IFU_RVALID_MAX_DELAY
-`define IFU_RVALID_MAX_DELAY 4
-`endif
-
-// LSU AXI delay configs (1~15)
-// Read address ready
-`ifndef LSU_ARREADY_MAX_DELAY
-`define LSU_ARREADY_MAX_DELAY 4
-`endif
-// Read data valid
-`ifndef LSU_RVALID_MAX_DELAY
-`define LSU_RVALID_MAX_DELAY 4
+`ifndef MEM_RVALID_MAX_DELAY
+`define MEM_RVALID_MAX_DELAY 4
 `endif
 // Write address ready
-`ifndef LSU_AWREADY_MAX_DELAY
-`define LSU_AWREADY_MAX_DELAY 4
+`ifndef MEM_AWREADY_MAX_DELAY
+`define MEM_AWREADY_MAX_DELAY 4
 `endif
 // Write data ready
-`ifndef LSU_WREADY_MAX_DELAY
-`define LSU_WREADY_MAX_DELAY 4
+`ifndef MEM_WREADY_MAX_DELAY
+`define MEM_WREADY_MAX_DELAY 4
 `endif
 // Write response valid
-`ifndef LSU_BVALID_MAX_DELAY
-`define LSU_BVALID_MAX_DELAY 4
+`ifndef MEM_BVALID_MAX_DELAY
+`define MEM_BVALID_MAX_DELAY 4
 `endif
 
 // opcode

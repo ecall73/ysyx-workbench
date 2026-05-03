@@ -6,53 +6,29 @@ module myCPU (
     input  wire        clk,
     input  wire        rst,
 
-    // Interface to IFU AXI4-Lite
+    // Shared MEM AXI4-Lite Interface
     // Read address channel
-    output wire [31:0] ifu_axi_araddr,
-    output wire        ifu_axi_arvalid,
-    input  wire        ifu_axi_arready,
+    output wire [31:0] mem_axi_araddr,
+    output wire        mem_axi_arvalid,
+    input  wire        mem_axi_arready,
     // Read data channel
-    input  wire [31:0] ifu_axi_rdata,
-    input  wire [ 1:0] ifu_axi_rresp,
-    input  wire        ifu_axi_rvalid,
-    output wire        ifu_axi_rready,
-    // Write address channel (unused by IFU)
-    output wire [31:0] ifu_axi_awaddr,
-    output wire        ifu_axi_awvalid,
-    input  wire        ifu_axi_awready,
-    // Write data channel (unused by IFU)
-    output wire [31:0] ifu_axi_wdata,
-    output wire [ 3:0] ifu_axi_wstrb,
-    output wire        ifu_axi_wvalid,
-    input  wire        ifu_axi_wready,
-    // Write response channel (unused by IFU)
-    input  wire [ 1:0] ifu_axi_bresp,
-    input  wire        ifu_axi_bvalid,
-    output wire        ifu_axi_bready,
-    
-    // Interface to LSU AXI4-Lite
-    // Read address channel
-    output wire [31:0] lsu_axi_araddr,
-    output wire        lsu_axi_arvalid,
-    input  wire        lsu_axi_arready,
-    // Read data channel
-    input  wire [31:0] lsu_axi_rdata,
-    input  wire [ 1:0] lsu_axi_rresp,
-    input  wire        lsu_axi_rvalid,
-    output wire        lsu_axi_rready,
+    input  wire [31:0] mem_axi_rdata,
+    input  wire [ 1:0] mem_axi_rresp,
+    input  wire        mem_axi_rvalid,
+    output wire        mem_axi_rready,
     // Write address channel
-    output wire [31:0] lsu_axi_awaddr,
-    output wire        lsu_axi_awvalid,
-    input  wire        lsu_axi_awready,
+    output wire [31:0] mem_axi_awaddr,
+    output wire        mem_axi_awvalid,
+    input  wire        mem_axi_awready,
     // Write data channel
-    output wire [31:0] lsu_axi_wdata,
-    output wire [ 3:0] lsu_axi_wstrb,
-    output wire        lsu_axi_wvalid,
-    input  wire        lsu_axi_wready,
+    output wire [31:0] mem_axi_wdata,
+    output wire [ 3:0] mem_axi_wstrb,
+    output wire        mem_axi_wvalid,
+    input  wire        mem_axi_wready,
     // Write response channel
-    input  wire [ 1:0] lsu_axi_bresp,
-    input  wire        lsu_axi_bvalid,
-    output wire        lsu_axi_bready
+    input  wire [ 1:0] mem_axi_bresp,
+    input  wire        mem_axi_bvalid,
+    output wire        mem_axi_bready
 
     // Debug Interface
     `ifdef RUN_TRACE
@@ -159,6 +135,44 @@ module myCPU (
     wire        ex_in_ready;
     wire        id_out_valid;   // From IDU handshake output
     wire        ex_out_valid;   // From EXU handshake output
+
+    // IFU AXI4-Lite (internal master)
+    wire [31:0] ifu_axi_araddr;
+    wire        ifu_axi_arvalid;
+    wire        ifu_axi_arready;
+    wire [31:0] ifu_axi_rdata;
+    wire [ 1:0] ifu_axi_rresp;
+    wire        ifu_axi_rvalid;
+    wire        ifu_axi_rready;
+    wire [31:0] ifu_axi_awaddr;
+    wire        ifu_axi_awvalid;
+    wire        ifu_axi_awready;
+    wire [31:0] ifu_axi_wdata;
+    wire [ 3:0] ifu_axi_wstrb;
+    wire        ifu_axi_wvalid;
+    wire        ifu_axi_wready;
+    wire [ 1:0] ifu_axi_bresp;
+    wire        ifu_axi_bvalid;
+    wire        ifu_axi_bready;
+
+    // LSU AXI4-Lite (internal master)
+    wire [31:0] lsu_axi_araddr;
+    wire        lsu_axi_arvalid;
+    wire        lsu_axi_arready;
+    wire [31:0] lsu_axi_rdata;
+    wire [ 1:0] lsu_axi_rresp;
+    wire        lsu_axi_rvalid;
+    wire        lsu_axi_rready;
+    wire [31:0] lsu_axi_awaddr;
+    wire        lsu_axi_awvalid;
+    wire        lsu_axi_awready;
+    wire [31:0] lsu_axi_wdata;
+    wire [ 3:0] lsu_axi_wstrb;
+    wire        lsu_axi_wvalid;
+    wire        lsu_axi_wready;
+    wire [ 1:0] lsu_axi_bresp;
+    wire        lsu_axi_bvalid;
+    wire        lsu_axi_bready;
 
     // Debug Interface
     `ifdef RUN_TRACE
@@ -593,6 +607,65 @@ module myCPU (
         .lsu_axi_bready          (lsu_axi_bready),
 
         .ls_RFwdata_out          (ls_RFwdata_out)
+    );
+
+    axi4lite_arbiter u_axi4lite_arbiter (
+        .clk                     (clk),
+        .rst                     (rst),
+
+        .ifu_axi_araddr          (ifu_axi_araddr),
+        .ifu_axi_arvalid         (ifu_axi_arvalid),
+        .ifu_axi_arready         (ifu_axi_arready),
+        .ifu_axi_rdata           (ifu_axi_rdata),
+        .ifu_axi_rresp           (ifu_axi_rresp),
+        .ifu_axi_rvalid          (ifu_axi_rvalid),
+        .ifu_axi_rready          (ifu_axi_rready),
+        .ifu_axi_awaddr          (ifu_axi_awaddr),
+        .ifu_axi_awvalid         (ifu_axi_awvalid),
+        .ifu_axi_awready         (ifu_axi_awready),
+        .ifu_axi_wdata           (ifu_axi_wdata),
+        .ifu_axi_wstrb           (ifu_axi_wstrb),
+        .ifu_axi_wvalid          (ifu_axi_wvalid),
+        .ifu_axi_wready          (ifu_axi_wready),
+        .ifu_axi_bresp           (ifu_axi_bresp),
+        .ifu_axi_bvalid          (ifu_axi_bvalid),
+        .ifu_axi_bready          (ifu_axi_bready),
+
+        .lsu_axi_araddr          (lsu_axi_araddr),
+        .lsu_axi_arvalid         (lsu_axi_arvalid),
+        .lsu_axi_arready         (lsu_axi_arready),
+        .lsu_axi_rdata           (lsu_axi_rdata),
+        .lsu_axi_rresp           (lsu_axi_rresp),
+        .lsu_axi_rvalid          (lsu_axi_rvalid),
+        .lsu_axi_rready          (lsu_axi_rready),
+        .lsu_axi_awaddr          (lsu_axi_awaddr),
+        .lsu_axi_awvalid         (lsu_axi_awvalid),
+        .lsu_axi_awready         (lsu_axi_awready),
+        .lsu_axi_wdata           (lsu_axi_wdata),
+        .lsu_axi_wstrb           (lsu_axi_wstrb),
+        .lsu_axi_wvalid          (lsu_axi_wvalid),
+        .lsu_axi_wready          (lsu_axi_wready),
+        .lsu_axi_bresp           (lsu_axi_bresp),
+        .lsu_axi_bvalid          (lsu_axi_bvalid),
+        .lsu_axi_bready          (lsu_axi_bready),
+
+        .mem_axi_araddr          (mem_axi_araddr),
+        .mem_axi_arvalid         (mem_axi_arvalid),
+        .mem_axi_arready         (mem_axi_arready),
+        .mem_axi_rdata           (mem_axi_rdata),
+        .mem_axi_rresp           (mem_axi_rresp),
+        .mem_axi_rvalid          (mem_axi_rvalid),
+        .mem_axi_rready          (mem_axi_rready),
+        .mem_axi_awaddr          (mem_axi_awaddr),
+        .mem_axi_awvalid         (mem_axi_awvalid),
+        .mem_axi_awready         (mem_axi_awready),
+        .mem_axi_wdata           (mem_axi_wdata),
+        .mem_axi_wstrb           (mem_axi_wstrb),
+        .mem_axi_wvalid          (mem_axi_wvalid),
+        .mem_axi_wready          (mem_axi_wready),
+        .mem_axi_bresp           (mem_axi_bresp),
+        .mem_axi_bvalid          (mem_axi_bvalid),
+        .mem_axi_bready          (mem_axi_bready)
     );
 
     // ================================================================

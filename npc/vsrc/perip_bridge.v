@@ -5,27 +5,27 @@ module perip_bridge (
     input  wire        clk,
     input  wire        rst,
     // AXI read address channel
-    input  wire [31:0] lsu_axi_araddr,
-    input  wire        lsu_axi_arvalid,
-    output wire        lsu_axi_arready,
+    input  wire [31:0] mem_axi_araddr,
+    input  wire        mem_axi_arvalid,
+    output wire        mem_axi_arready,
     // AXI read data channel
-    output wire [31:0] lsu_axi_rdata,
-    output wire [ 1:0] lsu_axi_rresp,
-    output wire        lsu_axi_rvalid,
-    input  wire        lsu_axi_rready,
+    output wire [31:0] mem_axi_rdata,
+    output wire [ 1:0] mem_axi_rresp,
+    output wire        mem_axi_rvalid,
+    input  wire        mem_axi_rready,
     // AXI write address channel
-    input  wire [31:0] lsu_axi_awaddr,
-    input  wire        lsu_axi_awvalid,
-    output wire        lsu_axi_awready,
+    input  wire [31:0] mem_axi_awaddr,
+    input  wire        mem_axi_awvalid,
+    output wire        mem_axi_awready,
     // AXI write data channel
-    input  wire [31:0] lsu_axi_wdata,
-    input  wire [ 3:0] lsu_axi_wstrb,
-    input  wire        lsu_axi_wvalid,
-    output wire        lsu_axi_wready,
+    input  wire [31:0] mem_axi_wdata,
+    input  wire [ 3:0] mem_axi_wstrb,
+    input  wire        mem_axi_wvalid,
+    output wire        mem_axi_wready,
     // AXI write response channel
-    output wire [ 1:0] lsu_axi_bresp,
-    output wire        lsu_axi_bvalid,
-    input  wire        lsu_axi_bready
+    output wire [ 1:0] mem_axi_bresp,
+    output wire        mem_axi_bvalid,
+    input  wire        mem_axi_bready
 );
 
     import "DPI-C" function int pmem_read(input int raddr);
@@ -83,27 +83,27 @@ module perip_bridge (
     wire       w_done_next;
     wire       wr_req_done_now;
 
-    assign lsu_axi_arready = (state == B_RD_ARREADY);
-    assign lsu_axi_rvalid = (state == B_RD_RVALID);
-    assign lsu_axi_rdata = rd_data_reg;
-    assign lsu_axi_rresp = 2'b00;
+    assign mem_axi_arready = (state == B_RD_ARREADY);
+    assign mem_axi_rvalid = (state == B_RD_RVALID);
+    assign mem_axi_rdata = rd_data_reg;
+    assign mem_axi_rresp = 2'b00;
 
-    assign lsu_axi_awready = (state == B_WR_WAIT_AW_W) && (aw_ch_state == C_READY);
-    assign lsu_axi_wready = (state == B_WR_WAIT_AW_W) && (w_ch_state == C_READY);
-    assign lsu_axi_bvalid = (state == B_WR_BVALID);
-    assign lsu_axi_bresp = 2'b00;
+    assign mem_axi_awready = (state == B_WR_WAIT_AW_W) && (aw_ch_state == C_READY);
+    assign mem_axi_wready = (state == B_WR_WAIT_AW_W) && (w_ch_state == C_READY);
+    assign mem_axi_bvalid = (state == B_WR_BVALID);
+    assign mem_axi_bresp = 2'b00;
 
-    assign ar_fire = lsu_axi_arvalid && lsu_axi_arready;
-    assign r_fire = lsu_axi_rvalid && lsu_axi_rready;
-    assign aw_fire = lsu_axi_awvalid && lsu_axi_awready;
-    assign w_fire = lsu_axi_wvalid && lsu_axi_wready;
-    assign b_fire = lsu_axi_bvalid && lsu_axi_bready;
+    assign ar_fire = mem_axi_arvalid && mem_axi_arready;
+    assign r_fire = mem_axi_rvalid && mem_axi_rready;
+    assign aw_fire = mem_axi_awvalid && mem_axi_awready;
+    assign w_fire = mem_axi_wvalid && mem_axi_wready;
+    assign b_fire = mem_axi_bvalid && mem_axi_bready;
 
-    assign ar_delay_sampled = (lfsr_ar_random % `LSU_ARREADY_MAX_DELAY) + 4'd1;
-    assign aw_delay_sampled = (lfsr_aw_random % `LSU_AWREADY_MAX_DELAY) + 4'd1;
-    assign w_delay_sampled = (lfsr_w_random % `LSU_WREADY_MAX_DELAY) + 4'd1;
-    assign r_delay_sampled = (lfsr_r_random % `LSU_RVALID_MAX_DELAY) + 4'd1;
-    assign b_delay_sampled = (lfsr_b_random % `LSU_BVALID_MAX_DELAY) + 4'd1;
+    assign ar_delay_sampled = (lfsr_ar_random % `MEM_ARREADY_MAX_DELAY) + 4'd1;
+    assign aw_delay_sampled = (lfsr_aw_random % `MEM_AWREADY_MAX_DELAY) + 4'd1;
+    assign w_delay_sampled = (lfsr_w_random % `MEM_WREADY_MAX_DELAY) + 4'd1;
+    assign r_delay_sampled = (lfsr_r_random % `MEM_RVALID_MAX_DELAY) + 4'd1;
+    assign b_delay_sampled = (lfsr_b_random % `MEM_BVALID_MAX_DELAY) + 4'd1;
 
     assign aw_done_next = (aw_ch_state == C_DONE) || aw_fire;
     assign w_done_next = (w_ch_state == C_DONE) || w_fire;
@@ -112,21 +112,21 @@ module perip_bridge (
     lfsr4 u_lfsr4_ar (
         .clk                    (clk),
         .rst                    (rst),
-        .en                     ((state == B_IDLE) && lsu_axi_arvalid),
+        .en                     ((state == B_IDLE) && mem_axi_arvalid),
         .random                 (lfsr_ar_random)
     );
 
     lfsr4 u_lfsr4_aw (
         .clk                    (clk),
         .rst                    (rst),
-        .en                     ((state == B_WR_WAIT_AW_W) && (aw_ch_state == C_WAIT_VALID) && lsu_axi_awvalid),
+        .en                     ((state == B_WR_WAIT_AW_W) && (aw_ch_state == C_WAIT_VALID) && mem_axi_awvalid),
         .random                 (lfsr_aw_random)
     );
 
     lfsr4 u_lfsr4_w (
         .clk                    (clk),
         .rst                    (rst),
-        .en                     ((state == B_WR_WAIT_AW_W) && (w_ch_state == C_WAIT_VALID) && lsu_axi_wvalid),
+        .en                     ((state == B_WR_WAIT_AW_W) && (w_ch_state == C_WAIT_VALID) && mem_axi_wvalid),
         .random                 (lfsr_w_random)
     );
 
@@ -166,14 +166,14 @@ module perip_bridge (
                     aw_ch_state <= C_WAIT_VALID;
                     w_ch_state <= C_WAIT_VALID;
                     wr_commit_pending <= 1'b0;
-                    if (lsu_axi_arvalid) begin
+                    if (mem_axi_arvalid) begin
                         if (ar_delay_sampled == 4'd1) begin
                             state <= B_RD_ARREADY;
                         end else begin
                             ar_wait_cnt <= ar_delay_sampled - 4'd1;
                             state <= B_RD_WAIT_ARREADY;
                         end
-                    end else if (lsu_axi_awvalid || lsu_axi_wvalid) begin
+                    end else if (mem_axi_awvalid || mem_axi_wvalid) begin
                         state <= B_WR_WAIT_AW_W;
                     end
                 end
@@ -188,9 +188,9 @@ module perip_bridge (
 
                 B_RD_ARREADY: begin
                     if (ar_fire) begin
-                        rd_addr_reg <= lsu_axi_araddr;
+                        rd_addr_reg <= mem_axi_araddr;
                         if (r_delay_sampled == 4'd1) begin
-                            rd_data_reg <= pmem_read(lsu_axi_araddr);
+                            rd_data_reg <= pmem_read(mem_axi_araddr);
                             state <= B_RD_RVALID;
                         end else begin
                             r_wait_cnt <= r_delay_sampled - 4'd1;
@@ -215,7 +215,7 @@ module perip_bridge (
                 end
 
                 B_WR_WAIT_AW_W: begin
-                    if ((aw_ch_state == C_WAIT_VALID) && lsu_axi_awvalid) begin
+                    if ((aw_ch_state == C_WAIT_VALID) && mem_axi_awvalid) begin
                         if (aw_delay_sampled == 4'd1) begin
                             aw_ch_state <= C_READY;
                         end else begin
@@ -229,11 +229,11 @@ module perip_bridge (
                             aw_ch_state <= C_READY;
                         end
                     end else if (aw_fire) begin
-                        wr_addr_reg <= lsu_axi_awaddr;
+                        wr_addr_reg <= mem_axi_awaddr;
                         aw_ch_state <= C_DONE;
                     end
 
-                    if ((w_ch_state == C_WAIT_VALID) && lsu_axi_wvalid) begin
+                    if ((w_ch_state == C_WAIT_VALID) && mem_axi_wvalid) begin
                         if (w_delay_sampled == 4'd1) begin
                             w_ch_state <= C_READY;
                         end else begin
@@ -247,8 +247,8 @@ module perip_bridge (
                             w_ch_state <= C_READY;
                         end
                     end else if (w_fire) begin
-                        wr_data_reg <= lsu_axi_wdata;
-                        wr_strb_reg <= lsu_axi_wstrb;
+                        wr_data_reg <= mem_axi_wdata;
+                        wr_strb_reg <= mem_axi_wstrb;
                         w_ch_state <= C_DONE;
                     end
 
