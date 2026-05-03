@@ -3,6 +3,12 @@
 
 // MMIO
 `define UART_ADDR 32'h1000_0000
+`define UART_BASE_ADDR 32'h1000_0000
+`define UART_END_ADDR  32'h1000_0fff
+`define CLINT_BASE_ADDR 32'h0200_0000
+`define CLINT_END_ADDR  32'h0200_ffff
+`define CLINT_MTIME_ADDR 32'h0200_bff8
+`define CLINT_MTIMEH_ADDR 32'h0200_bffc
 
 // Shared MEM AXI delay configs (1~15)
 // Read address ready

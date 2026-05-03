@@ -41,9 +41,9 @@ void init_log(const char *log_file);
 
 // Memory size 128MB
 #define MEM_SIZE 0x8000000
-#define MAX_SIM_TIME 10000000
+#define MAX_SIM_TIME 100000000
 #define SERIAL_PORT 0x10000000
-#define RTC_ADDR    0x10000048
+#define RTC_ADDR    0x00100048
 
 extern bool is_finished;
 extern int trap_a0;

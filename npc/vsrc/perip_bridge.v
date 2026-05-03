@@ -32,15 +32,20 @@ module perip_bridge (
     localparam X_RD_WAIT_R = 2'd1;
     localparam X_WR_AW_W   = 2'd2;
     localparam X_WR_WAIT_B = 2'd3;
+    localparam X_SEL_PMEM  = 2'd0;
+    localparam X_SEL_UART  = 2'd1;
+    localparam X_SEL_CLINT = 2'd2;
 
     reg [1:0] state;
-    reg       rd_sel_uart;
-    reg       wr_sel_uart;
+    reg [1:0] rd_sel;
+    reg [1:0] wr_sel;
     reg       wr_aw_done;
     reg       wr_w_done;
 
     wire      ar_to_uart;
     wire      aw_to_uart;
+    wire      ar_to_clint;
+    wire      aw_to_clint;
     wire      ar_fire;
     wire      aw_fire;
     wire      w_fire;
@@ -85,8 +90,29 @@ module perip_bridge (
     wire        uart_axi_bvalid;
     reg         uart_axi_bready;
 
-    assign ar_to_uart = (mem_axi_araddr == `UART_ADDR);
-    assign aw_to_uart = (mem_axi_awaddr == `UART_ADDR);
+    // Xbar -> CLINT
+    reg  [31:0] clint_axi_araddr;
+    reg         clint_axi_arvalid;
+    wire        clint_axi_arready;
+    wire [31:0] clint_axi_rdata;
+    wire [ 1:0] clint_axi_rresp;
+    wire        clint_axi_rvalid;
+    reg         clint_axi_rready;
+    reg  [31:0] clint_axi_awaddr;
+    reg         clint_axi_awvalid;
+    wire        clint_axi_awready;
+    reg  [31:0] clint_axi_wdata;
+    reg  [ 3:0] clint_axi_wstrb;
+    reg         clint_axi_wvalid;
+    wire        clint_axi_wready;
+    wire [ 1:0] clint_axi_bresp;
+    wire        clint_axi_bvalid;
+    reg         clint_axi_bready;
+
+    assign ar_to_uart = (mem_axi_araddr >= `UART_BASE_ADDR) && (mem_axi_araddr <= `UART_END_ADDR);
+    assign aw_to_uart = (mem_axi_awaddr >= `UART_BASE_ADDR) && (mem_axi_awaddr <= `UART_END_ADDR);
+    assign ar_to_clint = (mem_axi_araddr >= `CLINT_BASE_ADDR) && (mem_axi_araddr <= `CLINT_END_ADDR);
+    assign aw_to_clint = (mem_axi_awaddr >= `CLINT_BASE_ADDR) && (mem_axi_awaddr <= `CLINT_END_ADDR);
 
     assign ar_fire = mem_axi_arvalid && mem_axi_arready;
     assign aw_fire = mem_axi_awvalid && mem_axi_awready;
@@ -124,6 +150,16 @@ module perip_bridge (
         uart_axi_wvalid = 1'b0;
         uart_axi_bready = 1'b0;
 
+        clint_axi_araddr = 32'b0;
+        clint_axi_arvalid = 1'b0;
+        clint_axi_rready = 1'b0;
+        clint_axi_awaddr = 32'b0;
+        clint_axi_awvalid = 1'b0;
+        clint_axi_wdata = 32'b0;
+        clint_axi_wstrb = 4'b0;
+        clint_axi_wvalid = 1'b0;
+        clint_axi_bready = 1'b0;
+
         case (state)
             X_IDLE: begin
                 if (mem_axi_arvalid) begin
@@ -131,6 +167,10 @@ module perip_bridge (
                         uart_axi_araddr = mem_axi_araddr;
                         uart_axi_arvalid = mem_axi_arvalid;
                         mem_axi_arready = uart_axi_arready;
+                    end else if (ar_to_clint) begin
+                        clint_axi_araddr = mem_axi_araddr;
+                        clint_axi_arvalid = mem_axi_arvalid;
+                        mem_axi_arready = clint_axi_arready;
                     end else begin
                         pmem_axi_araddr = mem_axi_araddr;
                         pmem_axi_arvalid = mem_axi_arvalid;
@@ -140,11 +180,16 @@ module perip_bridge (
             end
 
             X_RD_WAIT_R: begin
-                if (rd_sel_uart) begin
+                if (rd_sel == X_SEL_UART) begin
                     mem_axi_rdata = uart_axi_rdata;
                     mem_axi_rresp = uart_axi_rresp;
                     mem_axi_rvalid = uart_axi_rvalid;
                     uart_axi_rready = mem_axi_rready;
+                end else if (rd_sel == X_SEL_CLINT) begin
+                    mem_axi_rdata = clint_axi_rdata;
+                    mem_axi_rresp = clint_axi_rresp;
+                    mem_axi_rvalid = clint_axi_rvalid;
+                    clint_axi_rready = mem_axi_rready;
                 end else begin
                     mem_axi_rdata = pmem_axi_rdata;
                     mem_axi_rresp = pmem_axi_rresp;
@@ -159,6 +204,10 @@ module perip_bridge (
                         uart_axi_awaddr = mem_axi_awaddr;
                         uart_axi_awvalid = mem_axi_awvalid;
                         mem_axi_awready = uart_axi_awready;
+                    end else if (aw_to_clint) begin
+                        clint_axi_awaddr = mem_axi_awaddr;
+                        clint_axi_awvalid = mem_axi_awvalid;
+                        mem_axi_awready = clint_axi_awready;
                     end else begin
                         pmem_axi_awaddr = mem_axi_awaddr;
                         pmem_axi_awvalid = mem_axi_awvalid;
@@ -167,11 +216,16 @@ module perip_bridge (
                 end
 
                 if (wr_aw_done && ~wr_w_done) begin
-                    if (wr_sel_uart) begin
+                    if (wr_sel == X_SEL_UART) begin
                         uart_axi_wdata = mem_axi_wdata;
                         uart_axi_wstrb = mem_axi_wstrb;
                         uart_axi_wvalid = mem_axi_wvalid;
                         mem_axi_wready = uart_axi_wready;
+                    end else if (wr_sel == X_SEL_CLINT) begin
+                        clint_axi_wdata = mem_axi_wdata;
+                        clint_axi_wstrb = mem_axi_wstrb;
+                        clint_axi_wvalid = mem_axi_wvalid;
+                        mem_axi_wready = clint_axi_wready;
                     end else begin
                         pmem_axi_wdata = mem_axi_wdata;
                         pmem_axi_wstrb = mem_axi_wstrb;
@@ -182,10 +236,14 @@ module perip_bridge (
             end
 
             X_WR_WAIT_B: begin
-                if (wr_sel_uart) begin
+                if (wr_sel == X_SEL_UART) begin
                     mem_axi_bresp = uart_axi_bresp;
                     mem_axi_bvalid = uart_axi_bvalid;
                     uart_axi_bready = mem_axi_bready;
+                end else if (wr_sel == X_SEL_CLINT) begin
+                    mem_axi_bresp = clint_axi_bresp;
+                    mem_axi_bvalid = clint_axi_bvalid;
+                    clint_axi_bready = mem_axi_bready;
                 end else begin
                     mem_axi_bresp = pmem_axi_bresp;
                     mem_axi_bvalid = pmem_axi_bvalid;
@@ -201,8 +259,8 @@ module perip_bridge (
     always @(posedge clk) begin
         if (rst) begin
             state <= X_IDLE;
-            rd_sel_uart <= 1'b0;
-            wr_sel_uart <= 1'b0;
+            rd_sel <= X_SEL_PMEM;
+            wr_sel <= X_SEL_PMEM;
             wr_aw_done <= 1'b0;
             wr_w_done <= 1'b0;
         end else begin
@@ -212,7 +270,13 @@ module perip_bridge (
                     wr_w_done <= 1'b0;
                     if (mem_axi_arvalid) begin
                         if (ar_fire) begin
-                            rd_sel_uart <= ar_to_uart;
+                            if (ar_to_uart) begin
+                                rd_sel <= X_SEL_UART;
+                            end else if (ar_to_clint) begin
+                                rd_sel <= X_SEL_CLINT;
+                            end else begin
+                                rd_sel <= X_SEL_PMEM;
+                            end
                             state <= X_RD_WAIT_R;
                         end
                     end else if (mem_axi_awvalid || mem_axi_wvalid) begin
@@ -229,7 +293,13 @@ module perip_bridge (
                 X_WR_AW_W: begin
                     if (~wr_aw_done && aw_fire) begin
                         wr_aw_done <= 1'b1;
-                        wr_sel_uart <= aw_to_uart;
+                        if (aw_to_uart) begin
+                            wr_sel <= X_SEL_UART;
+                        end else if (aw_to_clint) begin
+                            wr_sel <= X_SEL_CLINT;
+                        end else begin
+                            wr_sel <= X_SEL_PMEM;
+                        end
                     end
 
                     if (wr_aw_done && ~wr_w_done && w_fire) begin
@@ -300,5 +370,27 @@ module perip_bridge (
         .uart_axi_bresp     (uart_axi_bresp),
         .uart_axi_bvalid    (uart_axi_bvalid),
         .uart_axi_bready    (uart_axi_bready)
+    );
+
+    clint_axi4lite u_clint_axi4lite (
+        .clk                (clk),
+        .rst                (rst),
+        .clint_axi_araddr   (clint_axi_araddr),
+        .clint_axi_arvalid  (clint_axi_arvalid),
+        .clint_axi_arready  (clint_axi_arready),
+        .clint_axi_rdata    (clint_axi_rdata),
+        .clint_axi_rresp    (clint_axi_rresp),
+        .clint_axi_rvalid   (clint_axi_rvalid),
+        .clint_axi_rready   (clint_axi_rready),
+        .clint_axi_awaddr   (clint_axi_awaddr),
+        .clint_axi_awvalid  (clint_axi_awvalid),
+        .clint_axi_awready  (clint_axi_awready),
+        .clint_axi_wdata    (clint_axi_wdata),
+        .clint_axi_wstrb    (clint_axi_wstrb),
+        .clint_axi_wvalid   (clint_axi_wvalid),
+        .clint_axi_wready   (clint_axi_wready),
+        .clint_axi_bresp    (clint_axi_bresp),
+        .clint_axi_bvalid   (clint_axi_bvalid),
+        .clint_axi_bready   (clint_axi_bready)
     );
 endmodule
