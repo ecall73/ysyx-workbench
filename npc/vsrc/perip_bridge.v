@@ -7,292 +7,298 @@ module perip_bridge (
     // AXI read address channel
     input  wire [31:0] mem_axi_araddr,
     input  wire        mem_axi_arvalid,
-    output wire        mem_axi_arready,
+    output reg         mem_axi_arready,
     // AXI read data channel
-    output wire [31:0] mem_axi_rdata,
-    output wire [ 1:0] mem_axi_rresp,
-    output wire        mem_axi_rvalid,
+    output reg  [31:0] mem_axi_rdata,
+    output reg  [ 1:0] mem_axi_rresp,
+    output reg         mem_axi_rvalid,
     input  wire        mem_axi_rready,
     // AXI write address channel
     input  wire [31:0] mem_axi_awaddr,
     input  wire        mem_axi_awvalid,
-    output wire        mem_axi_awready,
+    output reg         mem_axi_awready,
     // AXI write data channel
     input  wire [31:0] mem_axi_wdata,
     input  wire [ 3:0] mem_axi_wstrb,
     input  wire        mem_axi_wvalid,
-    output wire        mem_axi_wready,
+    output reg         mem_axi_wready,
     // AXI write response channel
-    output wire [ 1:0] mem_axi_bresp,
-    output wire        mem_axi_bvalid,
+    output reg  [ 1:0] mem_axi_bresp,
+    output reg         mem_axi_bvalid,
     input  wire        mem_axi_bready
 );
 
-    import "DPI-C" function int pmem_read(input int raddr);
-    import "DPI-C" function void pmem_write(input int waddr, input int wdata, input byte wmask);
+    localparam X_IDLE      = 2'd0;
+    localparam X_RD_WAIT_R = 2'd1;
+    localparam X_WR_AW_W   = 2'd2;
+    localparam X_WR_WAIT_B = 2'd3;
 
-    localparam B_IDLE            = 4'd0;
-    localparam B_RD_WAIT_ARREADY = 4'd1;
-    localparam B_RD_ARREADY      = 4'd2;
-    localparam B_RD_WAIT_R       = 4'd3;
-    localparam B_RD_RVALID       = 4'd4;
-    localparam B_WR_WAIT_AW_W    = 4'd5;
-    localparam B_WR_WAIT_B       = 4'd6;
-    localparam B_WR_BVALID       = 4'd7;
+    reg [1:0] state;
+    reg       rd_sel_uart;
+    reg       wr_sel_uart;
+    reg       wr_aw_done;
+    reg       wr_w_done;
 
-    localparam C_WAIT_VALID = 2'd0;
-    localparam C_WAIT_DELAY = 2'd1;
-    localparam C_READY      = 2'd2;
-    localparam C_DONE       = 2'd3;
+    wire      ar_to_uart;
+    wire      aw_to_uart;
+    wire      ar_fire;
+    wire      aw_fire;
+    wire      w_fire;
+    wire      r_fire;
+    wire      b_fire;
 
-    reg  [3:0]  state;
-    reg  [31:0] rd_addr_reg;
-    reg  [31:0] rd_data_reg;
-    reg  [31:0] wr_addr_reg;
-    reg  [31:0] wr_data_reg;
-    reg  [ 3:0] wr_strb_reg;
+    // Xbar -> PMEM
+    reg  [31:0] pmem_axi_araddr;
+    reg         pmem_axi_arvalid;
+    wire        pmem_axi_arready;
+    wire [31:0] pmem_axi_rdata;
+    wire [ 1:0] pmem_axi_rresp;
+    wire        pmem_axi_rvalid;
+    reg         pmem_axi_rready;
+    reg  [31:0] pmem_axi_awaddr;
+    reg         pmem_axi_awvalid;
+    wire        pmem_axi_awready;
+    reg  [31:0] pmem_axi_wdata;
+    reg  [ 3:0] pmem_axi_wstrb;
+    reg         pmem_axi_wvalid;
+    wire        pmem_axi_wready;
+    wire [ 1:0] pmem_axi_bresp;
+    wire        pmem_axi_bvalid;
+    reg         pmem_axi_bready;
 
-    reg  [3:0]  ar_wait_cnt;
-    reg  [3:0]  r_wait_cnt;
-    reg  [3:0]  b_wait_cnt;
-    reg  [3:0]  aw_wait_cnt;
-    reg  [3:0]  w_wait_cnt;
-    reg  [1:0]  aw_ch_state;
-    reg  [1:0]  w_ch_state;
-    reg         wr_commit_pending;
+    // Xbar -> UART
+    reg  [31:0] uart_axi_araddr;
+    reg         uart_axi_arvalid;
+    wire        uart_axi_arready;
+    wire [31:0] uart_axi_rdata;
+    wire [ 1:0] uart_axi_rresp;
+    wire        uart_axi_rvalid;
+    reg         uart_axi_rready;
+    reg  [31:0] uart_axi_awaddr;
+    reg         uart_axi_awvalid;
+    wire        uart_axi_awready;
+    reg  [31:0] uart_axi_wdata;
+    reg  [ 3:0] uart_axi_wstrb;
+    reg         uart_axi_wvalid;
+    wire        uart_axi_wready;
+    wire [ 1:0] uart_axi_bresp;
+    wire        uart_axi_bvalid;
+    reg         uart_axi_bready;
 
-    wire [3:0] lfsr_ar_random;
-    wire [3:0] lfsr_aw_random;
-    wire [3:0] lfsr_w_random;
-    wire [3:0] lfsr_r_random;
-    wire [3:0] lfsr_b_random;
-
-    wire [3:0] ar_delay_sampled;
-    wire [3:0] aw_delay_sampled;
-    wire [3:0] w_delay_sampled;
-    wire [3:0] r_delay_sampled;
-    wire [3:0] b_delay_sampled;
-
-    wire       ar_fire;
-    wire       r_fire;
-    wire       aw_fire;
-    wire       w_fire;
-    wire       b_fire;
-
-    wire       aw_done_next;
-    wire       w_done_next;
-    wire       wr_req_done_now;
-
-    assign mem_axi_arready = (state == B_RD_ARREADY);
-    assign mem_axi_rvalid = (state == B_RD_RVALID);
-    assign mem_axi_rdata = rd_data_reg;
-    assign mem_axi_rresp = 2'b00;
-
-    assign mem_axi_awready = (state == B_WR_WAIT_AW_W) && (aw_ch_state == C_READY);
-    assign mem_axi_wready = (state == B_WR_WAIT_AW_W) && (w_ch_state == C_READY);
-    assign mem_axi_bvalid = (state == B_WR_BVALID);
-    assign mem_axi_bresp = 2'b00;
+    assign ar_to_uart = (mem_axi_araddr == `UART_ADDR);
+    assign aw_to_uart = (mem_axi_awaddr == `UART_ADDR);
 
     assign ar_fire = mem_axi_arvalid && mem_axi_arready;
-    assign r_fire = mem_axi_rvalid && mem_axi_rready;
     assign aw_fire = mem_axi_awvalid && mem_axi_awready;
     assign w_fire = mem_axi_wvalid && mem_axi_wready;
+    assign r_fire = mem_axi_rvalid && mem_axi_rready;
     assign b_fire = mem_axi_bvalid && mem_axi_bready;
 
-    assign ar_delay_sampled = (lfsr_ar_random % `MEM_ARREADY_MAX_DELAY) + 4'd1;
-    assign aw_delay_sampled = (lfsr_aw_random % `MEM_AWREADY_MAX_DELAY) + 4'd1;
-    assign w_delay_sampled = (lfsr_w_random % `MEM_WREADY_MAX_DELAY) + 4'd1;
-    assign r_delay_sampled = (lfsr_r_random % `MEM_RVALID_MAX_DELAY) + 4'd1;
-    assign b_delay_sampled = (lfsr_b_random % `MEM_BVALID_MAX_DELAY) + 4'd1;
+    always @(*) begin
+        mem_axi_arready = 1'b0;
+        mem_axi_rdata = 32'b0;
+        mem_axi_rresp = 2'b00;
+        mem_axi_rvalid = 1'b0;
+        mem_axi_awready = 1'b0;
+        mem_axi_wready = 1'b0;
+        mem_axi_bresp = 2'b00;
+        mem_axi_bvalid = 1'b0;
 
-    assign aw_done_next = (aw_ch_state == C_DONE) || aw_fire;
-    assign w_done_next = (w_ch_state == C_DONE) || w_fire;
-    assign wr_req_done_now = (state == B_WR_WAIT_AW_W) && aw_done_next && w_done_next;
+        pmem_axi_araddr = 32'b0;
+        pmem_axi_arvalid = 1'b0;
+        pmem_axi_rready = 1'b0;
+        pmem_axi_awaddr = 32'b0;
+        pmem_axi_awvalid = 1'b0;
+        pmem_axi_wdata = 32'b0;
+        pmem_axi_wstrb = 4'b0;
+        pmem_axi_wvalid = 1'b0;
+        pmem_axi_bready = 1'b0;
 
-    lfsr4 u_lfsr4_ar (
-        .clk                    (clk),
-        .rst                    (rst),
-        .en                     ((state == B_IDLE) && mem_axi_arvalid),
-        .random                 (lfsr_ar_random)
-    );
+        uart_axi_araddr = 32'b0;
+        uart_axi_arvalid = 1'b0;
+        uart_axi_rready = 1'b0;
+        uart_axi_awaddr = 32'b0;
+        uart_axi_awvalid = 1'b0;
+        uart_axi_wdata = 32'b0;
+        uart_axi_wstrb = 4'b0;
+        uart_axi_wvalid = 1'b0;
+        uart_axi_bready = 1'b0;
 
-    lfsr4 u_lfsr4_aw (
-        .clk                    (clk),
-        .rst                    (rst),
-        .en                     ((state == B_WR_WAIT_AW_W) && (aw_ch_state == C_WAIT_VALID) && mem_axi_awvalid),
-        .random                 (lfsr_aw_random)
-    );
+        case (state)
+            X_IDLE: begin
+                if (mem_axi_arvalid) begin
+                    if (ar_to_uart) begin
+                        uart_axi_araddr = mem_axi_araddr;
+                        uart_axi_arvalid = mem_axi_arvalid;
+                        mem_axi_arready = uart_axi_arready;
+                    end else begin
+                        pmem_axi_araddr = mem_axi_araddr;
+                        pmem_axi_arvalid = mem_axi_arvalid;
+                        mem_axi_arready = pmem_axi_arready;
+                    end
+                end
+            end
 
-    lfsr4 u_lfsr4_w (
-        .clk                    (clk),
-        .rst                    (rst),
-        .en                     ((state == B_WR_WAIT_AW_W) && (w_ch_state == C_WAIT_VALID) && mem_axi_wvalid),
-        .random                 (lfsr_w_random)
-    );
+            X_RD_WAIT_R: begin
+                if (rd_sel_uart) begin
+                    mem_axi_rdata = uart_axi_rdata;
+                    mem_axi_rresp = uart_axi_rresp;
+                    mem_axi_rvalid = uart_axi_rvalid;
+                    uart_axi_rready = mem_axi_rready;
+                end else begin
+                    mem_axi_rdata = pmem_axi_rdata;
+                    mem_axi_rresp = pmem_axi_rresp;
+                    mem_axi_rvalid = pmem_axi_rvalid;
+                    pmem_axi_rready = mem_axi_rready;
+                end
+            end
 
-    lfsr4 u_lfsr4_r (
-        .clk                    (clk),
-        .rst                    (rst),
-        .en                     (ar_fire),
-        .random                 (lfsr_r_random)
-    );
+            X_WR_AW_W: begin
+                if (~wr_aw_done && mem_axi_awvalid) begin
+                    if (aw_to_uart) begin
+                        uart_axi_awaddr = mem_axi_awaddr;
+                        uart_axi_awvalid = mem_axi_awvalid;
+                        mem_axi_awready = uart_axi_awready;
+                    end else begin
+                        pmem_axi_awaddr = mem_axi_awaddr;
+                        pmem_axi_awvalid = mem_axi_awvalid;
+                        mem_axi_awready = pmem_axi_awready;
+                    end
+                end
 
-    lfsr4 u_lfsr4_b (
-        .clk                    (clk),
-        .rst                    (rst),
-        .en                     (wr_req_done_now),
-        .random                 (lfsr_b_random)
-    );
+                if (wr_aw_done && ~wr_w_done) begin
+                    if (wr_sel_uart) begin
+                        uart_axi_wdata = mem_axi_wdata;
+                        uart_axi_wstrb = mem_axi_wstrb;
+                        uart_axi_wvalid = mem_axi_wvalid;
+                        mem_axi_wready = uart_axi_wready;
+                    end else begin
+                        pmem_axi_wdata = mem_axi_wdata;
+                        pmem_axi_wstrb = mem_axi_wstrb;
+                        pmem_axi_wvalid = mem_axi_wvalid;
+                        mem_axi_wready = pmem_axi_wready;
+                    end
+                end
+            end
+
+            X_WR_WAIT_B: begin
+                if (wr_sel_uart) begin
+                    mem_axi_bresp = uart_axi_bresp;
+                    mem_axi_bvalid = uart_axi_bvalid;
+                    uart_axi_bready = mem_axi_bready;
+                end else begin
+                    mem_axi_bresp = pmem_axi_bresp;
+                    mem_axi_bvalid = pmem_axi_bvalid;
+                    pmem_axi_bready = mem_axi_bready;
+                end
+            end
+
+            default: begin
+            end
+        endcase
+    end
 
     always @(posedge clk) begin
         if (rst) begin
-            state <= B_IDLE;
-            rd_addr_reg <= 32'b0;
-            rd_data_reg <= 32'b0;
-            wr_addr_reg <= 32'b0;
-            wr_data_reg <= 32'b0;
-            wr_strb_reg <= 4'b0;
-            ar_wait_cnt <= 4'b0;
-            r_wait_cnt <= 4'b0;
-            b_wait_cnt <= 4'b0;
-            aw_wait_cnt <= 4'b0;
-            w_wait_cnt <= 4'b0;
-            aw_ch_state <= C_WAIT_VALID;
-            w_ch_state <= C_WAIT_VALID;
-            wr_commit_pending <= 1'b0;
+            state <= X_IDLE;
+            rd_sel_uart <= 1'b0;
+            wr_sel_uart <= 1'b0;
+            wr_aw_done <= 1'b0;
+            wr_w_done <= 1'b0;
         end else begin
             case (state)
-                B_IDLE: begin
-                    aw_ch_state <= C_WAIT_VALID;
-                    w_ch_state <= C_WAIT_VALID;
-                    wr_commit_pending <= 1'b0;
+                X_IDLE: begin
+                    wr_aw_done <= 1'b0;
+                    wr_w_done <= 1'b0;
                     if (mem_axi_arvalid) begin
-                        if (ar_delay_sampled == 4'd1) begin
-                            state <= B_RD_ARREADY;
-                        end else begin
-                            ar_wait_cnt <= ar_delay_sampled - 4'd1;
-                            state <= B_RD_WAIT_ARREADY;
+                        if (ar_fire) begin
+                            rd_sel_uart <= ar_to_uart;
+                            state <= X_RD_WAIT_R;
                         end
                     end else if (mem_axi_awvalid || mem_axi_wvalid) begin
-                        state <= B_WR_WAIT_AW_W;
+                        state <= X_WR_AW_W;
                     end
                 end
 
-                B_RD_WAIT_ARREADY: begin
-                    if (ar_wait_cnt > 4'd1) begin
-                        ar_wait_cnt <= ar_wait_cnt - 4'd1;
-                    end else begin
-                        state <= B_RD_ARREADY;
-                    end
-                end
-
-                B_RD_ARREADY: begin
-                    if (ar_fire) begin
-                        rd_addr_reg <= mem_axi_araddr;
-                        if (r_delay_sampled == 4'd1) begin
-                            rd_data_reg <= pmem_read(mem_axi_araddr);
-                            state <= B_RD_RVALID;
-                        end else begin
-                            r_wait_cnt <= r_delay_sampled - 4'd1;
-                            state <= B_RD_WAIT_R;
-                        end
-                    end
-                end
-
-                B_RD_WAIT_R: begin
-                    if (r_wait_cnt > 4'd1) begin
-                        r_wait_cnt <= r_wait_cnt - 4'd1;
-                    end else begin
-                        rd_data_reg <= pmem_read(rd_addr_reg);
-                        state <= B_RD_RVALID;
-                    end
-                end
-
-                B_RD_RVALID: begin
+                X_RD_WAIT_R: begin
                     if (r_fire) begin
-                        state <= B_IDLE;
+                        state <= X_IDLE;
                     end
                 end
 
-                B_WR_WAIT_AW_W: begin
-                    if ((aw_ch_state == C_WAIT_VALID) && mem_axi_awvalid) begin
-                        if (aw_delay_sampled == 4'd1) begin
-                            aw_ch_state <= C_READY;
-                        end else begin
-                            aw_wait_cnt <= aw_delay_sampled - 4'd1;
-                            aw_ch_state <= C_WAIT_DELAY;
-                        end
-                    end else if (aw_ch_state == C_WAIT_DELAY) begin
-                        if (aw_wait_cnt > 4'd1) begin
-                            aw_wait_cnt <= aw_wait_cnt - 4'd1;
-                        end else begin
-                            aw_ch_state <= C_READY;
-                        end
-                    end else if (aw_fire) begin
-                        wr_addr_reg <= mem_axi_awaddr;
-                        aw_ch_state <= C_DONE;
+                X_WR_AW_W: begin
+                    if (~wr_aw_done && aw_fire) begin
+                        wr_aw_done <= 1'b1;
+                        wr_sel_uart <= aw_to_uart;
                     end
 
-                    if ((w_ch_state == C_WAIT_VALID) && mem_axi_wvalid) begin
-                        if (w_delay_sampled == 4'd1) begin
-                            w_ch_state <= C_READY;
-                        end else begin
-                            w_wait_cnt <= w_delay_sampled - 4'd1;
-                            w_ch_state <= C_WAIT_DELAY;
-                        end
-                    end else if (w_ch_state == C_WAIT_DELAY) begin
-                        if (w_wait_cnt > 4'd1) begin
-                            w_wait_cnt <= w_wait_cnt - 4'd1;
-                        end else begin
-                            w_ch_state <= C_READY;
-                        end
-                    end else if (w_fire) begin
-                        wr_data_reg <= mem_axi_wdata;
-                        wr_strb_reg <= mem_axi_wstrb;
-                        w_ch_state <= C_DONE;
+                    if (wr_aw_done && ~wr_w_done && w_fire) begin
+                        wr_w_done <= 1'b1;
                     end
 
-                    if (aw_done_next && w_done_next) begin
-                        wr_commit_pending <= 1'b1;
-                        if (b_delay_sampled == 4'd1) begin
-                            state <= B_WR_BVALID;
-                        end else begin
-                            b_wait_cnt <= b_delay_sampled - 4'd1;
-                            state <= B_WR_WAIT_B;
-                        end
+                    if ((wr_aw_done || aw_fire) && (wr_w_done || w_fire)) begin
+                        wr_aw_done <= 1'b0;
+                        wr_w_done <= 1'b0;
+                        state <= X_WR_WAIT_B;
                     end
                 end
 
-                B_WR_WAIT_B: begin
-                    if (wr_commit_pending) begin
-                        pmem_write(wr_addr_reg, wr_data_reg, {4'b0000, wr_strb_reg});
-                        wr_commit_pending <= 1'b0;
-                    end
-                    if (b_wait_cnt > 4'd1) begin
-                        b_wait_cnt <= b_wait_cnt - 4'd1;
-                    end else begin
-                        state <= B_WR_BVALID;
-                    end
-                end
-
-                B_WR_BVALID: begin
-                    if (wr_commit_pending) begin
-                        pmem_write(wr_addr_reg, wr_data_reg, {4'b0000, wr_strb_reg});
-                        wr_commit_pending <= 1'b0;
-                    end
+                X_WR_WAIT_B: begin
                     if (b_fire) begin
-                        state <= B_IDLE;
+                        state <= X_IDLE;
                     end
                 end
 
                 default: begin
-                    state <= B_IDLE;
-                    aw_ch_state <= C_WAIT_VALID;
-                    w_ch_state <= C_WAIT_VALID;
-                    wr_commit_pending <= 1'b0;
+                    state <= X_IDLE;
+                    wr_aw_done <= 1'b0;
+                    wr_w_done <= 1'b0;
                 end
             endcase
         end
     end
 
+    pmem_axi4lite u_pmem_axi4lite (
+        .clk                (clk),
+        .rst                (rst),
+        .pmem_axi_araddr    (pmem_axi_araddr),
+        .pmem_axi_arvalid   (pmem_axi_arvalid),
+        .pmem_axi_arready   (pmem_axi_arready),
+        .pmem_axi_rdata     (pmem_axi_rdata),
+        .pmem_axi_rresp     (pmem_axi_rresp),
+        .pmem_axi_rvalid    (pmem_axi_rvalid),
+        .pmem_axi_rready    (pmem_axi_rready),
+        .pmem_axi_awaddr    (pmem_axi_awaddr),
+        .pmem_axi_awvalid   (pmem_axi_awvalid),
+        .pmem_axi_awready   (pmem_axi_awready),
+        .pmem_axi_wdata     (pmem_axi_wdata),
+        .pmem_axi_wstrb     (pmem_axi_wstrb),
+        .pmem_axi_wvalid    (pmem_axi_wvalid),
+        .pmem_axi_wready    (pmem_axi_wready),
+        .pmem_axi_bresp     (pmem_axi_bresp),
+        .pmem_axi_bvalid    (pmem_axi_bvalid),
+        .pmem_axi_bready    (pmem_axi_bready)
+    );
+
+    uart_axi4lite u_uart_axi4lite (
+        .clk                (clk),
+        .rst                (rst),
+        .uart_axi_araddr    (uart_axi_araddr),
+        .uart_axi_arvalid   (uart_axi_arvalid),
+        .uart_axi_arready   (uart_axi_arready),
+        .uart_axi_rdata     (uart_axi_rdata),
+        .uart_axi_rresp     (uart_axi_rresp),
+        .uart_axi_rvalid    (uart_axi_rvalid),
+        .uart_axi_rready    (uart_axi_rready),
+        .uart_axi_awaddr    (uart_axi_awaddr),
+        .uart_axi_awvalid   (uart_axi_awvalid),
+        .uart_axi_awready   (uart_axi_awready),
+        .uart_axi_wdata     (uart_axi_wdata),
+        .uart_axi_wstrb     (uart_axi_wstrb),
+        .uart_axi_wvalid    (uart_axi_wvalid),
+        .uart_axi_wready    (uart_axi_wready),
+        .uart_axi_bresp     (uart_axi_bresp),
+        .uart_axi_bvalid    (uart_axi_bvalid),
+        .uart_axi_bready    (uart_axi_bready)
+    );
 endmodule

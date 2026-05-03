@@ -1,6 +1,9 @@
 // run sel
 `define RUN_TRACE
 
+// MMIO
+`define UART_ADDR 32'h1000_0000
+
 // Shared MEM AXI delay configs (1~15)
 // Read address ready
 `ifndef MEM_ARREADY_MAX_DELAY
