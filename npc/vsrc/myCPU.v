@@ -6,18 +6,29 @@ module myCPU (
     input  wire        clk,
     input  wire        rst,
 
-    // Interface to IROM
-    output wire [31:0] irom_addr,
-    output wire        irom_ren,
-    input  wire [31:0] irom_data,
-    
-    // Interface to Bridge
-    output wire [31:0] perip_addr,
-    input  wire [31:0] perip_rdata,
-    output wire [ 3:0] perip_wmask,
-    output wire        perip_ren,
-    output wire        perip_wen,
-    output wire [31:0] perip_wdata
+    // Shared MEM AXI4-Lite Interface
+    // Read address channel
+    output wire [31:0] mem_axi_araddr,
+    output wire        mem_axi_arvalid,
+    input  wire        mem_axi_arready,
+    // Read data channel
+    input  wire [31:0] mem_axi_rdata,
+    input  wire [ 1:0] mem_axi_rresp,
+    input  wire        mem_axi_rvalid,
+    output wire        mem_axi_rready,
+    // Write address channel
+    output wire [31:0] mem_axi_awaddr,
+    output wire        mem_axi_awvalid,
+    input  wire        mem_axi_awready,
+    // Write data channel
+    output wire [31:0] mem_axi_wdata,
+    output wire [ 3:0] mem_axi_wstrb,
+    output wire        mem_axi_wvalid,
+    input  wire        mem_axi_wready,
+    // Write response channel
+    input  wire [ 1:0] mem_axi_bresp,
+    input  wire        mem_axi_bvalid,
+    output wire        mem_axi_bready
 
     // Debug Interface
     `ifdef RUN_TRACE
@@ -94,30 +105,20 @@ module myCPU (
     wire [31:0] ex_CSRnpc;
     wire        ex_CSRjump;
 
-    // LS1
-    reg         ls1_in_valid;
-    reg         ls1_RegWrite;
-    reg         ls1_MemRead; 
-    reg         ls1_MemWrite;
-    reg  [31:0] ls1_rR2_data;
-    reg  [ 2:0] ls1_mask;
-    reg  [ 4:0] ls1_RFwaddr;
-    reg  [31:0] ls1_ALUResult;
-    reg         ls1_ALUisTrue;
-    reg  [31:0] ls1_RFwdata; 
-    reg  [31:0] ls1_CSRnpc;
-    reg         ls1_CSRjump;
-    reg         ls1_btype;
-    reg         ls1_jtype;
-    reg         ls1_ijtype;
-    reg  [31:0] ls1_btype_target;
-
-    // LS2
-    wire        ls2_out_valid;
-    wire        ls2_out_ready;
-    wire        ls2_RegWrite;
-    wire [ 4:0] ls2_RFwaddr;
-    wire [31:0] ls2_RFwdata;
+    // LS
+    reg         ls_in_valid;
+    reg         ls_RegWrite;
+    reg         ls_MemRead;
+    reg         ls_MemWrite;
+    reg  [31:0] ls_rR2_data;
+    reg  [ 2:0] ls_mask;
+    reg  [ 4:0] ls_RFwaddr;
+    reg  [31:0] ls_ALUResult;
+    reg  [31:0] ls_RFwdata;
+    wire        ls_in_ready;
+    wire        ls_out_valid;
+    wire        ls_out_ready;
+    wire [31:0] ls_RFwdata_out;
 
     // WB
     reg         wb_in_valid;
@@ -128,25 +129,59 @@ module myCPU (
     // Local handshake control
     wire        waste2;
     wire        redirect_flush;
-    wire        lw_ID_EX;
-    wire        lw_ID_LS1;
-    wire        id_block;
+    wire        forward_pending;
     wire        ex_out_ready;
     wire        id_in_ready;
     wire        ex_in_ready;
-    wire        ls1_in_ready;
     wire        id_out_valid;   // From IDU handshake output
     wire        ex_out_valid;   // From EXU handshake output
-    wire        ls1_out_valid;
+
+    // IFU AXI4-Lite (internal master)
+    wire [31:0] ifu_axi_araddr;
+    wire        ifu_axi_arvalid;
+    wire        ifu_axi_arready;
+    wire [31:0] ifu_axi_rdata;
+    wire [ 1:0] ifu_axi_rresp;
+    wire        ifu_axi_rvalid;
+    wire        ifu_axi_rready;
+    wire [31:0] ifu_axi_awaddr;
+    wire        ifu_axi_awvalid;
+    wire        ifu_axi_awready;
+    wire [31:0] ifu_axi_wdata;
+    wire [ 3:0] ifu_axi_wstrb;
+    wire        ifu_axi_wvalid;
+    wire        ifu_axi_wready;
+    wire [ 1:0] ifu_axi_bresp;
+    wire        ifu_axi_bvalid;
+    wire        ifu_axi_bready;
+
+    // LSU AXI4-Lite (internal master)
+    wire [31:0] lsu_axi_araddr;
+    wire        lsu_axi_arvalid;
+    wire        lsu_axi_arready;
+    wire [31:0] lsu_axi_rdata;
+    wire [ 1:0] lsu_axi_rresp;
+    wire        lsu_axi_rvalid;
+    wire        lsu_axi_rready;
+    wire [31:0] lsu_axi_awaddr;
+    wire        lsu_axi_awvalid;
+    wire        lsu_axi_awready;
+    wire [31:0] lsu_axi_wdata;
+    wire [ 3:0] lsu_axi_wstrb;
+    wire        lsu_axi_wvalid;
+    wire        lsu_axi_wready;
+    wire [ 1:0] lsu_axi_bresp;
+    wire        lsu_axi_bvalid;
+    wire        lsu_axi_bready;
 
     // Debug Interface
     `ifdef RUN_TRACE
-        reg [31:0] pc_EX, pc_LS1, pc_LS2, pc_WB;
+        reg [31:0] pc_EX, pc_LS, pc_WB;
         wire        have_inst_ID_decode;
         wire        have_inst_ID;
-        reg         have_inst_EX, have_inst_LS1, have_inst_LS2, have_inst_WB;
+        reg         have_inst_EX, have_inst_LS, have_inst_WB;
         wire        id_ebreak;
-        reg         ex_ebreak, ls1_ebreak, ls2_ebreak, wb_ebreak;
+        reg         ex_ebreak, ls_ebreak, wb_ebreak;
         assign have_inst_ID = id_in_valid && have_inst_ID_decode;
         assign id_ebreak = id_in_valid && (id_inst == 32'h00100073);
     `endif
@@ -171,7 +206,9 @@ module myCPU (
     );
 
     // EX stage redirect decision (flush IF/ID and ID/EX)
-    assign redirect_flush = ex_out_valid && waste2;
+    // Redirect only when EX really handshakes out; otherwise a stalled EX jump
+    // could be flushed away before it reaches commit order.
+    assign redirect_flush = ex_out_valid && ex_out_ready && waste2;
 
     // IF stage handshake defaults
     assign if_in_valid = 1'b1;
@@ -185,9 +222,23 @@ module myCPU (
         .if_out_ready           (if_out_ready),
         .redirect_flush         (redirect_flush),
 
-        .irom_data              (irom_data),
-        .irom_addr              (irom_addr),
-        .irom_ren               (irom_ren),
+        .ifu_axi_araddr         (ifu_axi_araddr),
+        .ifu_axi_arvalid        (ifu_axi_arvalid),
+        .ifu_axi_arready        (ifu_axi_arready),
+        .ifu_axi_rdata          (ifu_axi_rdata),
+        .ifu_axi_rresp          (ifu_axi_rresp),
+        .ifu_axi_rvalid         (ifu_axi_rvalid),
+        .ifu_axi_rready         (ifu_axi_rready),
+        .ifu_axi_awaddr         (ifu_axi_awaddr),
+        .ifu_axi_awvalid        (ifu_axi_awvalid),
+        .ifu_axi_awready        (ifu_axi_awready),
+        .ifu_axi_wdata          (ifu_axi_wdata),
+        .ifu_axi_wstrb          (ifu_axi_wstrb),
+        .ifu_axi_wvalid         (ifu_axi_wvalid),
+        .ifu_axi_wready         (ifu_axi_wready),
+        .ifu_axi_bresp          (ifu_axi_bresp),
+        .ifu_axi_bvalid         (ifu_axi_bvalid),
+        .ifu_axi_bready         (ifu_axi_bready),
 
         .if_out_valid           (if_out_valid),
         .if_pc                  (if_pc),
@@ -225,13 +276,6 @@ module myCPU (
         end
     end
 
-    // ID stage RAW(load-use) hazard check
-    assign lw_ID_EX = id_in_valid && ex_out_valid && ex_MemRead &&
-                      ((id_inst[19:15] == ex_RFwaddr) || (id_inst[24:20] == ex_RFwaddr));
-    assign lw_ID_LS1 = id_in_valid && ls1_out_valid && ls1_MemRead &&
-                       ((id_inst[19:15] == ls1_RFwaddr) || (id_inst[24:20] == ls1_RFwaddr));
-    assign id_block = lw_ID_EX || lw_ID_LS1;
-
     idu u_idu (
         .clk                    (clk),
         .rst                    (rst),
@@ -239,7 +283,7 @@ module myCPU (
         .id_in_ready            (id_in_ready),
         .id_out_valid           (id_out_valid),
         .id_out_ready           (ex_in_ready),
-        .id_block               (id_block),
+        .id_block               (forward_pending),
 
         .id_inst                (id_inst),
 
@@ -286,27 +330,28 @@ module myCPU (
     );
 
     forward u_forward (
+        .id_in_valid            (id_in_valid),
         .id_rR1                 (id_inst[19:15]),
         .id_rR2                 (id_inst[24:20]),
         .id_rR1_data            (id_rR1_data),
         .id_rR2_data            (id_rR2_data),
 
+        .ex_out_valid           (ex_out_valid),
+        .ex_MemRead             (ex_MemRead),
         .ex_RegWrite            (ex_in_valid && ex_RegWrite),
         .ex_RFwaddr             (ex_RFwaddr),
         .ex_RFwdata             (ex_RFwdata),
 
-        .ls1_RegWrite           (ls1_in_valid && ls1_RegWrite),
-        .ls1_RFwaddr            (ls1_RFwaddr),
-        .ls1_RFwdata            (ls1_RFwdata),
-
-        .ls2_RegWrite           (ls2_out_valid && ls2_RegWrite),
-        .ls2_RFwaddr            (ls2_RFwaddr),
-        .ls2_RFwdata            (ls2_RFwdata),
+        .ls_RegWrite            (ls_out_valid && ls_RegWrite),
+        .ls_RFwaddr             (ls_RFwaddr),
+        .ls_RFwdata             (ls_RFwdata_out),
+        .ls_load_pending        (ls_in_valid && ls_MemRead && ~ls_out_valid),
 
         .wb_RegWrite            (wb_in_valid && wb_RegWrite),
         .wb_RFwaddr             (wb_RFwaddr),
         .wb_RFwdata             (wb_RFwdata),
 
+        .forward_pending        (forward_pending),
         .id_rR1_data_forward    (id_rR1_data_forward),
         .id_rR2_data_forward    (id_rR2_data_forward)
     );
@@ -428,8 +473,8 @@ module myCPU (
         end
     `endif
 
-    // EX -> LS1 handshake coupling
-    assign ex_out_ready = ls1_in_ready;
+    // EX -> LS handshake coupling
+    assign ex_out_ready = ls_in_ready;
 
     exu u_exu (
         .clk                    (clk),
@@ -466,60 +511,39 @@ module myCPU (
     );
 
     // ================================================================
-    // EX -> LS1
+    // EX -> LS
     // ================================================================
     always @(posedge clk) begin
         if (rst) begin
-            ls1_in_valid           <= 1'b0;
-            ls1_RegWrite        <= 0;
-            ls1_MemWrite        <= 0;
-            ls1_ALUResult       <= 0;
-            ls1_rR2_data        <= 0;
-            ls1_mask            <= 0;
-            ls1_RFwaddr         <= 0;
-            ls1_RFwdata         <= 0;
-            ls1_MemRead         <= 0;
-            ls1_ALUisTrue       <= 0;
-            ls1_CSRjump         <= 0;
-            ls1_CSRnpc          <= 0;
-            ls1_btype           <= 0;
-            ls1_jtype           <= 0;
-            ls1_ijtype          <= 0;
-            ls1_btype_target    <= 0;
+            ls_in_valid   <= 1'b0;
+            ls_RegWrite   <= 1'b0;
+            ls_MemWrite   <= 1'b0;
+            ls_ALUResult  <= 32'b0;
+            ls_rR2_data   <= 32'b0;
+            ls_mask       <= 3'b0;
+            ls_RFwaddr    <= 5'b0;
+            ls_RFwdata    <= 32'b0;
+            ls_MemRead    <= 1'b0;
         end else if (ex_out_ready) begin
-            ls1_in_valid <= ex_out_valid;
+            ls_in_valid <= ex_out_valid;
             if (ex_out_valid) begin
-                ls1_RegWrite        <= ex_RegWrite;
-                ls1_MemWrite        <= ex_MemWrite;
-                ls1_ALUResult       <= ex_ALUResult;
-                ls1_rR2_data        <= ex_rR2_data;
-                ls1_mask            <= ex_mask;
-                ls1_RFwaddr         <= ex_RFwaddr;
-                ls1_RFwdata         <= ex_RFwdata;
-                ls1_MemRead         <= ex_MemRead;
-                ls1_ALUisTrue       <= ex_ALUisTrue;
-                ls1_CSRjump         <= ex_CSRjump;
-                ls1_CSRnpc          <= ex_CSRnpc;
-                ls1_btype           <= ex_btype;
-                ls1_jtype           <= ex_jtype;
-                ls1_ijtype          <= ex_ijtype;
-                ls1_btype_target    <= ex_BranchTarget;
+                ls_RegWrite   <= ex_RegWrite;
+                ls_MemWrite   <= ex_MemWrite;
+                ls_ALUResult  <= ex_ALUResult;
+                ls_rR2_data   <= ex_rR2_data;
+                ls_mask       <= ex_mask;
+                ls_RFwaddr    <= ex_RFwaddr;
+                ls_RFwdata    <= ex_RFwdata;
+                ls_MemRead    <= ex_MemRead;
             end else begin
-                ls1_RegWrite        <= 0;
-                ls1_MemWrite        <= 0;
-                ls1_ALUResult       <= 0;
-                ls1_rR2_data        <= 0;
-                ls1_mask            <= 0;
-                ls1_RFwaddr         <= 0;
-                ls1_RFwdata         <= 0;
-                ls1_MemRead         <= 0;
-                ls1_ALUisTrue       <= 0;
-                ls1_CSRjump         <= 0;
-                ls1_CSRnpc          <= 0;
-                ls1_btype           <= 0;
-                ls1_jtype           <= 0;
-                ls1_ijtype          <= 0;
-                ls1_btype_target    <= 0;
+                ls_RegWrite   <= 1'b0;
+                ls_MemWrite   <= 1'b0;
+                ls_ALUResult  <= 32'b0;
+                ls_rR2_data   <= 32'b0;
+                ls_mask       <= 3'b0;
+                ls_RFwaddr    <= 5'b0;
+                ls_RFwdata    <= 32'b0;
+                ls_MemRead    <= 1'b0;
             end
         end
     end
@@ -528,86 +552,141 @@ module myCPU (
     `ifdef RUN_TRACE
         always @(posedge clk) begin
             if (rst) begin
-                pc_LS1 <= 32'b0;
-                have_inst_LS1 <= 1'b0;
-                ls1_ebreak <= 1'b0;
+                pc_LS <= 32'b0;
+                have_inst_LS <= 1'b0;
+                ls_ebreak <= 1'b0;
             end else if (ex_out_ready) begin
                 if (ex_out_valid) begin
-                    pc_LS1 <= pc_EX;
-                    have_inst_LS1 <= have_inst_EX;
-                    ls1_ebreak <= ex_ebreak;
+                    pc_LS <= pc_EX;
+                    have_inst_LS <= have_inst_EX;
+                    ls_ebreak <= ex_ebreak;
                 end else begin
-                    pc_LS1 <= 32'b0;
-                    have_inst_LS1 <= 1'b0;
-                    ls1_ebreak <= 1'b0;
+                    pc_LS <= 32'b0;
+                    have_inst_LS <= 1'b0;
+                    ls_ebreak <= 1'b0;
                 end
             end
         end
     `endif
 
-    // LS2 -> WB handshake coupling (WB always ready in current design)
-    assign ls2_out_ready = 1'b1;
+    // LS -> WB handshake coupling (WB always ready in current design)
+    assign ls_out_ready = 1'b1;
 
     lsu u_lsu (
-        .clk                    (clk),
-        .rst                    (rst),
+        .clk                     (clk),
+        .rst                     (rst),
+        .ls_in_valid             (ls_in_valid),
+        .ls_in_ready             (ls_in_ready),
+        .ls_out_valid            (ls_out_valid),
+        .ls_out_ready            (ls_out_ready),
 
-        .ls1_in_valid           (ls1_in_valid),
-        .ls1_in_ready           (ls1_in_ready),
-        .ls1_out_valid          (ls1_out_valid),
-        .ls2_out_valid          (ls2_out_valid),
-        .ls2_out_ready          (ls2_out_ready),
+        .ls_ALUResult            (ls_ALUResult),
+        .ls_mask                 (ls_mask),
+        .ls_MemWrite             (ls_MemWrite),
+        .ls_MemRead              (ls_MemRead),
+        .ls_rR2_data             (ls_rR2_data),
 
-        .ls1_ALUResult          (ls1_ALUResult),
-        .ls1_mask               (ls1_mask),
-        .ls1_MemWrite           (ls1_MemWrite),
-        .ls1_MemRead            (ls1_MemRead),
-        .ls1_rR2_data           (ls1_rR2_data),
+        .ls_RFwdata              (ls_RFwdata),
 
-        .ls1_RegWrite           (ls1_RegWrite),
-        .ls1_RFwaddr            (ls1_RFwaddr),
-        .ls1_RFwdata            (ls1_RFwdata),
+        .lsu_axi_araddr          (lsu_axi_araddr),
+        .lsu_axi_arvalid         (lsu_axi_arvalid),
+        .lsu_axi_arready         (lsu_axi_arready),
+        .lsu_axi_rdata           (lsu_axi_rdata),
+        .lsu_axi_rresp           (lsu_axi_rresp),
+        .lsu_axi_rvalid          (lsu_axi_rvalid),
+        .lsu_axi_rready          (lsu_axi_rready),
+        .lsu_axi_awaddr          (lsu_axi_awaddr),
+        .lsu_axi_awvalid         (lsu_axi_awvalid),
+        .lsu_axi_awready         (lsu_axi_awready),
+        .lsu_axi_wdata           (lsu_axi_wdata),
+        .lsu_axi_wstrb           (lsu_axi_wstrb),
+        .lsu_axi_wvalid          (lsu_axi_wvalid),
+        .lsu_axi_wready          (lsu_axi_wready),
+        .lsu_axi_bresp           (lsu_axi_bresp),
+        .lsu_axi_bvalid          (lsu_axi_bvalid),
+        .lsu_axi_bready          (lsu_axi_bready),
 
-        .perip_rdata            (perip_rdata),
-        .perip_addr             (perip_addr),
-        .perip_wmask            (perip_wmask),
-        .perip_wen              (perip_wen),
-        .perip_ren              (perip_ren),
-        .perip_wdata            (perip_wdata),
+        .ls_RFwdata_out          (ls_RFwdata_out)
+    );
 
-        .ls2_RegWrite           (ls2_RegWrite), 
-        .ls2_RFwaddr            (ls2_RFwaddr),
-        .ls2_RFwdata            (ls2_RFwdata)
+    axi4lite_arbiter u_axi4lite_arbiter (
+        .clk                     (clk),
+        .rst                     (rst),
 
-        `ifdef RUN_TRACE
-        ,   .pc_LS1             (pc_LS1),
-            .have_inst_LS1      (have_inst_LS1),
-            .ls1_ebreak         (ls1_ebreak),
-            .pc_LS2             (pc_LS2),
-            .have_inst_LS2      (have_inst_LS2),
-            .ls2_ebreak         (ls2_ebreak)
-        `endif
+        .ifu_axi_araddr          (ifu_axi_araddr),
+        .ifu_axi_arvalid         (ifu_axi_arvalid),
+        .ifu_axi_arready         (ifu_axi_arready),
+        .ifu_axi_rdata           (ifu_axi_rdata),
+        .ifu_axi_rresp           (ifu_axi_rresp),
+        .ifu_axi_rvalid          (ifu_axi_rvalid),
+        .ifu_axi_rready          (ifu_axi_rready),
+        .ifu_axi_awaddr          (ifu_axi_awaddr),
+        .ifu_axi_awvalid         (ifu_axi_awvalid),
+        .ifu_axi_awready         (ifu_axi_awready),
+        .ifu_axi_wdata           (ifu_axi_wdata),
+        .ifu_axi_wstrb           (ifu_axi_wstrb),
+        .ifu_axi_wvalid          (ifu_axi_wvalid),
+        .ifu_axi_wready          (ifu_axi_wready),
+        .ifu_axi_bresp           (ifu_axi_bresp),
+        .ifu_axi_bvalid          (ifu_axi_bvalid),
+        .ifu_axi_bready          (ifu_axi_bready),
+
+        .lsu_axi_araddr          (lsu_axi_araddr),
+        .lsu_axi_arvalid         (lsu_axi_arvalid),
+        .lsu_axi_arready         (lsu_axi_arready),
+        .lsu_axi_rdata           (lsu_axi_rdata),
+        .lsu_axi_rresp           (lsu_axi_rresp),
+        .lsu_axi_rvalid          (lsu_axi_rvalid),
+        .lsu_axi_rready          (lsu_axi_rready),
+        .lsu_axi_awaddr          (lsu_axi_awaddr),
+        .lsu_axi_awvalid         (lsu_axi_awvalid),
+        .lsu_axi_awready         (lsu_axi_awready),
+        .lsu_axi_wdata           (lsu_axi_wdata),
+        .lsu_axi_wstrb           (lsu_axi_wstrb),
+        .lsu_axi_wvalid          (lsu_axi_wvalid),
+        .lsu_axi_wready          (lsu_axi_wready),
+        .lsu_axi_bresp           (lsu_axi_bresp),
+        .lsu_axi_bvalid          (lsu_axi_bvalid),
+        .lsu_axi_bready          (lsu_axi_bready),
+
+        .mem_axi_araddr          (mem_axi_araddr),
+        .mem_axi_arvalid         (mem_axi_arvalid),
+        .mem_axi_arready         (mem_axi_arready),
+        .mem_axi_rdata           (mem_axi_rdata),
+        .mem_axi_rresp           (mem_axi_rresp),
+        .mem_axi_rvalid          (mem_axi_rvalid),
+        .mem_axi_rready          (mem_axi_rready),
+        .mem_axi_awaddr          (mem_axi_awaddr),
+        .mem_axi_awvalid         (mem_axi_awvalid),
+        .mem_axi_awready         (mem_axi_awready),
+        .mem_axi_wdata           (mem_axi_wdata),
+        .mem_axi_wstrb           (mem_axi_wstrb),
+        .mem_axi_wvalid          (mem_axi_wvalid),
+        .mem_axi_wready          (mem_axi_wready),
+        .mem_axi_bresp           (mem_axi_bresp),
+        .mem_axi_bvalid          (mem_axi_bvalid),
+        .mem_axi_bready          (mem_axi_bready)
     );
 
     // ================================================================
-    // LS2 -> WB
+    // LS -> WB
     // ================================================================
     always @(posedge clk) begin
         if (rst) begin
-            wb_in_valid        <= 1'b0;
-            wb_RegWrite     <= 1'b0;
-            wb_RFwaddr      <= 5'b0;
-            wb_RFwdata      <= 32'b0;
+            wb_in_valid  <= 1'b0;
+            wb_RegWrite  <= 1'b0;
+            wb_RFwaddr   <= 5'b0;
+            wb_RFwdata   <= 32'b0;
         end else begin
-            wb_in_valid <= ls2_out_valid;
-            if (ls2_out_valid) begin
-                wb_RegWrite     <= ls2_RegWrite;
-                wb_RFwaddr      <= ls2_RFwaddr;
-                wb_RFwdata      <= ls2_RFwdata;
+            wb_in_valid <= ls_out_valid;
+            if (ls_out_valid) begin
+                wb_RegWrite <= ls_RegWrite;
+                wb_RFwaddr  <= ls_RFwaddr;
+                wb_RFwdata  <= ls_RFwdata_out;
             end else begin
-                wb_RegWrite     <= 1'b0;
-                wb_RFwaddr      <= 5'b0;
-                wb_RFwdata      <= 32'b0;
+                wb_RegWrite <= 1'b0;
+                wb_RFwaddr  <= 5'b0;
+                wb_RFwdata  <= 32'b0;
             end
         end
     end
@@ -620,10 +699,10 @@ module myCPU (
                 have_inst_WB <= 1'b0;
                 wb_ebreak <= 1'b0;
             end else begin
-                if (ls2_out_valid) begin
-                    pc_WB <= pc_LS2;
-                    have_inst_WB <= have_inst_LS2;
-                    wb_ebreak <= ls2_ebreak;
+                if (ls_out_valid) begin
+                    pc_WB <= pc_LS;
+                    have_inst_WB <= have_inst_LS;
+                    wb_ebreak <= ls_ebreak;
                 end else begin
                     pc_WB <= 32'b0;
                     have_inst_WB <= 1'b0;

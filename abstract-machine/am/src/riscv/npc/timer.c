@@ -1,10 +1,32 @@
 #include <am.h>
 #include "include/npc.h"
 
-static uint64_t boot_time = 0;
+static uint64_t boot_mtime = 0;
 
-static uint64_t get_time_us() {
-  return ((uint64_t)inl(RTC_ADDR + 4) << 32) + inl(RTC_ADDR);
+#if (NPC_CPU_FREQ_HZ % 1000000ull) != 0
+#error "NPC_CPU_FREQ_HZ must be divisible by 1,000,000"
+#endif
+
+static uint64_t read_rtc_us() {
+  uint32_t hi1, hi2, lo;
+  do {
+    hi1 = inl(RTC_ADDR + 4);
+    lo = inl(RTC_ADDR);
+    hi2 = inl(RTC_ADDR + 4);
+  } while (hi1 != hi2);
+
+  return ((uint64_t)hi2 << 32) | lo;
+}
+
+static uint64_t read_mtime() {
+  uint32_t hi1, hi2, lo;
+  do {
+    hi1 = inl(CLINT_MTIMEH);
+    lo = inl(CLINT_MTIME);
+    hi2 = inl(CLINT_MTIMEH);
+  } while (hi1 != hi2);
+
+  return ((uint64_t)hi2 << 32) | lo;
 }
 
 static int is_leap_year(int year) {
@@ -52,13 +74,14 @@ static void epoch_to_utc(uint64_t sec, AM_TIMER_RTC_T *rtc) {
 }
 
 void __am_timer_init() {
-  boot_time = get_time_us();
+  boot_mtime = read_mtime();
 }
 
 void __am_timer_uptime(AM_TIMER_UPTIME_T *uptime) {
-  uptime->us = get_time_us() - boot_time;
+  uint64_t now_mtime = read_mtime();
+  uptime->us = (now_mtime - boot_mtime) / NPC_CLINT_CYCLES_PER_US;
 }
 
 void __am_timer_rtc(AM_TIMER_RTC_T *rtc) {
-  epoch_to_utc(get_time_us() / 1000000, rtc);
+  epoch_to_utc(read_rtc_us() / 1000000, rtc);
 }
