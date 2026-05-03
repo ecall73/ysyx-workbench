@@ -43,8 +43,7 @@ module ifu (
 );
     localparam F_AR_VALID        = 2'b00;
     localparam F_WAIT_RESP_VALID = 2'b01;
-    localparam F_R_READY         = 2'b10;
-    localparam F_HOLD_OUT        = 2'b11;
+    localparam F_HOLD_OUT        = 2'b10;
 
     reg  [1:0]  state;
     reg  [31:0] req_pc;
@@ -66,7 +65,10 @@ module ifu (
     assign ifu_axi_arvalid = (state == F_AR_VALID) && if_in_valid;
     assign ifu_axi_araddr = req_pc;
 
-    assign ifu_axi_rready = (state == F_R_READY);
+    // AXI allows READY to go high before VALID as long as the master can
+    // accept the response. Keep RREADY asserted in the wait state so the
+    // memory can complete the handshake as soon as RVALID arrives.
+    assign ifu_axi_rready = (state == F_WAIT_RESP_VALID);
 
     assign ifu_axi_awaddr = 32'b0;
     assign ifu_axi_awvalid = 1'b0;
@@ -78,7 +80,7 @@ module ifu (
     assign ar_fire = ifu_axi_arvalid && ifu_axi_arready;
     assign r_fire = ifu_axi_rvalid && ifu_axi_rready;
     assign drop_active = drop_resp || redirect_flush;
-    assign direct_valid = (state == F_R_READY) && r_fire && if_out_ready && ~drop_active;
+    assign direct_valid = (state == F_WAIT_RESP_VALID) && r_fire && if_out_ready && ~drop_active;
 
     assign if_in_ready = (state == F_AR_VALID) && ifu_axi_arready;
     assign if_out_valid = hold_valid || direct_valid;
@@ -111,17 +113,6 @@ module ifu (
                         drop_resp <= 1'b1;
                         redirect_pc <= npc;
                     end
-                    if (ifu_axi_rvalid) begin
-                        state <= F_R_READY;
-                    end
-                end
-
-                F_R_READY: begin
-                    if (redirect_flush) begin
-                        drop_resp <= 1'b1;
-                        redirect_pc <= npc;
-                    end
-
                     if (r_fire) begin
                         if (drop_active) begin
                             drop_resp <= 1'b0;
