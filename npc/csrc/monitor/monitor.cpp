@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -34,9 +35,36 @@ static void load_default_image() {
     inst[9] = 0xdeadbeef;
 }
 
+static void build_default_mrom_path(const char *argv0, char *buf, size_t buflen) {
+    const char *fallback = "build/char-test.bin";
+    if (buflen == 0) {
+        return;
+    }
+
+    if (argv0 == NULL || argv0[0] == '\0') {
+        snprintf(buf, buflen, "%s", fallback);
+        return;
+    }
+
+    const char *slash = strrchr(argv0, '/');
+    if (slash == NULL) {
+        snprintf(buf, buflen, "%s", fallback);
+        return;
+    }
+
+    size_t dir_len = (size_t)(slash - argv0 + 1);
+    if (dir_len + strlen("char-test.bin") + 1 > buflen) {
+        snprintf(buf, buflen, "%s", fallback);
+        return;
+    }
+    memcpy(buf, argv0, dir_len);
+    memcpy(buf + dir_len, "char-test.bin", strlen("char-test.bin") + 1);
+}
+
 static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file, int *diff_port) {
     bool img_loaded = false;
     char *log_file = NULL;
+    char *img_file = NULL;
     long img_size = 0;
     *diff_so_file = NULL;
     *diff_port = 1234;
@@ -68,6 +96,7 @@ static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file
             }
         } else if (argv[i][0] != '-') {
             img_size = load_image(argv[i]);
+            img_file = argv[i];
             img_loaded = true;
         }
     }
@@ -77,6 +106,17 @@ static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file
     if (!img_loaded) {
         load_default_image();
         img_size = 40;
+        char default_mrom_path[1024];
+        build_default_mrom_path((argc > 0) ? argv[0] : NULL, default_mrom_path, sizeof(default_mrom_path));
+        if (!mrom_load_image(default_mrom_path)) {
+            fprintf(stderr, "Default MROM image missing or invalid: %s\n", default_mrom_path);
+            exit(1);
+        }
+    } else {
+        if (!mrom_load_image(img_file)) {
+            fprintf(stderr, "Failed to load CLI image as MROM: %s\n", img_file);
+            exit(1);
+        }
     }
 
     return img_size;

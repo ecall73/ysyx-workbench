@@ -3,12 +3,21 @@ VERILATOR = verilator
 VERILATOR_CFLAGS += -MMD --build -cc  \
 				-O3 --x-assign fast --x-initial fast --noassert \
 				-Wno-PINMISSING -Wno-WIDTHEXPAND \
-				--trace --timescale "1ns/1ns" --no-timing
+				--trace --timescale "1ns/1ns" --no-timing --autoflush
 
 BUILD_DIR = ./build
 OBJ_DIR = $(BUILD_DIR)/obj_dir
 BIN = $(BUILD_DIR)/$(TOPNAME)
 YSYX_SOC_HOME ?= $(abspath ../ysyxSoC)
+CHAR_TEST_DIR = $(abspath ./tests)
+CHAR_TEST_SRC = $(CHAR_TEST_DIR)/char-test.c
+CHAR_TEST_LD = $(CHAR_TEST_DIR)/char-test.ld
+CHAR_TEST_ELF = $(BUILD_DIR)/char-test.elf
+CHAR_TEST_BIN = $(BUILD_DIR)/char-test.bin
+RV_CC ?= riscv64-linux-gnu-gcc
+RV_OBJCOPY ?= riscv64-linux-gnu-objcopy
+CHAR_TEST_CFLAGS = -march=rv32e_zicsr -mabi=ilp32e -O2 -ffreestanding -fno-pic -fno-builtin -fno-stack-protector -fdata-sections -ffunction-sections -Wall -Werror
+CHAR_TEST_LDFLAGS = -nostdlib -static -Wl,-melf32lriscv -Wl,-T,$(CHAR_TEST_LD) -Wl,--gc-sections -Wl,-e,_start
 
 default: $(BIN)
 
@@ -29,7 +38,15 @@ CFLAGS += $(INCFLAGS) -DTOP_NAME="\"V$(TOPNAME)\""
 
 LDFLAGS += -lreadline $(NEMU_HOME)/tools/capstone/repo/libcapstone.a
 
-$(BIN): $(VSRCS) $(CSRCS)
+$(CHAR_TEST_ELF): $(CHAR_TEST_SRC) $(CHAR_TEST_LD)
+	@echo + CC "->" $(CHAR_TEST_ELF)
+	@$(RV_CC) $(CHAR_TEST_CFLAGS) $(CHAR_TEST_SRC) -o $(CHAR_TEST_ELF) $(CHAR_TEST_LDFLAGS)
+
+$(CHAR_TEST_BIN): $(CHAR_TEST_ELF)
+	@echo + OBJCOPY "->" $(CHAR_TEST_BIN)
+	@$(RV_OBJCOPY) -O binary $(CHAR_TEST_ELF) $(CHAR_TEST_BIN)
+
+$(BIN): $(VSRCS) $(CSRCS) $(CHAR_TEST_BIN)
 	$(VERILATOR) $(VERILATOR_CFLAGS) $(INCFLAGS) \
 		--top-module $(TOPNAME) $^ \
 		$(addprefix -CFLAGS , $(CFLAGS)) \

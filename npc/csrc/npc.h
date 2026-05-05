@@ -81,6 +81,7 @@ bool difftest_is_enabled();
 // memory and image
 bool check_bound(int addr, const char *type);
 long load_image(char *img_file);
+bool mrom_load_image(const char *img_file);
 
 // disasm
 void init_disasm();
