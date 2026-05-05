@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "Vtop.h"
 #include "npc.h"
 
 static const char *regs[] = {
@@ -36,18 +35,7 @@ static int cmd_si(char *args) {
 
 static int cmd_info(char *args) {
     if (args != NULL && strcmp(args, "r") == 0) {
-        for (int i = 0; i < 32; i++) {
-            printf(ANSI_FMT("(x%02d) ", ANSI_FG_RED)
-                   ANSI_FMT("%-4s ", ANSI_FG_GREEN)
-                   ANSI_FMT("0x%08x\t", ANSI_FG_BLUE),
-                   i, regs[i], g_top->debug_reg_file[i]);
-            if (i % 4 == 3) {
-                printf("\n");
-            }
-        }
-        printf("      " ANSI_FMT("PC   ", ANSI_FG_GREEN)
-               ANSI_FMT("0x%08x\n", ANSI_FG_BLUE),
-               g_top->debug_wb_pc);
+        printf("Register dump is unavailable in ysyxSoC bring-up mode.\n");
     }
     return 0;
 }

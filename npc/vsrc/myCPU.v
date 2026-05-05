@@ -6,26 +6,38 @@ module myCPU (
     input  wire        clk,
     input  wire        rst,
 
-    // Shared MEM AXI4-Lite Interface
+    // Shared MEM AXI4 Interface
     // Read address channel
     output wire [31:0] mem_axi_araddr,
+    output wire [ 3:0] mem_axi_arid,
+    output wire [ 7:0] mem_axi_arlen,
+    output wire [ 2:0] mem_axi_arsize,
+    output wire [ 1:0] mem_axi_arburst,
     output wire        mem_axi_arvalid,
     input  wire        mem_axi_arready,
     // Read data channel
     input  wire [31:0] mem_axi_rdata,
+    input  wire [ 3:0] mem_axi_rid,
     input  wire [ 1:0] mem_axi_rresp,
+    input  wire        mem_axi_rlast,
     input  wire        mem_axi_rvalid,
     output wire        mem_axi_rready,
     // Write address channel
     output wire [31:0] mem_axi_awaddr,
+    output wire [ 3:0] mem_axi_awid,
+    output wire [ 7:0] mem_axi_awlen,
+    output wire [ 2:0] mem_axi_awsize,
+    output wire [ 1:0] mem_axi_awburst,
     output wire        mem_axi_awvalid,
     input  wire        mem_axi_awready,
     // Write data channel
     output wire [31:0] mem_axi_wdata,
     output wire [ 3:0] mem_axi_wstrb,
+    output wire        mem_axi_wlast,
     output wire        mem_axi_wvalid,
     input  wire        mem_axi_wready,
     // Write response channel
+    input  wire [ 3:0] mem_axi_bid,
     input  wire [ 1:0] mem_axi_bresp,
     input  wire        mem_axi_bvalid,
     output wire        mem_axi_bready
@@ -41,6 +53,10 @@ module myCPU (
         output wire [31:0] debug_reg_file [0:31]
     `endif
 );
+
+`ifndef SYNTHESIS
+    import "DPI-C" function void npc_trap(input int pc, input int a0);
+`endif
 
     wire [31:0] npc;
 
@@ -650,19 +666,31 @@ module myCPU (
         .lsu_axi_bready          (lsu_axi_bready),
 
         .mem_axi_araddr          (mem_axi_araddr),
+        .mem_axi_arid            (mem_axi_arid),
+        .mem_axi_arlen           (mem_axi_arlen),
+        .mem_axi_arsize          (mem_axi_arsize),
+        .mem_axi_arburst         (mem_axi_arburst),
         .mem_axi_arvalid         (mem_axi_arvalid),
         .mem_axi_arready         (mem_axi_arready),
         .mem_axi_rdata           (mem_axi_rdata),
+        .mem_axi_rid             (mem_axi_rid),
         .mem_axi_rresp           (mem_axi_rresp),
+        .mem_axi_rlast           (mem_axi_rlast),
         .mem_axi_rvalid          (mem_axi_rvalid),
         .mem_axi_rready          (mem_axi_rready),
         .mem_axi_awaddr          (mem_axi_awaddr),
+        .mem_axi_awid            (mem_axi_awid),
+        .mem_axi_awlen           (mem_axi_awlen),
+        .mem_axi_awsize          (mem_axi_awsize),
+        .mem_axi_awburst         (mem_axi_awburst),
         .mem_axi_awvalid         (mem_axi_awvalid),
         .mem_axi_awready         (mem_axi_awready),
         .mem_axi_wdata           (mem_axi_wdata),
         .mem_axi_wstrb           (mem_axi_wstrb),
+        .mem_axi_wlast           (mem_axi_wlast),
         .mem_axi_wvalid          (mem_axi_wvalid),
         .mem_axi_wready          (mem_axi_wready),
+        .mem_axi_bid             (mem_axi_bid),
         .mem_axi_bresp           (mem_axi_bresp),
         .mem_axi_bvalid          (mem_axi_bvalid),
         .mem_axi_bready          (mem_axi_bready)
@@ -690,6 +718,16 @@ module myCPU (
             end
         end
     end
+
+`ifndef SYNTHESIS
+`ifdef RUN_TRACE
+    always @(posedge clk) begin
+        if (!rst && wb_in_valid && wb_ebreak) begin
+            npc_trap(pc_WB, debug_reg_file[10]);
+        end
+    end
+`endif
+`endif
 
     //trace
     `ifdef RUN_TRACE

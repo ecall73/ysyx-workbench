@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "Vtop.h"
+#include "VysyxSoCFull.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 #include "npc.h"
@@ -50,64 +50,35 @@ void cpu_exec(uint64_t n) {
     bool need_report = false;
 
     for (uint64_t i = 0; i < n; i++) {
-        while (!is_finished && !g_contextp->gotFinish()) {
-            g_top->clk = 0;
-            g_top->eval();
-            g_contextp->timeInc(1);
-            if (g_tfp) g_tfp->dump(g_contextp->time());
-
-            g_top->clk = 1;
-            g_top->eval();
-            g_contextp->timeInc(1);
-            if (g_tfp) g_tfp->dump(g_contextp->time());
-            g_nr_sim_cycle++;
-
-            if (g_contextp->time() > MAX_SIM_TIME) {
-                Log("Simulation timed out at time %ld", g_contextp->time());
-                is_finished = true;
-                break;
+        if (is_finished || g_contextp->gotFinish()) {
+            if (is_finished) {
+                need_report = true;
             }
-
-            if (g_top->debug_wb_have_inst) {
-                g_nr_guest_inst++;
-
-                uint32_t pc = g_top->debug_wb_pc;
-                uint32_t inst_val = 0;
-                if (check_bound(pc, "FETCH")) {
-                    inst_val = *(uint32_t *)&pmem[pc - 0x80000000];
-                }
-                char asm_buf[128];
-                disassemble(asm_buf, sizeof(asm_buf), pc, (uint8_t *)&inst_val, 4);
-
-                if (log_fp) {
-                    fprintf(log_fp, "0x%08x: %08x\t%s\n", pc, inst_val, asm_buf);
-                }
-
-                if (n < 10) {
-                    printf("0x%08x: %08x\t%s\n", pc, inst_val, asm_buf);
-                }
-
-                if (!difftest_step(pc, g_top->debug_wb_ena, g_top->debug_wb_reg, g_top->debug_wb_value)) {
-                    is_finished = true;
-                    trap_pc = pc;
-                    trap_a0 = -1;
-                    break;
-                }
-
-                // Keep trap response at the same retire point as instruction trace.
-                if (g_top->debug_wb_ebreak) {
-                    npc_trap(pc, g_top->debug_reg_file[10]);
-                }
-                break;
-            }
+            break;
         }
+
+        g_top->clock = 0;
+        g_top->eval();
+        g_contextp->timeInc(1);
+        if (g_tfp) g_tfp->dump(g_contextp->time());
+
+        g_top->clock = 1;
+        g_top->eval();
+        g_contextp->timeInc(1);
+        if (g_tfp) g_tfp->dump(g_contextp->time());
+        g_nr_sim_cycle++;
 
         if (is_finished) {
             need_report = true;
             break;
         }
 
-        if (g_contextp->gotFinish()) {
+        if (g_contextp->time() > MAX_SIM_TIME) {
+            Log("Simulation timed out at time %ld", g_contextp->time());
+            is_finished = true;
+            trap_a0 = -1;
+            trap_pc = 0;
+            need_report = true;
             break;
         }
     }

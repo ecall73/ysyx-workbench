@@ -1,6 +1,10 @@
 // run sel
 `define RUN_TRACE
 
+`ifndef NPC_RESET_PC
+`define NPC_RESET_PC 32'h2000_0000
+`endif
+
 // MMIO
 `define UART_ADDR 32'h1000_0000
 `define UART_BASE_ADDR 32'h1000_0000

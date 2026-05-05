@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-class Vtop;
+class VysyxSoCFull;
 class VerilatedContext;
 class VerilatedVcdC;
 
@@ -55,7 +55,7 @@ extern FILE *log_fp;
 
 extern uint8_t pmem[MEM_SIZE];
 
-extern Vtop *g_top;
+extern VysyxSoCFull *g_top;
 extern VerilatedContext *g_contextp;
 extern VerilatedVcdC *g_tfp;
 

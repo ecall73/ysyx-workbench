@@ -41,19 +41,31 @@ module axi4lite_arbiter (
     input  wire        lsu_axi_bready,
     // Shared MEM slave interface
     output reg  [31:0] mem_axi_araddr,
+    output reg  [ 3:0] mem_axi_arid,
+    output reg  [ 7:0] mem_axi_arlen,
+    output reg  [ 2:0] mem_axi_arsize,
+    output reg  [ 1:0] mem_axi_arburst,
     output reg         mem_axi_arvalid,
     input  wire        mem_axi_arready,
     input  wire [31:0] mem_axi_rdata,
+    input  wire [ 3:0] mem_axi_rid,
     input  wire [ 1:0] mem_axi_rresp,
+    input  wire        mem_axi_rlast,
     input  wire        mem_axi_rvalid,
     output reg         mem_axi_rready,
     output reg  [31:0] mem_axi_awaddr,
+    output reg  [ 3:0] mem_axi_awid,
+    output reg  [ 7:0] mem_axi_awlen,
+    output reg  [ 2:0] mem_axi_awsize,
+    output reg  [ 1:0] mem_axi_awburst,
     output reg         mem_axi_awvalid,
     input  wire        mem_axi_awready,
     output reg  [31:0] mem_axi_wdata,
     output reg  [ 3:0] mem_axi_wstrb,
+    output reg         mem_axi_wlast,
     output reg         mem_axi_wvalid,
     input  wire        mem_axi_wready,
+    input  wire [ 3:0] mem_axi_bid,
     input  wire [ 1:0] mem_axi_bresp,
     input  wire        mem_axi_bvalid,
     output reg         mem_axi_bready
@@ -121,12 +133,21 @@ module axi4lite_arbiter (
 
         // MEM side defaults
         mem_axi_araddr = 32'b0;
+        mem_axi_arid = 4'b0;
+        mem_axi_arlen = 8'b0;
+        mem_axi_arsize = 3'b010;
+        mem_axi_arburst = 2'b00;
         mem_axi_arvalid = 1'b0;
         mem_axi_rready = 1'b0;
         mem_axi_awaddr = 32'b0;
+        mem_axi_awid = 4'b0;
+        mem_axi_awlen = 8'b0;
+        mem_axi_awsize = 3'b010;
+        mem_axi_awburst = 2'b00;
         mem_axi_awvalid = 1'b0;
         mem_axi_wdata = 32'b0;
         mem_axi_wstrb = 4'b0000;
+        mem_axi_wlast = 1'b0;
         mem_axi_wvalid = 1'b0;
         mem_axi_bready = 1'b0;
 
@@ -134,12 +155,17 @@ module axi4lite_arbiter (
             A_LSU_WR_AW_W: begin
                 if (~wr_aw_done) begin
                     mem_axi_awaddr = lsu_axi_awaddr;
+                    mem_axi_awid = 4'h0;
+                    mem_axi_awlen = 8'h00;
+                    mem_axi_awsize = 3'b010;
+                    mem_axi_awburst = 2'b00;
                     mem_axi_awvalid = lsu_axi_awvalid;
                     lsu_axi_awready = mem_axi_awready;
                 end
                 if (~wr_w_done) begin
                     mem_axi_wdata = lsu_axi_wdata;
                     mem_axi_wstrb = lsu_axi_wstrb;
+                    mem_axi_wlast = 1'b1;
                     mem_axi_wvalid = lsu_axi_wvalid;
                     lsu_axi_wready = mem_axi_wready;
                 end
@@ -153,6 +179,10 @@ module axi4lite_arbiter (
 
             A_LSU_RD_AR: begin
                 mem_axi_araddr = lsu_axi_araddr;
+                mem_axi_arid = 4'h0;
+                mem_axi_arlen = 8'h00;
+                mem_axi_arsize = 3'b010;
+                mem_axi_arburst = 2'b00;
                 mem_axi_arvalid = lsu_axi_arvalid;
                 lsu_axi_arready = mem_axi_arready;
             end
@@ -167,12 +197,17 @@ module axi4lite_arbiter (
             A_IFU_WR_AW_W: begin
                 if (~wr_aw_done) begin
                     mem_axi_awaddr = ifu_axi_awaddr;
+                    mem_axi_awid = 4'h1;
+                    mem_axi_awlen = 8'h00;
+                    mem_axi_awsize = 3'b010;
+                    mem_axi_awburst = 2'b00;
                     mem_axi_awvalid = ifu_axi_awvalid;
                     ifu_axi_awready = mem_axi_awready;
                 end
                 if (~wr_w_done) begin
                     mem_axi_wdata = ifu_axi_wdata;
                     mem_axi_wstrb = ifu_axi_wstrb;
+                    mem_axi_wlast = 1'b1;
                     mem_axi_wvalid = ifu_axi_wvalid;
                     ifu_axi_wready = mem_axi_wready;
                 end
@@ -186,6 +221,10 @@ module axi4lite_arbiter (
 
             A_IFU_RD_AR: begin
                 mem_axi_araddr = ifu_axi_araddr;
+                mem_axi_arid = 4'h1;
+                mem_axi_arlen = 8'h00;
+                mem_axi_arsize = 3'b010;
+                mem_axi_arburst = 2'b00;
                 mem_axi_arvalid = ifu_axi_arvalid;
                 ifu_axi_arready = mem_axi_arready;
             end

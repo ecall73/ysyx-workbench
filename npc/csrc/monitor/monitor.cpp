@@ -2,12 +2,12 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "Vtop.h"
+#include "VysyxSoCFull.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 #include "npc.h"
 
-Vtop *g_top = NULL;
+VysyxSoCFull *g_top = NULL;
 VerilatedContext *g_contextp = NULL;
 VerilatedVcdC *g_tfp = NULL;
 
@@ -86,7 +86,7 @@ void init_monitor(int argc, char **argv) {
     VerilatedContext *contextp = new VerilatedContext;
     contextp->commandArgs(argc, argv);
 
-    Vtop *top = new Vtop{contextp};
+    VysyxSoCFull *top = new VysyxSoCFull{contextp};
     VerilatedVcdC *tfp = NULL;
 
     char *diff_so_file = NULL;
@@ -106,20 +106,24 @@ void init_monitor(int argc, char **argv) {
     g_contextp = contextp;
     g_tfp = tfp;
 
-    top->clk = 0;
-    top->rst = 1;
+    top->clock = 0;
+    top->reset = 1;
+    top->externalPins_gpio_in = 0;
+    top->externalPins_ps2_clk = 0;
+    top->externalPins_ps2_data = 0;
+    top->externalPins_uart_rx = 0;
     top->eval();
     contextp->timeInc(1);
     if (tfp) tfp->dump(contextp->time());
 
     // Reset for a few cycles.
     for (int i = 0; i < 9; i++) {
-        top->clk = !top->clk;
+        top->clock = !top->clock;
         top->eval();
         contextp->timeInc(1);
         if (tfp) tfp->dump(contextp->time());
     }
-    top->rst = 0;
+    top->reset = 0;
 
     init_difftest(diff_so_file, img_size, diff_port);
     Log("Simulation started...");

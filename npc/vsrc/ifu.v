@@ -91,7 +91,7 @@ module ifu (
     always @(posedge clk) begin
         if (rst) begin
             state <= F_AR_VALID;
-            req_pc <= 32'h8000_0000;
+            req_pc <= `NPC_RESET_PC;
             hold_pc <= 32'b0;
             hold_inst <= 32'b0;
             drop_resp <= 1'b0;

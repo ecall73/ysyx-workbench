@@ -1,3 +1,4 @@
 .*//fceux-am
 /nvboard
 .tmp/
+out/
