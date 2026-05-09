@@ -17,44 +17,47 @@ module top
 `endif
 );
 
-    // IROM
-    wire irom_ren;
-    wire [31:0] irom_addr;
-    wire [31:0] irom_data;
-
-    // perip
-    wire [31:0] perip_addr, perip_wdata, perip_rdata;
-    wire perip_wen, perip_ren;
-    wire [3:0] perip_wmask;
-
-    wire external_stall;
-    wire [3:0] exception, interrupt;
-
-    // No external_stall, exception or interrupt
-    assign external_stall = 0;
-    assign exception = 10;
-    assign interrupt = 0;
+    // Shared MEM AXI4-Lite
+    wire [31:0] mem_axi_araddr;
+    wire        mem_axi_arvalid;
+    wire        mem_axi_arready;
+    wire [31:0] mem_axi_rdata;
+    wire [ 1:0] mem_axi_rresp;
+    wire        mem_axi_rvalid;
+    wire        mem_axi_rready;
+    wire [31:0] mem_axi_awaddr;
+    wire        mem_axi_awvalid;
+    wire        mem_axi_awready;
+    wire [31:0] mem_axi_wdata;
+    wire [ 3:0] mem_axi_wstrb;
+    wire        mem_axi_wvalid;
+    wire        mem_axi_wready;
+    wire [ 1:0] mem_axi_bresp;
+    wire        mem_axi_bvalid;
+    wire        mem_axi_bready;
 
     myCPU Core_cpu (
         .clk                (clk),
         .rst                (rst),
-        .external_stall     (external_stall),
 
-        .exception          (exception),
-        .interrupt          (interrupt),
-
-        // Interface to IROM
-        .irom_ren           (irom_ren),
-        .irom_addr          (irom_addr),
-        .irom_data          (irom_data),
-
-        // Interface to DRAM & periphera
-        .perip_addr         (perip_addr),
-        .perip_ren          (perip_ren),
-        .perip_wen          (perip_wen),
-        .perip_wmask        (perip_wmask),
-        .perip_wdata        (perip_wdata),
-        .perip_rdata        (perip_rdata)
+        // Interface to shared MEM AXI4-Lite
+        .mem_axi_araddr     (mem_axi_araddr),
+        .mem_axi_arvalid    (mem_axi_arvalid),
+        .mem_axi_arready    (mem_axi_arready),
+        .mem_axi_rdata      (mem_axi_rdata),
+        .mem_axi_rresp      (mem_axi_rresp),
+        .mem_axi_rvalid     (mem_axi_rvalid),
+        .mem_axi_rready     (mem_axi_rready),
+        .mem_axi_awaddr     (mem_axi_awaddr),
+        .mem_axi_awvalid    (mem_axi_awvalid),
+        .mem_axi_awready    (mem_axi_awready),
+        .mem_axi_wdata      (mem_axi_wdata),
+        .mem_axi_wstrb      (mem_axi_wstrb),
+        .mem_axi_wvalid     (mem_axi_wvalid),
+        .mem_axi_wready     (mem_axi_wready),
+        .mem_axi_bresp      (mem_axi_bresp),
+        .mem_axi_bvalid     (mem_axi_bvalid),
+        .mem_axi_bready     (mem_axi_bready)
 
     `ifdef RUN_TRACE
         ,
@@ -67,23 +70,26 @@ module top
         .debug_reg_file     (debug_reg_file)
     `endif
     );
-
-    irom irom_inst (
-        .clk                (clk),
-        .irom_ren           (irom_ren),
-        .irom_addr          (irom_addr),
-        .irom_data          (irom_data)
-    );
     
     perip_bridge bridge_inst (
         .clk				(clk),
         .rst                (rst),
-        .perip_addr			(perip_addr),
-        .perip_wdata		(perip_wdata),
-        .perip_ren          (perip_ren),
-        .perip_wen			(perip_wen),
-        .perip_wmask			(perip_wmask),
-        .perip_rdata		(perip_rdata)
+        .mem_axi_araddr     (mem_axi_araddr),
+        .mem_axi_arvalid    (mem_axi_arvalid),
+        .mem_axi_arready    (mem_axi_arready),
+        .mem_axi_rdata      (mem_axi_rdata),
+        .mem_axi_rresp      (mem_axi_rresp),
+        .mem_axi_rvalid     (mem_axi_rvalid),
+        .mem_axi_rready     (mem_axi_rready),
+        .mem_axi_awaddr     (mem_axi_awaddr),
+        .mem_axi_awvalid    (mem_axi_awvalid),
+        .mem_axi_awready    (mem_axi_awready),
+        .mem_axi_wdata      (mem_axi_wdata),
+        .mem_axi_wstrb      (mem_axi_wstrb),
+        .mem_axi_wvalid     (mem_axi_wvalid),
+        .mem_axi_wready     (mem_axi_wready),
+        .mem_axi_bresp      (mem_axi_bresp),
+        .mem_axi_bvalid     (mem_axi_bvalid),
+        .mem_axi_bready     (mem_axi_bready)
     );
-
 endmodule

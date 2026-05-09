@@ -37,12 +37,6 @@ extern "C" int pmem_read(int raddr) {
 }
 
 extern "C" void pmem_write(int waddr, int wdata, char wmask) {
-    if (waddr == SERIAL_PORT) {
-        putchar((char)(wdata & 0xff));
-        fflush(stdout);
-        return;
-    }
-
     if (!check_bound(waddr, "WRITE")) {
         return;
     }

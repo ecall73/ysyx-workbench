@@ -1,17 +1,40 @@
 // run sel
 `define RUN_TRACE
-// `define RUN_ONBOARD
 
-// Ultrascale(+): DSP48E2, 7Series: DSP48E1
-// `define DSP48E2_MULT
-// `define DSP48E1_MULT
+`ifndef NPC_RESET_PC
+`define NPC_RESET_PC 32'h2000_0000
+`endif
 
-`define RV32IM
-// `define RV32I
+// MMIO
+`define UART_ADDR 32'h1000_0000
+`define UART_BASE_ADDR 32'h1000_0000
+`define UART_END_ADDR  32'h1000_0fff
+`define CLINT_BASE_ADDR 32'h0200_0000
+`define CLINT_END_ADDR  32'h0200_ffff
+`define CLINT_MTIME_ADDR 32'h0200_bff8
+`define CLINT_MTIMEH_ADDR 32'h0200_bffc
 
-`define mul_stall 3
-`define divu_stall 18
-`define divs_stall 18
+// Shared MEM AXI delay configs (1~15)
+// Read address ready
+`ifndef MEM_ARREADY_MAX_DELAY
+`define MEM_ARREADY_MAX_DELAY 4
+`endif
+// Read data valid
+`ifndef MEM_RVALID_MAX_DELAY
+`define MEM_RVALID_MAX_DELAY 4
+`endif
+// Write address ready
+`ifndef MEM_AWREADY_MAX_DELAY
+`define MEM_AWREADY_MAX_DELAY 4
+`endif
+// Write data ready
+`ifndef MEM_WREADY_MAX_DELAY
+`define MEM_WREADY_MAX_DELAY 4
+`endif
+// Write response valid
+`ifndef MEM_BVALID_MAX_DELAY
+`define MEM_BVALID_MAX_DELAY 4
+`endif
 
 // opcode
 `define R_TYPE   7'b011_0011

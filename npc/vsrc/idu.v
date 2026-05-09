@@ -4,16 +4,16 @@
 module idu (
     input  wire        clk,
     input  wire        rst,
+    input  wire        id_in_valid,
+    output wire        id_in_ready,
+    output wire        id_out_valid,
+    input  wire        id_out_ready,
+    input  wire        id_block,
 
     // From IF_ID
     input  wire [31:0] id_inst,
 
-    // From WB stage (for RF write)
-    input  wire        wb_RegWrite,
-    input  wire [ 4:0] wb_RFwaddr,
-    input  wire [31:0] wb_RFwdata,
-
-    // To ID_EX / Hazard / Forwarding
+    // To ID_EX / Forwarding
     output wire [13:0] id_ALUControl,
     output wire        id_RegWrite,
     output wire [ 2:0] id_MemToReg,
@@ -24,9 +24,10 @@ module idu (
     output wire [31:0] id_rR1_data,
     output wire [31:0] id_rR2_data,
 
-    // RV32M
-    output wire        id_m_en,
-    output wire [ 2:0] id_MDUControl,
+    // Branch/jump type decode
+    output wire        id_btype,
+    output wire        id_jtype,
+    output wire        id_ijtype,
 
     // CSR
     output wire        id_CSRSrc,
@@ -35,9 +36,14 @@ module idu (
 
     `ifdef RUN_TRACE
     , output wire      have_inst_ID
-    , output wire [31:0] id_reg_file [0:31]
     `endif
 );
+
+    wire id_can_go;
+
+    assign id_can_go = ~id_block;
+    assign id_in_ready = ~id_in_valid || (id_can_go && id_out_ready);
+    assign id_out_valid = id_in_valid && id_can_go;
 
     // Expanded ACTL module logic
     localparam ADD      = 14'h0001;
@@ -78,15 +84,20 @@ module idu (
                         {14{op_bgeu}} & BGEU |
                         {14{op_bltu}} & BLTU;
 
-    wire rtype, itype, load, store, jalr, auipc, branch;
+    wire rtype, itype, load, store, jal, jalr, auipc, branch;
 
     assign rtype = opcode == `R_TYPE;
     assign itype = opcode == `I_TYPE;
     assign load = opcode == `IL_TYPE;
     assign store = opcode == `S_TYPE;
+    assign jal = opcode == `J_TYPE;
     assign jalr = opcode == `IJ_TYPE;
     assign auipc = opcode == `UA_TYPE;
     assign branch = opcode == `B_TYPE;
+
+    assign id_btype = branch;
+    assign id_jtype = jal;
+    assign id_ijtype = jalr;
 
     assign op_add = (rtype && funct == 4'b0000) ||
                     (itype && funct[2:0] == 3'b000) ||
@@ -98,6 +109,7 @@ module idu (
                     (store && funct[2:0] == 3'b000) ||
                     (store && funct[2:0] == 3'b001) ||
                     (store && funct[2:0] == 3'b010) ||
+                    jal ||
                     auipc || (jalr && funct[2:0] == 3'b000);
     assign op_sub = (rtype && funct == 4'b1000);
     assign op_and = (rtype && funct == 4'b0111) || (itype && funct[2:0] == 3'b111);
@@ -139,20 +151,8 @@ module idu (
 
     assign id_MemWrite = op_store;
 
-    assign id_ALUSrcA = op_auipc;
+    assign id_ALUSrcA = op_auipc | jal;
     assign id_ALUSrcB = ~(op_rtype | op_branch);
-
-    /*
-    always @(*) begin
-        case(opcode)
-            `B_TYPE: NpcOp = `NpcOp_BRANCH;
-            `J_TYPE: NpcOp = `NpcOp_JAL;
-            `IJ_TYPE: NpcOp = `NpcOp_JALR;
-            `CSR_TYPE: NpcOp = funct3 ? `NpcOp_NEXT : `NpcOp_CSR;
-            default: NpcOp = `NpcOp_NEXT;
-        endcase
-    end
-    */
 
     `ifdef RUN_TRACE
         wire op_jal, op_jalr, op_sys;
@@ -162,25 +162,6 @@ module idu (
         assign op_sys = opcode == `CSR_TYPE;
         assign have_inst_ID = op_rtype | op_itype | op_load | op_jalr | op_store | op_branch | op_lui | op_auipc | op_jal | op_sys;
     `endif
-
-    RF u_RF (
-        .clk                    (clk),
-        .rst                    (rst),
-
-        .wen                    (wb_RegWrite),
-        .waddr                  (wb_RFwaddr),
-        .wdata                  (wb_RFwdata),
-
-        .rR1                    (id_inst[19:15]),
-        .rR2                    (id_inst[24:20]),
-
-        .rR1_data               (id_rR1_data),
-        .rR2_data               (id_rR2_data)
-
-        `ifdef RUN_TRACE
-        ,.reg_file              (id_reg_file)
-        `endif
-    );
 
     // Expanded IMMGEN module logic
     always @(*) begin
@@ -197,19 +178,6 @@ module idu (
             default:    id_imm = 32'b0;
         endcase
     end
-
-    // Expanded MCTL module logic
-    `ifdef RV32IM
-        wire rtype_m;
-        assign rtype_m = opcode == `R_TYPE;
-        assign id_m_en = rtype_m & id_inst[25];
-        assign id_MDUControl = funct3;
-    `endif
-
-    `ifdef RV32I
-        assign id_m_en = 1'b0;
-        assign id_MDUControl = 3'b0;
-    `endif
 
     // Expanded CCTL module logic
     assign id_CSRSrc = id_inst[14];

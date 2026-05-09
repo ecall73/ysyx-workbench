@@ -2,10 +2,11 @@
 #define __NPC_H__
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 
-class Vtop;
+class VysyxSoCFull;
 class VerilatedContext;
 class VerilatedVcdC;
 
@@ -41,9 +42,9 @@ void init_log(const char *log_file);
 
 // Memory size 128MB
 #define MEM_SIZE 0x8000000
-#define MAX_SIM_TIME 10000000000
+#define MAX_SIM_TIME 100000000
 #define SERIAL_PORT 0x10000000
-#define RTC_ADDR    0x10000048
+#define RTC_ADDR    0x00100048
 
 extern bool is_finished;
 extern int trap_a0;
@@ -55,7 +56,7 @@ extern FILE *log_fp;
 
 extern uint8_t pmem[MEM_SIZE];
 
-extern Vtop *g_top;
+extern VysyxSoCFull *g_top;
 extern VerilatedContext *g_contextp;
 extern VerilatedVcdC *g_tfp;
 
@@ -75,15 +76,20 @@ extern "C" void npc_trap(int pc, int a0);
 
 // difftest
 void init_difftest(const char *ref_so_file, long img_size, int port);
-bool difftest_step(uint32_t dut_pc, bool dut_wen, uint8_t dut_waddr, uint32_t dut_wdata);
+bool difftest_step(uint32_t dut_pc, bool dut_wen, uint8_t dut_waddr, uint32_t dut_wdata, uint32_t dut_inst);
 bool difftest_is_enabled();
 
 // memory and image
 bool check_bound(int addr, const char *type);
 long load_image(char *img_file);
+bool mrom_load_image(const char *img_file);
+bool mrom_get_image_info(uint32_t *base, const uint8_t **img, size_t *size);
 
 // disasm
 void init_disasm();
 void disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
+
+// commit callback from RTL
+extern "C" void npc_commit(int pc, char wen, char waddr, int wdata, int inst);
 
 #endif
