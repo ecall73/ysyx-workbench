@@ -1,54 +1,57 @@
 ENTRY(_start)
 PHDRS { text PT_LOAD; data PT_LOAD; }
 
+MEMORY {
+  mrom (rx)  : ORIGIN = _pmem_start + _entry_offset, LENGTH = 0x1000
+  sram (rwx) : ORIGIN = 0x0f000000, LENGTH = 0x2000
+}
+
 SECTIONS {
-  /* _pmem_start and _entry_offset are defined in LDFLAGS */
-  . = _pmem_start + _entry_offset;
+  . = ORIGIN(mrom);
   .text : {
     *(entry)
     *(.text*)
-  } : text
+  } > mrom AT> mrom : text
   etext = .;
   _etext = .;
 
   . = ALIGN(4);
   .rodata : {
     *(.rodata*)
-  } : text
+    *(.srodata*)
+  } > mrom AT> mrom : text
   . = ALIGN(4);
 
-  /* ysyxSoC SRAM实际可用窗口: 0x0f000000 ~ 0x0f001fff (8KB) */
-  __sram_start = 0x0f000000;
-  __sram_size  = 0x00002000;
-  __sram_end   = __sram_start + __sram_size;
-
-  . = __sram_start;
+  . = ORIGIN(sram);
   _data_start = .;
-  .data : AT (LOADADDR(.rodata) + SIZEOF(.rodata)) {
+  .data : {
     *(.data*)
     *(.sdata*)
-  } : data
+  } > sram AT> mrom : data
   _data_end = .;
   _data_load_start = LOADADDR(.data);
   edata = .;
   _data = .;
 
   . = ALIGN(16);
-  .bss : {
+  .bss (NOLOAD) : {
     _bss_start = .;
     *(.bss*)
     *(.sbss*)
     *(.scommon)
     *(COMMON)
-  } : data
+  } > sram : data
   . = ALIGN(16);
   _bss_end = .;
 
   _heap_start = .;
-  _stack_pointer = __sram_end;
+  _stack_pointer = ORIGIN(sram) + LENGTH(sram);
   _heap_end = _stack_pointer;
 
-  ASSERT(_heap_start <= _heap_end, "SRAM overflow: .data/.bss overlap stack")
+  ASSERT((LOADADDR(.data) + SIZEOF(.data)) <= (ORIGIN(mrom) + LENGTH(mrom)),
+         "MROM overflow: text/rodata/data(LMA) exceed 4KB")
+  ASSERT(_bss_end <= _stack_pointer,
+         "SRAM overflow: data/bss exceed available SRAM")
 
   end = .;
   _end = .;
