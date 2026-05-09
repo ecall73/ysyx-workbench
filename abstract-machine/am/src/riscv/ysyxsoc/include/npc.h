@@ -36,6 +36,17 @@
 #define DEVICE_BASE     UART_BASE
 #define MMIO_BASE       DEVICE_BASE
 #define SERIAL_PORT     (UART_BASE + 0x0u)
+#define UART_REG_RBR    0x00u
+#define UART_REG_THR    0x00u
+#define UART_REG_DLL    0x00u
+#define UART_REG_IER    0x01u
+#define UART_REG_DLM    0x01u
+#define UART_REG_FCR    0x02u
+#define UART_REG_LCR    0x03u
+#define UART_REG_LSR    0x05u
+#define UART_LCR_DLAB   0x80u
+#define UART_LCR_8N1    0x03u
+#define UART_LSR_THRE   0x20u
 #define KBD_ADDR        PS2_BASE
 #define CLINT_MTIME     0x0200bff8u
 #define CLINT_MTIMEH    0x0200bffcu
