@@ -13,6 +13,25 @@ extern "C" void npc_trap(int pc, int a0) {
     trap_a0 = a0;
 }
 
+extern "C" void npc_commit(int pc, char wen, char waddr, int wdata, int inst) {
+    if (is_finished) {
+        return;
+    }
+
+    uint32_t dut_pc = (uint32_t)pc;
+    bool dut_wen = (wen & 0x1) != 0;
+    uint8_t dut_waddr = (uint8_t)waddr & 0x1f;
+    uint32_t dut_wdata = (uint32_t)wdata;
+    uint32_t dut_inst = (uint32_t)inst;
+
+    g_nr_guest_inst++;
+    if (!difftest_step(dut_pc, dut_wen, dut_waddr, dut_wdata, dut_inst)) {
+        is_finished = true;
+        trap_pc = (int)dut_pc;
+        trap_a0 = -1;
+    }
+}
+
 static uint64_t g_timer_us = 0;
 static uint64_t g_nr_sim_cycle = 0;
 
@@ -49,7 +68,13 @@ void cpu_exec(uint64_t n) {
     uint64_t timer_start = get_time_us();
     bool need_report = false;
 
-    for (uint64_t i = 0; i < n; i++) {
+    bool run_forever = (n == (uint64_t)-1);
+    uint64_t start_inst = g_nr_guest_inst;
+    while (1) {
+        if (!run_forever && (g_nr_guest_inst - start_inst >= n)) {
+            break;
+        }
+
         if (is_finished || g_contextp->gotFinish()) {
             if (is_finished) {
                 need_report = true;

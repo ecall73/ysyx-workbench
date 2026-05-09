@@ -374,6 +374,16 @@ module ysyx_26030082 (
             if (core_axi_wvalid && core_axi_wready && (core_axi_wlast != 1'b1)) begin
                 $fatal(1, "ysyx_26030082: WLAST must be 1 for single-beat write");
             end
+            if (core_axi_rvalid && core_axi_rready && (core_axi_rresp !== 2'b00)) begin
+                $fatal(1,
+                    "ysyx_26030082: AXI read access fault: resp=%0b rid=%0d src=%0s state=%0d",
+                    core_axi_rresp, core_axi_rid, rd_sel_clint ? "clint" : "soc", state);
+            end
+            if (core_axi_bvalid && core_axi_bready && (core_axi_bresp !== 2'b00)) begin
+                $fatal(1,
+                    "ysyx_26030082: AXI write access fault: resp=%0b bid=%0d src=%0s state=%0d",
+                    core_axi_bresp, core_axi_bid, wr_sel_clint ? "clint" : "soc", state);
+            end
         end
     end
 `endif

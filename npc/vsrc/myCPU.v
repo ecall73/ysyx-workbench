@@ -56,6 +56,9 @@ module myCPU (
 
 `ifndef SYNTHESIS
     import "DPI-C" function void npc_trap(input int pc, input int a0);
+`ifdef RUN_TRACE
+    import "DPI-C" function void npc_commit(input int pc, input byte wen, input byte waddr, input int wdata, input int inst);
+`endif
 `endif
 
     wire [31:0] npc;
@@ -193,6 +196,7 @@ module myCPU (
     // Debug Interface
     `ifdef RUN_TRACE
         reg [31:0] pc_EX, pc_LS, pc_WB;
+        reg [31:0] inst_EX, inst_LS, inst_WB;
         wire        have_inst_ID_decode;
         wire        have_inst_ID;
         reg         have_inst_EX, have_inst_LS, have_inst_WB;
@@ -469,19 +473,23 @@ module myCPU (
         always @(posedge clk) begin
             if (rst) begin
                 pc_EX <= 32'b0;
+                inst_EX <= 32'b0;
                 have_inst_EX <= 1'b0;
                 ex_ebreak <= 1'b0;
             end else if (redirect_flush) begin
                 pc_EX <= 32'b0;
+                inst_EX <= 32'b0;
                 have_inst_EX <= 1'b0;
                 ex_ebreak <= 1'b0;
             end else if (ex_in_ready) begin
                 if (id_out_valid) begin
                     pc_EX <= id_pc;
+                    inst_EX <= id_inst;
                     have_inst_EX <= have_inst_ID;
                     ex_ebreak <= id_ebreak;
                 end else begin
                     pc_EX <= 32'b0;
+                    inst_EX <= 32'b0;
                     have_inst_EX <= 1'b0;
                     ex_ebreak <= 1'b0;
                 end
@@ -569,15 +577,18 @@ module myCPU (
         always @(posedge clk) begin
             if (rst) begin
                 pc_LS <= 32'b0;
+                inst_LS <= 32'b0;
                 have_inst_LS <= 1'b0;
                 ls_ebreak <= 1'b0;
             end else if (ex_out_ready) begin
                 if (ex_out_valid) begin
                     pc_LS <= pc_EX;
+                    inst_LS <= inst_EX;
                     have_inst_LS <= have_inst_EX;
                     ls_ebreak <= ex_ebreak;
                 end else begin
                     pc_LS <= 32'b0;
+                    inst_LS <= 32'b0;
                     have_inst_LS <= 1'b0;
                     ls_ebreak <= 1'b0;
                 end
@@ -722,8 +733,11 @@ module myCPU (
 `ifndef SYNTHESIS
 `ifdef RUN_TRACE
     always @(posedge clk) begin
-        if (!rst && wb_in_valid && wb_ebreak) begin
-            npc_trap(pc_WB, debug_reg_file[10]);
+        if (!rst && wb_in_valid && have_inst_WB) begin
+            npc_commit(pc_WB, wb_RegWrite, {3'b000, wb_RFwaddr}, wb_RFwdata, inst_WB);
+            if (wb_ebreak) begin
+                npc_trap(pc_WB, debug_reg_file[10]);
+            end
         end
     end
 `endif
@@ -734,15 +748,18 @@ module myCPU (
         always @(posedge clk) begin
             if (rst) begin
                 pc_WB <= 32'b0;
+                inst_WB <= 32'b0;
                 have_inst_WB <= 1'b0;
                 wb_ebreak <= 1'b0;
             end else begin
                 if (ls_out_valid) begin
                     pc_WB <= pc_LS;
+                    inst_WB <= inst_LS;
                     have_inst_WB <= have_inst_LS;
                     wb_ebreak <= ls_ebreak;
                 end else begin
                     pc_WB <= 32'b0;
+                    inst_WB <= 32'b0;
                     have_inst_WB <= 1'b0;
                     wb_ebreak <= 1'b0;
                 end

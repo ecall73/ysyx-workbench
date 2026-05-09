@@ -20,10 +20,15 @@
 #include <string.h>
 
 __EXPORT void difftest_memcpy(paddr_t addr, void *buf, size_t n, bool direction) {
+  uint8_t *p = (uint8_t *)buf;
   if (direction == DIFFTEST_TO_REF) {
-    memcpy(guest_to_host(addr), buf, n);
+    for (size_t i = 0; i < n; i++) {
+      paddr_write(addr + i, 1, p[i]);
+    }
   } else {
-    memcpy(buf, guest_to_host(addr), n);
+    for (size_t i = 0; i < n; i++) {
+      p[i] = (uint8_t)paddr_read(addr + i, 1);
+    }
   }
 }
 

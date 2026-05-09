@@ -18,27 +18,57 @@
 #include <device/mmio.h>
 #include <isa.h>
 
+#define MROM_BASE 0x20000000u
+#define MROM_SIZE 0x1000u
+#define MROM_RIGHT (MROM_BASE + MROM_SIZE - 1)
+#define SRAM_BASE 0x0f000000u
+#define SRAM_SIZE 0x2000u
+#define SRAM_RIGHT (SRAM_BASE + SRAM_SIZE - 1)
+
 #if   defined(CONFIG_PMEM_MALLOC)
 static uint8_t *pmem = NULL;
 #else // CONFIG_PMEM_GARRAY
 static uint8_t pmem[CONFIG_MSIZE] PG_ALIGN = {};
 #endif
 
+static uint8_t mrom[MROM_SIZE] = {};
+static uint8_t sram[SRAM_SIZE] = {};
+
 uint8_t* guest_to_host(paddr_t paddr) { return pmem + paddr - CONFIG_MBASE; }
 paddr_t host_to_guest(uint8_t *haddr) { return haddr - pmem + CONFIG_MBASE; }
 
-static word_t pmem_read(paddr_t addr, int len) {
-  word_t ret = host_read(guest_to_host(addr), len);
+static inline bool in_region_range(paddr_t addr, int len, paddr_t base, uint32_t size) {
+  if (len <= 0) return false;
+  if (addr < base) return false;
+  uint64_t off = (uint64_t)(addr - base);
+  return off + (uint64_t)len <= (uint64_t)size;
+}
+
+static inline bool in_pmem_range(paddr_t addr, int len) {
+  return in_region_range(addr, len, CONFIG_MBASE, CONFIG_MSIZE);
+}
+
+static inline bool in_mrom_range(paddr_t addr, int len) {
+  return in_region_range(addr, len, MROM_BASE, MROM_SIZE);
+}
+
+static inline bool in_sram_range(paddr_t addr, int len) {
+  return in_region_range(addr, len, SRAM_BASE, SRAM_SIZE);
+}
+
+static word_t mem_read(uint8_t *space, paddr_t addr, paddr_t base, int len) {
+  word_t ret = host_read(space + (addr - base), len);
   return ret;
 }
 
-static void pmem_write(paddr_t addr, int len, word_t data) {
-  host_write(guest_to_host(addr), len, data);
+static void mem_write(uint8_t *space, paddr_t addr, paddr_t base, int len, word_t data) {
+  host_write(space + (addr - base), len, data);
 }
 
 static void out_of_bound(paddr_t addr) {
-  panic("address = " FMT_PADDR " is out of bound of pmem [" FMT_PADDR ", " FMT_PADDR "] at pc = " FMT_WORD,
-      addr, PMEM_LEFT, PMEM_RIGHT, cpu.pc);
+  panic("address = " FMT_PADDR " is out of bound. valid ranges: pmem[" FMT_PADDR ", " FMT_PADDR "], "
+      "mrom[0x%08x, 0x%08x], sram[0x%08x, 0x%08x], pc = " FMT_WORD,
+      addr, PMEM_LEFT, PMEM_RIGHT, MROM_BASE, MROM_RIGHT, SRAM_BASE, SRAM_RIGHT, cpu.pc);
 }
 
 void init_mem() {
@@ -47,7 +77,11 @@ void init_mem() {
   assert(pmem);
 #endif
   IFDEF(CONFIG_MEM_RANDOM, memset(pmem, rand(), CONFIG_MSIZE));
+  memset(mrom, 0, sizeof(mrom));
+  memset(sram, 0, sizeof(sram));
   Log("physical memory area [" FMT_PADDR ", " FMT_PADDR "]", PMEM_LEFT, PMEM_RIGHT);
+  Log("MROM area [0x%08x, 0x%08x]", MROM_BASE, MROM_RIGHT);
+  Log("SRAM area [0x%08x, 0x%08x]", SRAM_BASE, SRAM_RIGHT);
 }
 
 #ifdef CONFIG_MTRACE
@@ -65,8 +99,18 @@ static inline void mtrace_log_write(paddr_t addr, int len, word_t data) {
 #endif
 
 word_t paddr_read(paddr_t addr, int len) {
-  if (likely(in_pmem(addr))) {
-    word_t data = pmem_read(addr, len);
+  if (likely(in_pmem_range(addr, len))) {
+    word_t data = mem_read(pmem, addr, CONFIG_MBASE, len);
+    IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
+    return data;
+  }
+  if (likely(in_mrom_range(addr, len))) {
+    word_t data = mem_read(mrom, addr, MROM_BASE, len);
+    IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
+    return data;
+  }
+  if (likely(in_sram_range(addr, len))) {
+    word_t data = mem_read(sram, addr, SRAM_BASE, len);
     IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
     return data;
   }
@@ -80,8 +124,18 @@ word_t paddr_read(paddr_t addr, int len) {
 }
 
 void paddr_write(paddr_t addr, int len, word_t data) {
-  if (likely(in_pmem(addr))) {
-    pmem_write(addr, len, data);
+  if (likely(in_pmem_range(addr, len))) {
+    mem_write(pmem, addr, CONFIG_MBASE, len, data);
+    IFDEF(CONFIG_MTRACE, mtrace_log_write(addr, len, data));
+    return;
+  }
+  if (likely(in_mrom_range(addr, len))) {
+    mem_write(mrom, addr, MROM_BASE, len, data);
+    IFDEF(CONFIG_MTRACE, mtrace_log_write(addr, len, data));
+    return;
+  }
+  if (likely(in_sram_range(addr, len))) {
+    mem_write(sram, addr, SRAM_BASE, len, data);
     IFDEF(CONFIG_MTRACE, mtrace_log_write(addr, len, data));
     return;
   }

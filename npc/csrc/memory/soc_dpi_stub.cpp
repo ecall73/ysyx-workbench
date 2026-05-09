@@ -6,6 +6,7 @@
 static const uint32_t kMromBase = 0x20000000u;
 static const uint32_t kMromSize = 0x1000u;
 static uint8_t mrom_image[kMromSize];
+static size_t mrom_image_size = 0;
 static bool mrom_loaded = false;
 static bool mrom_oob_warned = false;
 
@@ -54,8 +55,25 @@ bool mrom_load_image(const char *img_file) {
     }
 
     mrom_loaded = true;
+    mrom_image_size = (size_t)size;
     mrom_oob_warned = false;
     printf("MROM image loaded: %s, size = %ld\n", img_file, size);
+    return true;
+}
+
+bool mrom_get_image_info(uint32_t *base, const uint8_t **img, size_t *size) {
+    if (!mrom_loaded) {
+        return false;
+    }
+    if (base != NULL) {
+        *base = kMromBase;
+    }
+    if (img != NULL) {
+        *img = mrom_image;
+    }
+    if (size != NULL) {
+        *size = mrom_image_size;
+    }
     return true;
 }
 

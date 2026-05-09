@@ -243,17 +243,4 @@ module lsu (
         end
     end
 
-`ifndef SYNTHESIS
-    always @(posedge clk) begin
-        if (!rst) begin
-            if ((state == L_RD_WAIT_R) && lsu_axi_rvalid && (lsu_axi_rresp !== 2'b00)) begin
-                $fatal(1, "lsu: AXI RRESP is not OKAY");
-            end
-            if ((state == L_WR_WAIT_B) && lsu_axi_bvalid && (lsu_axi_bresp !== 2'b00)) begin
-                $fatal(1, "lsu: AXI BRESP is not OKAY");
-            end
-        end
-    end
-`endif
-
 endmodule
