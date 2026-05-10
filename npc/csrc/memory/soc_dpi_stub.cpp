@@ -10,6 +10,30 @@ static size_t mrom_image_size = 0;
 static bool mrom_loaded = false;
 static bool mrom_oob_warned = false;
 
+static const uint32_t kFlashSize = 16u * 1024u * 1024u;
+static uint8_t flash_image[kFlashSize];
+static bool flash_initialized = false;
+static bool flash_oob_warned = false;
+
+static inline uint32_t flash_pattern_word(uint32_t word_index) {
+    return 0x31415926u ^ (word_index * 0x9e3779b9u);
+}
+
+void flash_init_default_image() {
+    memset(flash_image, 0, sizeof(flash_image));
+    for (uint32_t i = 0; i < 1024; i++) {
+        uint32_t value = flash_pattern_word(i);
+        uint32_t offset = i << 2;
+        flash_image[offset + 0] = (uint8_t)(value & 0xffu);
+        flash_image[offset + 1] = (uint8_t)((value >> 8) & 0xffu);
+        flash_image[offset + 2] = (uint8_t)((value >> 16) & 0xffu);
+        flash_image[offset + 3] = (uint8_t)((value >> 24) & 0xffu);
+    }
+    flash_initialized = true;
+    flash_oob_warned = false;
+    printf("Flash image initialized: default pattern, size = %u\n", kFlashSize);
+}
+
 bool mrom_load_image(const char *img_file) {
     if (img_file == NULL) {
         fprintf(stderr, "mrom_load_image: null image path\n");
@@ -78,9 +102,29 @@ bool mrom_get_image_info(uint32_t *base, const uint8_t **img, size_t *size) {
 }
 
 extern "C" void flash_read(int32_t addr, int32_t *data) {
-    (void)addr;
-    (void)data;
-    assert(0);
+    assert(data != nullptr);
+
+    if (!flash_initialized) {
+        flash_init_default_image();
+    }
+
+    uint32_t uaddr = (uint32_t)addr;
+    if (uaddr > (kFlashSize - 4u)) {
+        if (!flash_oob_warned) {
+            fprintf(stderr, "flash_read: address out of range: 0x%08x\n", uaddr);
+            flash_oob_warned = true;
+        }
+        *data = 0;
+        return;
+    }
+
+    uint32_t offset = uaddr & ~0x3u;
+    *data = (int32_t)(
+        ((uint32_t)flash_image[offset + 0]) |
+        ((uint32_t)flash_image[offset + 1] << 8) |
+        ((uint32_t)flash_image[offset + 2] << 16) |
+        ((uint32_t)flash_image[offset + 3] << 24)
+    );
 }
 
 extern "C" void mrom_read(int32_t addr, int32_t *data) {

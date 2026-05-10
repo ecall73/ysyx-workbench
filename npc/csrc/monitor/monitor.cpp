@@ -132,6 +132,7 @@ void init_monitor(int argc, char **argv) {
     char *diff_so_file = NULL;
     int diff_port = 1234;
     long img_size = parse_args_and_load_image(argc, argv, &diff_so_file, &diff_port);
+    flash_init_default_image();
 
     init_disasm();
 
