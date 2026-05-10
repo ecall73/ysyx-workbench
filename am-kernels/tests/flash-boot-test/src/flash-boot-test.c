@@ -19,8 +19,11 @@
 #define SPI_CTRL_GO        (1u << 8)
 #define SPI_CTRL_CHAR_MASK 0x7fu
 
-#define FLASH_CMD_READ     0x03u
-#define FLASH_SS           (1u << 0)
+#define FLASH_CMD_READ             0x03u
+#define FLASH_SS                   (1u << 0)
+#define FLASH_PAYLOAD_OFF          0x1000u
+#define FLASH_PAYLOAD_MAGIC        0x43485254u
+#define FLASH_PAYLOAD_HEADER_SIZE  12u
 
 static inline uint32_t mmio_read32(uintptr_t addr) {
   return *(volatile uint32_t *)addr;
@@ -37,8 +40,8 @@ static inline uint32_t bswap32(uint32_t x) {
          ((x & 0xff000000u) >> 24);
 }
 
-static inline uint32_t flash_pattern_word(uint32_t word_index) {
-  return 0x31415926u ^ (word_index * 0x9e3779b9u);
+static inline uintptr_t align_up(uintptr_t x, uintptr_t a) {
+  return (x + (a - 1u)) & ~(a - 1u);
 }
 
 static uint32_t flash_read(uint32_t addr) {
@@ -61,14 +64,42 @@ static uint32_t flash_read(uint32_t addr) {
   return bswap32(mmio_read32(SPI_RX0_ADDR));
 }
 
+static uint8_t flash_read_u8(uint32_t addr) {
+  uint32_t word = flash_read(addr & ~0x3u);
+  uint32_t shift = (addr & 0x3u) * 8u;
+  return (uint8_t)((word >> shift) & 0xffu);
+}
+
 int main(void) {
-  for (uint32_t off = 0; off < 256; off += 4) {
-    uint32_t got = flash_read(off);
-    uint32_t exp = flash_pattern_word(off >> 2);
-    if (got != exp) {
-      halt(1);
-    }
+  uint32_t magic = flash_read(FLASH_PAYLOAD_OFF + 0u);
+  uint32_t size_bytes = flash_read(FLASH_PAYLOAD_OFF + 4u);
+  uint32_t entry_off = flash_read(FLASH_PAYLOAD_OFF + 8u);
+
+  if (magic != FLASH_PAYLOAD_MAGIC) {
+    halt(1);
+  }
+  if ((size_bytes == 0u) || (size_bytes > 0x1000u)) {
+    halt(1);
+  }
+  if (entry_off >= size_bytes) {
+    halt(1);
   }
 
+  uintptr_t dst = align_up((uintptr_t)heap.start, 4u);
+  uintptr_t limit = (uintptr_t)heap.end;
+  if ((dst + size_bytes) > limit) {
+    halt(1);
+  }
+
+  uint8_t *p = (uint8_t *)dst;
+  for (uint32_t i = 0; i < size_bytes; i++) {
+    p[i] = flash_read_u8(FLASH_PAYLOAD_OFF + FLASH_PAYLOAD_HEADER_SIZE + i);
+  }
+
+  void (*entry)(void) = (void (*)(void))(dst + entry_off);
+  asm volatile("mv a0, zero" ::: "a0");
+  entry();
+
+  halt(1);
   return 0;
 }

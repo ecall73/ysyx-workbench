@@ -14,6 +14,9 @@ static const uint32_t kFlashSize = 16u * 1024u * 1024u;
 static uint8_t flash_image[kFlashSize];
 static bool flash_initialized = false;
 static bool flash_oob_warned = false;
+static const uint32_t kFlashPayloadOffset = 0x1000u;
+static const uint32_t kFlashPayloadMagic = 0x43485254u;  // "CHRT"
+static const uint32_t kFlashPayloadHeaderSize = 12u;      // magic + size + entry
 
 static inline uint32_t flash_pattern_word(uint32_t word_index) {
     return 0x31415926u ^ (word_index * 0x9e3779b9u);
@@ -32,6 +35,68 @@ void flash_init_default_image() {
     flash_initialized = true;
     flash_oob_warned = false;
     printf("Flash image initialized: default pattern, size = %u\n", kFlashSize);
+}
+
+static inline void flash_write_u32_le(uint32_t off, uint32_t value) {
+    flash_image[off + 0] = (uint8_t)(value & 0xffu);
+    flash_image[off + 1] = (uint8_t)((value >> 8) & 0xffu);
+    flash_image[off + 2] = (uint8_t)((value >> 16) & 0xffu);
+    flash_image[off + 3] = (uint8_t)((value >> 24) & 0xffu);
+}
+
+bool flash_load_payload_image(const char *img_file) {
+    if (img_file == NULL) {
+        fprintf(stderr, "flash_load_payload_image: null image path\n");
+        return false;
+    }
+    if (!flash_initialized) {
+        flash_init_default_image();
+    }
+
+    FILE *fp = fopen(img_file, "rb");
+    if (fp == NULL) {
+        fprintf(stderr, "flash_load_payload_image: failed to open %s\n", img_file);
+        return false;
+    }
+
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        fprintf(stderr, "flash_load_payload_image: failed to seek %s\n", img_file);
+        return false;
+    }
+    long size = ftell(fp);
+    if (size < 0) {
+        fclose(fp);
+        fprintf(stderr, "flash_load_payload_image: failed to tell size for %s\n", img_file);
+        return false;
+    }
+    if ((uint32_t)size > (kFlashSize - kFlashPayloadOffset - kFlashPayloadHeaderSize)) {
+        fclose(fp);
+        fprintf(stderr, "flash_load_payload_image: image too large (%ld bytes): %s\n", size, img_file);
+        return false;
+    }
+    if (fseek(fp, 0, SEEK_SET) != 0) {
+        fclose(fp);
+        fprintf(stderr, "flash_load_payload_image: failed to rewind %s\n", img_file);
+        return false;
+    }
+
+    uint32_t payload_off = kFlashPayloadOffset + kFlashPayloadHeaderSize;
+    memset(flash_image + payload_off, 0, (size_t)size);
+    size_t nread = fread(flash_image + payload_off, 1, (size_t)size, fp);
+    fclose(fp);
+    if (nread != (size_t)size) {
+        fprintf(stderr, "flash_load_payload_image: read size mismatch for %s\n", img_file);
+        return false;
+    }
+
+    flash_write_u32_le(kFlashPayloadOffset + 0, kFlashPayloadMagic);
+    flash_write_u32_le(kFlashPayloadOffset + 4, (uint32_t)size);
+    flash_write_u32_le(kFlashPayloadOffset + 8, 0u);
+
+    printf("Flash payload loaded: %s, size = %ld, offset = 0x%08x\n",
+           img_file, size, kFlashPayloadOffset);
+    return true;
 }
 
 bool mrom_load_image(const char *img_file) {

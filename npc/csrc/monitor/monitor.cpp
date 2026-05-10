@@ -35,7 +35,7 @@ static void load_default_image() {
     inst[9] = 0xdeadbeef;
 }
 
-static void build_default_mrom_path(const char *argv0, char *buf, size_t buflen) {
+static void build_default_char_test_path(const char *argv0, char *buf, size_t buflen) {
     const char *fallback = "build/char-test.bin";
     if (buflen == 0) {
         return;
@@ -107,7 +107,7 @@ static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file
         load_default_image();
         img_size = 40;
         char default_mrom_path[1024];
-        build_default_mrom_path((argc > 0) ? argv[0] : NULL, default_mrom_path, sizeof(default_mrom_path));
+        build_default_char_test_path((argc > 0) ? argv[0] : NULL, default_mrom_path, sizeof(default_mrom_path));
         if (!mrom_load_image(default_mrom_path)) {
             fprintf(stderr, "Default MROM image missing or invalid: %s\n", default_mrom_path);
             exit(1);
@@ -133,6 +133,12 @@ void init_monitor(int argc, char **argv) {
     int diff_port = 1234;
     long img_size = parse_args_and_load_image(argc, argv, &diff_so_file, &diff_port);
     flash_init_default_image();
+    char flash_payload_path[1024];
+    build_default_char_test_path((argc > 0) ? argv[0] : NULL, flash_payload_path, sizeof(flash_payload_path));
+    if (!flash_load_payload_image(flash_payload_path)) {
+        fprintf(stderr, "Failed to load flash payload image: %s\n", flash_payload_path);
+        exit(1);
+    }
 
     init_disasm();
 

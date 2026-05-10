@@ -85,6 +85,7 @@ long load_image(char *img_file);
 bool mrom_load_image(const char *img_file);
 bool mrom_get_image_info(uint32_t *base, const uint8_t **img, size_t *size);
 void flash_init_default_image();
+bool flash_load_payload_image(const char *img_file);
 
 // disasm
 void init_disasm();
