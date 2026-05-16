@@ -32,8 +32,6 @@ static void uart_init(void) {
 }
 
 void putch(char ch) {
-  // Poll TX FIFO empty bit before writing to avoid character loss.
-  while ((uart_read8(UART_REG_LSR) & UART_LSR_THRE) == 0) {}
   uart_write8(UART_REG_THR, (uint8_t)ch);
 }
 

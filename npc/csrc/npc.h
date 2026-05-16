@@ -82,10 +82,7 @@ bool difftest_is_enabled();
 // memory and image
 bool check_bound(int addr, const char *type);
 long load_image(char *img_file);
-bool mrom_load_image(const char *img_file);
-bool mrom_get_image_info(uint32_t *base, const uint8_t **img, size_t *size);
 void flash_init_default_image();
-bool flash_load_payload_image(const char *img_file);
 bool flash_load_boot_image(const char *img_file);
 bool flash_get_boot_image_info(uint32_t *base, const uint8_t **img, size_t *size);
 

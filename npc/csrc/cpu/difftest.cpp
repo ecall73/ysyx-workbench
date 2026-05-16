@@ -53,12 +53,8 @@ static inline int32_t sext32(uint32_t val, int bits) {
     return (int32_t)((val ^ m) - m);
 }
 
-static inline bool in_mrom(uint32_t addr) {
-    return (addr >= 0x20000000u) && (addr <= 0x20000fffu);
-}
-
 static inline bool in_flash(uint32_t addr) {
-    return (addr >= 0x30000000u) && (addr <= 0x3fffffffu);
+    return (addr >= 0x30000000u) && (addr <= 0x30ffffffu);
 }
 
 static inline bool in_sram(uint32_t addr) {
@@ -66,7 +62,7 @@ static inline bool in_sram(uint32_t addr) {
 }
 
 static inline bool in_comparable_mem(uint32_t addr) {
-    return in_mrom(addr) || in_flash(addr) || in_sram(addr);
+    return in_flash(addr) || in_sram(addr);
 }
 
 static SkipReason get_skip_reason(uint32_t inst) {
