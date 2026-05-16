@@ -20,22 +20,7 @@ uint64_t g_nr_guest_inst = 0;
 bool sdb_batch_mode = false;
 FILE *log_fp = NULL;
 
-static void load_default_image() {
-    // Keep default program aligned with NEMU's built-in behavior.
-    uint32_t *inst = (uint32_t *)&pmem[0];
-    inst[0] = 0x00000297;   // auipc t0, 0
-    inst[1] = 0x00028823;   // sb zero, 0x10(t0)
-    inst[2] = 0x0102c503;   // lbu a0, 0x10(t0)
-    inst[3] = 0x00100073;   // ebreak
-    inst[4] = 0xdeadbeef;
-    inst[5] = 0xdeadbeef;
-    inst[6] = 0xdeadbeef;
-    inst[7] = 0xdeadbeef;
-    inst[8] = 0xdeadbeef;
-    inst[9] = 0xdeadbeef;
-}
-
-static void build_default_mrom_path(const char *argv0, char *buf, size_t buflen) {
+static void build_default_char_test_path(const char *argv0, char *buf, size_t buflen) {
     const char *fallback = "build/char-test.bin";
     if (buflen == 0) {
         return;
@@ -61,7 +46,8 @@ static void build_default_mrom_path(const char *argv0, char *buf, size_t buflen)
     memcpy(buf + dir_len, "char-test.bin", strlen("char-test.bin") + 1);
 }
 
-static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file, int *diff_port) {
+static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file, int *diff_port,
+                                      char *boot_img_path, size_t path_len) {
     bool img_loaded = false;
     char *log_file = NULL;
     char *img_file = NULL;
@@ -104,17 +90,16 @@ static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file
     init_log(log_file);
 
     if (!img_loaded) {
-        load_default_image();
-        img_size = 40;
-        char default_mrom_path[1024];
-        build_default_mrom_path((argc > 0) ? argv[0] : NULL, default_mrom_path, sizeof(default_mrom_path));
-        if (!mrom_load_image(default_mrom_path)) {
-            fprintf(stderr, "Default MROM image missing or invalid: %s\n", default_mrom_path);
+        build_default_char_test_path((argc > 0) ? argv[0] : NULL, boot_img_path, path_len);
+        img_size = load_image(boot_img_path);
+        if (img_size <= 0) {
+            fprintf(stderr, "Default boot image missing or invalid: %s\n", boot_img_path);
             exit(1);
         }
     } else {
-        if (!mrom_load_image(img_file)) {
-            fprintf(stderr, "Failed to load CLI image as MROM: %s\n", img_file);
+        snprintf(boot_img_path, path_len, "%s", img_file);
+        if (img_size <= 0) {
+            fprintf(stderr, "Failed to load CLI image: %s\n", img_file);
             exit(1);
         }
     }
@@ -131,7 +116,14 @@ void init_monitor(int argc, char **argv) {
 
     char *diff_so_file = NULL;
     int diff_port = 1234;
-    long img_size = parse_args_and_load_image(argc, argv, &diff_so_file, &diff_port);
+    char boot_img_path[1024];
+    long img_size = parse_args_and_load_image(argc, argv, &diff_so_file, &diff_port,
+                                              boot_img_path, sizeof(boot_img_path));
+    flash_init_default_image();
+    if (!flash_load_boot_image(boot_img_path)) {
+        fprintf(stderr, "Failed to load flash boot image: %s\n", boot_img_path);
+        exit(1);
+    }
 
     init_disasm();
 

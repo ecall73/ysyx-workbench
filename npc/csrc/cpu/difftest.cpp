@@ -57,12 +57,16 @@ static inline bool in_mrom(uint32_t addr) {
     return (addr >= 0x20000000u) && (addr <= 0x20000fffu);
 }
 
+static inline bool in_flash(uint32_t addr) {
+    return (addr >= 0x30000000u) && (addr <= 0x3fffffffu);
+}
+
 static inline bool in_sram(uint32_t addr) {
     return (addr >= 0x0f000000u) && (addr <= 0x0f001fffu);
 }
 
 static inline bool in_comparable_mem(uint32_t addr) {
-    return in_mrom(addr) || in_sram(addr);
+    return in_mrom(addr) || in_flash(addr) || in_sram(addr);
 }
 
 static SkipReason get_skip_reason(uint32_t inst) {
@@ -101,7 +105,7 @@ static SkipReason get_skip_reason(uint32_t inst) {
 
 static void collect_dut_init_regs(RefCPUState *dut_r) {
     memset(dut_r, 0, sizeof(*dut_r));
-    dut_r->pc = 0x20000000u;
+    dut_r->pc = 0x30000000u;
     dut_r->mstatus = 0x00001800u;
     dut_r->mtvec = 0x00000001u;
     dut_r->mepc = 0;
@@ -149,14 +153,14 @@ void init_difftest(const char *ref_so_file, long img_size, int port) {
 
     ref_difftest_init(port);
 
-    uint32_t mrom_base = 0;
-    const uint8_t *mrom_img = NULL;
-    size_t mrom_size = 0;
-    bool has_mrom = mrom_get_image_info(&mrom_base, &mrom_img, &mrom_size);
-    if (has_mrom && mrom_size > 0) {
-        ref_difftest_memcpy(mrom_base, (void *)mrom_img, mrom_size, DIFFTEST_TO_REF);
+    uint32_t flash_base = 0;
+    const uint8_t *flash_img = NULL;
+    size_t flash_size = 0;
+    bool has_flash_boot = flash_get_boot_image_info(&flash_base, &flash_img, &flash_size);
+    if (has_flash_boot && flash_size > 0) {
+        ref_difftest_memcpy(flash_base, (void *)flash_img, flash_size, DIFFTEST_TO_REF);
     } else {
-        Log("warning: no MROM image loaded before DiffTest init");
+        Log("warning: no flash boot image loaded before DiffTest init");
     }
 
     RefCPUState dut_r;

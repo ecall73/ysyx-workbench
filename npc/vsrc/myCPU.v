@@ -176,6 +176,7 @@ module myCPU (
 
     // LSU AXI4-Lite (internal master)
     wire [31:0] lsu_axi_araddr;
+    wire [ 2:0] lsu_axi_arsize;
     wire        lsu_axi_arvalid;
     wire        lsu_axi_arready;
     wire [31:0] lsu_axi_rdata;
@@ -183,6 +184,7 @@ module myCPU (
     wire        lsu_axi_rvalid;
     wire        lsu_axi_rready;
     wire [31:0] lsu_axi_awaddr;
+    wire [ 2:0] lsu_axi_awsize;
     wire        lsu_axi_awvalid;
     wire        lsu_axi_awready;
     wire [31:0] lsu_axi_wdata;
@@ -616,6 +618,7 @@ module myCPU (
         .ls_RFwdata              (ls_RFwdata),
 
         .lsu_axi_araddr          (lsu_axi_araddr),
+        .lsu_axi_arsize          (lsu_axi_arsize),
         .lsu_axi_arvalid         (lsu_axi_arvalid),
         .lsu_axi_arready         (lsu_axi_arready),
         .lsu_axi_rdata           (lsu_axi_rdata),
@@ -623,6 +626,7 @@ module myCPU (
         .lsu_axi_rvalid          (lsu_axi_rvalid),
         .lsu_axi_rready          (lsu_axi_rready),
         .lsu_axi_awaddr          (lsu_axi_awaddr),
+        .lsu_axi_awsize          (lsu_axi_awsize),
         .lsu_axi_awvalid         (lsu_axi_awvalid),
         .lsu_axi_awready         (lsu_axi_awready),
         .lsu_axi_wdata           (lsu_axi_wdata),
@@ -659,6 +663,7 @@ module myCPU (
         .ifu_axi_bready          (ifu_axi_bready),
 
         .lsu_axi_araddr          (lsu_axi_araddr),
+        .lsu_axi_arsize          (lsu_axi_arsize),
         .lsu_axi_arvalid         (lsu_axi_arvalid),
         .lsu_axi_arready         (lsu_axi_arready),
         .lsu_axi_rdata           (lsu_axi_rdata),
@@ -666,6 +671,7 @@ module myCPU (
         .lsu_axi_rvalid          (lsu_axi_rvalid),
         .lsu_axi_rready          (lsu_axi_rready),
         .lsu_axi_awaddr          (lsu_axi_awaddr),
+        .lsu_axi_awsize          (lsu_axi_awsize),
         .lsu_axi_awvalid         (lsu_axi_awvalid),
         .lsu_axi_awready         (lsu_axi_awready),
         .lsu_axi_wdata           (lsu_axi_wdata),

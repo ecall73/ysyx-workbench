@@ -21,6 +21,9 @@
 #define MROM_BASE 0x20000000u
 #define MROM_SIZE 0x1000u
 #define MROM_RIGHT (MROM_BASE + MROM_SIZE - 1)
+#define FLASH_BASE 0x30000000u
+#define FLASH_SIZE (16u * 1024u * 1024u)
+#define FLASH_RIGHT (FLASH_BASE + FLASH_SIZE - 1)
 #define SRAM_BASE 0x0f000000u
 #define SRAM_SIZE 0x2000u
 #define SRAM_RIGHT (SRAM_BASE + SRAM_SIZE - 1)
@@ -32,6 +35,7 @@ static uint8_t pmem[CONFIG_MSIZE] PG_ALIGN = {};
 #endif
 
 static uint8_t mrom[MROM_SIZE] = {};
+static uint8_t flash[FLASH_SIZE] = {};
 static uint8_t sram[SRAM_SIZE] = {};
 
 uint8_t* guest_to_host(paddr_t paddr) { return pmem + paddr - CONFIG_MBASE; }
@@ -56,6 +60,10 @@ static inline bool in_sram_range(paddr_t addr, int len) {
   return in_region_range(addr, len, SRAM_BASE, SRAM_SIZE);
 }
 
+static inline bool in_flash_range(paddr_t addr, int len) {
+  return in_region_range(addr, len, FLASH_BASE, FLASH_SIZE);
+}
+
 static word_t mem_read(uint8_t *space, paddr_t addr, paddr_t base, int len) {
   word_t ret = host_read(space + (addr - base), len);
   return ret;
@@ -67,8 +75,8 @@ static void mem_write(uint8_t *space, paddr_t addr, paddr_t base, int len, word_
 
 static void out_of_bound(paddr_t addr) {
   panic("address = " FMT_PADDR " is out of bound. valid ranges: pmem[" FMT_PADDR ", " FMT_PADDR "], "
-      "mrom[0x%08x, 0x%08x], sram[0x%08x, 0x%08x], pc = " FMT_WORD,
-      addr, PMEM_LEFT, PMEM_RIGHT, MROM_BASE, MROM_RIGHT, SRAM_BASE, SRAM_RIGHT, cpu.pc);
+      "mrom[0x%08x, 0x%08x], flash[0x%08x, 0x%08x], sram[0x%08x, 0x%08x], pc = " FMT_WORD,
+      addr, PMEM_LEFT, PMEM_RIGHT, MROM_BASE, MROM_RIGHT, FLASH_BASE, FLASH_RIGHT, SRAM_BASE, SRAM_RIGHT, cpu.pc);
 }
 
 void init_mem() {
@@ -78,9 +86,11 @@ void init_mem() {
 #endif
   IFDEF(CONFIG_MEM_RANDOM, memset(pmem, rand(), CONFIG_MSIZE));
   memset(mrom, 0, sizeof(mrom));
+  memset(flash, 0, sizeof(flash));
   memset(sram, 0, sizeof(sram));
   Log("physical memory area [" FMT_PADDR ", " FMT_PADDR "]", PMEM_LEFT, PMEM_RIGHT);
   Log("MROM area [0x%08x, 0x%08x]", MROM_BASE, MROM_RIGHT);
+  Log("FLASH area [0x%08x, 0x%08x]", FLASH_BASE, FLASH_RIGHT);
   Log("SRAM area [0x%08x, 0x%08x]", SRAM_BASE, SRAM_RIGHT);
 }
 
@@ -109,6 +119,11 @@ word_t paddr_read(paddr_t addr, int len) {
     IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
     return data;
   }
+  if (likely(in_flash_range(addr, len))) {
+    word_t data = mem_read(flash, addr, FLASH_BASE, len);
+    IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
+    return data;
+  }
   if (likely(in_sram_range(addr, len))) {
     word_t data = mem_read(sram, addr, SRAM_BASE, len);
     IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
@@ -131,6 +146,11 @@ void paddr_write(paddr_t addr, int len, word_t data) {
   }
   if (likely(in_mrom_range(addr, len))) {
     mem_write(mrom, addr, MROM_BASE, len, data);
+    IFDEF(CONFIG_MTRACE, mtrace_log_write(addr, len, data));
+    return;
+  }
+  if (likely(in_flash_range(addr, len))) {
+    mem_write(flash, addr, FLASH_BASE, len, data);
     IFDEF(CONFIG_MTRACE, mtrace_log_write(addr, len, data));
     return;
   }

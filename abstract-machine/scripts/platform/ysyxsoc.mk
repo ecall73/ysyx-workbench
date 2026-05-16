@@ -10,7 +10,7 @@ AM_SRCS := riscv/ysyxsoc/start.S \
 
 CFLAGS    += -fdata-sections -ffunction-sections
 LDSCRIPTS += $(AM_HOME)/scripts/linker-ysyxsoc.ld
-LDFLAGS   += --defsym=_pmem_start=0x20000000 --defsym=_entry_offset=0x0
+LDFLAGS   += --defsym=_pmem_start=0x30000000 --defsym=_entry_offset=0x0
 LDFLAGS   += --gc-sections -e _start
 
 YSYXSOCFLAGS += -l $(shell dirname $(IMAGE).elf)/npc-log.txt
@@ -41,7 +41,7 @@ insert-arg: image
 image: image-dep
 	@$(OBJDUMP) -d $(IMAGE).elf > $(IMAGE).txt
 	@echo + OBJCOPY "->" $(IMAGE_REL).bin
-	@$(OBJCOPY) -S --set-section-flags .bss=alloc,contents -O binary $(IMAGE).elf $(IMAGE).bin
+	@$(OBJCOPY) -S -O binary $(IMAGE).elf $(IMAGE).bin
 
 run: insert-arg
 	$(MAKE) -C $(AM_HOME)/../npc run ARGS="$(YSYXSOCFLAGS) $(IMAGE).bin"

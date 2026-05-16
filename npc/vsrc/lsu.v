@@ -20,6 +20,7 @@ module lsu (
     // LSU AXI4-Lite interface
     // Read address channel
     output wire [31:0] lsu_axi_araddr,
+    output wire [ 2:0] lsu_axi_arsize,
     output wire        lsu_axi_arvalid,
     input  wire        lsu_axi_arready,
     // Read data channel
@@ -29,6 +30,7 @@ module lsu (
     output wire        lsu_axi_rready,
     // Write address channel
     output wire [31:0] lsu_axi_awaddr,
+    output wire [ 2:0] lsu_axi_awsize,
     output wire        lsu_axi_awvalid,
     input  wire        lsu_axi_awready,
     // Write data channel
@@ -66,6 +68,7 @@ module lsu (
     reg  [3:0]  ls_wmask_calc;
     reg  [31:0] ls_wdata_aligned;
     reg  [31:0] ls_rdata_decoded;
+    reg  [2:0]  ls_axi_size;
 
     assign ls_is_mem = ls_MemRead || ls_MemWrite;
     assign ls_is_load = ls_MemRead && ~ls_MemWrite;
@@ -86,11 +89,13 @@ module lsu (
                           (state == L_RD_WAIT_R) ? lsu_axi_rvalid :
                           (state == L_WR_WAIT_B) ? lsu_axi_bvalid : 1'b0;
 
-    assign lsu_axi_araddr = {ls_ALUResult[31:2], 2'b0};
+    assign lsu_axi_araddr = ls_ALUResult;
+    assign lsu_axi_arsize = ls_axi_size;
     assign lsu_axi_arvalid = (state == L_RD_AR);
     assign lsu_axi_rready = (state == L_RD_WAIT_R) && ls_out_ready;
 
-    assign lsu_axi_awaddr = {ls_ALUResult[31:2], 2'b0};
+    assign lsu_axi_awaddr = ls_ALUResult;
+    assign lsu_axi_awsize = ls_axi_size;
     assign lsu_axi_awvalid = (state == L_WR_AW_W) && ~wr_aw_done;
     assign lsu_axi_wdata = ls_wdata_aligned;
     assign lsu_axi_wstrb = ls_wmask_calc;
@@ -103,8 +108,10 @@ module lsu (
     always @(*) begin
         ls_wmask_calc = 4'b0000;
         ls_wdata_aligned = ls_rR2_data;
+        ls_axi_size = 3'b010;
         case (ls_mask)
             3'b000: begin // sb
+                ls_axi_size = 3'b000;
                 case (ls_offset)
                     2'b00: begin
                         ls_wmask_calc = 4'b0001;
@@ -125,6 +132,7 @@ module lsu (
                 endcase
             end
             3'b001: begin // sh
+                ls_axi_size = 3'b001;
                 case (ls_offset[1])
                     1'b0: begin
                         ls_wmask_calc = 4'b0011;
@@ -135,6 +143,12 @@ module lsu (
                         ls_wdata_aligned = {ls_rR2_data[15:0], 16'b0};
                     end
                 endcase
+            end
+            3'b100: begin // lbu
+                ls_axi_size = 3'b000;
+            end
+            3'b101: begin // lhu
+                ls_axi_size = 3'b001;
             end
             default: begin // sw
                 ls_wmask_calc = 4'b1111;

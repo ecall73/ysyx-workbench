@@ -23,6 +23,7 @@ module axi4lite_arbiter (
     input  wire        ifu_axi_bready,
     // LSU master interface
     input  wire [31:0] lsu_axi_araddr,
+    input  wire [ 2:0] lsu_axi_arsize,
     input  wire        lsu_axi_arvalid,
     output reg         lsu_axi_arready,
     output reg  [31:0] lsu_axi_rdata,
@@ -30,6 +31,7 @@ module axi4lite_arbiter (
     output reg         lsu_axi_rvalid,
     input  wire        lsu_axi_rready,
     input  wire [31:0] lsu_axi_awaddr,
+    input  wire [ 2:0] lsu_axi_awsize,
     input  wire        lsu_axi_awvalid,
     output reg         lsu_axi_awready,
     input  wire [31:0] lsu_axi_wdata,
@@ -157,7 +159,7 @@ module axi4lite_arbiter (
                     mem_axi_awaddr = lsu_axi_awaddr;
                     mem_axi_awid = 4'h0;
                     mem_axi_awlen = 8'h00;
-                    mem_axi_awsize = 3'b010;
+                    mem_axi_awsize = lsu_axi_awsize;
                     mem_axi_awburst = 2'b00;
                     mem_axi_awvalid = lsu_axi_awvalid;
                     lsu_axi_awready = mem_axi_awready;
@@ -181,7 +183,7 @@ module axi4lite_arbiter (
                 mem_axi_araddr = lsu_axi_araddr;
                 mem_axi_arid = 4'h0;
                 mem_axi_arlen = 8'h00;
-                mem_axi_arsize = 3'b010;
+                mem_axi_arsize = lsu_axi_arsize;
                 mem_axi_arburst = 2'b00;
                 mem_axi_arvalid = lsu_axi_arvalid;
                 lsu_axi_arready = mem_axi_arready;

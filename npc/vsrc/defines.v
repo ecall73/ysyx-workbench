@@ -2,7 +2,7 @@
 `define RUN_TRACE
 
 `ifndef NPC_RESET_PC
-`define NPC_RESET_PC 32'h2000_0000
+`define NPC_RESET_PC 32'h3000_0000
 `endif
 
 // MMIO
