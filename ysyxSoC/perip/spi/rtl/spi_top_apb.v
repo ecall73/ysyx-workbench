@@ -48,18 +48,216 @@ assign in_prdata  = data[31:0];
 
 `else
 
+localparam [4:0] SPI_TX0_OFS  = 5'h00;
+localparam [4:0] SPI_TX1_OFS  = 5'h04;
+localparam [4:0] SPI_CTRL_OFS = 5'h10;
+localparam [4:0] SPI_DIV_OFS  = 5'h14;
+localparam [4:0] SPI_SS_OFS   = 5'h18;
+
+localparam [31:0] SPI_CTRL_GO       = 32'h0000_0100;
+localparam [31:0] SPI_CTRL_XIP_CFG  = 32'h0000_2440; // ASS | TX_NEG | CHAR_LEN(64)
+localparam [31:0] SPI_FLASH_CMD     = 32'h0300_0000;
+localparam [31:0] SPI_FLASH_DUMMY   = 32'h0000_0000;
+localparam [31:0] SPI_FLASH_SS      = 32'h0000_0001;
+localparam [31:0] SPI_DIV_FAST      = 32'h0000_0000;
+
+localparam [3:0] XIP_IDLE           = 4'd0;
+localparam [3:0] XIP_WR_DIV         = 4'd1;
+localparam [3:0] XIP_WR_SS          = 4'd2;
+localparam [3:0] XIP_WR_TX1         = 4'd3;
+localparam [3:0] XIP_WR_TX0         = 4'd4;
+localparam [3:0] XIP_WR_CTRL_GO     = 4'd5;
+localparam [3:0] XIP_RD_CTRL_POLL   = 4'd6;
+localparam [3:0] XIP_RD_RX0         = 4'd7;
+localparam [3:0] XIP_DONE           = 4'd8;
+
+wire is_flash_xip = (in_paddr >= flash_addr_start) && (in_paddr <= flash_addr_end);
+wire apb_fire = in_psel && in_penable;
+wire is_xip_read_req = apb_fire && is_flash_xip && !in_pwrite;
+wire is_xip_write_req = apb_fire && is_flash_xip && in_pwrite;
+
+reg [3:0] xip_state;
+reg [23:0] xip_addr;
+reg [31:0] xip_rdata;
+
+reg  [4:0] xip_wb_adr;
+reg [31:0] xip_wb_dat_w;
+reg  [3:0] xip_wb_sel;
+reg        xip_wb_we;
+reg        xip_wb_stb;
+reg        xip_wb_cyc;
+
+wire [4:0] wb_adr_i;
+wire [31:0] wb_dat_i;
+wire [31:0] wb_dat_o;
+wire [3:0] wb_sel_i;
+wire wb_we_i;
+wire wb_stb_i;
+wire wb_cyc_i;
+wire wb_ack_o;
+wire wb_err_o;
+
+wire xip_busy = (xip_state != XIP_IDLE) && (xip_state != XIP_DONE);
+wire xip_master_sel = xip_busy;
+wire apb_passthrough = !xip_master_sel && !is_flash_xip;
+
+assign wb_adr_i = xip_master_sel ? xip_wb_adr   : in_paddr[4:0];
+assign wb_dat_i = xip_master_sel ? xip_wb_dat_w : in_pwdata;
+assign wb_sel_i = xip_master_sel ? xip_wb_sel   : in_pstrb;
+assign wb_we_i  = xip_master_sel ? xip_wb_we    : in_pwrite;
+assign wb_stb_i = xip_master_sel ? xip_wb_stb   : in_psel;
+assign wb_cyc_i = xip_master_sel ? xip_wb_cyc   : in_penable;
+
+wire [31:0] xip_resp_data = xip_rdata;
+wire xip_resp_valid = (xip_state == XIP_DONE);
+wire xip_resp_ready = apb_fire && is_flash_xip && !in_pwrite;
+
+assign in_pready = apb_passthrough ? wb_ack_o :
+                   (is_xip_write_req ? 1'b1 :
+                   (xip_resp_valid && xip_resp_ready));
+assign in_prdata = apb_passthrough ? wb_dat_o :
+                   ((xip_resp_valid && xip_resp_ready) ? xip_resp_data : 32'b0);
+assign in_pslverr = apb_passthrough ? wb_err_o : is_xip_write_req;
+
+function [31:0] bswap32;
+  input [31:0] data;
+  begin
+    bswap32 = {data[7:0], data[15:8], data[23:16], data[31:24]};
+  end
+endfunction
+
+always @(*) begin
+  xip_wb_adr   = 5'b0;
+  xip_wb_dat_w = 32'b0;
+  xip_wb_sel   = 4'hf;
+  xip_wb_we    = 1'b0;
+  xip_wb_stb   = 1'b0;
+  xip_wb_cyc   = 1'b0;
+
+  case (xip_state)
+    XIP_WR_DIV: begin
+      xip_wb_adr   = SPI_DIV_OFS;
+      xip_wb_dat_w = SPI_DIV_FAST;
+      xip_wb_we    = 1'b1;
+      xip_wb_stb   = 1'b1;
+      xip_wb_cyc   = 1'b1;
+    end
+    XIP_WR_SS: begin
+      xip_wb_adr   = SPI_SS_OFS;
+      xip_wb_dat_w = SPI_FLASH_SS;
+      xip_wb_we    = 1'b1;
+      xip_wb_stb   = 1'b1;
+      xip_wb_cyc   = 1'b1;
+    end
+    XIP_WR_TX1: begin
+      xip_wb_adr   = SPI_TX1_OFS;
+      xip_wb_dat_w = SPI_FLASH_CMD | {8'b0, xip_addr};
+      xip_wb_we    = 1'b1;
+      xip_wb_stb   = 1'b1;
+      xip_wb_cyc   = 1'b1;
+    end
+    XIP_WR_TX0: begin
+      xip_wb_adr   = SPI_TX0_OFS;
+      xip_wb_dat_w = SPI_FLASH_DUMMY;
+      xip_wb_we    = 1'b1;
+      xip_wb_stb   = 1'b1;
+      xip_wb_cyc   = 1'b1;
+    end
+    XIP_WR_CTRL_GO: begin
+      xip_wb_adr   = SPI_CTRL_OFS;
+      xip_wb_dat_w = SPI_CTRL_XIP_CFG | SPI_CTRL_GO;
+      xip_wb_we    = 1'b1;
+      xip_wb_stb   = 1'b1;
+      xip_wb_cyc   = 1'b1;
+    end
+    XIP_RD_CTRL_POLL: begin
+      xip_wb_adr = SPI_CTRL_OFS;
+      xip_wb_we  = 1'b0;
+      xip_wb_stb = 1'b1;
+      xip_wb_cyc = 1'b1;
+    end
+    XIP_RD_RX0: begin
+      xip_wb_adr = SPI_TX0_OFS;
+      xip_wb_we  = 1'b0;
+      xip_wb_stb = 1'b1;
+      xip_wb_cyc = 1'b1;
+    end
+    default: begin
+    end
+  endcase
+end
+
+always @(posedge clock or posedge reset) begin
+  if (reset) begin
+    xip_state <= XIP_IDLE;
+    xip_addr <= 24'b0;
+    xip_rdata <= 32'b0;
+  end else begin
+    case (xip_state)
+      XIP_IDLE: begin
+        if (is_xip_read_req) begin
+          xip_addr <= {in_paddr[23:2], 2'b00};
+          xip_state <= XIP_WR_DIV;
+        end
+      end
+      XIP_WR_DIV: begin
+        if (wb_ack_o) xip_state <= XIP_WR_SS;
+      end
+      XIP_WR_SS: begin
+        if (wb_ack_o) xip_state <= XIP_WR_TX1;
+      end
+      XIP_WR_TX1: begin
+        if (wb_ack_o) xip_state <= XIP_WR_TX0;
+      end
+      XIP_WR_TX0: begin
+        if (wb_ack_o) xip_state <= XIP_WR_CTRL_GO;
+      end
+      XIP_WR_CTRL_GO: begin
+        if (wb_ack_o) xip_state <= XIP_RD_CTRL_POLL;
+      end
+      XIP_RD_CTRL_POLL: begin
+        if (wb_ack_o) begin
+          if (wb_dat_o[8]) xip_state <= XIP_RD_CTRL_POLL;
+          else xip_state <= XIP_RD_RX0;
+        end
+      end
+      XIP_RD_RX0: begin
+        if (wb_ack_o) begin
+          xip_rdata <= bswap32(wb_dat_o);
+          xip_state <= XIP_DONE;
+        end
+      end
+      XIP_DONE: begin
+        if (xip_resp_ready) xip_state <= XIP_IDLE;
+      end
+      default: begin
+        xip_state <= XIP_IDLE;
+      end
+    endcase
+  end
+end
+
+`ifndef SYNTHESIS
+always @(posedge clock) begin
+  if (!reset && is_xip_write_req) begin
+    $fwrite(32'h80000002, "Assertion failed: write to flash XIP space addr=%x data=%x\n", in_paddr, in_pwdata);
+    $fatal;
+  end
+end
+`endif
+
 spi_top u0_spi_top (
   .wb_clk_i(clock),
   .wb_rst_i(reset),
-  .wb_adr_i(in_paddr[4:0]),
-  .wb_dat_i(in_pwdata),
-  .wb_dat_o(in_prdata),
-  .wb_sel_i(in_pstrb),
-  .wb_we_i (in_pwrite),
-  .wb_stb_i(in_psel),
-  .wb_cyc_i(in_penable),
-  .wb_ack_o(in_pready),
-  .wb_err_o(in_pslverr),
+  .wb_adr_i(wb_adr_i),
+  .wb_dat_i(wb_dat_i),
+  .wb_dat_o(wb_dat_o),
+  .wb_sel_i(wb_sel_i),
+  .wb_we_i (wb_we_i),
+  .wb_stb_i(wb_stb_i),
+  .wb_cyc_i(wb_cyc_i),
+  .wb_ack_o(wb_ack_o),
+  .wb_err_o(wb_err_o),
   .wb_int_o(spi_irq_out),
 
   .ss_pad_o(spi_ss),
