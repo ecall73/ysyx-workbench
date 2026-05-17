@@ -6,7 +6,7 @@ _start:
   mv s0, zero
   la sp, _stack_pointer
 
-  /* Copy .data init image from flash(LMA) to SRAM(VMA). */
+  /* Copy .data init image from flash (LMA) to linked runtime VMA. */
   la t0, _data_load_start
   la t1, _data_start
   la t2, _data_end
@@ -28,7 +28,7 @@ _start:
   addi t1, t1, 1
   j 2b
 
-  /* Zero .bss in SRAM. */
+  /* Zero .bss at linked runtime VMA. */
 3:
   la t1, _bss_start
   la t2, _bss_end
