@@ -1,17 +1,20 @@
 ENTRY(_start)
-PHDRS { text PT_LOAD; data PT_LOAD; }
+PHDRS {
+  text PT_LOAD FLAGS(5);
+  data PT_LOAD FLAGS(6);
+}
 
 MEMORY {
-  mrom (rx)  : ORIGIN = _pmem_start + _entry_offset, LENGTH = 0x1000
-  sram (rwx) : ORIGIN = 0x0f000000, LENGTH = 0x2000
+  flash (rx)  : ORIGIN = _pmem_start + _entry_offset, LENGTH = 0x1000000
+  sram  (rwx) : ORIGIN = 0x0f000000, LENGTH = 0x2000
 }
 
 SECTIONS {
-  . = ORIGIN(mrom);
+  . = ORIGIN(flash);
   .text : {
     *(entry)
     *(.text*)
-  } > mrom AT> mrom : text
+  } > flash : text
   etext = .;
   _etext = .;
 
@@ -19,7 +22,7 @@ SECTIONS {
   .rodata : {
     *(.rodata*)
     *(.srodata*)
-  } > mrom AT> mrom : text
+  } > flash : text
   . = ALIGN(4);
 
   . = ORIGIN(sram);
@@ -27,14 +30,14 @@ SECTIONS {
   .data : {
     *(.data*)
     *(.sdata*)
-  } > sram AT> mrom : data
+  } > sram AT> flash : data
   _data_end = .;
   _data_load_start = LOADADDR(.data);
   edata = .;
   _data = .;
 
   . = ALIGN(16);
-  .bss (NOLOAD) : {
+  .bss : {
     _bss_start = .;
     *(.bss*)
     *(.sbss*)
@@ -48,8 +51,8 @@ SECTIONS {
   _stack_pointer = ORIGIN(sram) + LENGTH(sram);
   _heap_end = _stack_pointer;
 
-  ASSERT((LOADADDR(.data) + SIZEOF(.data)) <= (ORIGIN(mrom) + LENGTH(mrom)),
-         "MROM overflow: text/rodata/data(LMA) exceed 4KB")
+  ASSERT((LOADADDR(.data) + SIZEOF(.data)) <= (ORIGIN(flash) + LENGTH(flash)),
+         "Flash overflow: text/rodata/data(LMA) exceed flash capacity")
   ASSERT(_bss_end <= _stack_pointer,
          "SRAM overflow: data/bss exceed available SRAM")
 

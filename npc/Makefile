@@ -27,7 +27,11 @@ $(shell mkdir -p $(BUILD_DIR))
 VSRCS = $(shell find $(abspath ./vsrc) -name "*.v") \
 	$(shell find $(YSYX_SOC_HOME)/perip -name "*.v") \
 	$(YSYX_SOC_HOME)/build/ysyxSoCFull.v
-CSRCS = $(shell find $(abspath ./csrc) -name "*.c" -or -name "*.cc" -or -name "*.cpp")
+VHDRS = $(shell find $(abspath ./vsrc) -name "*.vh" -o -name "*.svh") \
+	$(shell find $(YSYX_SOC_HOME)/perip -name "*.vh" -o -name "*.svh")
+CSRCS = $(shell find $(abspath ./csrc) \( -name "*.c" -o -name "*.cc" -o -name "*.cpp" \))
+CHDRS = $(shell find $(abspath ./csrc) \( -name "*.h" -o -name "*.hpp" \))
+NPC_DEPS = $(VSRCS) $(VHDRS) $(CSRCS) $(CHDRS) $(CHAR_TEST_BIN) Makefile
 
 # rules for verilator
 INC_PATH ?= $(abspath ./vsrc) \
@@ -46,9 +50,9 @@ $(CHAR_TEST_BIN): $(CHAR_TEST_ELF)
 	@echo + OBJCOPY "->" $(CHAR_TEST_BIN)
 	@$(RV_OBJCOPY) -O binary $(CHAR_TEST_ELF) $(CHAR_TEST_BIN)
 
-$(BIN): $(VSRCS) $(CSRCS) $(CHAR_TEST_BIN)
+$(BIN): $(NPC_DEPS)
 	$(VERILATOR) $(VERILATOR_CFLAGS) $(INCFLAGS) \
-		--top-module $(TOPNAME) $^ \
+		--top-module $(TOPNAME) $(VSRCS) $(CSRCS) $(CHAR_TEST_BIN) \
 		$(addprefix -CFLAGS , $(CFLAGS)) \
 		$(addprefix -LDFLAGS , $(LDFLAGS)) \
 		--Mdir $(OBJ_DIR) --exe -o $(abspath $(BIN))

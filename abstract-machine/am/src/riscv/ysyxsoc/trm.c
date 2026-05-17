@@ -45,6 +45,10 @@ void halt(int code) {
 
 void _trm_init() {
   uart_init();
+  uint32_t vendor = 0, arch = 0;
+  asm volatile("csrr %0, mvendorid" : "=r"(vendor));
+  asm volatile("csrr %0, marchid" : "=r"(arch));
+  printf("CSR mvendorid=0x%08x marchid=%u(0x%08x)\n", vendor, arch, arch);
   int ret = main(mainargs);
   halt(ret);
 }

@@ -98,8 +98,8 @@ void cpu_exec(uint64_t n) {
             break;
         }
 
-        if (g_contextp->time() > MAX_SIM_TIME) {
-            Log("Simulation timed out at time %ld", g_contextp->time());
+        if (g_nr_sim_cycle > MAX_SIM_TIME) {
+            Log("Simulation timed out at cycle %" PRIu64, g_nr_sim_cycle);
             is_finished = true;
             trap_a0 = -1;
             trap_pc = 0;

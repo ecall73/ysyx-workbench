@@ -20,21 +20,6 @@ uint64_t g_nr_guest_inst = 0;
 bool sdb_batch_mode = false;
 FILE *log_fp = NULL;
 
-static void load_default_image() {
-    // Keep default program aligned with NEMU's built-in behavior.
-    uint32_t *inst = (uint32_t *)&pmem[0];
-    inst[0] = 0x00000297;   // auipc t0, 0
-    inst[1] = 0x00028823;   // sb zero, 0x10(t0)
-    inst[2] = 0x0102c503;   // lbu a0, 0x10(t0)
-    inst[3] = 0x00100073;   // ebreak
-    inst[4] = 0xdeadbeef;
-    inst[5] = 0xdeadbeef;
-    inst[6] = 0xdeadbeef;
-    inst[7] = 0xdeadbeef;
-    inst[8] = 0xdeadbeef;
-    inst[9] = 0xdeadbeef;
-}
-
 static void build_default_char_test_path(const char *argv0, char *buf, size_t buflen) {
     const char *fallback = "build/char-test.bin";
     if (buflen == 0) {
@@ -62,10 +47,8 @@ static void build_default_char_test_path(const char *argv0, char *buf, size_t bu
 }
 
 static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file, int *diff_port) {
-    bool img_loaded = false;
     char *log_file = NULL;
     char *img_file = NULL;
-    long img_size = 0;
     *diff_so_file = NULL;
     *diff_port = 1234;
 
@@ -95,31 +78,33 @@ static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file
                 log_file = argv[++i];
             }
         } else if (argv[i][0] != '-') {
-            img_size = load_image(argv[i]);
             img_file = argv[i];
-            img_loaded = true;
         }
     }
 
     init_log(log_file);
 
-    if (!img_loaded) {
-        load_default_image();
-        img_size = 40;
-        char default_mrom_path[1024];
-        build_default_char_test_path((argc > 0) ? argv[0] : NULL, default_mrom_path, sizeof(default_mrom_path));
-        if (!mrom_load_image(default_mrom_path)) {
-            fprintf(stderr, "Default MROM image missing or invalid: %s\n", default_mrom_path);
-            exit(1);
-        }
-    } else {
-        if (!mrom_load_image(img_file)) {
-            fprintf(stderr, "Failed to load CLI image as MROM: %s\n", img_file);
-            exit(1);
-        }
+    char default_flash_path[1024];
+    if (img_file == NULL) {
+        build_default_char_test_path((argc > 0) ? argv[0] : NULL, default_flash_path, sizeof(default_flash_path));
+        img_file = default_flash_path;
     }
 
-    return img_size;
+    flash_init_default_image();
+    if (!flash_load_boot_image(img_file)) {
+        fprintf(stderr, "Failed to load flash boot image: %s\n", img_file);
+        exit(1);
+    }
+
+    uint32_t boot_base = 0;
+    const uint8_t *boot_img = NULL;
+    size_t boot_size = 0;
+    if (!flash_get_boot_image_info(&boot_base, &boot_img, &boot_size) || boot_img == NULL || boot_size == 0) {
+        fprintf(stderr, "Failed to query loaded flash boot image information\n");
+        exit(1);
+    }
+
+    return (long)boot_size;
 }
 
 void init_monitor(int argc, char **argv) {
@@ -132,13 +117,6 @@ void init_monitor(int argc, char **argv) {
     char *diff_so_file = NULL;
     int diff_port = 1234;
     long img_size = parse_args_and_load_image(argc, argv, &diff_so_file, &diff_port);
-    flash_init_default_image();
-    char flash_payload_path[1024];
-    build_default_char_test_path((argc > 0) ? argv[0] : NULL, flash_payload_path, sizeof(flash_payload_path));
-    if (!flash_load_payload_image(flash_payload_path)) {
-        fprintf(stderr, "Failed to load flash payload image: %s\n", flash_payload_path);
-        exit(1);
-    }
 
     init_disasm();
 
@@ -164,7 +142,7 @@ void init_monitor(int argc, char **argv) {
     if (tfp) tfp->dump(contextp->time());
 
     // Reset for a few cycles.
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < 20; i++) {
         top->clock = !top->clock;
         top->eval();
         contextp->timeInc(1);
