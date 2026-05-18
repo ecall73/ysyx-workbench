@@ -1,6 +1,7 @@
 ENTRY(_start)
 PHDRS {
   text PT_LOAD FLAGS(5);
+  ssbl PT_LOAD FLAGS(5);
   data PT_LOAD FLAGS(6);
   bss  PT_LOAD FLAGS(6);
 }
@@ -13,28 +14,36 @@ MEMORY {
 
 SECTIONS {
   . = ORIGIN(flash);
-  .text : {
+  .entry : {
     *(entry)
-    *(.text*)
   } > flash : text
-  etext = .;
-  _etext = .;
 
-  . = ALIGN(4);
-  .rodata : {
-    *(.rodata*)
-    *(.srodata*)
-  } > flash : text
-  . = ALIGN(4);
+  . = ORIGIN(sram);
+  .ssbl : AT(ALIGN(LOADADDR(.entry) + SIZEOF(.entry), 4)) {
+    _ssbl_vma_start = .;
+    KEEP(*(.ssbl*))
+    . = ALIGN(4);
+    _ssbl_vma_end = .;
+  } > sram : ssbl
+  _ssbl_lma_start = LOADADDR(.ssbl);
+  _ssbl_lma_end = LOADADDR(.ssbl) + SIZEOF(.ssbl);
 
   . = ORIGIN(psram);
   _data_start = .;
-  .data : {
+  .data : AT(ALIGN(LOADADDR(.ssbl) + SIZEOF(.ssbl), 4)) {
+    *(.text*)
+    . = ALIGN(4);
+    *(.rodata*)
+    *(.srodata*)
+    . = ALIGN(4);
     *(.data*)
     *(.sdata*)
-  } > psram AT> flash : data
+    . = ALIGN(4);
+  } > psram : data
   _data_end = .;
   _data_load_start = LOADADDR(.data);
+  etext = .;
+  _etext = .;
   edata = .;
   _data = .;
 
@@ -54,9 +63,11 @@ SECTIONS {
   _heap_end = ORIGIN(psram) + LENGTH(psram);
 
   ASSERT((LOADADDR(.data) + SIZEOF(.data)) <= (ORIGIN(flash) + LENGTH(flash)),
-         "Flash overflow: text/rodata/data(LMA) exceed flash capacity")
+         "Flash overflow: runtime image LMA exceeds flash capacity")
+  ASSERT(_ssbl_vma_end <= (_stack_pointer - 0x400),
+         "SRAM overflow: SSBL leaves less than 1KB stack")
   ASSERT(_heap_start <= _heap_end,
-         "PSRAM overflow: data/bss exceed available PSRAM")
+         "PSRAM overflow: runtime image+bss exceed available PSRAM")
   ASSERT((_stack_pointer >= ORIGIN(sram)) && (_stack_pointer <= (ORIGIN(sram) + LENGTH(sram))),
          "SRAM stack pointer out of SRAM range")
 
