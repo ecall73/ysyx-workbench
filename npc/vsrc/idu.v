@@ -155,12 +155,14 @@ module idu (
     assign id_ALUSrcB = ~(op_rtype | op_branch);
 
     `ifdef RUN_TRACE
-        wire op_jal, op_jalr, op_sys;
+        wire op_jal, op_jalr, op_sys, op_misc_mem;
         assign op_jal = opcode == `J_TYPE;
         assign op_jalr = opcode == `IJ_TYPE;
         // Keep retire trace aligned with NEMU: treat SYSTEM opcode (CSR/ecall/ebreak/mret) as real instructions.
         assign op_sys = opcode == `CSR_TYPE;
-        assign have_inst_ID = op_rtype | op_itype | op_load | op_jalr | op_store | op_branch | op_lui | op_auipc | op_jal | op_sys;
+        // Include MISC-MEM (fence/fence.i) so commit trace won't skip retired instructions.
+        assign op_misc_mem = opcode == 7'b0001111;
+        assign have_inst_ID = op_rtype | op_itype | op_load | op_jalr | op_store | op_branch | op_lui | op_auipc | op_jal | op_sys | op_misc_mem;
     `endif
 
     // Expanded IMMGEN module logic

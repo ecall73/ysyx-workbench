@@ -61,8 +61,12 @@ static inline bool in_sram(uint32_t addr) {
     return (addr >= 0x0f000000u) && (addr <= 0x0f001fffu);
 }
 
+static inline bool in_sdram(uint32_t addr) {
+    return (addr >= 0xa0000000u) && (addr <= 0xa1ffffffu);
+}
+
 static inline bool in_comparable_mem(uint32_t addr) {
-    return in_flash(addr) || in_sram(addr);
+    return in_flash(addr) || in_sram(addr) || in_sdram(addr);
 }
 
 static SkipReason get_skip_reason(uint32_t inst) {
@@ -173,6 +177,12 @@ void init_difftest(const char *ref_so_file, long img_size, int port) {
 
 bool difftest_step(uint32_t dut_pc, bool dut_wen, uint8_t dut_waddr, uint32_t dut_wdata, uint32_t dut_inst) {
     if (!difftest_enabled) {
+        return true;
+    }
+
+    if (!in_comparable_mem(dut_pc)) {
+        Log("difftest detached: DUT enters unsupported ref execute region at pc = 0x%08x", dut_pc);
+        difftest_enabled = false;
         return true;
     }
 
