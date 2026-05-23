@@ -229,6 +229,10 @@ static int decode_exec(Decode *s) {
       R(rd) = old;
   );
 
+  // MISC-MEM: model fence/fence.i as architectural NOP in the interpreter.
+  INSTPAT("??????? ????? ????? 000 ????? 00011 11", fence  , N, );
+  INSTPAT("??????? ????? ????? 001 ????? 00011 11", fence_i, N, );
+
   INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N, s->dnpc = isa_raise_intr(11, s->pc));
   INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N,
       word_t mstatus = cpu.mstatus;

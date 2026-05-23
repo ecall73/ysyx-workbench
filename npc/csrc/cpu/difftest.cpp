@@ -31,6 +31,7 @@ enum SkipReason {
     SKIP_NONE = 0,
     SKIP_COUNTER_CSR,
     SKIP_MMIO,
+    SKIP_MISC_MEM,
 };
 
 #define CSR_MCYCLE      0xB00u
@@ -46,6 +47,7 @@ enum SkipReason {
 
 #define OPCODE_LOAD     0x03u
 #define OPCODE_STORE    0x23u
+#define OPCODE_MISC_MEM 0x0fu
 #define OPCODE_SYSTEM   0x73u
 
 static inline int32_t sext32(uint32_t val, int bits) {
@@ -65,8 +67,19 @@ static inline bool in_comparable_mem(uint32_t addr) {
     return in_flash(addr) || in_sram(addr);
 }
 
+static inline bool in_ref_exec_region(uint32_t pc) {
+    // Current reference NEMU model can only execute from flash/SRAM in this flow.
+    // Runtime code relocated to SDRAM/PSRAM is not executable in ref.
+    return in_flash(pc) || in_sram(pc);
+}
+
 static SkipReason get_skip_reason(uint32_t inst) {
     uint32_t opcode = inst & 0x7fu;
+
+    if (opcode == OPCODE_MISC_MEM) {
+        // Treat MISC-MEM (e.g. fence/fence.i) as architectural no-op for reg diff.
+        return SKIP_MISC_MEM;
+    }
 
     if (opcode == OPCODE_SYSTEM) {
         uint32_t funct3 = (inst >> 12) & 0x7u;
@@ -176,6 +189,12 @@ bool difftest_step(uint32_t dut_pc, bool dut_wen, uint8_t dut_waddr, uint32_t du
         return true;
     }
 
+    if (!in_ref_exec_region(dut_pc)) {
+        Log("difftest detached: DUT enters unsupported ref execute region at pc = 0x%08x", dut_pc);
+        difftest_enabled = false;
+        return true;
+    }
+
     RefCPUState ref_pre;
     ref_difftest_regcpy(&ref_pre, DIFFTEST_TO_DUT);
     if (ref_pre.pc != dut_pc) {
@@ -186,7 +205,7 @@ bool difftest_step(uint32_t dut_pc, bool dut_wen, uint8_t dut_waddr, uint32_t du
 
     SkipReason skip_reason = get_skip_reason(dut_inst);
 
-    if (skip_reason == SKIP_MMIO || skip_reason == SKIP_COUNTER_CSR) {
+    if (skip_reason == SKIP_MMIO || skip_reason == SKIP_COUNTER_CSR || skip_reason == SKIP_MISC_MEM) {
         if (dut_wen && dut_waddr != 0) {
             dut_gpr_shadow[dut_waddr] = dut_wdata;
         }

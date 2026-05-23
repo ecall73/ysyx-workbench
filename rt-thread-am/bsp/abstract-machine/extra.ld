@@ -1,5 +1,5 @@
 SECTIONS {
-  .data.extra : {
+  .data.extra : AT(LOADADDR(.data) + SIZEOF(.data)) {
     /* section information for finsh shell */
     __fsymtab_start = .;
     KEEP(*(FSymTab))
@@ -27,9 +27,11 @@ SECTIONS {
     *(__am_apps.sdata*)
     __am_apps_data_end = .;
     . = ALIGN(8);
-  }
+  } : data
+
+  _data_end = .;
 }
-INSERT BEFORE .data;
+INSERT AFTER .data;
 
 SECTIONS {
   .bss.extra : {

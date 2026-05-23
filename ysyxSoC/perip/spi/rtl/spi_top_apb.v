@@ -57,6 +57,7 @@ localparam [4:0] SPI_DIV_OFS  = 5'h14;
 localparam [4:0] SPI_SS_OFS   = 5'h18;
 
 localparam [31:0] SPI_CTRL_GO       = 32'h0000_0100;
+localparam [31:0] SPI_CTRL_IE       = 32'h0000_1000;
 localparam [31:0] SPI_CTRL_XIP_CFG  = 32'h0000_2440; // ASS | TX_NEG | CHAR_LEN(64)
 localparam [31:0] SPI_FLASH_CMD     = 32'h0300_0000;
 localparam [31:0] SPI_FLASH_DUMMY   = 32'h0000_0000;
@@ -69,7 +70,7 @@ localparam [3:0] XIP_WR_SS          = 4'd2;
 localparam [3:0] XIP_WR_TX1         = 4'd3;
 localparam [3:0] XIP_WR_TX0         = 4'd4;
 localparam [3:0] XIP_WR_CTRL_GO     = 4'd5;
-localparam [3:0] XIP_RD_CTRL_POLL   = 4'd6;
+localparam [3:0] XIP_WAIT_IRQ       = 4'd6;
 localparam [3:0] XIP_RD_RX1         = 4'd7;
 localparam [3:0] XIP_RD_RX0         = 4'd8;
 localparam [3:0] XIP_DONE           = 4'd9;
@@ -133,20 +134,6 @@ function [31:0] bswap32;
   end
 endfunction
 
-function [31:0] xip_align32;
-  input [31:0] data;
-  input [1:0]  byte_off;
-  begin
-    case (byte_off)
-      2'b00: xip_align32 = data;
-      2'b01: xip_align32 = {8'b0,  data[31:8]};
-      2'b10: xip_align32 = {16'b0, data[31:16]};
-      2'b11: xip_align32 = {24'b0, data[31:24]};
-      default: xip_align32 = data;
-    endcase
-  end
-endfunction
-
 always @(*) begin
   xip_wb_adr   = 5'b0;
   xip_wb_dat_w = 32'b0;
@@ -186,16 +173,10 @@ always @(*) begin
     end
     XIP_WR_CTRL_GO: begin
       xip_wb_adr   = SPI_CTRL_OFS;
-      xip_wb_dat_w = SPI_CTRL_XIP_CFG | SPI_CTRL_GO;
+      xip_wb_dat_w = SPI_CTRL_XIP_CFG | SPI_CTRL_IE | SPI_CTRL_GO;
       xip_wb_we    = 1'b1;
       xip_wb_stb   = 1'b1;
       xip_wb_cyc   = 1'b1;
-    end
-    XIP_RD_CTRL_POLL: begin
-      xip_wb_adr = SPI_CTRL_OFS;
-      xip_wb_we  = 1'b0;
-      xip_wb_stb = 1'b1;
-      xip_wb_cyc = 1'b1;
     end
     XIP_RD_RX1: begin
       xip_wb_adr = SPI_RX1_OFS;
@@ -244,13 +225,10 @@ always @(posedge clock or posedge reset) begin
         if (wb_ack_o) xip_state <= XIP_WR_CTRL_GO;
       end
       XIP_WR_CTRL_GO: begin
-        if (wb_ack_o) xip_state <= XIP_RD_CTRL_POLL;
+        if (wb_ack_o) xip_state <= XIP_WAIT_IRQ;
       end
-      XIP_RD_CTRL_POLL: begin
-        if (wb_ack_o) begin
-          if (wb_dat_o[8]) xip_state <= XIP_RD_CTRL_POLL;
-          else xip_state <= XIP_RD_RX1;
-        end
+      XIP_WAIT_IRQ: begin
+        if (spi_irq_out) xip_state <= XIP_RD_RX1;
       end
       XIP_RD_RX1: begin
         if (wb_ack_o) begin
@@ -259,7 +237,7 @@ always @(posedge clock or posedge reset) begin
       end
       XIP_RD_RX0: begin
         if (wb_ack_o) begin
-          xip_rdata <= xip_align32(bswap32(wb_dat_o), xip_req_addr[1:0]);
+          xip_rdata <= bswap32(wb_dat_o);
           xip_state <= XIP_DONE;
         end
       end

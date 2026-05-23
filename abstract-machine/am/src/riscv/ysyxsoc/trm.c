@@ -32,6 +32,8 @@ static void uart_init(void) {
 }
 
 void putch(char ch) {
+  // Poll TX FIFO empty bit before writing to avoid character loss.
+  while ((uart_read8(UART_REG_LSR) & UART_LSR_THRE) == 0) {}
   uart_write8(UART_REG_THR, (uint8_t)ch);
 }
 
@@ -43,6 +45,10 @@ void halt(int code) {
 
 void _trm_init() {
   uart_init();
+  uint32_t vendor = 0, arch = 0;
+  asm volatile("csrr %0, mvendorid" : "=r"(vendor));
+  asm volatile("csrr %0, marchid" : "=r"(arch));
+  printf("CSR mvendorid=0x%08x marchid=%u(0x%08x)\n", vendor, arch, arch);
   int ret = main(mainargs);
   halt(ret);
 }

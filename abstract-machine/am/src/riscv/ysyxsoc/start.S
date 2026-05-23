@@ -6,36 +6,81 @@ _start:
   mv s0, zero
   la sp, _stack_pointer
 
-  /* Copy .data init image from flash(LMA) to SRAM(VMA). */
-  la t0, _data_load_start
-  la t1, _data_start
-  la t2, _data_end
-1:
-  beq t1, t2, 2f
-  bltu t1, t2, 3f
-  j 2f
-3:
+  /* FSBL: copy SSBL from flash to SRAM, then jump to SRAM SSBL. */
+  la t0, _ssbl_lma_start
+  la t1, _ssbl_vma_start
+  la t2, _ssbl_vma_end
+  sub a1, t2, t1
+  andi a1, a1, -4
+  add a2, t1, a1
+1: /* word copy loop */
+  bgeu t1, a2, 2f
+  lw a0, 0(t0)
+  sw a0, 0(t1)
+  addi t0, t0, 4
+  addi t1, t1, 4
+  j 1b
+2: /* tail byte copy */
+  bgeu t1, t2, 3f
   lb a0, 0(t0)
   sb a0, 0(t1)
   addi t0, t0, 1
   addi t1, t1, 1
-  j 1b
-
-  /* Zero .bss in SRAM. */
-2:
-  la t1, _bss_start
-  la t2, _bss_end
-  li a0, 0
-4:
-  beq t1, t2, 4f
-  bltu t1, t2, 5f
-  j 4f
-5:
-  sb a0, 0(t1)
-  addi t1, t1, 1
-  j 4b
-
-4:
-  call _trm_init
+  j 2b
+3:
+  fence.i
+  la t0, _ssbl_vma_start
+  jr t0
 
 .size _start, . - _start
+
+.section .ssbl, "ax"
+.globl _ssbl_entry
+.type _ssbl_entry, @function
+
+_ssbl_entry:
+  /* SSBL: copy runtime image from flash (LMA) to linked runtime VMA. */
+  la t0, _data_load_start
+  la t1, _data_start
+  la t2, _data_end
+  sub a1, t2, t1
+  andi a1, a1, -4
+  add a2, t1, a1
+4: /* word copy loop */
+  bgeu t1, a2, 2f
+  lw a0, 0(t0)
+  sw a0, 0(t1)
+  addi t0, t0, 4
+  addi t1, t1, 4
+  j 4b
+2: /* tail byte copy */
+  bgeu t1, t2, 3f
+  lb a0, 0(t0)
+  sb a0, 0(t1)
+  addi t0, t0, 1
+  addi t1, t1, 1
+  j 2b
+
+  /* Zero .bss at linked runtime VMA. */
+3:
+  la t1, _bss_start
+  la t2, _bss_end
+  sub a1, t2, t1
+  andi a1, a1, -4
+  add a2, t1, a1
+4: /* word clear loop */
+  bgeu t1, a2, 5f
+  sw zero, 0(t1)
+  addi t1, t1, 4
+  j 4b
+5: /* tail byte clear */
+  bgeu t1, t2, 6f
+  sb zero, 0(t1)
+  addi t1, t1, 1
+  j 5b
+
+6:
+  la t0, _trm_init
+  jr t0
+
+.size _ssbl_entry, . - _ssbl_entry

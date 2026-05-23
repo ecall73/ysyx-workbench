@@ -11,25 +11,14 @@ static bool flash_oob_warned = false;
 static bool flash_boot_loaded = false;
 static size_t flash_boot_size = 0;
 
-static inline uint32_t flash_pattern_word(uint32_t word_index) {
-    return 0x31415926u ^ (word_index * 0x9e3779b9u);
-}
-
 void flash_init_default_image() {
-    memset(flash_image, 0, sizeof(flash_image));
-    for (uint32_t i = 0; i < 1024; i++) {
-        uint32_t value = flash_pattern_word(i);
-        uint32_t offset = i << 2;
-        flash_image[offset + 0] = (uint8_t)(value & 0xffu);
-        flash_image[offset + 1] = (uint8_t)((value >> 8) & 0xffu);
-        flash_image[offset + 2] = (uint8_t)((value >> 16) & 0xffu);
-        flash_image[offset + 3] = (uint8_t)((value >> 24) & 0xffu);
-    }
+    // NOR flash erased state is all 1s.
+    memset(flash_image, 0xff, sizeof(flash_image));
     flash_initialized = true;
     flash_oob_warned = false;
     flash_boot_loaded = false;
     flash_boot_size = 0;
-    printf("Flash image initialized: default pattern, size = %u\n", kFlashSize);
+    printf("Flash image initialized: erased state(0xFF), size = %u\n", kFlashSize);
 }
 
 bool flash_load_boot_image(const char *img_file) {
@@ -70,7 +59,8 @@ bool flash_load_boot_image(const char *img_file) {
         return false;
     }
 
-    memset(flash_image, 0, (size_t)size);
+    // Erase full flash before programming a new boot image.
+    memset(flash_image, 0xff, sizeof(flash_image));
     size_t nread = fread(flash_image, 1, (size_t)size, fp);
     fclose(fp);
     if (nread != (size_t)size) {
@@ -115,7 +105,7 @@ extern "C" void flash_read(int32_t addr, int32_t *data) {
             fprintf(stderr, "flash_read: address out of range: 0x%08x\n", uaddr);
             flash_oob_warned = true;
         }
-        *data = 0;
+        *data = -1;
         return;
     }
 
