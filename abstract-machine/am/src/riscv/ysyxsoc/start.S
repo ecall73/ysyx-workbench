@@ -39,7 +39,7 @@ _start:
 .type _ssbl_entry, @function
 
 _ssbl_entry:
-  /* SSBL: copy runtime image from flash (LMA) to PSRAM (VMA). */
+  /* SSBL: copy runtime image from flash (LMA) to linked runtime VMA. */
   la t0, _data_load_start
   la t1, _data_start
   la t2, _data_end
