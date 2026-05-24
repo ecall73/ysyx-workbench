@@ -6,6 +6,7 @@
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 #include "npc.h"
+#include <nvboard.h>
 
 extern "C" void npc_trap(int pc, int a0) {
     is_finished = true;
@@ -91,6 +92,7 @@ void cpu_exec(uint64_t n) {
         g_top->eval();
         g_contextp->timeInc(1);
         if (g_tfp) g_tfp->dump(g_contextp->time());
+        nvboard_update();
         g_nr_sim_cycle++;
 
         if (is_finished) {

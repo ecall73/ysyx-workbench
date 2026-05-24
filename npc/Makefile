@@ -9,6 +9,9 @@ BUILD_DIR = ./build
 OBJ_DIR = $(BUILD_DIR)/obj_dir
 BIN = $(BUILD_DIR)/$(TOPNAME)
 YSYX_SOC_HOME ?= $(abspath ../ysyxSoC)
+NVBOARD_HOME ?= $(abspath ../nvboard)
+NXDC_FILES = $(abspath ./constr/ysyxSoCFull.nxdc)
+SRC_AUTO_BIND = $(abspath $(BUILD_DIR)/auto_bind.cpp)
 CHAR_TEST_DIR = $(abspath ./tests)
 CHAR_TEST_SRC = $(CHAR_TEST_DIR)/char-test.c
 CHAR_TEST_LD = $(CHAR_TEST_DIR)/char-test.ld
@@ -23,6 +26,10 @@ default: $(BIN)
 
 $(shell mkdir -p $(BUILD_DIR))
 
+# constraint file -> NVBoard auto bind source
+$(SRC_AUTO_BIND): $(NXDC_FILES)
+	python3 $(NVBOARD_HOME)/scripts/auto_pin_bind.py $^ $@
+
 # project source
 VSRCS = $(shell find $(abspath ./vsrc) -name "*.v") \
 	$(shell find $(YSYX_SOC_HOME)/perip -name "*.v") \
@@ -30,13 +37,17 @@ VSRCS = $(shell find $(abspath ./vsrc) -name "*.v") \
 VHDRS = $(shell find $(abspath ./vsrc) -name "*.vh" -o -name "*.svh") \
 	$(shell find $(YSYX_SOC_HOME)/perip -name "*.vh" -o -name "*.svh")
 CSRCS = $(shell find $(abspath ./csrc) \( -name "*.c" -o -name "*.cc" -o -name "*.cpp" \))
+CSRCS += $(SRC_AUTO_BIND)
 CHDRS = $(shell find $(abspath ./csrc) \( -name "*.h" -o -name "*.hpp" \))
-NPC_DEPS = $(VSRCS) $(VHDRS) $(CSRCS) $(CHDRS) $(CHAR_TEST_BIN) Makefile
+NPC_DEPS = $(VSRCS) $(VHDRS) $(CSRCS) $(CHDRS) $(CHAR_TEST_BIN) $(NVBOARD_ARCHIVE) Makefile
 
 # rules for verilator
-INC_PATH ?= $(abspath ./vsrc) \
+INC_PATH := $(abspath ./vsrc) \
 	$(YSYX_SOC_HOME)/perip/uart16550/rtl \
 	$(YSYX_SOC_HOME)/perip/spi/rtl
+# rules for NVBoard
+include $(NVBOARD_HOME)/scripts/nvboard.mk
+
 INCFLAGS = $(addprefix -I, $(INC_PATH)) -I$(abspath ./csrc) -I$(NEMU_HOME)/tools/capstone/repo/include
 CFLAGS += $(INCFLAGS) -DTOP_NAME="\"V$(TOPNAME)\""
 
@@ -52,7 +63,7 @@ $(CHAR_TEST_BIN): $(CHAR_TEST_ELF)
 
 $(BIN): $(NPC_DEPS)
 	$(VERILATOR) $(VERILATOR_CFLAGS) $(INCFLAGS) \
-		--top-module $(TOPNAME) $(VSRCS) $(CSRCS) $(CHAR_TEST_BIN) \
+		--top-module $(TOPNAME) $(VSRCS) $(CSRCS) $(CHAR_TEST_BIN) $(NVBOARD_ARCHIVE) \
 		$(addprefix -CFLAGS , $(CFLAGS)) \
 		$(addprefix -LDFLAGS , $(LDFLAGS)) \
 		--Mdir $(OBJ_DIR) --exe -o $(abspath $(BIN))

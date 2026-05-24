@@ -7,6 +7,9 @@
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 #include "npc.h"
+#include <nvboard.h>
+
+void nvboard_bind_all_pins(VysyxSoCFull* top);
 
 VysyxSoCFull *g_top = NULL;
 VerilatedContext *g_contextp = NULL;
@@ -131,9 +134,11 @@ void init_monitor(int argc, char **argv) {
     g_contextp = contextp;
     g_tfp = tfp;
 
+    nvboard_bind_all_pins(top);
+    nvboard_init();
+
     top->clock = 0;
     top->reset = 1;
-    top->externalPins_gpio_in = 0;
     top->externalPins_ps2_clk = 0;
     top->externalPins_ps2_data = 0;
     top->externalPins_uart_rx = 0;
@@ -155,6 +160,8 @@ void init_monitor(int argc, char **argv) {
 }
 
 void npc_cleanup() {
+    nvboard_quit();
+
     if (log_fp) {
         fclose(log_fp);
         log_fp = NULL;
