@@ -1,5 +1,10 @@
 TOPNAME = ysyxSoCFull
 VERILATOR = verilator
+# GCC 11 may ICE on some Verilator-generated PCH compilations when ccache is
+# injected by verilated.mk. Keep objcache disabled by default for stability.
+# To re-enable cache manually: `make ... OBJCACHE=ccache`.
+OBJCACHE ?=
+export OBJCACHE
 VERILATOR_CFLAGS += -MMD --build -cc  \
 				-O3 --x-assign fast --x-initial fast --noassert \
 				-Wno-PINMISSING -Wno-WIDTHEXPAND \

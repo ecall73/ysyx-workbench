@@ -139,8 +139,9 @@ void init_monitor(int argc, char **argv) {
 
     top->clock = 0;
     top->reset = 1;
-    top->externalPins_ps2_clk = 0;
-    top->externalPins_ps2_data = 0;
+    // PS/2 bus idles high/high.
+    top->externalPins_ps2_clk = 1;
+    top->externalPins_ps2_data = 1;
     top->externalPins_uart_rx = 1;
     top->eval();
     contextp->timeInc(1);
