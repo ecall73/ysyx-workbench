@@ -8,7 +8,8 @@ export OBJCACHE
 VERILATOR_CFLAGS += -MMD --build -cc  \
 				-O3 --x-assign fast --x-initial fast --noassert \
 				-Wno-PINMISSING -Wno-WIDTHEXPAND \
-				--trace --timescale "1ns/1ns" --no-timing --autoflush
+				--trace --timescale "1ns/1ns" --no-timing --autoflush \
+				-MAKEFLAGS "VM_DEFAULT_RULES=0"
 
 BUILD_DIR = ./build
 OBJ_DIR = $(BUILD_DIR)/obj_dir

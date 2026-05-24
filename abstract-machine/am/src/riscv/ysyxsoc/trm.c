@@ -11,6 +11,10 @@ void halt(int code);
 Area heap = RANGE(&_heap_start, &_heap_end);
 static const char mainargs[MAINARGS_MAX_LEN] = TOSTRING(MAINARGS_PLACEHOLDER); // defined in CFLAGS
 
+enum {
+  GPIO_SEG_REG_OFF = 0x8u,
+};
+
 static inline void uart_write8(uint32_t off, uint8_t val) {
   outb(UART_BASE + off, val);
 }
@@ -44,10 +48,20 @@ void halt(int code) {
 }
 
 void _trm_init() {
-  uart_init();
   uint32_t vendor = 0, arch = 0;
   asm volatile("csrr %0, mvendorid" : "=r"(vendor));
   asm volatile("csrr %0, marchid" : "=r"(arch));
+
+  // Show marchid in decimal on 8-digit 7-seg (one BCD digit per nibble).
+  uint32_t packed_bcd = 0;
+  uint32_t x = arch;
+  for (int i = 0; i < 8; i++) {
+    packed_bcd |= (x % 10u) << (i * 4);
+    x /= 10u;
+  }
+  outl(GPIO_BASE + GPIO_SEG_REG_OFF, packed_bcd);
+
+  uart_init();
   printf("CSR mvendorid=0x%08x marchid=%u(0x%08x)\n", vendor, arch, arch);
   int ret = main(mainargs);
   halt(ret);
