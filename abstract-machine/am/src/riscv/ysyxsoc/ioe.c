@@ -10,8 +10,28 @@ void __am_input_keybrd(AM_INPUT_KEYBRD_T *);
 
 static void __am_timer_config(AM_TIMER_CONFIG_T *cfg) { cfg->present = true; cfg->has_rtc = true; }
 static void __am_input_config(AM_INPUT_CONFIG_T *cfg) { cfg->present = true;  }
-static void __am_uart_config(AM_INPUT_CONFIG_T *cfg) { cfg->present = false;  }
+static void __am_uart_config(AM_UART_CONFIG_T *cfg) { cfg->present = true; }
 static void __am_gpio_config(AM_GPIO_CONFIG_T *cfg) { cfg->present = true; }
+
+static inline uint8_t uart_read8(uint32_t off) {
+  return inb(UART_BASE + off);
+}
+
+static inline void uart_write8(uint32_t off, uint8_t val) {
+  outb(UART_BASE + off, val);
+}
+
+static void __am_uart_tx(AM_UART_TX_T *tx) {
+  uart_write8(UART_REG_THR, (uint8_t)tx->data);
+}
+
+static void __am_uart_rx(AM_UART_RX_T *rx) {
+  if (uart_read8(UART_REG_LSR) & UART_LSR_DR) {
+    rx->data = (char)uart_read8(UART_REG_RBR);
+  } else {
+    rx->data = (char)0xffu;
+  }
+}
 
 static void __am_gpio_led(AM_GPIO_LED_T *led) {
   outl(GPIO_BASE + 0x0u, (uint32_t)led->value);
@@ -33,6 +53,8 @@ static void *lut[128] = {
   [AM_INPUT_CONFIG] = __am_input_config,
   [AM_INPUT_KEYBRD] = __am_input_keybrd,
   [AM_UART_CONFIG]  = __am_uart_config,
+  [AM_UART_TX]      = __am_uart_tx,
+  [AM_UART_RX]      = __am_uart_rx,
   [AM_GPIO_CONFIG]  = __am_gpio_config,
   [AM_GPIO_LED]     = __am_gpio_led,
   [AM_GPIO_SW]      = __am_gpio_sw,

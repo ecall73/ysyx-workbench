@@ -44,6 +44,7 @@
 #define UART_REG_FCR    0x02u
 #define UART_REG_LCR    0x03u
 #define UART_REG_LSR    0x05u
+#define UART_LSR_DR     0x01u
 #define UART_LCR_DLAB   0x80u
 #define UART_LCR_8N1    0x03u
 #define UART_LSR_THRE   0x20u

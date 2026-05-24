@@ -141,7 +141,7 @@ void init_monitor(int argc, char **argv) {
     top->reset = 1;
     top->externalPins_ps2_clk = 0;
     top->externalPins_ps2_data = 0;
-    top->externalPins_uart_rx = 0;
+    top->externalPins_uart_rx = 1;
     top->eval();
     contextp->timeInc(1);
     if (tfp) tfp->dump(contextp->time());
