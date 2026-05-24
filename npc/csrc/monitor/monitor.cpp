@@ -147,9 +147,15 @@ void init_monitor(int argc, char **argv) {
     contextp->timeInc(1);
     if (tfp) tfp->dump(contextp->time());
 
-    // Reset for a few cycles.
-    for (int i = 0; i < 20; i++) {
-        top->clock = !top->clock;
+    // ChipLink requires reset to be held for at least 10 full cycles.
+    constexpr int kResetCycles = 10;
+    for (int cyc = 0; cyc < kResetCycles; cyc++) {
+        top->clock = 1;
+        top->eval();
+        contextp->timeInc(1);
+        if (tfp) tfp->dump(contextp->time());
+
+        top->clock = 0;
         top->eval();
         contextp->timeInc(1);
         if (tfp) tfp->dump(contextp->time());
