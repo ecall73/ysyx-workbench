@@ -51,7 +51,7 @@ static int cmd_x(char *args) {
         for (int i = 0; i < n; i++) {
             uint32_t addr = base_addr + i * 4;
             if (check_bound(addr, "SDB")) {
-                int index = addr - 0x80000000;
+                int index = addr - NPC_PMEM_BASE;
                 printf("0x%08x: 0x%08x\n", addr, *(uint32_t *)&pmem[index]);
             } else {
                 printf("0x%08x: OUT OF BOUNDS\n", addr);

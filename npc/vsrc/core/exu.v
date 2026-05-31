@@ -1,9 +1,7 @@
 `timescale 1ns / 1ps
-`include "defines.v"
-
 module exu (
-    input  wire        clk,
-    input  wire        rst,
+    input  wire        clock,
+    input  wire        reset,
     input  wire        ex_in_valid,
     output wire        ex_in_ready,
     output wire        ex_out_valid,
@@ -60,8 +58,8 @@ module exu (
     );
 
     CSR u_CSR (
-        .clk                    (clk),
-        .rst                    (rst),
+        .clock                    (clock),
+        .reset                    (reset),
 
         .CSRControl             (ex_CSRControl),
         .CSRaddr                (ex_CSRaddr),

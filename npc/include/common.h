@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "VysyxSoCFull.h"
+#include "sim_mode.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 
@@ -18,7 +18,7 @@
 #define RTC_ADDR    0x00100048
 
 extern uint8_t pmem[MEM_SIZE];
-extern VysyxSoCFull* g_top;
+extern SimTop* g_top;
 extern VerilatedContext* g_contextp;
 extern VerilatedVcdC* g_tfp;
 

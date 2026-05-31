@@ -1,7 +1,5 @@
 `timescale 1ns / 1ps
 
-`include "defines.v"
-
 module npc(
     input  wire [31:0] if_pc4,
 

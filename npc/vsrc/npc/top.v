@@ -1,20 +1,9 @@
 `timescale 1ns / 1ps
 
-`include "defines.v"
-
 module top
 (
-    input             clk,
-    input             rst
-`ifdef RUN_TRACE
-,   output            debug_wb_have_inst,
-    output [31:0]     debug_wb_pc,
-    output            debug_wb_ena,
-    output [ 4:0]     debug_wb_reg,
-    output [31:0]     debug_wb_value,
-    output            debug_wb_ebreak,
-    output [31:0]     debug_reg_file [0:31]
-`endif
+    input             clock,
+    input             reset
 );
 
     // Shared MEM AXI4-Lite
@@ -36,9 +25,11 @@ module top
     wire        mem_axi_bvalid;
     wire        mem_axi_bready;
 
-    myCPU Core_cpu (
-        .clk                (clk),
-        .rst                (rst),
+    myCPU #(
+        .RESET_PC             (32'h8000_0000)
+    ) Core_cpu (
+        .clock                (clock),
+        .reset                (reset),
 
         // Interface to shared MEM AXI4-Lite
         .mem_axi_araddr     (mem_axi_araddr),
@@ -58,22 +49,11 @@ module top
         .mem_axi_bresp      (mem_axi_bresp),
         .mem_axi_bvalid     (mem_axi_bvalid),
         .mem_axi_bready     (mem_axi_bready)
-
-    `ifdef RUN_TRACE
-        ,
-        .debug_wb_have_inst (debug_wb_have_inst),
-        .debug_wb_pc        (debug_wb_pc),
-        .debug_wb_ena       (debug_wb_ena),
-        .debug_wb_reg       (debug_wb_reg),
-        .debug_wb_value     (debug_wb_value),
-        .debug_wb_ebreak    (debug_wb_ebreak),
-        .debug_reg_file     (debug_reg_file)
-    `endif
     );
     
     perip_bridge bridge_inst (
-        .clk				(clk),
-        .rst                (rst),
+        .clock				(clock),
+        .reset                (reset),
         .mem_axi_araddr     (mem_axi_araddr),
         .mem_axi_arvalid    (mem_axi_arvalid),
         .mem_axi_arready    (mem_axi_arready),

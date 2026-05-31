@@ -1,9 +1,8 @@
 `timescale 1ns / 1ps
-`include "defines.v"
 
 module idu (
-    input  wire        clk,
-    input  wire        rst,
+    input  wire        clock,
+    input  wire        reset,
     input  wire        id_in_valid,
     output wire        id_in_ready,
     output wire        id_out_valid,
@@ -34,10 +33,26 @@ module idu (
     output wire [11:0] id_CSRaddr,
     output wire [ 4:0] id_CSRControl
 
-    `ifdef RUN_TRACE
+    `ifndef SYNTHESIS
     , output wire      have_inst_ID
     `endif
 );
+
+    localparam [6:0] OP_R_TYPE   = 7'b011_0011;
+    localparam [6:0] OP_I_TYPE   = 7'b001_0011;
+    localparam [6:0] OP_IL_TYPE  = 7'b000_0011;
+    localparam [6:0] OP_IJ_TYPE  = 7'b110_0111;
+    localparam [6:0] OP_S_TYPE   = 7'b010_0011;
+    localparam [6:0] OP_B_TYPE   = 7'b110_0011;
+    localparam [6:0] OP_U_TYPE   = 7'b011_0111;
+    localparam [6:0] OP_UA_TYPE  = 7'b001_0111;
+    localparam [6:0] OP_J_TYPE   = 7'b110_1111;
+    localparam [6:0] OP_CSR_TYPE = 7'b111_0011;
+
+    localparam [2:0] MEM_TO_REG_ALU  = 3'b001;
+    localparam [2:0] MEM_TO_REG_DRAM = 3'b100;
+    localparam [2:0] MEM_TO_REG_IMM  = 3'b011;
+    localparam [2:0] MEM_TO_REG_CSR  = 3'b010;
 
     wire id_can_go;
 
@@ -86,14 +101,14 @@ module idu (
 
     wire rtype, itype, load, store, jal, jalr, auipc, branch;
 
-    assign rtype = opcode == `R_TYPE;
-    assign itype = opcode == `I_TYPE;
-    assign load = opcode == `IL_TYPE;
-    assign store = opcode == `S_TYPE;
-    assign jal = opcode == `J_TYPE;
-    assign jalr = opcode == `IJ_TYPE;
-    assign auipc = opcode == `UA_TYPE;
-    assign branch = opcode == `B_TYPE;
+    assign rtype = opcode == OP_R_TYPE;
+    assign itype = opcode == OP_I_TYPE;
+    assign load = opcode == OP_IL_TYPE;
+    assign store = opcode == OP_S_TYPE;
+    assign jal = opcode == OP_J_TYPE;
+    assign jalr = opcode == OP_IJ_TYPE;
+    assign auipc = opcode == OP_UA_TYPE;
+    assign branch = opcode == OP_B_TYPE;
 
     assign id_btype = branch;
     assign id_jtype = jal;
@@ -131,35 +146,35 @@ module idu (
 
     wire op_branch, op_store, op_rtype, op_itype, op_load, op_auipc, op_lui, op_csr;
 
-    assign op_branch    = opcode == `B_TYPE;
-    assign op_store     = opcode == `S_TYPE;
-    assign op_rtype     = opcode == `R_TYPE;
-    assign op_itype     = opcode == `I_TYPE;
-    assign op_load      = opcode == `IL_TYPE;
-    assign op_auipc     = opcode == `UA_TYPE;
-    assign op_lui       = opcode == `U_TYPE;
-    assign op_csr       = (opcode == `CSR_TYPE) && (funct3 != 3'b0);
+    assign op_branch    = opcode == OP_B_TYPE;
+    assign op_store     = opcode == OP_S_TYPE;
+    assign op_rtype     = opcode == OP_R_TYPE;
+    assign op_itype     = opcode == OP_I_TYPE;
+    assign op_load      = opcode == OP_IL_TYPE;
+    assign op_auipc     = opcode == OP_UA_TYPE;
+    assign op_lui       = opcode == OP_U_TYPE;
+    assign op_csr       = (opcode == OP_CSR_TYPE) && (funct3 != 3'b0);
 
     assign id_RegWrite = ~(op_branch | op_store);
 
-    assign id_MemToReg = {3{op_rtype}} & `MemToReg_ALU |
-                    {3{op_itype}} & `MemToReg_ALU | 
-                    {3{op_auipc}} & `MemToReg_ALU | 
-                    {3{op_load}} & `MemToReg_DRAM |
-                    {3{op_lui}} & `MemToReg_IMM |
-                    {3{op_csr}} & `MemToReg_CSR;
+    assign id_MemToReg = {3{op_rtype}} & MEM_TO_REG_ALU |
+                    {3{op_itype}} & MEM_TO_REG_ALU |
+                    {3{op_auipc}} & MEM_TO_REG_ALU |
+                    {3{op_load}} & MEM_TO_REG_DRAM |
+                    {3{op_lui}} & MEM_TO_REG_IMM |
+                    {3{op_csr}} & MEM_TO_REG_CSR;
 
     assign id_MemWrite = op_store;
 
     assign id_ALUSrcA = op_auipc | jal;
     assign id_ALUSrcB = ~(op_rtype | op_branch);
 
-    `ifdef RUN_TRACE
+    `ifndef SYNTHESIS
         wire op_jal, op_jalr, op_sys, op_misc_mem;
-        assign op_jal = opcode == `J_TYPE;
-        assign op_jalr = opcode == `IJ_TYPE;
+        assign op_jal = opcode == OP_J_TYPE;
+        assign op_jalr = opcode == OP_IJ_TYPE;
         // Keep retire trace aligned with NEMU: treat SYSTEM opcode (CSR/ecall/ebreak/mret) as real instructions.
-        assign op_sys = opcode == `CSR_TYPE;
+        assign op_sys = opcode == OP_CSR_TYPE;
         // Include MISC-MEM (fence/fence.i) so commit trace won't skip retired instructions.
         assign op_misc_mem = opcode == 7'b0001111;
         assign have_inst_ID = op_rtype | op_itype | op_load | op_jalr | op_store | op_branch | op_lui | op_auipc | op_jal | op_sys | op_misc_mem;
@@ -168,15 +183,15 @@ module idu (
     // Expanded IMMGEN module logic
     always @(*) begin
         case(opcode)
-            `I_TYPE,
-            `IL_TYPE,
-            `IJ_TYPE:   id_imm = {{20{id_inst[31]}}, id_inst[31:20]};
-            `S_TYPE:    id_imm = {{20{id_inst[31]}}, id_inst[31:25], id_inst[11:7]};
-            `B_TYPE:    id_imm = {{20{id_inst[31]}}, id_inst[7], id_inst[30:25], id_inst[11:8], 1'b0};
-            `U_TYPE,
-            `UA_TYPE:   id_imm = {id_inst[31:12], 12'b0};
-            `J_TYPE:    id_imm = {{12{id_inst[31]}}, id_inst[19:12], id_inst[20], id_inst[30:21], 1'b0};
-            `CSR_TYPE:  id_imm = {27'b0, id_inst[19:15]};
+            OP_I_TYPE,
+            OP_IL_TYPE,
+            OP_IJ_TYPE:   id_imm = {{20{id_inst[31]}}, id_inst[31:20]};
+            OP_S_TYPE:    id_imm = {{20{id_inst[31]}}, id_inst[31:25], id_inst[11:7]};
+            OP_B_TYPE:    id_imm = {{20{id_inst[31]}}, id_inst[7], id_inst[30:25], id_inst[11:8], 1'b0};
+            OP_U_TYPE,
+            OP_UA_TYPE:   id_imm = {id_inst[31:12], 12'b0};
+            OP_J_TYPE:    id_imm = {{12{id_inst[31]}}, id_inst[19:12], id_inst[20], id_inst[30:21], 1'b0};
+            OP_CSR_TYPE:  id_imm = {27'b0, id_inst[19:15]};
             default:    id_imm = 32'b0;
         endcase
     end
@@ -184,9 +199,9 @@ module idu (
     // Expanded CCTL module logic
     assign id_CSRSrc = id_inst[14];
     assign id_CSRaddr = id_inst[31:20];
-    assign id_CSRControl[0] = (id_inst[6:0] == `CSR_TYPE) && (id_inst[13:12] == 2'b01); // csrrw, csrrwi
-    assign id_CSRControl[1] = (id_inst[6:0] == `CSR_TYPE) && (id_inst[13:12] == 2'b10); // csrrs, csrrsi
-    assign id_CSRControl[2] = (id_inst[6:0] == `CSR_TYPE) && (id_inst[13:12] == 2'b11); // csrrc, csrrci
+    assign id_CSRControl[0] = (id_inst[6:0] == OP_CSR_TYPE) && (id_inst[13:12] == 2'b01); // csrrw, csrrwi
+    assign id_CSRControl[1] = (id_inst[6:0] == OP_CSR_TYPE) && (id_inst[13:12] == 2'b10); // csrrs, csrrsi
+    assign id_CSRControl[2] = (id_inst[6:0] == OP_CSR_TYPE) && (id_inst[13:12] == 2'b11); // csrrc, csrrci
     assign id_CSRControl[3] = id_inst == 32'h00000073; // ecall
     assign id_CSRControl[4] = id_inst == 32'h30200073; // mret
 

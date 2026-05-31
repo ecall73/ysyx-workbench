@@ -2,35 +2,27 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "VysyxSoCFull.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 #include "npc.h"
+#include "sim_mode.h"
+#ifdef NPC_SIM_MODE_YSYXSOC
 #include <nvboard.h>
+#endif
 
-extern "C" void npc_trap(int pc, int a0) {
-    is_finished = true;
-    trap_pc = pc;
-    trap_a0 = a0;
-}
+static bool g_commit_valid = false;
+static uint32_t g_commit_pc = 0;
+static uint32_t g_commit_inst = 0;
+static constexpr uint32_t kEbreakInst = 0x00100073u;
 
-extern "C" void npc_commit(int pc, char wen, char waddr, int wdata, int inst) {
+extern "C" void npc_commit(int pc, int inst) {
     if (is_finished) {
         return;
     }
 
-    uint32_t dut_pc = (uint32_t)pc;
-    bool dut_wen = (wen & 0x1) != 0;
-    uint8_t dut_waddr = (uint8_t)waddr & 0x1f;
-    uint32_t dut_wdata = (uint32_t)wdata;
-    uint32_t dut_inst = (uint32_t)inst;
-
-    g_nr_guest_inst++;
-    if (!difftest_step(dut_pc, dut_wen, dut_waddr, dut_wdata, dut_inst)) {
-        is_finished = true;
-        trap_pc = (int)dut_pc;
-        trap_a0 = -1;
-    }
+    g_commit_valid = true;
+    g_commit_pc = (uint32_t)pc;
+    g_commit_inst = (uint32_t)inst;
 }
 
 static uint64_t g_timer_us = 0;
@@ -92,7 +84,31 @@ void cpu_exec(uint64_t n) {
         g_top->eval();
         g_contextp->timeInc(1);
         if (g_tfp) g_tfp->dump(g_contextp->time());
+
+        if (g_commit_valid) {
+            uint32_t commit_pc = g_commit_pc;
+            uint32_t commit_inst = g_commit_inst;
+            g_commit_valid = false;
+
+            g_nr_guest_inst++;
+            if (!difftest_step(commit_pc, commit_inst)) {
+                is_finished = true;
+                trap_pc = (int)commit_pc;
+                trap_a0 = -1;
+            } else if (commit_inst == kEbreakInst) {
+                is_finished = true;
+                trap_pc = (int)commit_pc;
+                trap_a0 = (int)npc_read_dut_gpr(10);
+            }
+        }
+        if (is_finished || g_contextp->gotFinish()) {
+            need_report = is_finished;
+            break;
+        }
+
+#ifdef NPC_SIM_MODE_YSYXSOC
         nvboard_update();
+#endif
         g_nr_sim_cycle++;
 
         if (is_finished) {

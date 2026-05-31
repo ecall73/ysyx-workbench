@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 
 module lsu (
-    input  wire        clk,
-    input  wire        rst,
+    input  wire        clock,
+    input  wire        reset,
     // Handshake
     input  wire        ls_in_valid,
     output wire        ls_in_ready,
@@ -197,8 +197,8 @@ module lsu (
         endcase
     end
 
-    always @(posedge clk) begin
-        if (rst) begin
+    always @(posedge clock) begin
+        if (reset) begin
             state <= L_IDLE;
             wr_aw_done <= 1'b0;
             wr_w_done <= 1'b0;

@@ -19,7 +19,6 @@ typedef struct {
 
 static void *ref_handle = NULL;
 static bool difftest_enabled = false;
-static uint32_t dut_gpr_shadow[32] = {};
 
 static void (*ref_difftest_memcpy)(uint32_t addr, void *buf, size_t n, bool direction) = NULL;
 static void (*ref_difftest_regcpy)(void *dut, bool direction) = NULL;
@@ -53,23 +52,24 @@ static inline int32_t sext32(uint32_t val, int bits) {
     return (int32_t)((val ^ m) - m);
 }
 
-static inline bool in_flash(uint32_t addr) {
-    return (addr >= 0x30000000u) && (addr <= 0x30ffffffu);
-}
-
-static inline bool in_sram(uint32_t addr) {
-    return (addr >= 0x0f000000u) && (addr <= 0x0f001fffu);
-}
-
-static inline bool in_sdram(uint32_t addr) {
-    return (addr >= 0xa0000000u) && (addr <= 0xa1ffffffu);
-}
-
 static inline bool in_comparable_mem(uint32_t addr) {
-    return in_flash(addr) || in_sram(addr) || in_sdram(addr);
+#ifdef NPC_SIM_MODE_NPC
+    return ((addr >= NPC_PMEM_BASE) && (addr < (NPC_PMEM_BASE + NPC_PMEM_SIZE)));
+#else
+    return ((addr >= NPC_FLASH_BASE) && (addr < (NPC_FLASH_BASE + NPC_FLASH_SIZE))) ||
+           ((addr >= NPC_SRAM_BASE) && (addr < (NPC_SRAM_BASE + NPC_SRAM_SIZE))) ||
+           ((addr >= NPC_SDRAM_BASE) && (addr < (NPC_SDRAM_BASE + NPC_SDRAM_SIZE)));
+#endif
 }
 
-static SkipReason get_skip_reason(uint32_t inst) {
+static void collect_dut_gprs(RefCPUState *dut_r) {
+    memset(dut_r, 0, sizeof(*dut_r));
+    for (int i = 0; i < 32; i++) {
+        dut_r->gpr[i] = npc_read_dut_gpr(i);
+    }
+}
+
+static SkipReason get_skip_reason(uint32_t inst, const RefCPUState *ref_pre) {
     uint32_t opcode = inst & 0x7fu;
 
     if (opcode == OPCODE_SYSTEM) {
@@ -94,7 +94,7 @@ static SkipReason get_skip_reason(uint32_t inst) {
             uint32_t imm12 = ((inst >> 25) << 5) | ((inst >> 7) & 0x1fu);
             imm = sext32(imm12, 12);
         }
-        uint32_t addr = dut_gpr_shadow[rs1] + (uint32_t)imm;
+        uint32_t addr = ref_pre->gpr[rs1] + (uint32_t)imm;
         if (!in_comparable_mem(addr)) {
             return SKIP_MMIO;
         }
@@ -105,7 +105,11 @@ static SkipReason get_skip_reason(uint32_t inst) {
 
 static void collect_dut_init_regs(RefCPUState *dut_r) {
     memset(dut_r, 0, sizeof(*dut_r));
-    dut_r->pc = 0x30000000u;
+#ifdef NPC_SIM_MODE_NPC
+    dut_r->pc = NPC_RESET_PC_NPC;
+#else
+    dut_r->pc = NPC_RESET_PC_YSYXSOC;
+#endif
     dut_r->mstatus = 0x00001800u;
     dut_r->mtvec = 0x00000001u;
     dut_r->mepc = 0;
@@ -153,6 +157,13 @@ void init_difftest(const char *ref_so_file, long img_size, int port) {
 
     ref_difftest_init(port);
 
+#ifdef NPC_SIM_MODE_NPC
+    if (img_size > 0) {
+        ref_difftest_memcpy(NPC_PMEM_BASE, pmem, (size_t)img_size, DIFFTEST_TO_REF);
+    } else {
+        Log("warning: no pmem image loaded before DiffTest init");
+    }
+#else
     uint32_t flash_base = 0;
     const uint8_t *flash_img = NULL;
     size_t flash_size = 0;
@@ -162,12 +173,10 @@ void init_difftest(const char *ref_so_file, long img_size, int port) {
     } else {
         Log("warning: no flash boot image loaded before DiffTest init");
     }
+#endif
 
     RefCPUState dut_r;
     collect_dut_init_regs(&dut_r);
-    for (int i = 0; i < 32; i++) {
-        dut_gpr_shadow[i] = dut_r.gpr[i];
-    }
     ref_difftest_regcpy(&dut_r, DIFFTEST_TO_REF);
 
     difftest_enabled = true;
@@ -175,7 +184,7 @@ void init_difftest(const char *ref_so_file, long img_size, int port) {
     Log("The result of every retired instruction will be compared with %s", ref_so_file);
 }
 
-bool difftest_step(uint32_t dut_pc, bool dut_wen, uint8_t dut_waddr, uint32_t dut_wdata, uint32_t dut_inst) {
+bool difftest_step(uint32_t dut_pc, uint32_t dut_inst) {
     if (!difftest_enabled) {
         return true;
     }
@@ -194,16 +203,14 @@ bool difftest_step(uint32_t dut_pc, bool dut_wen, uint8_t dut_waddr, uint32_t du
         return false;
     }
 
-    SkipReason skip_reason = get_skip_reason(dut_inst);
+    SkipReason skip_reason = get_skip_reason(dut_inst, &ref_pre);
 
     if (skip_reason == SKIP_MMIO || skip_reason == SKIP_COUNTER_CSR) {
-        if (dut_wen && dut_waddr != 0) {
-            dut_gpr_shadow[dut_waddr] = dut_wdata;
-        }
-        dut_gpr_shadow[0] = 0;
+        RefCPUState dut_post;
+        collect_dut_gprs(&dut_post);
 
         for (int i = 0; i < 32; i++) {
-            ref_pre.gpr[i] = dut_gpr_shadow[i];
+            ref_pre.gpr[i] = dut_post.gpr[i];
         }
         ref_pre.pc = dut_pc + 4;
         ref_difftest_regcpy(&ref_pre, DIFFTEST_TO_REF);
@@ -215,16 +222,7 @@ bool difftest_step(uint32_t dut_pc, bool dut_wen, uint8_t dut_waddr, uint32_t du
     RefCPUState ref_post;
     RefCPUState dut_post;
     ref_difftest_regcpy(&ref_post, DIFFTEST_TO_DUT);
-
-    if (dut_wen && dut_waddr != 0) {
-        dut_gpr_shadow[dut_waddr] = dut_wdata;
-    }
-    dut_gpr_shadow[0] = 0;
-
-    memset(&dut_post, 0, sizeof(dut_post));
-    for (int i = 0; i < 32; i++) {
-        dut_post.gpr[i] = dut_gpr_shadow[i];
-    }
+    collect_dut_gprs(&dut_post);
 
     return difftest_checkregs(&ref_post, &dut_post, dut_pc);
 }

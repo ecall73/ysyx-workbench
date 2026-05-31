@@ -1,10 +1,10 @@
 `timescale 1ns / 1ps
 
-`include "defines.v"
-
-module myCPU (
-    input  wire        clk,
-    input  wire        rst,
+module myCPU #(
+    parameter [31:0] RESET_PC = 32'h3000_0000
+) (
+    input  wire        clock,
+    input  wire        reset,
 
     // Shared MEM AXI4 Interface
     // Read address channel
@@ -42,23 +42,20 @@ module myCPU (
     input  wire        mem_axi_bvalid,
     output wire        mem_axi_bready
 
-    // Debug Interface
-    `ifdef RUN_TRACE
-       ,output wire        debug_wb_have_inst,
-        output wire [31:0] debug_wb_pc,
-        output wire        debug_wb_ena,
-        output wire [ 4:0] debug_wb_reg,
-        output wire [31:0] debug_wb_value,
-        output wire        debug_wb_ebreak,
-        output wire [31:0] debug_reg_file [0:31]
-    `endif
 );
 
 `ifndef SYNTHESIS
-    import "DPI-C" function void npc_trap(input int pc, input int a0);
-`ifdef RUN_TRACE
-    import "DPI-C" function void npc_commit(input int pc, input byte wen, input byte waddr, input int wdata, input int inst);
-`endif
+    import "DPI-C" function void npc_commit(input int pc, input int inst);
+    export "DPI-C" function npc_get_gpr;
+    function int npc_get_gpr(input int idx);
+        begin
+            if (idx >= 0 && idx < 32) begin
+                npc_get_gpr = u_RF.reg_bank[idx];
+            end else begin
+                npc_get_gpr = 0;
+            end
+        end
+    endfunction
 `endif
 
     wire [31:0] npc;
@@ -196,16 +193,13 @@ module myCPU (
     wire        lsu_axi_bready;
 
     // Debug Interface
-    `ifdef RUN_TRACE
+    `ifndef SYNTHESIS
         reg [31:0] pc_EX, pc_LS, pc_WB;
         reg [31:0] inst_EX, inst_LS, inst_WB;
         wire        have_inst_ID_decode;
         wire        have_inst_ID;
         reg         have_inst_EX, have_inst_LS, have_inst_WB;
-        wire        id_ebreak;
-        reg         ex_ebreak, ls_ebreak, wb_ebreak;
         assign have_inst_ID = id_in_valid && have_inst_ID_decode;
-        assign id_ebreak = id_in_valid && (id_inst == 32'h00100073);
     `endif
 
 ////////////////////////////////////////////////////////////////
@@ -236,9 +230,11 @@ module myCPU (
     assign if_in_valid = 1'b1;
     assign if_out_ready = id_in_ready;
 
-    ifu u_ifu (
-        .clk                    (clk),
-        .rst                    (rst),
+    ifu #(
+        .RESET_PC               (RESET_PC)
+    ) u_ifu (
+        .clock                    (clock),
+        .reset                    (reset),
         .if_in_valid            (if_in_valid),
         .if_in_ready            (if_in_ready),
         .if_out_ready           (if_out_ready),
@@ -273,8 +269,8 @@ module myCPU (
     // ================================================================
     // IF -> ID
     // ================================================================
-    always @(posedge clk) begin
-        if (rst) begin
+    always @(posedge clock) begin
+        if (reset) begin
             id_in_valid <= 1'b0;
             id_pc    <= 32'b0;
             id_pc4   <= 32'b0;
@@ -299,8 +295,8 @@ module myCPU (
     end
 
     idu u_idu (
-        .clk                    (clk),
-        .rst                    (rst),
+        .clock                    (clock),
+        .reset                    (reset),
         .id_in_valid            (id_in_valid),
         .id_in_ready            (id_in_ready),
         .id_out_valid           (id_out_valid),
@@ -327,14 +323,14 @@ module myCPU (
         .id_CSRaddr             (id_CSRaddr),
         .id_CSRControl          (id_CSRControl)
 
-        `ifdef RUN_TRACE
+        `ifndef SYNTHESIS
         ,   .have_inst_ID       (have_inst_ID_decode)
         `endif
     );
 
     RF u_RF (
-        .clk                    (clk),
-        .rst                    (rst),
+        .clock                    (clock),
+        .reset                    (reset),
 
         .wen                    (wb_in_valid && wb_RegWrite),
         .waddr                  (wb_RFwaddr),
@@ -345,10 +341,6 @@ module myCPU (
 
         .rR1_data               (id_rR1_data),
         .rR2_data               (id_rR2_data)
-
-        `ifdef RUN_TRACE
-        ,.reg_file              (debug_reg_file)
-        `endif
     );
 
     forward u_forward (
@@ -381,8 +373,8 @@ module myCPU (
     // ================================================================
     // ID -> EX
     // ================================================================
-    always @(posedge clk) begin
-        if (rst) begin
+    always @(posedge clock) begin
+        if (reset) begin
             ex_in_valid        <= 1'b0;
             ex_ALUControl   <= 0;
             ex_RegWrite     <= 0;
@@ -471,29 +463,25 @@ module myCPU (
     end
 
     //trace
-    `ifdef RUN_TRACE
-        always @(posedge clk) begin
-            if (rst) begin
+    `ifndef SYNTHESIS
+        always @(posedge clock) begin
+            if (reset) begin
                 pc_EX <= 32'b0;
                 inst_EX <= 32'b0;
                 have_inst_EX <= 1'b0;
-                ex_ebreak <= 1'b0;
             end else if (redirect_flush) begin
                 pc_EX <= 32'b0;
                 inst_EX <= 32'b0;
                 have_inst_EX <= 1'b0;
-                ex_ebreak <= 1'b0;
             end else if (ex_in_ready) begin
                 if (id_out_valid) begin
                     pc_EX <= id_pc;
                     inst_EX <= id_inst;
                     have_inst_EX <= have_inst_ID;
-                    ex_ebreak <= id_ebreak;
                 end else begin
                     pc_EX <= 32'b0;
                     inst_EX <= 32'b0;
                     have_inst_EX <= 1'b0;
-                    ex_ebreak <= 1'b0;
                 end
             end
         end
@@ -503,8 +491,8 @@ module myCPU (
     assign ex_out_ready = ls_in_ready;
 
     exu u_exu (
-        .clk                    (clk),
-        .rst                    (rst),
+        .clock                    (clock),
+        .reset                    (reset),
         .ex_in_valid            (ex_in_valid),
         .ex_in_ready            (ex_in_ready),
         .ex_out_valid           (ex_out_valid),
@@ -539,8 +527,8 @@ module myCPU (
     // ================================================================
     // EX -> LS
     // ================================================================
-    always @(posedge clk) begin
-        if (rst) begin
+    always @(posedge clock) begin
+        if (reset) begin
             ls_in_valid   <= 1'b0;
             ls_RegWrite   <= 1'b0;
             ls_MemWrite   <= 1'b0;
@@ -575,24 +563,21 @@ module myCPU (
     end
 
     //trace
-    `ifdef RUN_TRACE
-        always @(posedge clk) begin
-            if (rst) begin
+    `ifndef SYNTHESIS
+        always @(posedge clock) begin
+            if (reset) begin
                 pc_LS <= 32'b0;
                 inst_LS <= 32'b0;
                 have_inst_LS <= 1'b0;
-                ls_ebreak <= 1'b0;
             end else if (ex_out_ready) begin
                 if (ex_out_valid) begin
                     pc_LS <= pc_EX;
                     inst_LS <= inst_EX;
                     have_inst_LS <= have_inst_EX;
-                    ls_ebreak <= ex_ebreak;
                 end else begin
                     pc_LS <= 32'b0;
                     inst_LS <= 32'b0;
                     have_inst_LS <= 1'b0;
-                    ls_ebreak <= 1'b0;
                 end
             end
         end
@@ -602,8 +587,8 @@ module myCPU (
     assign ls_out_ready = 1'b1;
 
     lsu u_lsu (
-        .clk                     (clk),
-        .rst                     (rst),
+        .clock                     (clock),
+        .reset                     (reset),
         .ls_in_valid             (ls_in_valid),
         .ls_in_ready             (ls_in_ready),
         .ls_out_valid            (ls_out_valid),
@@ -641,8 +626,8 @@ module myCPU (
     );
 
     axi4lite_arbiter u_axi4lite_arbiter (
-        .clk                     (clk),
-        .rst                     (rst),
+        .clock                     (clock),
+        .reset                     (reset),
 
         .ifu_axi_araddr          (ifu_axi_araddr),
         .ifu_axi_arvalid         (ifu_axi_arvalid),
@@ -716,8 +701,8 @@ module myCPU (
     // ================================================================
     // LS -> WB
     // ================================================================
-    always @(posedge clk) begin
-        if (rst) begin
+    always @(posedge clock) begin
+        if (reset) begin
             wb_in_valid  <= 1'b0;
             wb_RegWrite  <= 1'b0;
             wb_RFwaddr   <= 5'b0;
@@ -737,50 +722,32 @@ module myCPU (
     end
 
 `ifndef SYNTHESIS
-`ifdef RUN_TRACE
-    always @(posedge clk) begin
-        if (!rst && wb_in_valid && have_inst_WB) begin
-            npc_commit(pc_WB, wb_RegWrite, {3'b000, wb_RFwaddr}, wb_RFwdata, inst_WB);
-            if (wb_ebreak) begin
-                npc_trap(pc_WB, debug_reg_file[10]);
-            end
+    always @(posedge clock) begin
+        if (!reset && wb_in_valid && have_inst_WB) begin
+            npc_commit(pc_WB, inst_WB);
         end
     end
 `endif
-`endif
 
     //trace
-    `ifdef RUN_TRACE
-        always @(posedge clk) begin
-            if (rst) begin
+    `ifndef SYNTHESIS
+        always @(posedge clock) begin
+            if (reset) begin
                 pc_WB <= 32'b0;
                 inst_WB <= 32'b0;
                 have_inst_WB <= 1'b0;
-                wb_ebreak <= 1'b0;
             end else begin
                 if (ls_out_valid) begin
                     pc_WB <= pc_LS;
                     inst_WB <= inst_LS;
                     have_inst_WB <= have_inst_LS;
-                    wb_ebreak <= ls_ebreak;
                 end else begin
                     pc_WB <= 32'b0;
                     inst_WB <= 32'b0;
                     have_inst_WB <= 1'b0;
-                    wb_ebreak <= 1'b0;
                 end
             end
         end
-    `endif
-
-    // Debug Interface
-    `ifdef RUN_TRACE
-        assign debug_wb_have_inst = wb_in_valid && have_inst_WB;
-        assign debug_wb_pc        = pc_WB;
-        assign debug_wb_ena       = wb_in_valid && wb_RegWrite;
-        assign debug_wb_reg       = wb_RFwaddr;
-        assign debug_wb_value     = wb_RFwdata;
-        assign debug_wb_ebreak    = wb_in_valid && wb_ebreak;
     `endif
 
 endmodule

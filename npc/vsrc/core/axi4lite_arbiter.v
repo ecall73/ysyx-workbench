@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 
 module axi4lite_arbiter (
-    input  wire        clk,
-    input  wire        rst,
+    input  wire        clock,
+    input  wire        reset,
     // IFU master interface
     input  wire [31:0] ifu_axi_araddr,
     input  wire        ifu_axi_arvalid,
@@ -87,6 +87,12 @@ module axi4lite_arbiter (
     reg       wr_aw_done;
     reg       wr_w_done;
 
+    wire      req_lsu_wr;
+    wire      req_lsu_rd;
+    wire      req_ifu_wr;
+    wire      req_ifu_rd;
+    reg [3:0] next_req_state;
+
     wire lsu_aw_fire;
     wire lsu_w_fire;
     wire lsu_b_fire;
@@ -111,6 +117,24 @@ module axi4lite_arbiter (
 
     assign ifu_ar_fire = (state == A_IFU_RD_AR) && ifu_axi_arvalid && mem_axi_arready;
     assign ifu_r_fire = (state == A_IFU_RD_R) && mem_axi_rvalid && ifu_axi_rready;
+
+    assign req_lsu_wr = lsu_axi_awvalid || lsu_axi_wvalid;
+    assign req_lsu_rd = lsu_axi_arvalid;
+    assign req_ifu_wr = ifu_axi_awvalid || ifu_axi_wvalid;
+    assign req_ifu_rd = ifu_axi_arvalid;
+
+    always @(*) begin
+        next_req_state = A_IDLE;
+        if (req_lsu_wr) begin
+            next_req_state = A_LSU_WR_AW_W;
+        end else if (req_lsu_rd) begin
+            next_req_state = A_LSU_RD_AR;
+        end else if (req_ifu_wr) begin
+            next_req_state = A_IFU_WR_AW_W;
+        end else if (req_ifu_rd) begin
+            next_req_state = A_IFU_RD_AR;
+        end
+    end
 
     always @(*) begin
         // IFU side defaults (blocked)
@@ -243,8 +267,8 @@ module axi4lite_arbiter (
         endcase
     end
 
-    always @(posedge clk) begin
-        if (rst) begin
+    always @(posedge clock) begin
+        if (reset) begin
             state <= A_IDLE;
             wr_aw_done <= 1'b0;
             wr_w_done <= 1'b0;
@@ -253,14 +277,8 @@ module axi4lite_arbiter (
                 A_IDLE: begin
                     wr_aw_done <= 1'b0;
                     wr_w_done <= 1'b0;
-                    if (lsu_axi_awvalid || lsu_axi_wvalid) begin
-                        state <= A_LSU_WR_AW_W;
-                    end else if (lsu_axi_arvalid) begin
-                        state <= A_LSU_RD_AR;
-                    end else if (ifu_axi_awvalid || ifu_axi_wvalid) begin
-                        state <= A_IFU_WR_AW_W;
-                    end else if (ifu_axi_arvalid) begin
-                        state <= A_IFU_RD_AR;
+                    if (next_req_state != A_IDLE) begin
+                        state <= next_req_state;
                     end
                 end
 
@@ -280,7 +298,9 @@ module axi4lite_arbiter (
 
                 A_LSU_WR_B: begin
                     if (lsu_b_fire) begin
-                        state <= A_IDLE;
+                        wr_aw_done <= 1'b0;
+                        wr_w_done <= 1'b0;
+                        state <= next_req_state;
                     end
                 end
 
@@ -292,7 +312,9 @@ module axi4lite_arbiter (
 
                 A_LSU_RD_R: begin
                     if (lsu_r_fire) begin
-                        state <= A_IDLE;
+                        wr_aw_done <= 1'b0;
+                        wr_w_done <= 1'b0;
+                        state <= next_req_state;
                     end
                 end
 
@@ -312,7 +334,9 @@ module axi4lite_arbiter (
 
                 A_IFU_WR_B: begin
                     if (ifu_b_fire) begin
-                        state <= A_IDLE;
+                        wr_aw_done <= 1'b0;
+                        wr_w_done <= 1'b0;
+                        state <= next_req_state;
                     end
                 end
 
@@ -324,7 +348,9 @@ module axi4lite_arbiter (
 
                 A_IFU_RD_R: begin
                     if (ifu_r_fire) begin
-                        state <= A_IDLE;
+                        wr_aw_done <= 1'b0;
+                        wr_w_done <= 1'b0;
+                        state <= next_req_state;
                     end
                 end
 

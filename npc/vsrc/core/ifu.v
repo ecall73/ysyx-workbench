@@ -1,9 +1,10 @@
 `timescale 1ns / 1ps
-`include "defines.v"
 
-module ifu (
-    input  wire        clk,
-    input  wire        rst,
+module ifu #(
+    parameter [31:0] RESET_PC = 32'h3000_0000
+) (
+    input  wire        clock,
+    input  wire        reset,
     input  wire        if_in_valid,
     output wire        if_in_ready,
     input  wire        if_out_ready,
@@ -88,10 +89,10 @@ module ifu (
     assign if_pc4 = if_pc + 32'd4;
     assign if_inst = hold_valid ? hold_inst : ifu_axi_rdata;
 
-    always @(posedge clk) begin
-        if (rst) begin
+    always @(posedge clock) begin
+        if (reset) begin
             state <= F_AR_VALID;
-            req_pc <= `NPC_RESET_PC;
+            req_pc <= RESET_PC;
             hold_pc <= 32'b0;
             hold_inst <= 32'b0;
             drop_resp <= 1'b0;

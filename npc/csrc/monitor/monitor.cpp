@@ -3,15 +3,16 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "VysyxSoCFull.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 #include "npc.h"
+#include "sim_mode.h"
+#ifdef NPC_SIM_MODE_YSYXSOC
 #include <nvboard.h>
+void nvboard_bind_all_pins(SimTop* top);
+#endif
 
-void nvboard_bind_all_pins(VysyxSoCFull* top);
-
-VysyxSoCFull *g_top = NULL;
+SimTop *g_top = NULL;
 VerilatedContext *g_contextp = NULL;
 VerilatedVcdC *g_tfp = NULL;
 
@@ -87,6 +88,7 @@ static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file
 
     init_log(log_file);
 
+#ifdef NPC_SIM_MODE_YSYXSOC
     char default_flash_path[1024];
     if (img_file == NULL) {
         build_default_char_test_path((argc > 0) ? argv[0] : NULL, default_flash_path, sizeof(default_flash_path));
@@ -106,15 +108,26 @@ static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file
         fprintf(stderr, "Failed to query loaded flash boot image information\n");
         exit(1);
     }
-
     return (long)boot_size;
+#else
+    if (img_file != NULL) {
+        long img_size = load_image(img_file);
+        if (img_size <= 0) {
+            fprintf(stderr, "Failed to load image file: %s\n", img_file);
+            exit(1);
+        }
+        return img_size;
+    }
+    fprintf(stderr, "No image file specified\n");
+    exit(1);
+#endif
 }
 
 void init_monitor(int argc, char **argv) {
     VerilatedContext *contextp = new VerilatedContext;
     contextp->commandArgs(argc, argv);
 
-    VysyxSoCFull *top = new VysyxSoCFull{contextp};
+    SimTop *top = new SimTop{contextp};
     VerilatedVcdC *tfp = NULL;
 
     char *diff_so_file = NULL;
@@ -134,15 +147,14 @@ void init_monitor(int argc, char **argv) {
     g_contextp = contextp;
     g_tfp = tfp;
 
+#ifdef NPC_SIM_MODE_YSYXSOC
     nvboard_bind_all_pins(top);
     nvboard_init();
+#endif
 
     top->clock = 0;
     top->reset = 1;
-    // PS/2 bus idles high/high.
-    top->externalPins_ps2_clk = 1;
-    top->externalPins_ps2_data = 1;
-    top->externalPins_uart_rx = 1;
+    sim_set_external_idle(top);
     top->eval();
     contextp->timeInc(1);
     if (tfp) tfp->dump(contextp->time());
@@ -167,7 +179,9 @@ void init_monitor(int argc, char **argv) {
 }
 
 void npc_cleanup() {
+#ifdef NPC_SIM_MODE_YSYXSOC
     nvboard_quit();
+#endif
 
     if (log_fp) {
         fclose(log_fp);

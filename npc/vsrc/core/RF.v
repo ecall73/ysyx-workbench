@@ -1,10 +1,8 @@
 `timescale 1ns / 1ps
 
-`include "defines.v"
-
 module RF(
-    input  wire        clk,
-    input  wire        rst,
+    input  wire        clock,
+    input  wire        reset,
     // Write rd                   
     input  wire        wen,
     input  wire [ 4:0] waddr,
@@ -15,25 +13,13 @@ module RF(
 
     output reg  [31:0] rR1_data,
     output reg  [31:0] rR2_data
-
-    `ifdef RUN_TRACE
-    ,output reg [31:0] reg_file [0:31]
-    `endif
 );
 
     reg [31:0] reg_bank [0:31];
     integer i;
 
-    `ifdef RUN_TRACE
-    always @(*) begin
-        for (i = 0; i < 32; i = i + 1) begin
-            reg_file[i] = reg_bank[i];
-        end
-    end
-    `endif
-
-    always @(posedge clk) begin
-        if (rst) begin
+    always @(posedge clock) begin
+        if (reset) begin
             for (i = 0; i < 32; i = i + 1) begin
                 reg_bank[i] <= 0;
             end
