@@ -16,7 +16,7 @@ static uint64_t get_time_us() {
 
 bool check_bound(int addr, const char *type) {
     (void)type;
-    if (addr < 0x80000000 || addr >= 0x80000000 + MEM_SIZE) {
+    if (addr < (int)NPC_PMEM_BASE || addr >= (int)(NPC_PMEM_BASE + NPC_PMEM_SIZE)) {
         return false;
     }
     return true;
@@ -32,7 +32,7 @@ extern "C" int pmem_read(int raddr) {
     if (!check_bound(aligned, "READ")) {
         return 0;
     }
-    int index = aligned - 0x80000000;
+    int index = aligned - (int)NPC_PMEM_BASE;
     return *(int *)&pmem[index];
 }
 
@@ -41,7 +41,7 @@ extern "C" void pmem_write(int waddr, int wdata, char wmask) {
         return;
     }
 
-    int index = (waddr - 0x80000000) & ~0x3u;
+    int index = (waddr - (int)NPC_PMEM_BASE) & ~0x3u;
     uint32_t *p = (uint32_t *)&pmem[index];
     uint32_t orig = *p;
     uint32_t mask = 0;

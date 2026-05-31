@@ -1,13 +1,18 @@
 #include <assert.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
-#include "Vtop.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 #include "npc.h"
+#include "sim_mode.h"
+#ifdef NPC_SIM_MODE_YSYXSOC
+#include <nvboard.h>
+void nvboard_bind_all_pins(SimTop* top);
+#endif
 
-Vtop *g_top = NULL;
+SimTop *g_top = NULL;
 VerilatedContext *g_contextp = NULL;
 VerilatedVcdC *g_tfp = NULL;
 
@@ -19,25 +24,35 @@ uint64_t g_nr_guest_inst = 0;
 bool sdb_batch_mode = false;
 FILE *log_fp = NULL;
 
-static void load_default_image() {
-    // Keep default program aligned with NEMU's built-in behavior.
-    uint32_t *inst = (uint32_t *)&pmem[0];
-    inst[0] = 0x00000297;   // auipc t0, 0
-    inst[1] = 0x00028823;   // sb zero, 0x10(t0)
-    inst[2] = 0x0102c503;   // lbu a0, 0x10(t0)
-    inst[3] = 0x00100073;   // ebreak
-    inst[4] = 0xdeadbeef;
-    inst[5] = 0xdeadbeef;
-    inst[6] = 0xdeadbeef;
-    inst[7] = 0xdeadbeef;
-    inst[8] = 0xdeadbeef;
-    inst[9] = 0xdeadbeef;
+static void build_default_char_test_path(const char *argv0, char *buf, size_t buflen) {
+    const char *fallback = "build/char-test.bin";
+    if (buflen == 0) {
+        return;
+    }
+
+    if (argv0 == NULL || argv0[0] == '\0') {
+        snprintf(buf, buflen, "%s", fallback);
+        return;
+    }
+
+    const char *slash = strrchr(argv0, '/');
+    if (slash == NULL) {
+        snprintf(buf, buflen, "%s", fallback);
+        return;
+    }
+
+    size_t dir_len = (size_t)(slash - argv0 + 1);
+    if (dir_len + strlen("char-test.bin") + 1 > buflen) {
+        snprintf(buf, buflen, "%s", fallback);
+        return;
+    }
+    memcpy(buf, argv0, dir_len);
+    memcpy(buf + dir_len, "char-test.bin", strlen("char-test.bin") + 1);
 }
 
 static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file, int *diff_port) {
-    bool img_loaded = false;
     char *log_file = NULL;
-    long img_size = 0;
+    char *img_file = NULL;
     *diff_so_file = NULL;
     *diff_port = 1234;
 
@@ -67,26 +82,52 @@ static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file
                 log_file = argv[++i];
             }
         } else if (argv[i][0] != '-') {
-            img_size = load_image(argv[i]);
-            img_loaded = true;
+            img_file = argv[i];
         }
     }
 
     init_log(log_file);
 
-    if (!img_loaded) {
-        load_default_image();
-        img_size = 40;
+#ifdef NPC_SIM_MODE_YSYXSOC
+    char default_flash_path[1024];
+    if (img_file == NULL) {
+        build_default_char_test_path((argc > 0) ? argv[0] : NULL, default_flash_path, sizeof(default_flash_path));
+        img_file = default_flash_path;
     }
 
-    return img_size;
+    flash_init_default_image();
+    if (!flash_load_boot_image(img_file)) {
+        fprintf(stderr, "Failed to load flash boot image: %s\n", img_file);
+        exit(1);
+    }
+
+    uint32_t boot_base = 0;
+    const uint8_t *boot_img = NULL;
+    size_t boot_size = 0;
+    if (!flash_get_boot_image_info(&boot_base, &boot_img, &boot_size) || boot_img == NULL || boot_size == 0) {
+        fprintf(stderr, "Failed to query loaded flash boot image information\n");
+        exit(1);
+    }
+    return (long)boot_size;
+#else
+    if (img_file != NULL) {
+        long img_size = load_image(img_file);
+        if (img_size <= 0) {
+            fprintf(stderr, "Failed to load image file: %s\n", img_file);
+            exit(1);
+        }
+        return img_size;
+    }
+    fprintf(stderr, "No image file specified\n");
+    exit(1);
+#endif
 }
 
 void init_monitor(int argc, char **argv) {
     VerilatedContext *contextp = new VerilatedContext;
     contextp->commandArgs(argc, argv);
 
-    Vtop *top = new Vtop{contextp};
+    SimTop *top = new SimTop{contextp};
     VerilatedVcdC *tfp = NULL;
 
     char *diff_so_file = NULL;
@@ -106,26 +147,42 @@ void init_monitor(int argc, char **argv) {
     g_contextp = contextp;
     g_tfp = tfp;
 
-    top->clk = 0;
-    top->rst = 1;
+#ifdef NPC_SIM_MODE_YSYXSOC
+    nvboard_bind_all_pins(top);
+    nvboard_init();
+#endif
+
+    top->clock = 0;
+    top->reset = 1;
+    sim_set_external_idle(top);
     top->eval();
     contextp->timeInc(1);
     if (tfp) tfp->dump(contextp->time());
 
-    // Reset for a few cycles.
-    for (int i = 0; i < 9; i++) {
-        top->clk = !top->clk;
+    // ChipLink requires reset to be held for at least 10 full cycles.
+    constexpr int kResetCycles = 10;
+    for (int cyc = 0; cyc < kResetCycles; cyc++) {
+        top->clock = 1;
+        top->eval();
+        contextp->timeInc(1);
+        if (tfp) tfp->dump(contextp->time());
+
+        top->clock = 0;
         top->eval();
         contextp->timeInc(1);
         if (tfp) tfp->dump(contextp->time());
     }
-    top->rst = 0;
+    top->reset = 0;
 
     init_difftest(diff_so_file, img_size, diff_port);
     Log("Simulation started...");
 }
 
 void npc_cleanup() {
+#ifdef NPC_SIM_MODE_YSYXSOC
+    nvboard_quit();
+#endif
+
     if (log_fp) {
         fclose(log_fp);
         log_fp = NULL;
