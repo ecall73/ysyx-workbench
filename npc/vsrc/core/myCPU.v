@@ -46,6 +46,7 @@ module myCPU #(
 
 `ifndef SYNTHESIS
     import "DPI-C" function void npc_commit(input int pc, input int inst);
+    import "DPI-C" function void npc_pmu_event(input int event_mask);
     export "DPI-C" function npc_get_gpr;
     function int npc_get_gpr(input int idx);
         begin
@@ -749,5 +750,106 @@ module myCPU #(
             end
         end
     `endif
+
+    // ================================================================
+    // PMU hooks (simulation-only, kept at module tail to avoid clutter)
+    // ================================================================
+`ifndef SYNTHESIS
+    localparam [31:0] PMU_EVT_IFU_R_FIRE      = 32'h0000_0001;
+    localparam [31:0] PMU_EVT_LSU_R_FIRE      = 32'h0000_0004;
+    localparam [31:0] PMU_EVT_EXU_DONE_FIRE   = 32'h0000_0008;
+    localparam [31:0] PMU_EVT_DEC_TOTAL       = 32'h0000_0010;
+    localparam [31:0] PMU_EVT_IFU_NOSUPPLY_TOTAL  = 32'h0000_0800;
+    localparam [31:0] PMU_EVT_IFU_WAIT_ARREADY    = 32'h0000_1000;
+    localparam [31:0] PMU_EVT_IFU_WAIT_RVALID     = 32'h0000_2000;
+    localparam [31:0] PMU_EVT_IFU_ID_BACKPRESSURE = 32'h0000_4000;
+    localparam [31:0] PMU_EVT_IFU_REDIRECT_DROP   = 32'h0000_8000;
+    localparam [31:0] PMU_EVT_LSU_LOAD_REQ        = 32'h0004_0000;
+    localparam [31:0] PMU_EVT_LSU_LOAD_PENDING_CYCLE = 32'h0020_0000;
+
+    localparam [1:0] PMU_IFU_AR_VALID   = 2'b00;
+    localparam [1:0] PMU_IFU_WAIT_RDATA = 2'b01;
+    localparam [1:0] PMU_IFU_HOLD_OUT   = 2'b10;
+
+    localparam [2:0] PMU_LSU_IDLE       = 3'd0;
+    localparam [2:0] PMU_LSU_RD_AR      = 3'd1;
+    localparam [2:0] PMU_LSU_RD_WAIT_R  = 3'd2;
+
+    wire        pmu_ifu_r_fire;
+    wire        pmu_ifu_nosupply;
+    wire        pmu_lsu_r_fire;
+    wire        pmu_lsu_load_req;
+    wire        pmu_lsu_load_pending;
+    wire        pmu_exu_done_fire;
+    wire        pmu_dec_total;
+    reg  [31:0] pmu_event_mask;
+
+    // Direct hierarchical reads: simulation-only, no extra submodule ports.
+    assign pmu_ifu_r_fire = u_ifu.r_fire;
+    assign pmu_ifu_nosupply = !(u_ifu.direct_valid || u_ifu.hold_fire);
+    assign pmu_lsu_r_fire = u_lsu.r_fire;
+    assign pmu_lsu_load_req = (u_lsu.state == PMU_LSU_IDLE) && ls_in_valid && u_lsu.ls_is_load;
+    assign pmu_lsu_load_pending = (u_lsu.state == PMU_LSU_RD_AR) || (u_lsu.state == PMU_LSU_RD_WAIT_R);
+    assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
+    assign pmu_dec_total = !redirect_flush && u_idu.id_out_valid && ex_in_ready && have_inst_ID;
+
+    always @(*) begin
+        pmu_event_mask = 32'b0;
+
+        if (!reset) begin
+            if (pmu_ifu_r_fire) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_R_FIRE;
+            end
+            if (pmu_ifu_nosupply) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
+                if (u_ifu.drop_active) begin
+                    pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
+                end else if (u_ifu.state == PMU_IFU_HOLD_OUT) begin
+                    pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;
+                end else if (u_ifu.state == PMU_IFU_WAIT_RDATA) begin
+                    if (u_ifu.r_fire) begin
+                        if (!if_out_ready) begin
+                            pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;
+                        end else begin
+                            pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
+                        end
+                    end else begin
+                        pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
+                    end
+                end else if (u_ifu.state == PMU_IFU_AR_VALID) begin
+                    if (ifu_axi_arvalid && !ifu_axi_arready) begin
+                        pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_ARREADY;
+                    end else begin
+                        pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
+                    end
+                end else begin
+                    pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
+                end
+            end
+            if (pmu_lsu_r_fire) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_LSU_R_FIRE;
+            end
+            if (pmu_lsu_load_req) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_LSU_LOAD_REQ;
+            end
+            if (pmu_lsu_load_pending) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_LSU_LOAD_PENDING_CYCLE;
+            end
+            if (pmu_exu_done_fire) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_EXU_DONE_FIRE;
+            end
+
+            if (pmu_dec_total) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_DEC_TOTAL;
+            end
+        end
+    end
+
+    always @(posedge clock) begin
+        if (!reset && (pmu_event_mask != 32'b0)) begin
+            npc_pmu_event(pmu_event_mask);
+        end
+    end
+`endif
 
 endmodule
