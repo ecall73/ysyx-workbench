@@ -270,7 +270,7 @@ module myCPU #(
     );
 
     icache #(
-        .LINE_WORDS             (1),
+        .LINE_WORDS             (4),
         .LINE_COUNT             (16),
         .ADDR_WIDTH             (32),
         .TARGET_NPC             (TARGET_NPC)
