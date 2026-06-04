@@ -26,7 +26,8 @@ module top
     wire        mem_axi_bready;
 
     myCPU #(
-        .RESET_PC             (32'h8000_0000)
+        .RESET_PC             (32'h8000_0000),
+        .TARGET_NPC           (1)
     ) Core_cpu (
         .clock                (clock),
         .reset                (reset),

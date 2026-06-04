@@ -55,6 +55,9 @@ struct PmuCounters {
     uint64_t lsu_load_pending_cycle;
     uint64_t exu_done_fire;
     uint64_t dec_total;
+    uint64_t icache_hit;
+    uint64_t icache_miss;
+    uint64_t icache_miss_refill_cycle;
 };
 
 static PmuCounters g_pmu = {};
@@ -110,6 +113,9 @@ extern "C" void npc_pmu_event(int event_mask) {
     if (mask & NPC_PMU_EVT_LSU_LOAD_PENDING_CYCLE) g_pmu.lsu_load_pending_cycle++;
     if (mask & NPC_PMU_EVT_EXU_DONE_FIRE) g_pmu.exu_done_fire++;
     if (mask & NPC_PMU_EVT_DEC_TOTAL) g_pmu.dec_total++;
+    if (mask & NPC_PMU_EVT_ICACHE_HIT) g_pmu.icache_hit++;
+    if (mask & NPC_PMU_EVT_ICACHE_MISS) g_pmu.icache_miss++;
+    if (mask & NPC_PMU_EVT_ICACHE_MISS_REFILL_CYCLE) g_pmu.icache_miss_refill_cycle++;
 }
 
 static uint64_t get_time_us() {
@@ -158,12 +164,32 @@ static void statistic() {
     PmuLog("lsu_load_pending_cycle = %" PRIu64, g_pmu.lsu_load_pending_cycle);
     PmuLog("exu_done_fire   = %" PRIu64, g_pmu.exu_done_fire);
     PmuLog("dec_total       = %" PRIu64, dec_total);
+    PmuLog("icache_hit      = %" PRIu64, g_pmu.icache_hit);
+    PmuLog("icache_miss     = %" PRIu64, g_pmu.icache_miss);
+    PmuLog("icache_miss_refill_cycle = %" PRIu64, g_pmu.icache_miss_refill_cycle);
 
     if (g_nr_sim_cycle > 0) {
         PmuLog("rate.ifu_r/cycle      = %.4f", ratio(g_pmu.ifu_r_fire, g_nr_sim_cycle));
         PmuLog("rate.ifu_nosupply/cycle = %.4f", ratio(g_pmu.ifu_nosupply_total, g_nr_sim_cycle));
         PmuLog("rate.exu_done/cycle   = %.4f", ratio(g_pmu.exu_done_fire, g_nr_sim_cycle));
         PmuLog("rate.instret/cycle    = %.4f", ratio(g_nr_guest_inst, g_nr_sim_cycle));
+    }
+
+    if (g_pmu.icache_hit + g_pmu.icache_miss > 0) {
+        uint64_t cacheable_lookup = g_pmu.icache_hit + g_pmu.icache_miss;
+        double hit_rate = ratio(g_pmu.icache_hit, cacheable_lookup);
+        double miss_rate = ratio(g_pmu.icache_miss, cacheable_lookup);
+        double miss_penalty = ratio(g_pmu.icache_miss_refill_cycle, g_pmu.icache_miss);
+        double access_time = 1.0;
+        double amat = access_time + miss_rate * miss_penalty;
+
+        PmuLog("=== PMU ICache AMAT ===");
+        PmuLog("icache.cacheable_lookup = %" PRIu64, cacheable_lookup);
+        PmuLog("icache.hit_rate(cacheable lookup) = %.2f%%", 100.0 * hit_rate);
+        PmuLog("icache.miss_rate(cacheable lookup) = %.2f%%", 100.0 * miss_rate);
+        PmuLog("icache.access_time(cycle) = %.3f", access_time);
+        PmuLog("icache.avg_miss_penalty(cycle) = %.3f", miss_penalty);
+        PmuLog("icache.AMAT(cycle/cacheable_access) = %.3f", amat);
     }
 
     PmuLog("=== PMU IFU no-supply breakdown ===");

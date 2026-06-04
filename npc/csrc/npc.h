@@ -70,6 +70,9 @@ void init_log(const char *log_file);
 #define NPC_PMU_EVT_IFU_REDIRECT_DROP    (1u << 15)
 #define NPC_PMU_EVT_LSU_LOAD_REQ         (1u << 18)
 #define NPC_PMU_EVT_LSU_LOAD_PENDING_CYCLE (1u << 21)
+#define NPC_PMU_EVT_ICACHE_HIT           (1u << 22)
+#define NPC_PMU_EVT_ICACHE_MISS          (1u << 23)
+#define NPC_PMU_EVT_ICACHE_MISS_REFILL_CYCLE (1u << 24)
 
 extern bool is_finished;
 extern int trap_a0;

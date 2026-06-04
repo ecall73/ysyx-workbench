@@ -1,7 +1,8 @@
 `timescale 1ns / 1ps
 
 module myCPU #(
-    parameter [31:0] RESET_PC = 32'h3000_0000
+    parameter [31:0] RESET_PC = 32'h3000_0000,
+    parameter integer TARGET_NPC = 0
 ) (
     input  wire        clock,
     input  wire        reset,
@@ -69,6 +70,16 @@ module myCPU #(
     wire [31:0] if_pc4;
     wire [31:0] if_inst;
     wire        if_out_ready;
+
+    // IFU <-> ICache
+    wire        ic_req_valid;
+    wire        ic_req_ready;
+    wire [31:0] ic_req_pc;
+    wire        ic_resp_valid;
+    wire        ic_resp_ready;
+    wire [31:0] ic_resp_pc;
+    wire [31:0] ic_resp_inst;
+    wire        ic_flush;
 
     // ID
     reg         id_in_valid;
@@ -241,6 +252,41 @@ module myCPU #(
         .if_out_ready           (if_out_ready),
         .redirect_flush         (redirect_flush),
 
+        .ic_req_valid           (ic_req_valid),
+        .ic_req_ready           (ic_req_ready),
+        .ic_req_pc              (ic_req_pc),
+        .ic_resp_valid          (ic_resp_valid),
+        .ic_resp_ready          (ic_resp_ready),
+        .ic_resp_pc             (ic_resp_pc),
+        .ic_resp_inst           (ic_resp_inst),
+        .ic_flush               (ic_flush),
+
+        .if_out_valid           (if_out_valid),
+        .if_pc                  (if_pc),
+        .if_pc4                 (if_pc4),
+        .if_inst                (if_inst),
+
+        .npc                    (npc)
+    );
+
+    icache #(
+        .LINE_WORDS             (1),
+        .LINE_COUNT             (16),
+        .ADDR_WIDTH             (32),
+        .TARGET_NPC             (TARGET_NPC)
+    ) u_icache (
+        .clock                  (clock),
+        .reset                  (reset),
+
+        .ic_req_valid           (ic_req_valid),
+        .ic_req_ready           (ic_req_ready),
+        .ic_req_pc              (ic_req_pc),
+        .ic_resp_valid          (ic_resp_valid),
+        .ic_resp_ready          (ic_resp_ready),
+        .ic_resp_pc             (ic_resp_pc),
+        .ic_resp_inst           (ic_resp_inst),
+        .ic_flush               (ic_flush),
+
         .ifu_axi_araddr         (ifu_axi_araddr),
         .ifu_axi_arvalid        (ifu_axi_arvalid),
         .ifu_axi_arready        (ifu_axi_arready),
@@ -257,14 +303,7 @@ module myCPU #(
         .ifu_axi_wready         (ifu_axi_wready),
         .ifu_axi_bresp          (ifu_axi_bresp),
         .ifu_axi_bvalid         (ifu_axi_bvalid),
-        .ifu_axi_bready         (ifu_axi_bready),
-
-        .if_out_valid           (if_out_valid),
-        .if_pc                  (if_pc),
-        .if_pc4                 (if_pc4),
-        .if_inst                (if_inst),
-
-        .npc                    (npc)
+        .ifu_axi_bready         (ifu_axi_bready)
     );
 
     // ================================================================
@@ -766,10 +805,13 @@ module myCPU #(
     localparam [31:0] PMU_EVT_IFU_REDIRECT_DROP   = 32'h0000_8000;
     localparam [31:0] PMU_EVT_LSU_LOAD_REQ        = 32'h0004_0000;
     localparam [31:0] PMU_EVT_LSU_LOAD_PENDING_CYCLE = 32'h0020_0000;
+    localparam [31:0] PMU_EVT_ICACHE_HIT          = 32'h0040_0000;
+    localparam [31:0] PMU_EVT_ICACHE_MISS         = 32'h0080_0000;
+    localparam [31:0] PMU_EVT_ICACHE_MISS_REFILL_CYCLE = 32'h0100_0000;
 
-    localparam [1:0] PMU_IFU_AR_VALID   = 2'b00;
-    localparam [1:0] PMU_IFU_WAIT_RDATA = 2'b01;
-    localparam [1:0] PMU_IFU_HOLD_OUT   = 2'b10;
+    localparam [1:0] PMU_ICACHE_LOOKUP  = 2'd0;
+    localparam [1:0] PMU_ICACHE_MISS_AR = 2'd1;
+    localparam [1:0] PMU_ICACHE_MISS_R  = 2'd2;
 
     localparam [2:0] PMU_LSU_IDLE       = 3'd0;
     localparam [2:0] PMU_LSU_RD_AR      = 3'd1;
@@ -782,16 +824,20 @@ module myCPU #(
     wire        pmu_lsu_load_pending;
     wire        pmu_exu_done_fire;
     wire        pmu_dec_total;
+    wire        pmu_icache_miss_refill_busy;
     reg  [31:0] pmu_event_mask;
 
     // Direct hierarchical reads: simulation-only, no extra submodule ports.
-    assign pmu_ifu_r_fire = u_ifu.r_fire;
-    assign pmu_ifu_nosupply = !(u_ifu.direct_valid || u_ifu.hold_fire);
+    assign pmu_ifu_r_fire = if_out_valid && if_out_ready;
+    assign pmu_ifu_nosupply = !pmu_ifu_r_fire;
     assign pmu_lsu_r_fire = u_lsu.r_fire;
     assign pmu_lsu_load_req = (u_lsu.state == PMU_LSU_IDLE) && ls_in_valid && u_lsu.ls_is_load;
     assign pmu_lsu_load_pending = (u_lsu.state == PMU_LSU_RD_AR) || (u_lsu.state == PMU_LSU_RD_WAIT_R);
     assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
     assign pmu_dec_total = !redirect_flush && u_idu.id_out_valid && ex_in_ready && have_inst_ID;
+    assign pmu_icache_miss_refill_busy =
+        ((u_icache.state == PMU_ICACHE_MISS_AR) ||
+         (u_icache.state == PMU_ICACHE_MISS_R)) && !u_icache.miss_bypass;
 
     always @(*) begin
         pmu_event_mask = 32'b0;
@@ -802,29 +848,24 @@ module myCPU #(
             end
             if (pmu_ifu_nosupply) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
-                if (u_ifu.drop_active) begin
+                if (redirect_flush || u_icache.need_flush) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
-                end else if (u_ifu.state == PMU_IFU_HOLD_OUT) begin
+                end else if (if_out_valid && !if_out_ready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;
-                end else if (u_ifu.state == PMU_IFU_WAIT_RDATA) begin
-                    if (u_ifu.r_fire) begin
-                        if (!if_out_ready) begin
-                            pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;
-                        end else begin
-                            pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
-                        end
-                    end else begin
-                        pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
-                    end
-                end else if (u_ifu.state == PMU_IFU_AR_VALID) begin
-                    if (ifu_axi_arvalid && !ifu_axi_arready) begin
-                        pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_ARREADY;
-                    end else begin
-                        pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
-                    end
+                end else if (ifu_axi_arvalid && !ifu_axi_arready) begin
+                    pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_ARREADY;
                 end else begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
                 end
+            end
+            if (u_icache.lookup_resp_valid) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_HIT;
+            end
+            if ((u_icache.state == PMU_ICACHE_LOOKUP) && u_icache.cache_miss) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_MISS;
+            end
+            if (pmu_icache_miss_refill_busy) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_MISS_REFILL_CYCLE;
             end
             if (pmu_lsu_r_fire) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_LSU_R_FIRE;

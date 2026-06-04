@@ -390,7 +390,8 @@ module ysyx_26030082 (
 `endif
 
     myCPU #(
-        .RESET_PC             (32'h3000_0000)
+        .RESET_PC             (32'h3000_0000),
+        .TARGET_NPC           (0)
     ) u_cpu (
         .clock                (clock),
         .reset                (reset),
