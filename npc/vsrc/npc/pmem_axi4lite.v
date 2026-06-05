@@ -4,11 +4,14 @@ module pmem_axi4lite (
     input  wire        reset,
     // AXI read address channel
     input  wire [31:0] pmem_axi_araddr,
+    input  wire [ 7:0] pmem_axi_arlen,
+    input  wire [ 1:0] pmem_axi_arburst,
     input  wire        pmem_axi_arvalid,
     output wire        pmem_axi_arready,
     // AXI read data channel
     output wire [31:0] pmem_axi_rdata,
     output wire [ 1:0] pmem_axi_rresp,
+    output wire        pmem_axi_rlast,
     output wire        pmem_axi_rvalid,
     input  wire        pmem_axi_rready,
     // AXI write address channel
@@ -37,6 +40,9 @@ module pmem_axi4lite (
     reg [1:0] state;
 
     reg [31:0] rd_data_reg;
+    reg [31:0] rd_addr_reg;
+    reg [ 7:0] rd_beats_left;
+    reg [ 1:0] rd_burst_reg;
     reg [31:0] wr_addr_reg;
     reg [31:0] wr_data_reg;
     reg [ 3:0] wr_strb_reg;
@@ -58,6 +64,7 @@ module pmem_axi4lite (
     assign pmem_axi_rvalid  = (state == S_RD_RESP);
     assign pmem_axi_rdata   = rd_data_reg;
     assign pmem_axi_rresp   = 2'b00;
+    assign pmem_axi_rlast   = (rd_beats_left == 8'd1);
 
     // The upstream bridge serializes requests, so IDLE can expose READY directly.
     assign pmem_axi_awready = (state == S_IDLE) || ((state == S_WR_COLLECT) && !aw_captured);
@@ -80,6 +87,9 @@ module pmem_axi4lite (
         if (reset) begin
             state        <= S_IDLE;
             rd_data_reg  <= 32'b0;
+            rd_addr_reg  <= 32'b0;
+            rd_beats_left <= 8'b0;
+            rd_burst_reg <= 2'b0;
             wr_addr_reg  <= 32'b0;
             wr_data_reg  <= 32'b0;
             wr_strb_reg  <= 4'b0;
@@ -93,6 +103,9 @@ module pmem_axi4lite (
 
                     if (ar_fire) begin
                         rd_data_reg <= pmem_read(pmem_axi_araddr);
+                        rd_addr_reg <= pmem_axi_araddr;
+                        rd_beats_left <= pmem_axi_arlen + 8'd1;
+                        rd_burst_reg <= pmem_axi_arburst;
                         state <= S_RD_RESP;
                     end else if (aw_fire || w_fire) begin
                         if (aw_fire) begin
@@ -116,7 +129,21 @@ module pmem_axi4lite (
 
                 S_RD_RESP: begin
                     if (r_fire) begin
-                        state <= S_IDLE;
+                        if (rd_beats_left == 8'd1) begin
+                            state <= S_IDLE;
+                        end else begin
+                            rd_beats_left <= rd_beats_left - 8'd1;
+                            case (rd_burst_reg)
+                                2'b00: rd_addr_reg <= rd_addr_reg;
+                                2'b01: rd_addr_reg <= rd_addr_reg + 32'd4;
+                                default: rd_addr_reg <= rd_addr_reg + 32'd4;
+                            endcase
+                            case (rd_burst_reg)
+                                2'b00: rd_data_reg <= pmem_read(rd_addr_reg);
+                                2'b01: rd_data_reg <= pmem_read(rd_addr_reg + 32'd4);
+                                default: rd_data_reg <= pmem_read(rd_addr_reg + 32'd4);
+                            endcase
+                        end
                     end
                 end
 
@@ -151,4 +178,15 @@ module pmem_axi4lite (
             endcase
         end
     end
+
+`ifndef SYNTHESIS
+    always @(posedge clock) begin
+        if (!reset) begin
+            if (pmem_axi_arvalid && pmem_axi_arready &&
+                (pmem_axi_arburst != 2'b00) && (pmem_axi_arburst != 2'b01)) begin
+                $fatal(1, "pmem_axi4lite: unsupported read burst type %0b", pmem_axi_arburst);
+            end
+        end
+    end
+`endif
 endmodule

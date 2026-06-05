@@ -5,23 +5,35 @@ module perip_bridge (
     input  wire        reset,
     // AXI read address channel
     input  wire [31:0] mem_axi_araddr,
+    input  wire [ 3:0] mem_axi_arid,
+    input  wire [ 7:0] mem_axi_arlen,
+    input  wire [ 2:0] mem_axi_arsize,
+    input  wire [ 1:0] mem_axi_arburst,
     input  wire        mem_axi_arvalid,
     output reg         mem_axi_arready,
     // AXI read data channel
+    output reg  [ 3:0] mem_axi_rid,
     output reg  [31:0] mem_axi_rdata,
     output reg  [ 1:0] mem_axi_rresp,
+    output reg         mem_axi_rlast,
     output reg         mem_axi_rvalid,
     input  wire        mem_axi_rready,
     // AXI write address channel
     input  wire [31:0] mem_axi_awaddr,
+    input  wire [ 3:0] mem_axi_awid,
+    input  wire [ 7:0] mem_axi_awlen,
+    input  wire [ 2:0] mem_axi_awsize,
+    input  wire [ 1:0] mem_axi_awburst,
     input  wire        mem_axi_awvalid,
     output reg         mem_axi_awready,
     // AXI write data channel
     input  wire [31:0] mem_axi_wdata,
     input  wire [ 3:0] mem_axi_wstrb,
+    input  wire        mem_axi_wlast,
     input  wire        mem_axi_wvalid,
     output reg         mem_axi_wready,
     // AXI write response channel
+    output reg  [ 3:0] mem_axi_bid,
     output reg  [ 1:0] mem_axi_bresp,
     output reg         mem_axi_bvalid,
     input  wire        mem_axi_bready
@@ -75,10 +87,13 @@ module perip_bridge (
 
     // Xbar -> PMEM
     reg  [31:0] pmem_axi_araddr;
+    reg  [ 7:0] pmem_axi_arlen;
+    reg  [ 1:0] pmem_axi_arburst;
     reg         pmem_axi_arvalid;
     wire        pmem_axi_arready;
     wire [31:0] pmem_axi_rdata;
     wire [ 1:0] pmem_axi_rresp;
+    wire        pmem_axi_rlast;
     wire        pmem_axi_rvalid;
     reg         pmem_axi_rready;
     reg  [31:0] pmem_axi_awaddr;
@@ -162,15 +177,20 @@ module perip_bridge (
 
     always @(*) begin
         mem_axi_arready = 1'b0;
+        mem_axi_rid     = 4'b0;
         mem_axi_rdata   = 32'b0;
         mem_axi_rresp   = 2'b00;
+        mem_axi_rlast   = 1'b0;
         mem_axi_rvalid  = 1'b0;
         mem_axi_awready = 1'b0;
         mem_axi_wready  = 1'b0;
+        mem_axi_bid     = 4'b0;
         mem_axi_bresp   = 2'b00;
         mem_axi_bvalid  = 1'b0;
 
         pmem_axi_araddr  = 32'b0;
+        pmem_axi_arlen   = 8'b0;
+        pmem_axi_arburst = 2'b0;
         pmem_axi_arvalid = 1'b0;
         pmem_axi_rready  = 1'b0;
         pmem_axi_awaddr  = 32'b0;
@@ -220,6 +240,8 @@ module perip_bridge (
                         end
                         default: begin
                             pmem_axi_araddr  = mem_axi_araddr;
+                            pmem_axi_arlen   = mem_axi_arlen;
+                            pmem_axi_arburst = mem_axi_arburst;
                             pmem_axi_arvalid = mem_axi_arvalid;
                             mem_axi_arready  = pmem_axi_arready;
                         end
@@ -230,20 +252,26 @@ module perip_bridge (
             R_WAIT_R: begin
                 case (rd_sel)
                     SEL_UART: begin
+                        mem_axi_rid    = 4'b0;
                         mem_axi_rdata  = uart_axi_rdata;
                         mem_axi_rresp  = uart_axi_rresp;
+                        mem_axi_rlast  = 1'b1;
                         mem_axi_rvalid = uart_axi_rvalid;
                         uart_axi_rready = mem_axi_rready;
                     end
                     SEL_CLINT: begin
+                        mem_axi_rid     = 4'b0;
                         mem_axi_rdata   = clint_axi_rdata;
                         mem_axi_rresp   = clint_axi_rresp;
+                        mem_axi_rlast   = 1'b1;
                         mem_axi_rvalid  = clint_axi_rvalid;
                         clint_axi_rready = mem_axi_rready;
                     end
                     default: begin
+                        mem_axi_rid    = 4'b0;
                         mem_axi_rdata  = pmem_axi_rdata;
                         mem_axi_rresp  = pmem_axi_rresp;
+                        mem_axi_rlast  = pmem_axi_rlast;
                         mem_axi_rvalid = pmem_axi_rvalid;
                         pmem_axi_rready = mem_axi_rready;
                     end
@@ -307,16 +335,19 @@ module perip_bridge (
             W_WAIT_B: begin
                 case (wr_sel)
                     SEL_UART: begin
+                        mem_axi_bid    = 4'b0;
                         mem_axi_bresp  = uart_axi_bresp;
                         mem_axi_bvalid = uart_axi_bvalid;
                         uart_axi_bready = mem_axi_bready;
                     end
                     SEL_CLINT: begin
+                        mem_axi_bid     = 4'b0;
                         mem_axi_bresp   = clint_axi_bresp;
                         mem_axi_bvalid  = clint_axi_bvalid;
                         clint_axi_bready = mem_axi_bready;
                     end
                     default: begin
+                        mem_axi_bid    = 4'b0;
                         mem_axi_bresp  = pmem_axi_bresp;
                         mem_axi_bvalid = pmem_axi_bvalid;
                         pmem_axi_bready = mem_axi_bready;
@@ -349,7 +380,7 @@ module perip_bridge (
                 end
 
                 R_WAIT_R: begin
-                    if (r_fire) begin
+                    if (r_fire && mem_axi_rlast) begin
                         rd_state <= R_IDLE;
                     end
                 end
@@ -418,10 +449,13 @@ module perip_bridge (
         .clock                (clock),
         .reset                (reset),
         .pmem_axi_araddr    (pmem_axi_araddr),
+        .pmem_axi_arlen     (pmem_axi_arlen),
+        .pmem_axi_arburst   (pmem_axi_arburst),
         .pmem_axi_arvalid   (pmem_axi_arvalid),
         .pmem_axi_arready   (pmem_axi_arready),
         .pmem_axi_rdata     (pmem_axi_rdata),
         .pmem_axi_rresp     (pmem_axi_rresp),
+        .pmem_axi_rlast     (pmem_axi_rlast),
         .pmem_axi_rvalid    (pmem_axi_rvalid),
         .pmem_axi_rready    (pmem_axi_rready),
         .pmem_axi_awaddr    (pmem_axi_awaddr),
@@ -482,4 +516,22 @@ module perip_bridge (
         .clint_axi_bvalid   (clint_axi_bvalid),
         .clint_axi_bready   (clint_axi_bready)
     );
+
+`ifndef SYNTHESIS
+    always @(posedge clock) begin
+        if (!reset) begin
+            if (mem_axi_arvalid && mem_axi_arready && (ar_sel != SEL_PMEM) &&
+                ((mem_axi_arlen != 8'h00) || (mem_axi_arburst != 2'b00))) begin
+                $fatal(1, "perip_bridge: MMIO burst read is not supported addr=%08x", mem_axi_araddr);
+            end
+            if (mem_axi_awvalid && mem_axi_awready &&
+                ((mem_axi_awlen != 8'h00) || (mem_axi_awburst != 2'b00))) begin
+                $fatal(1, "perip_bridge: burst write is not supported addr=%08x", mem_axi_awaddr);
+            end
+            if (mem_axi_wvalid && mem_axi_wready && (mem_axi_wlast != 1'b1)) begin
+                $fatal(1, "perip_bridge: WLAST must be 1 for single-beat write");
+            end
+        end
+    end
+`endif
 endmodule

@@ -164,12 +164,15 @@ module myCPU #(
     wire        id_out_valid;   // From IDU handshake output
     wire        ex_out_valid;   // From EXU handshake output
 
-    // IFU AXI4-Lite (internal master)
+    // IFU AXI4 (read-only in practice)
     wire [31:0] ifu_axi_araddr;
+    wire [ 7:0] ifu_axi_arlen;
+    wire [ 1:0] ifu_axi_arburst;
     wire        ifu_axi_arvalid;
     wire        ifu_axi_arready;
     wire [31:0] ifu_axi_rdata;
     wire [ 1:0] ifu_axi_rresp;
+    wire        ifu_axi_rlast;
     wire        ifu_axi_rvalid;
     wire        ifu_axi_rready;
     wire [31:0] ifu_axi_awaddr;
@@ -288,10 +291,13 @@ module myCPU #(
         .ic_flush               (ic_flush),
 
         .ifu_axi_araddr         (ifu_axi_araddr),
+        .ifu_axi_arlen          (ifu_axi_arlen),
+        .ifu_axi_arburst        (ifu_axi_arburst),
         .ifu_axi_arvalid        (ifu_axi_arvalid),
         .ifu_axi_arready        (ifu_axi_arready),
         .ifu_axi_rdata          (ifu_axi_rdata),
         .ifu_axi_rresp          (ifu_axi_rresp),
+        .ifu_axi_rlast          (ifu_axi_rlast),
         .ifu_axi_rvalid         (ifu_axi_rvalid),
         .ifu_axi_rready         (ifu_axi_rready),
         .ifu_axi_awaddr         (ifu_axi_awaddr),
@@ -670,10 +676,13 @@ module myCPU #(
         .reset                     (reset),
 
         .ifu_axi_araddr          (ifu_axi_araddr),
+        .ifu_axi_arlen           (ifu_axi_arlen),
+        .ifu_axi_arburst         (ifu_axi_arburst),
         .ifu_axi_arvalid         (ifu_axi_arvalid),
         .ifu_axi_arready         (ifu_axi_arready),
         .ifu_axi_rdata           (ifu_axi_rdata),
         .ifu_axi_rresp           (ifu_axi_rresp),
+        .ifu_axi_rlast           (ifu_axi_rlast),
         .ifu_axi_rvalid          (ifu_axi_rvalid),
         .ifu_axi_rready          (ifu_axi_rready),
         .ifu_axi_awaddr          (ifu_axi_awaddr),

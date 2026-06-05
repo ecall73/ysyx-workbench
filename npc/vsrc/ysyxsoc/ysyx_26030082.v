@@ -140,6 +140,7 @@ module ysyx_26030082 (
     wire b_fire;
     wire aw_done_next;
     wire w_done_next;
+    wire wr_sel_clint_cur;
 
     assign ar_to_clint = (core_axi_araddr >= CLINT_BASE_ADDR) && (core_axi_araddr <= CLINT_END_ADDR);
     assign aw_to_clint = (core_axi_awaddr >= CLINT_BASE_ADDR) && (core_axi_awaddr <= CLINT_END_ADDR);
@@ -151,6 +152,7 @@ module ysyx_26030082 (
     assign b_fire = core_axi_bvalid && core_axi_bready;
     assign aw_done_next = wr_aw_done || aw_fire;
     assign w_done_next = wr_w_done || w_fire;
+    assign wr_sel_clint_cur = wr_aw_done ? wr_sel_clint : aw_to_clint;
 
     // Unused slave port is tied off to zero.
     assign io_slave_awready = 1'b0;
@@ -264,8 +266,8 @@ module ysyx_26030082 (
                     end
                 end
 
-                if (wr_aw_done && ~wr_w_done) begin
-                    if (wr_sel_clint) begin
+                if (~wr_w_done) begin
+                    if (wr_sel_clint_cur) begin
                         clint_axi_wdata = core_axi_wdata;
                         clint_axi_wstrb = core_axi_wstrb;
                         clint_axi_wvalid = core_axi_wvalid;
@@ -325,7 +327,7 @@ module ysyx_26030082 (
                 end
 
                 X_RD_WAIT_R: begin
-                    if (r_fire) begin
+                    if (r_fire && core_axi_rlast) begin
                         state <= X_IDLE;
                     end
                 end
@@ -366,8 +368,8 @@ module ysyx_26030082 (
 `ifndef SYNTHESIS
     always @(posedge clock) begin
         if (!reset) begin
-            if (core_axi_arvalid && core_axi_arready && (core_axi_arlen != 8'h00)) begin
-                $fatal(1, "ysyx_26030082: burst read is not supported");
+            if (core_axi_arvalid && core_axi_arready && ar_to_clint && (core_axi_arlen != 8'h00)) begin
+                $fatal(1, "ysyx_26030082: CLINT burst read is not supported");
             end
             if (core_axi_awvalid && core_axi_awready && (core_axi_awlen != 8'h00)) begin
                 $fatal(1, "ysyx_26030082: burst write is not supported");

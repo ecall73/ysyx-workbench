@@ -19,12 +19,15 @@ module icache #(
     output wire [31:0] ic_resp_inst,
     input  wire        ic_flush,
 
-    // AXI4-Lite read master interface
+    // AXI4 read master interface
     output wire [31:0] ifu_axi_araddr,
+    output wire [ 7:0] ifu_axi_arlen,
+    output wire [ 1:0] ifu_axi_arburst,
     output wire        ifu_axi_arvalid,
     input  wire        ifu_axi_arready,
     input  wire [31:0] ifu_axi_rdata,
     input  wire [ 1:0] ifu_axi_rresp,
+    input  wire        ifu_axi_rlast,
     input  wire        ifu_axi_rvalid,
     output wire        ifu_axi_rready,
 
@@ -41,8 +44,8 @@ module icache #(
     output wire        ifu_axi_bready
 );
     localparam integer WORD_OFF_W      = 2;
-    localparam integer LINE_ADDR_OFF_W = (LINE_WORDS > 1) ? $clog2(LINE_WORDS) : 0;
-    localparam integer LINE_WORD_OFF_W = (LINE_WORDS > 1) ? $clog2(LINE_WORDS) : 1;
+    localparam integer LINE_ADDR_OFF_W = $clog2(LINE_WORDS);
+    localparam integer LINE_WORD_OFF_W = $clog2((LINE_WORDS < 2) ? 2 : LINE_WORDS);
     localparam integer INDEX_W         = $clog2(LINE_COUNT);
     localparam integer OFFSET_W        = WORD_OFF_W + LINE_ADDR_OFF_W;
     localparam integer TAG_W           = ADDR_WIDTH - INDEX_W - OFFSET_W;
@@ -79,7 +82,6 @@ module icache #(
     reg               miss_bypass;
     reg               need_flush;
 
-    wire [LINE_WORD_OFF_W-1:0] req_word_offset_raw;
     wire [LINE_WORD_OFF_W-1:0] req_word_offset;
     wire [INDEX_W-1:0] req_index;
     wire [TAG_W-1:0]   req_tag;
@@ -101,8 +103,7 @@ module icache #(
     reg [31:0] refill_inst;
 
     wire [31:0] miss_line_base;
-    wire [31:0] refill_addr_offset;
-
+    localparam [31:0] LINE_WORD_MASK_FULL = LINE_WORDS - 1;
     integer i;
     integer j;
     integer k;
@@ -115,14 +116,14 @@ module icache #(
                     ((addr >= 32'h8000_0000) && (addr < 32'h8800_0000));
             end else begin
                 is_cacheable =
-                    ((addr >= 32'h3000_0000) && (addr < 32'h3100_0000)) ||
                     ((addr >= 32'ha000_0000) && (addr < 32'ha200_0000));
             end
         end
     endfunction
 
-    assign req_word_offset_raw = ic_req_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
-    assign req_word_offset = (LINE_WORDS == 1) ? {LINE_WORD_OFF_W{1'b0}} : req_word_offset_raw;
+    assign req_word_offset =
+        ic_req_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W] &
+        LINE_WORD_MASK_FULL[LINE_WORD_OFF_W - 1 : 0];
     assign req_index = ic_req_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
     assign req_tag = ic_req_pc[ADDR_WIDTH - 1 : OFFSET_W + INDEX_W];
     assign req_cacheable = is_cacheable(ic_req_pc);
@@ -152,10 +153,11 @@ module icache #(
     assign req_fire = ic_req_valid && ic_req_ready;
 
     assign miss_line_base = {miss_pc[ADDR_WIDTH - 1 : OFFSET_W], {OFFSET_W{1'b0}}};
-    assign refill_addr_offset = ({{(ADDR_WIDTH - LINE_WORD_OFF_W){1'b0}}, refill_word_idx}) << WORD_OFF_W;
     assign ifu_axi_araddr = miss_bypass ?
         {miss_pc[ADDR_WIDTH - 1 : WORD_OFF_W], {WORD_OFF_W{1'b0}}} :
-        (miss_line_base + refill_addr_offset);
+        miss_line_base;
+    assign ifu_axi_arlen = miss_bypass ? 8'h00 : (LINE_WORDS[7:0] - 8'd1);
+    assign ifu_axi_arburst = miss_bypass ? 2'b00 : 2'b01;
     assign ifu_axi_arvalid = (state == S_MISS_AR);
     assign ifu_axi_rready = (state == S_MISS_R);
     assign ar_fire = ifu_axi_arvalid && ifu_axi_arready;
@@ -310,20 +312,21 @@ module icache #(
                                 hold_inst <= ifu_axi_rdata;
                             end
                             state <= S_LOOKUP;
-                        end else if (refill_is_last_word) begin
-                            tag_array[miss_index] <= miss_tag;
-                            valid_array[miss_index] <= 1'b1;
-                            if (discard_resp) begin
-                                need_flush <= 1'b0;
-                            end else begin
-                                hold_valid <= 1'b1;
-                                hold_pc <= miss_pc;
-                                hold_inst <= refill_inst;
-                            end
-                            state <= S_LOOKUP;
                         end else begin
-                            refill_word_idx <= refill_word_idx + 1'b1;
-                            state <= S_MISS_AR;
+                            if (refill_is_last_word) begin
+                                tag_array[miss_index] <= miss_tag;
+                                valid_array[miss_index] <= 1'b1;
+                                if (discard_resp) begin
+                                    need_flush <= 1'b0;
+                                end else begin
+                                    hold_valid <= 1'b1;
+                                    hold_pc <= miss_pc;
+                                    hold_inst <= refill_inst;
+                                end
+                                state <= S_LOOKUP;
+                            end else begin
+                                refill_word_idx <= refill_word_idx + 1'b1;
+                            end
                         end
                     end
                 end
@@ -352,6 +355,9 @@ module icache #(
         if ((LINE_COUNT & (LINE_COUNT - 1)) != 0) begin
             $fatal(1, "icache LINE_COUNT must be a power of two");
         end
+        if (LINE_WORDS > 256) begin
+            $fatal(1, "icache LINE_WORDS must be <= 256");
+        end
         if (ADDR_WIDTH != 32) begin
             $fatal(1, "icache first version only supports ADDR_WIDTH=32");
         end
@@ -366,6 +372,14 @@ module icache #(
     always @(posedge clock) begin
         if (!reset && req_fire && (ic_req_pc[1:0] != 2'b00)) begin
             $fatal(1, "unaligned icache fetch pc=%08x", ic_req_pc);
+        end
+        if (!reset && (state == S_MISS_R) && !miss_bypass && r_fire) begin
+            if (refill_is_last_word && !ifu_axi_rlast) begin
+                $fatal(1, "icache burst refill missing rlast on final beat pc=%08x", miss_pc);
+            end
+            if (!refill_is_last_word && ifu_axi_rlast) begin
+                $fatal(1, "icache burst refill saw early rlast pc=%08x beat=%0d", miss_pc, refill_word_idx);
+            end
         end
     end
 `endif

@@ -5,10 +5,13 @@ module axi4lite_arbiter (
     input  wire        reset,
     // IFU master interface
     input  wire [31:0] ifu_axi_araddr,
+    input  wire [ 7:0] ifu_axi_arlen,
+    input  wire [ 1:0] ifu_axi_arburst,
     input  wire        ifu_axi_arvalid,
     output reg         ifu_axi_arready,
     output reg  [31:0] ifu_axi_rdata,
     output reg  [ 1:0] ifu_axi_rresp,
+    output reg         ifu_axi_rlast,
     output reg         ifu_axi_rvalid,
     input  wire        ifu_axi_rready,
     input  wire [31:0] ifu_axi_awaddr,
@@ -141,6 +144,7 @@ module axi4lite_arbiter (
         ifu_axi_arready = 1'b0;
         ifu_axi_rdata = 32'b0;
         ifu_axi_rresp = 2'b00;
+        ifu_axi_rlast = 1'b0;
         ifu_axi_rvalid = 1'b0;
         ifu_axi_awready = 1'b0;
         ifu_axi_wready = 1'b0;
@@ -248,9 +252,9 @@ module axi4lite_arbiter (
             A_IFU_RD_AR: begin
                 mem_axi_araddr = ifu_axi_araddr;
                 mem_axi_arid = 4'h1;
-                mem_axi_arlen = 8'h00;
+                mem_axi_arlen = ifu_axi_arlen;
                 mem_axi_arsize = 3'b010;
-                mem_axi_arburst = 2'b00;
+                mem_axi_arburst = ifu_axi_arburst;
                 mem_axi_arvalid = ifu_axi_arvalid;
                 ifu_axi_arready = mem_axi_arready;
             end
@@ -258,6 +262,7 @@ module axi4lite_arbiter (
             A_IFU_RD_R: begin
                 ifu_axi_rdata = mem_axi_rdata;
                 ifu_axi_rresp = mem_axi_rresp;
+                ifu_axi_rlast = mem_axi_rlast;
                 ifu_axi_rvalid = mem_axi_rvalid;
                 mem_axi_rready = ifu_axi_rready;
             end
@@ -311,7 +316,7 @@ module axi4lite_arbiter (
                 end
 
                 A_LSU_RD_R: begin
-                    if (lsu_r_fire) begin
+                    if (lsu_r_fire && mem_axi_rlast) begin
                         wr_aw_done <= 1'b0;
                         wr_w_done <= 1'b0;
                         state <= next_req_state;
@@ -347,7 +352,7 @@ module axi4lite_arbiter (
                 end
 
                 A_IFU_RD_R: begin
-                    if (ifu_r_fire) begin
+                    if (ifu_r_fire && mem_axi_rlast) begin
                         wr_aw_done <= 1'b0;
                         wr_w_done <= 1'b0;
                         state <= next_req_state;
