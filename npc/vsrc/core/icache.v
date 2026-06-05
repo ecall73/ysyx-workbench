@@ -30,19 +30,7 @@ module icache #(
     input  wire [ 1:0] ifu_axi_rresp,
     input  wire        ifu_axi_rlast,
     input  wire        ifu_axi_rvalid,
-    output wire        ifu_axi_rready,
-
-    // AXI4-Lite write channels are unused by ICache
-    output wire [31:0] ifu_axi_awaddr,
-    output wire        ifu_axi_awvalid,
-    input  wire        ifu_axi_awready,
-    output wire [31:0] ifu_axi_wdata,
-    output wire [ 3:0] ifu_axi_wstrb,
-    output wire        ifu_axi_wvalid,
-    input  wire        ifu_axi_wready,
-    input  wire [ 1:0] ifu_axi_bresp,
-    input  wire        ifu_axi_bvalid,
-    output wire        ifu_axi_bready
+    output wire        ifu_axi_rready
 );
     localparam integer WORD_OFF_W      = 2;
     localparam integer LINE_ADDR_OFF_W = $clog2(LINE_WORDS);
@@ -168,13 +156,6 @@ module icache #(
     assign ifu_axi_rready = (state == S_MISS_R);
     assign ar_fire = ifu_axi_arvalid && ifu_axi_arready;
     assign r_fire = ifu_axi_rvalid && ifu_axi_rready;
-
-    assign ifu_axi_awaddr = 32'b0;
-    assign ifu_axi_awvalid = 1'b0;
-    assign ifu_axi_wdata = 32'b0;
-    assign ifu_axi_wstrb = 4'b0000;
-    assign ifu_axi_wvalid = 1'b0;
-    assign ifu_axi_bready = 1'b0;
 
     always @(*) begin
         lookup_inst = 32'b0;
@@ -421,6 +402,6 @@ module icache #(
 `endif
 
     wire _unused_ok;
-    assign _unused_ok = &{1'b0, ifu_axi_rresp, ifu_axi_awready, ifu_axi_wready, ifu_axi_bresp, ifu_axi_bvalid};
+    assign _unused_ok = &{1'b0, ifu_axi_rresp};
 
 endmodule

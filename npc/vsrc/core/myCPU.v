@@ -181,16 +181,6 @@ module myCPU #(
     wire        ifu_axi_rlast;
     wire        ifu_axi_rvalid;
     wire        ifu_axi_rready;
-    wire [31:0] ifu_axi_awaddr;
-    wire        ifu_axi_awvalid;
-    wire        ifu_axi_awready;
-    wire [31:0] ifu_axi_wdata;
-    wire [ 3:0] ifu_axi_wstrb;
-    wire        ifu_axi_wvalid;
-    wire        ifu_axi_wready;
-    wire [ 1:0] ifu_axi_bresp;
-    wire        ifu_axi_bvalid;
-    wire        ifu_axi_bready;
 
     // LSU AXI4-Lite (internal master)
     wire [31:0] lsu_axi_araddr;
@@ -284,7 +274,7 @@ module myCPU #(
 
     icache #(
         .LINE_WORDS             (4),
-        .LINE_COUNT             (16),
+        .LINE_COUNT             (4),
         .ADDR_WIDTH             (32),
         .TARGET_NPC             (TARGET_NPC)
     ) u_icache (
@@ -310,17 +300,7 @@ module myCPU #(
         .ifu_axi_rresp          (ifu_axi_rresp),
         .ifu_axi_rlast          (ifu_axi_rlast),
         .ifu_axi_rvalid         (ifu_axi_rvalid),
-        .ifu_axi_rready         (ifu_axi_rready),
-        .ifu_axi_awaddr         (ifu_axi_awaddr),
-        .ifu_axi_awvalid        (ifu_axi_awvalid),
-        .ifu_axi_awready        (ifu_axi_awready),
-        .ifu_axi_wdata          (ifu_axi_wdata),
-        .ifu_axi_wstrb          (ifu_axi_wstrb),
-        .ifu_axi_wvalid         (ifu_axi_wvalid),
-        .ifu_axi_wready         (ifu_axi_wready),
-        .ifu_axi_bresp          (ifu_axi_bresp),
-        .ifu_axi_bvalid         (ifu_axi_bvalid),
-        .ifu_axi_bready         (ifu_axi_bready)
+        .ifu_axi_rready         (ifu_axi_rready)
     );
 
     // ================================================================
@@ -701,16 +681,6 @@ module myCPU #(
         .ifu_axi_rlast           (ifu_axi_rlast),
         .ifu_axi_rvalid          (ifu_axi_rvalid),
         .ifu_axi_rready          (ifu_axi_rready),
-        .ifu_axi_awaddr          (ifu_axi_awaddr),
-        .ifu_axi_awvalid         (ifu_axi_awvalid),
-        .ifu_axi_awready         (ifu_axi_awready),
-        .ifu_axi_wdata           (ifu_axi_wdata),
-        .ifu_axi_wstrb           (ifu_axi_wstrb),
-        .ifu_axi_wvalid          (ifu_axi_wvalid),
-        .ifu_axi_wready          (ifu_axi_wready),
-        .ifu_axi_bresp           (ifu_axi_bresp),
-        .ifu_axi_bvalid          (ifu_axi_bvalid),
-        .ifu_axi_bready          (ifu_axi_bready),
 
         .lsu_axi_araddr          (lsu_axi_araddr),
         .lsu_axi_arsize          (lsu_axi_arsize),
