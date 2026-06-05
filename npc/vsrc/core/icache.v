@@ -18,6 +18,7 @@ module icache #(
     output wire [31:0] ic_resp_pc,
     output wire [31:0] ic_resp_inst,
     input  wire        ic_flush,
+    input  wire        ic_invalidate,
 
     // AXI4 read master interface
     output wire [31:0] ifu_axi_araddr,
@@ -81,6 +82,7 @@ module icache #(
     reg [LINE_WORD_OFF_W-1:0] refill_word_idx;
     reg               miss_bypass;
     reg               need_flush;
+    reg               kill_miss_refill;
 
     wire [LINE_WORD_OFF_W-1:0] req_word_offset;
     wire [INDEX_W-1:0] req_index;
@@ -98,6 +100,8 @@ module icache #(
     wire               ar_fire;
     wire               r_fire;
     wire               discard_resp;
+    wire               pipe_flush;
+    wire               kill_refill_now;
 
     reg [31:0] lookup_inst;
     reg [31:0] refill_inst;
@@ -134,7 +138,9 @@ module icache #(
     assign lookup_resp_valid = (state == S_LOOKUP) && cache_hit;
 
     assign refill_is_last_word = (refill_word_idx == (LINE_WORDS - 1));
-    assign discard_resp = need_flush || ic_flush;
+    assign pipe_flush = ic_flush || ic_invalidate;
+    assign discard_resp = need_flush || pipe_flush;
+    assign kill_refill_now = kill_miss_refill || ic_invalidate;
     assign resp_from_hold = hold_valid;
     assign resp_from_lookup = !hold_valid && lookup_resp_valid;
     assign ic_resp_valid = resp_from_hold || resp_from_lookup;
@@ -145,7 +151,7 @@ module icache #(
 
     assign req_space =
         (state == S_LOOKUP) &&
-        !ic_flush &&
+        !pipe_flush &&
         (hold_valid ? ic_resp_ready :
          lookup_valid ? (cache_hit && ic_resp_ready) :
          1'b1);
@@ -213,6 +219,7 @@ module icache #(
             refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
             miss_bypass <= 1'b0;
             need_flush <= 1'b0;
+            kill_miss_refill <= 1'b0;
             for (i = 0; i < LINE_COUNT; i = i + 1) begin
                 valid_array[i] <= 1'b0;
                 tag_array[i] <= {TAG_W{1'b0}};
@@ -224,12 +231,21 @@ module icache #(
                 rd_line_data[k] <= 32'b0;
             end
         end else begin
+            if (ic_invalidate) begin
+                lookup_valid <= 1'b0;
+                hold_valid <= 1'b0;
+                rd_valid <= 1'b0;
+                for (i = 0; i < LINE_COUNT; i = i + 1) begin
+                    valid_array[i] <= 1'b0;
+                end
+            end
+
             case (state)
                 S_LOOKUP: begin
                     if (ic_flush) begin
                         lookup_valid <= 1'b0;
                         hold_valid <= 1'b0;
-                    end else begin
+                    end else if (!pipe_flush) begin
                         if (hold_valid && ic_resp_ready) begin
                             hold_valid <= 1'b0;
                         end
@@ -280,26 +296,41 @@ module icache #(
                 end
 
                 S_MISS_AR: begin
-                    if (ic_flush) begin
-                        lookup_valid <= 1'b0;
-                        hold_valid <= 1'b0;
-                        need_flush <= 1'b1;
-                    end
+                    if (ic_invalidate) begin
+                        if (ar_fire) begin
+                            need_flush <= 1'b1;
+                            kill_miss_refill <= !miss_bypass;
+                            state <= S_MISS_R;
+                        end else begin
+                            need_flush <= 1'b0;
+                            kill_miss_refill <= 1'b0;
+                            state <= S_LOOKUP;
+                        end
+                    end else begin
+                        if (ic_flush) begin
+                            lookup_valid <= 1'b0;
+                            hold_valid <= 1'b0;
+                            need_flush <= 1'b1;
+                        end
 
-                    if (ar_fire) begin
-                        state <= S_MISS_R;
+                        if (ar_fire) begin
+                            state <= S_MISS_R;
+                        end
                     end
                 end
 
                 S_MISS_R: begin
-                    if (ic_flush) begin
+                    if (ic_invalidate) begin
+                        need_flush <= 1'b1;
+                        kill_miss_refill <= !miss_bypass;
+                    end else if (ic_flush) begin
                         lookup_valid <= 1'b0;
                         hold_valid <= 1'b0;
                         need_flush <= 1'b1;
                     end
 
                     if (r_fire) begin
-                        if (!miss_bypass) begin
+                        if (!miss_bypass && !kill_refill_now) begin
                             data_array[miss_index][refill_word_idx] <= ifu_axi_rdata;
                         end
 
@@ -311,18 +342,22 @@ module icache #(
                                 hold_pc <= miss_pc;
                                 hold_inst <= ifu_axi_rdata;
                             end
+                            kill_miss_refill <= 1'b0;
                             state <= S_LOOKUP;
                         end else begin
                             if (refill_is_last_word) begin
-                                tag_array[miss_index] <= miss_tag;
-                                valid_array[miss_index] <= 1'b1;
-                                if (discard_resp) begin
+                                if (!kill_refill_now) begin
+                                    tag_array[miss_index] <= miss_tag;
+                                    valid_array[miss_index] <= 1'b1;
+                                end
+                                if (discard_resp || kill_refill_now) begin
                                     need_flush <= 1'b0;
                                 end else begin
                                     hold_valid <= 1'b1;
                                     hold_pc <= miss_pc;
                                     hold_inst <= refill_inst;
                                 end
+                                kill_miss_refill <= 1'b0;
                                 state <= S_LOOKUP;
                             end else begin
                                 refill_word_idx <= refill_word_idx + 1'b1;
@@ -336,6 +371,7 @@ module icache #(
                     lookup_valid <= 1'b0;
                     hold_valid <= 1'b0;
                     need_flush <= 1'b0;
+                    kill_miss_refill <= 1'b0;
                 end
             endcase
         end

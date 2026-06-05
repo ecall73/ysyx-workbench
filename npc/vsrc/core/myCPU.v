@@ -80,6 +80,7 @@ module myCPU #(
     wire [31:0] ic_resp_pc;
     wire [31:0] ic_resp_inst;
     wire        ic_flush;
+    wire        ic_invalidate;
 
     // ID
     reg         id_in_valid;
@@ -103,6 +104,7 @@ module myCPU #(
     wire        id_CSRSrc;
     wire [11:0] id_CSRaddr;
     wire [ 4:0] id_CSRControl;
+    wire        id_FenceI;
 
     // EX
     reg         ex_in_valid;
@@ -130,6 +132,7 @@ module myCPU #(
     reg         ex_CSRSrc;
     reg  [11:0] ex_CSRaddr;
     reg  [ 4:0] ex_CSRControl;
+    reg         ex_FenceI;
     wire [31:0] ex_CSRnpc;
     wire        ex_CSRjump;
 
@@ -157,12 +160,15 @@ module myCPU #(
     // Local handshake control
     wire        waste2;
     wire        redirect_flush;
+    wire        fencei_flush;
+    wire        frontend_flush;
     wire        forward_pending;
     wire        ex_out_ready;
     wire        id_in_ready;
     wire        ex_in_ready;
     wire        id_out_valid;   // From IDU handshake output
     wire        ex_out_valid;   // From EXU handshake output
+    wire [31:0] frontend_npc;
 
     // IFU AXI4 (read-only in practice)
     wire [31:0] ifu_axi_araddr;
@@ -240,6 +246,10 @@ module myCPU #(
     // Redirect only when EX really handshakes out; otherwise a stalled EX jump
     // could be flushed away before it reaches commit order.
     assign redirect_flush = ex_out_valid && ex_out_ready && waste2;
+    assign fencei_flush = ex_out_valid && ex_out_ready && ex_FenceI;
+    assign frontend_flush = redirect_flush || fencei_flush;
+    assign frontend_npc = redirect_flush ? npc : ex_pc4;
+    assign ic_invalidate = fencei_flush;
 
     // IF stage handshake defaults
     assign if_in_valid = 1'b1;
@@ -253,7 +263,7 @@ module myCPU #(
         .if_in_valid            (if_in_valid),
         .if_in_ready            (if_in_ready),
         .if_out_ready           (if_out_ready),
-        .redirect_flush         (redirect_flush),
+        .redirect_flush         (frontend_flush),
 
         .ic_req_valid           (ic_req_valid),
         .ic_req_ready           (ic_req_ready),
@@ -269,7 +279,7 @@ module myCPU #(
         .if_pc4                 (if_pc4),
         .if_inst                (if_inst),
 
-        .npc                    (npc)
+        .npc                    (frontend_npc)
     );
 
     icache #(
@@ -289,6 +299,7 @@ module myCPU #(
         .ic_resp_pc             (ic_resp_pc),
         .ic_resp_inst           (ic_resp_inst),
         .ic_flush               (ic_flush),
+        .ic_invalidate          (ic_invalidate),
 
         .ifu_axi_araddr         (ifu_axi_araddr),
         .ifu_axi_arlen          (ifu_axi_arlen),
@@ -321,7 +332,7 @@ module myCPU #(
             id_pc    <= 32'b0;
             id_pc4   <= 32'b0;
             id_inst  <= 32'b0;
-        end else if (redirect_flush) begin
+        end else if (frontend_flush) begin
             id_in_valid <= 1'b0;
             id_pc    <= 32'b0;
             id_pc4   <= 32'b0;
@@ -367,7 +378,8 @@ module myCPU #(
 
         .id_CSRSrc              (id_CSRSrc),
         .id_CSRaddr             (id_CSRaddr),
-        .id_CSRControl          (id_CSRControl)
+        .id_CSRControl          (id_CSRControl),
+        .id_FenceI              (id_FenceI)
 
         `ifndef SYNTHESIS
         ,   .have_inst_ID       (have_inst_ID_decode)
@@ -438,10 +450,11 @@ module myCPU #(
             ex_CSRSrc       <= 0;
             ex_CSRaddr      <= 0;
             ex_CSRControl   <= 0;
+            ex_FenceI       <= 0;
             ex_btype        <= 0;
             ex_jtype        <= 0;
             ex_ijtype       <= 0;
-        end else if (redirect_flush) begin
+        end else if (frontend_flush) begin
             ex_in_valid        <= 1'b0;
             ex_ALUControl   <= 0;
             ex_RegWrite     <= 0;
@@ -459,6 +472,7 @@ module myCPU #(
             ex_CSRSrc       <= 0;
             ex_CSRaddr      <= 0;
             ex_CSRControl   <= 0;
+            ex_FenceI       <= 0;
             ex_btype        <= 0;
             ex_jtype        <= 0;
             ex_ijtype       <= 0;
@@ -481,6 +495,7 @@ module myCPU #(
                 ex_CSRSrc       <= id_CSRSrc;
                 ex_CSRaddr      <= id_CSRaddr;
                 ex_CSRControl   <= id_CSRControl;
+                ex_FenceI       <= id_FenceI;
                 ex_btype        <= id_btype;
                 ex_jtype        <= id_jtype;
                 ex_ijtype       <= id_ijtype;
@@ -501,6 +516,7 @@ module myCPU #(
                 ex_CSRSrc       <= 0;
                 ex_CSRaddr      <= 0;
                 ex_CSRControl   <= 0;
+                ex_FenceI       <= 0;
                 ex_btype        <= 0;
                 ex_jtype        <= 0;
                 ex_ijtype       <= 0;
@@ -515,7 +531,7 @@ module myCPU #(
                 pc_EX <= 32'b0;
                 inst_EX <= 32'b0;
                 have_inst_EX <= 1'b0;
-            end else if (redirect_flush) begin
+            end else if (frontend_flush) begin
                 pc_EX <= 32'b0;
                 inst_EX <= 32'b0;
                 have_inst_EX <= 1'b0;
@@ -843,7 +859,7 @@ module myCPU #(
     assign pmu_lsu_load_req = (u_lsu.state == PMU_LSU_IDLE) && ls_in_valid && u_lsu.ls_is_load;
     assign pmu_lsu_load_pending = (u_lsu.state == PMU_LSU_RD_AR) || (u_lsu.state == PMU_LSU_RD_WAIT_R);
     assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
-    assign pmu_dec_total = !redirect_flush && u_idu.id_out_valid && ex_in_ready && have_inst_ID;
+    assign pmu_dec_total = !frontend_flush && u_idu.id_out_valid && ex_in_ready && have_inst_ID;
     assign pmu_icache_miss_refill_busy =
         ((u_icache.state == PMU_ICACHE_MISS_AR) ||
          (u_icache.state == PMU_ICACHE_MISS_R)) && !u_icache.miss_bypass;
@@ -857,7 +873,7 @@ module myCPU #(
             end
             if (pmu_ifu_nosupply) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
-                if (redirect_flush || u_icache.need_flush) begin
+                if (frontend_flush || u_icache.need_flush) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
                 end else if (if_out_valid && !if_out_ready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;

@@ -31,7 +31,8 @@ module idu (
     // CSR
     output wire        id_CSRSrc,
     output wire [11:0] id_CSRaddr,
-    output wire [ 4:0] id_CSRControl
+    output wire [ 4:0] id_CSRControl,
+    output wire        id_FenceI
 
     `ifndef SYNTHESIS
     , output wire      have_inst_ID
@@ -80,6 +81,8 @@ module idu (
 
     wire [6:0] opcode = id_inst[6:0];
     wire [3:0] funct = {id_inst[30],id_inst[14:12]};
+    wire       op_misc_mem;
+    wire       op_fencei;
 
     wire op_add, op_sub, op_and, op_or, op_xor, op_sll, op_srl;
     wire op_sra, op_beq, op_bne, op_blt, op_bge, op_bgeu, op_bltu;
@@ -154,8 +157,10 @@ module idu (
     assign op_auipc     = opcode == OP_UA_TYPE;
     assign op_lui       = opcode == OP_U_TYPE;
     assign op_csr       = (opcode == OP_CSR_TYPE) && (funct3 != 3'b0);
+    assign op_misc_mem  = opcode == 7'b000_1111;
+    assign op_fencei    = id_inst == 32'h0000_100f;
 
-    assign id_RegWrite = ~(op_branch | op_store);
+    assign id_RegWrite = ~(op_branch | op_store | op_misc_mem);
 
     assign id_MemToReg = {3{op_rtype}} & MEM_TO_REG_ALU |
                     {3{op_itype}} & MEM_TO_REG_ALU |
@@ -167,16 +172,16 @@ module idu (
     assign id_MemWrite = op_store;
 
     assign id_ALUSrcA = op_auipc | jal;
-    assign id_ALUSrcB = ~(op_rtype | op_branch);
+    assign id_ALUSrcB = ~(op_rtype | op_branch | op_misc_mem);
+    assign id_FenceI = op_fencei;
 
     `ifndef SYNTHESIS
-        wire op_jal, op_jalr, op_sys, op_misc_mem;
+        wire op_jal, op_jalr, op_sys;
         assign op_jal = opcode == OP_J_TYPE;
         assign op_jalr = opcode == OP_IJ_TYPE;
         // Keep retire trace aligned with NEMU: treat SYSTEM opcode (CSR/ecall/ebreak/mret) as real instructions.
         assign op_sys = opcode == OP_CSR_TYPE;
         // Include MISC-MEM (fence/fence.i) so commit trace won't skip retired instructions.
-        assign op_misc_mem = opcode == 7'b0001111;
         assign have_inst_ID = op_rtype | op_itype | op_load | op_jalr | op_store | op_branch | op_lui | op_auipc | op_jal | op_sys | op_misc_mem;
     `endif
 
