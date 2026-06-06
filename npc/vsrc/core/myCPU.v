@@ -151,12 +151,6 @@ module myCPU #(
     wire        ls_out_ready;
     wire [31:0] ls_RFwdata_out;
 
-    // WB
-    reg         wb_in_valid;
-    reg         wb_RegWrite;
-    reg  [ 4:0] wb_RFwaddr;
-    reg  [31:0] wb_RFwdata;
-
     // Local handshake control
     wire        waste2;
     wire        redirect_flush;
@@ -205,11 +199,11 @@ module myCPU #(
 
     // Debug Interface
     `ifndef SYNTHESIS
-        reg [31:0] pc_EX, pc_LS, pc_WB;
-        reg [31:0] inst_EX, inst_LS, inst_WB;
+        reg [31:0] pc_EX, pc_LS;
+        reg [31:0] inst_EX, inst_LS;
         wire        have_inst_ID_decode;
         wire        have_inst_ID;
-        reg         have_inst_EX, have_inst_LS, have_inst_WB;
+        reg         have_inst_EX, have_inst_LS;
         assign have_inst_ID = id_in_valid && have_inst_ID_decode;
     `endif
 
@@ -370,9 +364,9 @@ module myCPU #(
         .clock                    (clock),
         .reset                    (reset),
 
-        .wen                    (wb_in_valid && wb_RegWrite),
-        .waddr                  (wb_RFwaddr),
-        .wdata                  (wb_RFwdata),
+        .wen                    (ls_out_valid && ls_RegWrite),
+        .waddr                  (ls_RFwaddr),
+        .wdata                  (ls_RFwdata_out),
 
         .rR1                    (id_inst[19:15]),
         .rR2                    (id_inst[24:20]),
@@ -398,10 +392,6 @@ module myCPU #(
         .ls_RFwaddr             (ls_RFwaddr),
         .ls_RFwdata             (ls_RFwdata_out),
         .ls_load_pending        (ls_in_valid && ls_MemRead && ~ls_out_valid),
-
-        .wb_RegWrite            (wb_in_valid && wb_RegWrite),
-        .wb_RFwaddr             (wb_RFwaddr),
-        .wb_RFwdata             (wb_RFwdata),
 
         .forward_pending        (forward_pending),
         .id_rR1_data_forward    (id_rR1_data_forward),
@@ -625,7 +615,7 @@ module myCPU #(
         end
     `endif
 
-    // LS -> WB handshake coupling (WB always ready in current design)
+    // LSU output is written back directly, so LS is the final pipeline stage.
     assign ls_out_ready = 1'b1;
 
     lsu u_lsu (
@@ -733,57 +723,13 @@ module myCPU #(
         .mem_axi_bready          (mem_axi_bready)
     );
 
-    // ================================================================
-    // LS -> WB
-    // ================================================================
-    always @(posedge clock) begin
-        if (reset) begin
-            wb_in_valid  <= 1'b0;
-            wb_RegWrite  <= 1'b0;
-            wb_RFwaddr   <= 5'b0;
-            wb_RFwdata   <= 32'b0;
-        end else begin
-            wb_in_valid <= ls_out_valid;
-            if (ls_out_valid) begin
-                wb_RegWrite <= ls_RegWrite;
-                wb_RFwaddr  <= ls_RFwaddr;
-                wb_RFwdata  <= ls_RFwdata_out;
-            end else begin
-                wb_RegWrite <= 1'b0;
-                wb_RFwaddr  <= 5'b0;
-                wb_RFwdata  <= 32'b0;
-            end
-        end
-    end
-
 `ifndef SYNTHESIS
     always @(posedge clock) begin
-        if (!reset && wb_in_valid && have_inst_WB) begin
-            npc_commit(pc_WB, inst_WB);
+        if (!reset && ls_out_valid && have_inst_LS) begin
+            npc_commit(pc_LS, inst_LS);
         end
     end
 `endif
-
-    //trace
-    `ifndef SYNTHESIS
-        always @(posedge clock) begin
-            if (reset) begin
-                pc_WB <= 32'b0;
-                inst_WB <= 32'b0;
-                have_inst_WB <= 1'b0;
-            end else begin
-                if (ls_out_valid) begin
-                    pc_WB <= pc_LS;
-                    inst_WB <= inst_LS;
-                    have_inst_WB <= have_inst_LS;
-                end else begin
-                    pc_WB <= 32'b0;
-                    inst_WB <= 32'b0;
-                    have_inst_WB <= 1'b0;
-                end
-            end
-        end
-    `endif
 
     // ================================================================
     // PMU hooks (simulation-only, kept at module tail to avoid clutter)
