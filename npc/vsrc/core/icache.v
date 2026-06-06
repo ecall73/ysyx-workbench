@@ -55,12 +55,8 @@ module icache #(
     reg [TAG_W-1:0]   lookup_tag;
     reg               lookup_cacheable;
     reg [LINE_WORD_OFF_W-1:0] lookup_word_offset;
-    reg [31:0]        rd_line_data [0:LINE_WORDS-1];
-    reg [TAG_W-1:0]   rd_tag;
-    reg               rd_valid;
 
     reg               hold_valid;
-    reg [31:0]        hold_pc;
     reg [31:0]        hold_inst;
 
     reg [31:0]        miss_pc;
@@ -80,6 +76,8 @@ module icache #(
     wire               cache_miss;
     wire               cache_bypass;
     wire               lookup_resp_valid;
+    wire [TAG_W-1:0]   lookup_rd_tag;
+    wire               lookup_rd_valid;
     wire               refill_is_last_word;
     wire               resp_from_hold;
     wire               resp_from_lookup;
@@ -120,7 +118,9 @@ module icache #(
     assign req_tag = ic_req_pc[ADDR_WIDTH - 1 : OFFSET_W + INDEX_W];
     assign req_cacheable = is_cacheable(ic_req_pc);
 
-    assign cache_hit = lookup_valid && lookup_cacheable && rd_valid && (rd_tag == lookup_tag);
+    assign lookup_rd_tag = tag_array[lookup_index];
+    assign lookup_rd_valid = valid_array[lookup_index];
+    assign cache_hit = lookup_valid && lookup_cacheable && lookup_rd_valid && (lookup_rd_tag == lookup_tag);
     assign cache_miss = lookup_valid && lookup_cacheable && !cache_hit;
     assign cache_bypass = lookup_valid && !lookup_cacheable;
     assign lookup_resp_valid = (state == S_LOOKUP) && cache_hit;
@@ -132,7 +132,7 @@ module icache #(
     assign resp_from_hold = hold_valid;
     assign resp_from_lookup = !hold_valid && lookup_resp_valid;
     assign ic_resp_valid = resp_from_hold || resp_from_lookup;
-    assign ic_resp_pc = resp_from_hold ? hold_pc :
+    assign ic_resp_pc = resp_from_hold ? (lookup_valid ? lookup_pc : miss_pc) :
                         lookup_pc;
     assign ic_resp_inst = resp_from_hold ? hold_inst :
                           lookup_inst;
@@ -161,7 +161,7 @@ module icache #(
         lookup_inst = 32'b0;
         for (i = 0; i < LINE_WORDS; i = i + 1) begin
             if (lookup_word_offset == i) begin
-                lookup_inst = rd_line_data[i];
+                lookup_inst = data_array[lookup_index][i];
             end
         end
     end
@@ -188,10 +188,7 @@ module icache #(
             lookup_tag <= {TAG_W{1'b0}};
             lookup_cacheable <= 1'b0;
             lookup_word_offset <= {LINE_WORD_OFF_W{1'b0}};
-            rd_tag <= {TAG_W{1'b0}};
-            rd_valid <= 1'b0;
             hold_valid <= 1'b0;
-            hold_pc <= 32'b0;
             hold_inst <= 32'b0;
             miss_pc <= 32'b0;
             miss_index <= {INDEX_W{1'b0}};
@@ -203,19 +200,11 @@ module icache #(
             kill_miss_refill <= 1'b0;
             for (i = 0; i < LINE_COUNT; i = i + 1) begin
                 valid_array[i] <= 1'b0;
-                tag_array[i] <= {TAG_W{1'b0}};
-                for (j = 0; j < LINE_WORDS; j = j + 1) begin
-                    data_array[i][j] <= 32'b0;
-                end
-            end
-            for (k = 0; k < LINE_WORDS; k = k + 1) begin
-                rd_line_data[k] <= 32'b0;
             end
         end else begin
             if (ic_invalidate) begin
                 lookup_valid <= 1'b0;
                 hold_valid <= 1'b0;
-                rd_valid <= 1'b0;
                 for (i = 0; i < LINE_COUNT; i = i + 1) begin
                     valid_array[i] <= 1'b0;
                 end
@@ -229,6 +218,9 @@ module icache #(
                     end else if (!pipe_flush) begin
                         if (hold_valid && ic_resp_ready) begin
                             hold_valid <= 1'b0;
+                            if (lookup_valid) begin
+                                lookup_valid <= 1'b0;
+                            end
                         end
 
                         if (!hold_valid && cache_hit) begin
@@ -236,9 +228,7 @@ module icache #(
                                 lookup_valid <= 1'b0;
                             end else begin
                                 hold_valid <= 1'b1;
-                                hold_pc <= lookup_pc;
                                 hold_inst <= lookup_inst;
-                                lookup_valid <= 1'b0;
                             end
                         end else if (!hold_valid && cache_miss) begin
                             miss_pc <= lookup_pc;
@@ -267,11 +257,6 @@ module icache #(
                             lookup_tag <= req_tag;
                             lookup_cacheable <= req_cacheable;
                             lookup_word_offset <= req_word_offset;
-                            rd_tag <= tag_array[req_index];
-                            rd_valid <= valid_array[req_index];
-                            for (i = 0; i < LINE_WORDS; i = i + 1) begin
-                                rd_line_data[i] <= data_array[req_index][i];
-                            end
                         end
                     end
                 end
@@ -320,7 +305,6 @@ module icache #(
                                 need_flush <= 1'b0;
                             end else begin
                                 hold_valid <= 1'b1;
-                                hold_pc <= miss_pc;
                                 hold_inst <= ifu_axi_rdata;
                             end
                             kill_miss_refill <= 1'b0;
@@ -335,7 +319,6 @@ module icache #(
                                     need_flush <= 1'b0;
                                 end else begin
                                     hold_valid <= 1'b1;
-                                    hold_pc <= miss_pc;
                                     hold_inst <= refill_inst;
                                 end
                                 kill_miss_refill <= 1'b0;

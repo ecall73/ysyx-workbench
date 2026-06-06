@@ -51,7 +51,9 @@ module myCPU #(
     export "DPI-C" function npc_get_gpr;
     function int npc_get_gpr(input int idx);
         begin
-            if (idx >= 0 && idx < 32) begin
+            if (idx == 0) begin
+                npc_get_gpr = 0;
+            end else if (idx > 0 && idx < 16) begin
                 npc_get_gpr = u_RF.reg_bank[idx];
             end else begin
                 npc_get_gpr = 0;
@@ -63,13 +65,10 @@ module myCPU #(
     wire [31:0] npc;
 
     // IF
-    wire        if_in_valid;
-    wire        if_in_ready;
-    wire        if_out_valid;
+    wire        if_valid;
+    wire        if_ready;
     wire [31:0] if_pc;
     wire [31:0] if_pc4;
-    wire [31:0] if_inst;
-    wire        if_out_ready;
 
     // IFU <-> ICache
     wire        ic_req_valid;
@@ -83,11 +82,10 @@ module myCPU #(
     wire        ic_invalidate;
 
     // ID
-    reg         id_in_valid;
-    reg  [31:0] id_pc;
-    reg  [31:0] id_pc4;
-    reg  [31:0] id_inst;
-    wire [13:0] id_ALUControl;
+    wire        id_valid;
+    wire [31:0] id_pc;
+    wire [31:0] id_inst;
+    wire [ 3:0] id_ALUControl;
     wire        id_RegWrite;
     wire [ 2:0] id_MemToReg;
     wire        id_MemWrite;
@@ -109,8 +107,7 @@ module myCPU #(
     // EX
     reg         ex_in_valid;
     reg  [31:0] ex_pc;
-    reg  [31:0] ex_pc4;
-    reg  [13:0] ex_ALUControl;
+    reg  [ 3:0] ex_ALUControl;
     reg         ex_RegWrite;
     reg  [ 2:0] ex_MemToReg;
     wire        ex_MemRead;
@@ -120,11 +117,10 @@ module myCPU #(
     reg  [31:0] ex_imm;
     reg  [31:0] ex_rR1_data;
     reg  [31:0] ex_rR2_data;
-    reg  [ 2:0] ex_mask;
+    reg  [ 2:0] ex_funct3;
     reg  [ 4:0] ex_RFwaddr;
     wire [31:0] ex_ALUResult;
-    wire [31:0] ex_BranchTarget;
-    wire        ex_ALUisTrue;
+    wire        ex_BRUResult;
     wire [31:0] ex_RFwdata;
     reg         ex_btype;
     reg         ex_jtype;
@@ -142,7 +138,7 @@ module myCPU #(
     reg         ls_MemRead;
     reg         ls_MemWrite;
     reg  [31:0] ls_rR2_data;
-    reg  [ 2:0] ls_mask;
+    reg  [ 2:0] ls_funct3;
     reg  [ 4:0] ls_RFwaddr;
     reg  [31:0] ls_ALUResult;
     reg  [31:0] ls_RFwdata;
@@ -158,9 +154,9 @@ module myCPU #(
     wire        frontend_flush;
     wire        forward_pending;
     wire        ex_out_ready;
-    wire        id_in_ready;
+    wire        id_ready;
     wire        ex_in_ready;
-    wire        id_out_valid;   // From IDU handshake output
+    wire        id_issue_valid; // From IDU handshake output
     wire        ex_out_valid;   // From EXU handshake output
     wire [31:0] frontend_npc;
 
@@ -204,7 +200,7 @@ module myCPU #(
         wire        have_inst_ID_decode;
         wire        have_inst_ID;
         reg         have_inst_EX, have_inst_LS;
-        assign have_inst_ID = id_in_valid && have_inst_ID_decode;
+        assign have_inst_ID = id_valid && have_inst_ID_decode;
     `endif
 
 ////////////////////////////////////////////////////////////////
@@ -215,9 +211,8 @@ module myCPU #(
         .ex_btype               (ex_btype),
         .ex_jtype               (ex_jtype),
         .ex_ijtype              (ex_ijtype),
-        .ex_btype_target        (ex_BranchTarget),
 
-        .ex_ALUisTrue           (ex_ALUisTrue),
+        .ex_BRUResult           (ex_BRUResult),
         .ex_ALUResult           (ex_ALUResult),
         .ex_CSRjump             (ex_CSRjump),
         .ex_CSRnpc              (ex_CSRnpc),
@@ -232,39 +227,34 @@ module myCPU #(
     assign redirect_flush = ex_out_valid && ex_out_ready && waste2;
     assign fencei_flush = ex_out_valid && ex_out_ready && ex_FenceI;
     assign frontend_flush = redirect_flush || fencei_flush;
-    assign frontend_npc = redirect_flush ? npc : ex_pc4;
+    assign frontend_npc = redirect_flush ? npc : (ex_pc + 32'd4);
     assign ic_invalidate = fencei_flush;
 
-    // IF stage handshake defaults
-    assign if_in_valid = 1'b1;
-    assign if_out_ready = id_in_ready;
+    // IF request path: IF generates fetch requests, icache returns ID payloads.
+    assign if_ready = ic_req_ready;
+    assign id_valid = ic_resp_valid;
+    assign id_pc = ic_resp_pc;
+    assign id_inst = ic_resp_inst;
+    assign ic_resp_ready = id_ready;
 
     ifu #(
         .RESET_PC               (RESET_PC)
     ) u_ifu (
         .clock                    (clock),
         .reset                    (reset),
-        .if_in_valid            (if_in_valid),
-        .if_in_ready            (if_in_ready),
-        .if_out_ready           (if_out_ready),
+        .if_ready               (if_ready),
         .redirect_flush         (frontend_flush),
 
-        .ic_req_valid           (ic_req_valid),
-        .ic_req_ready           (ic_req_ready),
-        .ic_req_pc              (ic_req_pc),
-        .ic_resp_valid          (ic_resp_valid),
-        .ic_resp_ready          (ic_resp_ready),
-        .ic_resp_pc             (ic_resp_pc),
-        .ic_resp_inst           (ic_resp_inst),
-        .ic_flush               (ic_flush),
-
-        .if_out_valid           (if_out_valid),
+        .if_valid               (if_valid),
         .if_pc                  (if_pc),
         .if_pc4                 (if_pc4),
-        .if_inst                (if_inst),
+        .if_flush               (ic_flush),
 
         .npc                    (frontend_npc)
     );
+
+    assign ic_req_valid = if_valid;
+    assign ic_req_pc = if_pc;
 
     icache #(
         .LINE_WORDS             (4),
@@ -297,41 +287,13 @@ module myCPU #(
         .ifu_axi_rready         (ifu_axi_rready)
     );
 
-    // ================================================================
-    // IF -> ID
-    // ================================================================
-    always @(posedge clock) begin
-        if (reset) begin
-            id_in_valid <= 1'b0;
-            id_pc    <= 32'b0;
-            id_pc4   <= 32'b0;
-            id_inst  <= 32'b0;
-        end else if (frontend_flush) begin
-            id_in_valid <= 1'b0;
-            id_pc    <= 32'b0;
-            id_pc4   <= 32'b0;
-            id_inst  <= 32'b0;
-        end else if (id_in_ready) begin
-            id_in_valid <= if_out_valid;
-            if (if_out_valid) begin
-                id_pc   <= if_pc;
-                id_pc4  <= if_pc4;
-                id_inst <= if_inst;
-            end else begin
-                id_pc   <= 32'b0;
-                id_pc4  <= 32'b0;
-                id_inst <= 32'b0;
-            end
-        end
-    end
-
     idu u_idu (
         .clock                    (clock),
         .reset                    (reset),
-        .id_in_valid            (id_in_valid),
-        .id_in_ready            (id_in_ready),
-        .id_out_valid           (id_out_valid),
-        .id_out_ready           (ex_in_ready),
+        .id_valid               (id_valid),
+        .id_ready               (id_ready),
+        .id_issue_valid         (id_issue_valid),
+        .id_issue_ready         (ex_in_ready),
         .id_block               (forward_pending),
 
         .id_inst                (id_inst),
@@ -376,7 +338,7 @@ module myCPU #(
     );
 
     forward u_forward (
-        .id_in_valid            (id_in_valid),
+        .id_in_valid            (id_valid),
         .id_rR1                 (id_inst[19:15]),
         .id_rR2                 (id_inst[24:20]),
         .id_rR1_data            (id_rR1_data),
@@ -404,59 +366,18 @@ module myCPU #(
     always @(posedge clock) begin
         if (reset) begin
             ex_in_valid        <= 1'b0;
-            ex_ALUControl   <= 0;
-            ex_RegWrite     <= 0;
-            ex_MemWrite     <= 0;
-            ex_MemToReg     <= 0;
-            ex_mask         <= 0;
-            ex_imm          <= 0;
-            ex_pc           <= 0;
-            ex_pc4          <= 0;
-            ex_RFwaddr      <= 0;
-            ex_ALUSrcA      <= 0;
-            ex_ALUSrcB      <= 0;
-            ex_rR1_data     <= 0;
-            ex_rR2_data     <= 0;
-            ex_CSRSrc       <= 0;
-            ex_CSRaddr      <= 0;
-            ex_CSRControl   <= 0;
-            ex_FenceI       <= 0;
-            ex_btype        <= 0;
-            ex_jtype        <= 0;
-            ex_ijtype       <= 0;
         end else if (frontend_flush) begin
             ex_in_valid        <= 1'b0;
-            ex_ALUControl   <= 0;
-            ex_RegWrite     <= 0;
-            ex_MemWrite     <= 0;
-            ex_MemToReg     <= 0;
-            ex_mask         <= 0;
-            ex_imm          <= 0;
-            ex_pc           <= 0;
-            ex_pc4          <= 0;
-            ex_RFwaddr      <= 0;
-            ex_ALUSrcA      <= 0;
-            ex_ALUSrcB      <= 0;
-            ex_rR1_data     <= 0;
-            ex_rR2_data     <= 0;
-            ex_CSRSrc       <= 0;
-            ex_CSRaddr      <= 0;
-            ex_CSRControl   <= 0;
-            ex_FenceI       <= 0;
-            ex_btype        <= 0;
-            ex_jtype        <= 0;
-            ex_ijtype       <= 0;
         end else if (ex_in_ready) begin
-            ex_in_valid <= id_out_valid;
-            if (id_out_valid) begin
+            ex_in_valid <= id_issue_valid;
+            if (id_issue_valid) begin
                 ex_ALUControl   <= id_ALUControl;
                 ex_RegWrite     <= id_RegWrite;
                 ex_MemWrite     <= id_MemWrite;
                 ex_MemToReg     <= id_MemToReg;
-                ex_mask         <= id_inst[14:12];
+                ex_funct3       <= id_inst[14:12];
                 ex_imm          <= id_imm;
                 ex_pc           <= id_pc;
-                ex_pc4          <= id_pc4;
                 ex_RFwaddr      <= id_inst[11:7];
                 ex_ALUSrcA      <= id_ALUSrcA;
                 ex_ALUSrcB      <= id_ALUSrcB;
@@ -469,27 +390,6 @@ module myCPU #(
                 ex_btype        <= id_btype;
                 ex_jtype        <= id_jtype;
                 ex_ijtype       <= id_ijtype;
-            end else begin
-                ex_ALUControl   <= 0;
-                ex_RegWrite     <= 0;
-                ex_MemWrite     <= 0;
-                ex_MemToReg     <= 0;
-                ex_mask         <= 0;
-                ex_imm          <= 0;
-                ex_pc           <= 0;
-                ex_pc4          <= 0;
-                ex_RFwaddr      <= 0;
-                ex_ALUSrcA      <= 0;
-                ex_ALUSrcB      <= 0;
-                ex_rR1_data     <= 0;
-                ex_rR2_data     <= 0;
-                ex_CSRSrc       <= 0;
-                ex_CSRaddr      <= 0;
-                ex_CSRControl   <= 0;
-                ex_FenceI       <= 0;
-                ex_btype        <= 0;
-                ex_jtype        <= 0;
-                ex_ijtype       <= 0;
             end
         end
     end
@@ -506,7 +406,7 @@ module myCPU #(
                 inst_EX <= 32'b0;
                 have_inst_EX <= 1'b0;
             end else if (ex_in_ready) begin
-                if (id_out_valid) begin
+                if (id_issue_valid) begin
                     pc_EX <= id_pc;
                     inst_EX <= id_inst;
                     have_inst_EX <= have_inst_ID;
@@ -533,9 +433,9 @@ module myCPU #(
         .ex_ALUSrcA             (ex_ALUSrcA),
         .ex_ALUSrcB             (ex_ALUSrcB),
         .ex_pc                  (ex_pc),
-        .ex_pc4                 (ex_pc4),
         .ex_rR1_data            (ex_rR1_data),
         .ex_rR2_data            (ex_rR2_data),
+        .ex_funct3              (ex_funct3),
         .ex_imm                 (ex_imm),
         .ex_ALUControl          (ex_ALUControl),
 
@@ -546,8 +446,7 @@ module myCPU #(
         .ex_MemToReg            (ex_MemToReg),
 
         .ex_ALUResult           (ex_ALUResult),
-        .ex_BranchTarget        (ex_BranchTarget),
-        .ex_ALUisTrue           (ex_ALUisTrue),
+        .ex_BRUResult           (ex_BRUResult),
 
         .ex_CSRjump             (ex_CSRjump),
         .ex_CSRnpc              (ex_CSRnpc),
@@ -562,14 +461,6 @@ module myCPU #(
     always @(posedge clock) begin
         if (reset) begin
             ls_in_valid   <= 1'b0;
-            ls_RegWrite   <= 1'b0;
-            ls_MemWrite   <= 1'b0;
-            ls_ALUResult  <= 32'b0;
-            ls_rR2_data   <= 32'b0;
-            ls_mask       <= 3'b0;
-            ls_RFwaddr    <= 5'b0;
-            ls_RFwdata    <= 32'b0;
-            ls_MemRead    <= 1'b0;
         end else if (ex_out_ready) begin
             ls_in_valid <= ex_out_valid;
             if (ex_out_valid) begin
@@ -577,19 +468,10 @@ module myCPU #(
                 ls_MemWrite   <= ex_MemWrite;
                 ls_ALUResult  <= ex_ALUResult;
                 ls_rR2_data   <= ex_rR2_data;
-                ls_mask       <= ex_mask;
+                ls_funct3     <= ex_funct3;
                 ls_RFwaddr    <= ex_RFwaddr;
                 ls_RFwdata    <= ex_RFwdata;
                 ls_MemRead    <= ex_MemRead;
-            end else begin
-                ls_RegWrite   <= 1'b0;
-                ls_MemWrite   <= 1'b0;
-                ls_ALUResult  <= 32'b0;
-                ls_rR2_data   <= 32'b0;
-                ls_mask       <= 3'b0;
-                ls_RFwaddr    <= 5'b0;
-                ls_RFwdata    <= 32'b0;
-                ls_MemRead    <= 1'b0;
             end
         end
     end
@@ -627,7 +509,7 @@ module myCPU #(
         .ls_out_ready            (ls_out_ready),
 
         .ls_ALUResult            (ls_ALUResult),
-        .ls_mask                 (ls_mask),
+        .ls_funct3               (ls_funct3),
         .ls_MemWrite             (ls_MemWrite),
         .ls_MemRead              (ls_MemRead),
         .ls_rR2_data             (ls_rR2_data),
@@ -769,13 +651,13 @@ module myCPU #(
     reg  [31:0] pmu_event_mask;
 
     // Direct hierarchical reads: simulation-only, no extra submodule ports.
-    assign pmu_ifu_r_fire = if_out_valid && if_out_ready;
+    assign pmu_ifu_r_fire = ic_resp_valid && ic_resp_ready;
     assign pmu_ifu_nosupply = !pmu_ifu_r_fire;
     assign pmu_lsu_r_fire = u_lsu.r_fire;
     assign pmu_lsu_load_req = (u_lsu.state == PMU_LSU_IDLE) && ls_in_valid && u_lsu.ls_is_load;
     assign pmu_lsu_load_pending = (u_lsu.state == PMU_LSU_RD_AR) || (u_lsu.state == PMU_LSU_RD_WAIT_R);
     assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
-    assign pmu_dec_total = !frontend_flush && u_idu.id_out_valid && ex_in_ready && have_inst_ID;
+    assign pmu_dec_total = !frontend_flush && id_issue_valid && ex_in_ready && have_inst_ID;
     assign pmu_icache_miss_refill_busy =
         ((u_icache.state == PMU_ICACHE_MISS_AR) ||
          (u_icache.state == PMU_ICACHE_MISS_R)) && !u_icache.miss_bypass;
@@ -791,7 +673,7 @@ module myCPU #(
                 pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
                 if (frontend_flush || u_icache.need_flush) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
-                end else if (if_out_valid && !if_out_ready) begin
+                end else if (id_valid && !id_ready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;
                 end else if (ifu_axi_arvalid && !ifu_axi_arready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_ARREADY;

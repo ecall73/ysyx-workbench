@@ -5,26 +5,14 @@ module ifu #(
 ) (
     input  wire        clock,
     input  wire        reset,
-    input  wire        if_in_valid,
-    output wire        if_in_ready,
-    input  wire        if_out_ready,
+    input  wire        if_ready,
     input  wire        redirect_flush,
 
-    // ICache request/response interface
-    output wire        ic_req_valid,
-    input  wire        ic_req_ready,
-    output wire [31:0] ic_req_pc,
-    input  wire        ic_resp_valid,
-    output wire        ic_resp_ready,
-    input  wire [31:0] ic_resp_pc,
-    input  wire [31:0] ic_resp_inst,
-    output wire        ic_flush,
-
-    // To ID stage
-    output wire        if_out_valid,
+    // IF stage request side
+    output wire        if_valid,
     output wire [31:0] if_pc,
     output wire [31:0] if_pc4,
-    output wire [31:0] if_inst,
+    output wire        if_flush,
 
     input  wire [31:0] npc
 );
@@ -32,18 +20,12 @@ module ifu #(
 
     wire req_fire;
 
-    assign ic_req_valid = if_in_valid && !redirect_flush;
-    assign ic_req_pc = next_pc;
-    assign ic_resp_ready = if_out_ready || redirect_flush;
-    assign ic_flush = redirect_flush;
+    assign if_valid = !redirect_flush;
+    assign if_pc = next_pc;
+    assign if_pc4 = next_pc + 32'd4;
+    assign if_flush = redirect_flush;
 
-    assign req_fire = ic_req_valid && ic_req_ready;
-    assign if_in_ready = ic_req_ready && !redirect_flush;
-
-    assign if_out_valid = ic_resp_valid && !redirect_flush;
-    assign if_pc = ic_resp_pc;
-    assign if_pc4 = if_pc + 32'd4;
-    assign if_inst = ic_resp_inst;
+    assign req_fire = if_valid && if_ready;
 
     always @(posedge clock) begin
         if (reset) begin

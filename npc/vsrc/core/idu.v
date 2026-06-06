@@ -3,17 +3,17 @@
 module idu (
     input  wire        clock,
     input  wire        reset,
-    input  wire        id_in_valid,
-    output wire        id_in_ready,
-    output wire        id_out_valid,
-    input  wire        id_out_ready,
+    input  wire        id_valid,
+    output wire        id_ready,
+    output wire        id_issue_valid,
+    input  wire        id_issue_ready,
     input  wire        id_block,
 
     // From IF_ID
     input  wire [31:0] id_inst,
 
     // To ID_EX / Forwarding
-    output wire [13:0] id_ALUControl,
+    output wire [ 3:0] id_ALUControl,
     output wire        id_RegWrite,
     output wire [ 2:0] id_MemToReg,
     output wire        id_MemWrite,
@@ -54,30 +54,24 @@ module idu (
     localparam [2:0] MEM_TO_REG_DRAM = 3'b100;
     localparam [2:0] MEM_TO_REG_IMM  = 3'b011;
     localparam [2:0] MEM_TO_REG_CSR  = 3'b010;
-
     wire id_can_go;
 
     assign id_can_go = ~id_block;
-    assign id_in_ready = ~id_in_valid || (id_can_go && id_out_ready);
-    assign id_out_valid = id_in_valid && id_can_go;
+    assign id_ready = ~id_valid || (id_can_go && id_issue_ready);
+    assign id_issue_valid = id_valid && id_can_go;
 
-    // Expanded ACTL module logic
-    localparam ADD      = 14'h0001;
-    localparam SUB      = 14'h0002;
-    localparam AND      = 14'h0004;
-    localparam OR       = 14'h0008;
-    localparam XOR      = 14'h0010;
-    localparam SLL      = 14'h0020;
-    localparam SRL      = 14'h0040;
-    localparam SRA      = 14'h0080;
-    localparam BEQ      = 14'h0100;
-    localparam BNE      = 14'h0200;
-    localparam BLT      = 14'h0400;
-    localparam BGE      = 14'h0800;
-    localparam BGEU     = 14'h1000;
-    localparam BLTU     = 14'h2000;
-
-    localparam ERR      = 14'h0;
+    // Compact ALU control encoding
+    localparam [3:0] ADD      = 4'd0;
+    localparam [3:0] SUB      = 4'd1;
+    localparam [3:0] AND      = 4'd2;
+    localparam [3:0] OR       = 4'd3;
+    localparam [3:0] XOR      = 4'd4;
+    localparam [3:0] SLL      = 4'd5;
+    localparam [3:0] SRL      = 4'd6;
+    localparam [3:0] SRA      = 4'd7;
+    localparam [3:0] SLT      = 4'd8;
+    localparam [3:0] SLTU     = 4'd9;
+    localparam [3:0] ERR      = 4'd15;
 
     wire [6:0] opcode = id_inst[6:0];
     wire [3:0] funct = {id_inst[30],id_inst[14:12]};
@@ -85,22 +79,19 @@ module idu (
     wire       op_fencei;
 
     wire op_add, op_sub, op_and, op_or, op_xor, op_sll, op_srl;
-    wire op_sra, op_beq, op_bne, op_blt, op_bge, op_bgeu, op_bltu;
+    wire op_sra, op_slt, op_sltu;
 
-    assign id_ALUControl = {14{op_add}} & ADD |
-                        {14{op_sub}} & SUB |
-                        {14{op_and}} & AND |
-                        {14{op_or}} & OR |
-                        {14{op_xor}} & XOR |
-                        {14{op_sll}} & SLL |
-                        {14{op_srl}} & SRL |
-                        {14{op_sra}} & SRA |
-                        {14{op_beq}} & BEQ |
-                        {14{op_bne}} & BNE |
-                        {14{op_blt}} & BLT |
-                        {14{op_bge}} & BGE |
-                        {14{op_bgeu}} & BGEU |
-                        {14{op_bltu}} & BLTU;
+    assign id_ALUControl = op_add  ? ADD  :
+                           op_sub  ? SUB  :
+                           op_and  ? AND  :
+                           op_or   ? OR   :
+                           op_xor  ? XOR  :
+                           op_sll  ? SLL  :
+                           op_srl  ? SRL  :
+                           op_sra  ? SRA  :
+                           op_slt  ? SLT  :
+                           op_sltu ? SLTU :
+                                     ERR;
 
     wire rtype, itype, load, store, jal, jalr, auipc, branch;
 
@@ -127,6 +118,7 @@ module idu (
                     (store && funct[2:0] == 3'b000) ||
                     (store && funct[2:0] == 3'b001) ||
                     (store && funct[2:0] == 3'b010) ||
+                    branch ||
                     jal ||
                     auipc || (jalr && funct[2:0] == 3'b000);
     assign op_sub = (rtype && funct == 4'b1000);
@@ -136,17 +128,11 @@ module idu (
     assign op_sll = (rtype || itype) && funct == 4'b0001;
     assign op_srl = (rtype || itype) && funct == 4'b0101;
     assign op_sra = (rtype || itype) && funct == 4'b1101;
-    assign op_bltu = (rtype && funct == 4'b0011) || (branch && funct[2:0] == 3'b110) || (itype && funct[2:0] == 3'b011);
-    assign op_blt = (rtype && funct == 4'b0010) || (branch && funct[2:0] == 3'b100) || (itype && funct[2:0] == 3'b010);
-    assign op_beq = branch && funct[2:0] == 3'b000;
-    assign op_bne = branch && funct[2:0] == 3'b001;
-    assign op_bge = branch && funct[2:0] == 3'b101;
-    assign op_bgeu = branch && funct[2:0] == 3'b111;
+    assign op_sltu = (rtype && funct == 4'b0011) || (itype && funct[2:0] == 3'b011);
+    assign op_slt = (rtype && funct == 4'b0010) || (itype && funct[2:0] == 3'b010);
 
     // Expanded Control module logic
     wire [2:0] funct3 = id_inst[14:12];
-    // wire [2:0] NpcOp; // Not used outside?
-
     wire op_branch, op_store, op_rtype, op_itype, op_load, op_auipc, op_lui, op_csr;
 
     assign op_branch    = opcode == OP_B_TYPE;
@@ -171,8 +157,8 @@ module idu (
 
     assign id_MemWrite = op_store;
 
-    assign id_ALUSrcA = op_auipc | jal;
-    assign id_ALUSrcB = ~(op_rtype | op_branch | op_misc_mem);
+    assign id_ALUSrcA = op_auipc | op_branch | jal;
+    assign id_ALUSrcB = ~(op_rtype | op_misc_mem);
     assign id_FenceI = op_fencei;
 
     `ifndef SYNTHESIS

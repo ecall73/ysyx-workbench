@@ -11,7 +11,7 @@ module lsu (
 
     // LS payload inputs
     input  wire [31:0] ls_ALUResult,
-    input  wire [ 2:0] ls_mask,
+    input  wire [ 2:0] ls_funct3,
     input  wire        ls_MemWrite,
     input  wire        ls_MemRead,
     input  wire [31:0] ls_rR2_data,
@@ -109,7 +109,7 @@ module lsu (
         ls_wmask_calc = 4'b0000;
         ls_wdata_aligned = ls_rR2_data;
         ls_axi_size = 3'b010;
-        case (ls_mask)
+        case (ls_funct3)
             3'b000: begin // sb
                 ls_axi_size = 3'b000;
                 case (ls_offset)
@@ -160,7 +160,7 @@ module lsu (
     // Load sign/zero extension
     always @(*) begin
         ls_rdata_decoded = lsu_axi_rdata; // lw
-        case (ls_mask)
+        case (ls_funct3)
             3'b000: begin // lb
                 case (ls_offset)
                     2'b00: ls_rdata_decoded = {{24{lsu_axi_rdata[7]}}, lsu_axi_rdata[7:0]};
