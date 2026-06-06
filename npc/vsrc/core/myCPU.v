@@ -70,17 +70,6 @@ module myCPU #(
     wire [31:0] if_pc;
     wire [31:0] if_pc4;
 
-    // IFU <-> ICache
-    wire        ic_req_valid;
-    wire        ic_req_ready;
-    wire [31:0] ic_req_pc;
-    wire        ic_resp_valid;
-    wire        ic_resp_ready;
-    wire [31:0] ic_resp_pc;
-    wire [31:0] ic_resp_inst;
-    wire        ic_flush;
-    wire        ic_invalidate;
-
     // ID
     wire        id_valid;
     wire [31:0] id_pc;
@@ -228,14 +217,6 @@ module myCPU #(
     assign fencei_flush = ex_out_valid && ex_out_ready && ex_FenceI;
     assign frontend_flush = redirect_flush || fencei_flush;
     assign frontend_npc = redirect_flush ? npc : (ex_pc + 32'd4);
-    assign ic_invalidate = fencei_flush;
-
-    // IF request path: IF generates fetch requests, icache returns ID payloads.
-    assign if_ready = ic_req_ready;
-    assign id_valid = ic_resp_valid;
-    assign id_pc = ic_resp_pc;
-    assign id_inst = ic_resp_inst;
-    assign ic_resp_ready = id_ready;
 
     ifu #(
         .RESET_PC               (RESET_PC)
@@ -248,13 +229,10 @@ module myCPU #(
         .if_valid               (if_valid),
         .if_pc                  (if_pc),
         .if_pc4                 (if_pc4),
-        .if_flush               (ic_flush),
 
         .npc                    (frontend_npc)
     );
 
-    assign ic_req_valid = if_valid;
-    assign ic_req_pc = if_pc;
 
     icache #(
         .LINE_WORDS             (4),
@@ -265,15 +243,15 @@ module myCPU #(
         .clock                  (clock),
         .reset                  (reset),
 
-        .ic_req_valid           (ic_req_valid),
-        .ic_req_ready           (ic_req_ready),
-        .ic_req_pc              (ic_req_pc),
-        .ic_resp_valid          (ic_resp_valid),
-        .ic_resp_ready          (ic_resp_ready),
-        .ic_resp_pc             (ic_resp_pc),
-        .ic_resp_inst           (ic_resp_inst),
-        .ic_flush               (ic_flush),
-        .ic_invalidate          (ic_invalidate),
+        .if_valid           (if_valid),
+        .if_ready           (if_ready),
+        .if_pc              (if_pc),
+        .id_valid          (id_valid),
+        .id_ready          (id_ready),
+        .id_pc             (id_pc),
+        .id_inst           (id_inst),
+        .frontend_flush               (frontend_flush),
+        .fencei_flush          (fencei_flush),
 
         .ifu_axi_araddr         (ifu_axi_araddr),
         .ifu_axi_arlen          (ifu_axi_arlen),
@@ -651,7 +629,7 @@ module myCPU #(
     reg  [31:0] pmu_event_mask;
 
     // Direct hierarchical reads: simulation-only, no extra submodule ports.
-    assign pmu_ifu_r_fire = ic_resp_valid && ic_resp_ready;
+    assign pmu_ifu_r_fire = id_valid && id_ready;
     assign pmu_ifu_nosupply = !pmu_ifu_r_fire;
     assign pmu_lsu_r_fire = u_lsu.r_fire;
     assign pmu_lsu_load_req = (u_lsu.state == PMU_LSU_IDLE) && ls_in_valid && u_lsu.ls_is_load;

@@ -10,15 +10,15 @@ module icache #(
     input  wire        reset,
 
     // IFU request/response interface
-    input  wire        ic_req_valid,
-    output wire        ic_req_ready,
-    input  wire [31:0] ic_req_pc,
-    output wire        ic_resp_valid,
-    input  wire        ic_resp_ready,
-    output wire [31:0] ic_resp_pc,
-    output wire [31:0] ic_resp_inst,
-    input  wire        ic_flush,
-    input  wire        ic_invalidate,
+    input  wire        if_valid,
+    output wire        if_ready,
+    input  wire [31:0] if_pc,
+    output wire        id_valid,
+    input  wire        id_ready,
+    output wire [31:0] id_pc,
+    output wire [31:0] id_inst,
+    input  wire        frontend_flush,
+    input  wire        fencei_flush,
 
     // AXI4 read master interface
     output wire [31:0] ifu_axi_araddr,
@@ -112,11 +112,11 @@ module icache #(
     endfunction
 
     assign req_word_offset =
-        ic_req_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W] &
+        if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W] &
         LINE_WORD_MASK_FULL[LINE_WORD_OFF_W - 1 : 0];
-    assign req_index = ic_req_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
-    assign req_tag = ic_req_pc[ADDR_WIDTH - 1 : OFFSET_W + INDEX_W];
-    assign req_cacheable = is_cacheable(ic_req_pc);
+    assign req_index = if_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
+    assign req_tag = if_pc[ADDR_WIDTH - 1 : OFFSET_W + INDEX_W];
+    assign req_cacheable = is_cacheable(if_pc);
 
     assign lookup_rd_tag = tag_array[lookup_index];
     assign lookup_rd_valid = valid_array[lookup_index];
@@ -126,25 +126,25 @@ module icache #(
     assign lookup_resp_valid = (state == S_LOOKUP) && cache_hit;
 
     assign refill_is_last_word = (refill_word_idx == (LINE_WORDS - 1));
-    assign pipe_flush = ic_flush || ic_invalidate;
+    assign pipe_flush = frontend_flush || fencei_flush;
     assign discard_resp = need_flush || pipe_flush;
-    assign kill_refill_now = kill_miss_refill || ic_invalidate;
+    assign kill_refill_now = kill_miss_refill || fencei_flush;
     assign resp_from_hold = hold_valid;
     assign resp_from_lookup = !hold_valid && lookup_resp_valid;
-    assign ic_resp_valid = resp_from_hold || resp_from_lookup;
-    assign ic_resp_pc = resp_from_hold ? (lookup_valid ? lookup_pc : miss_pc) :
+    assign id_valid = resp_from_hold || resp_from_lookup;
+    assign id_pc = resp_from_hold ? (lookup_valid ? lookup_pc : miss_pc) :
                         lookup_pc;
-    assign ic_resp_inst = resp_from_hold ? hold_inst :
+    assign id_inst = resp_from_hold ? hold_inst :
                           lookup_inst;
 
     assign req_space =
         (state == S_LOOKUP) &&
         !pipe_flush &&
-        (hold_valid ? ic_resp_ready :
-         lookup_valid ? (cache_hit && ic_resp_ready) :
+        (hold_valid ? id_ready :
+         lookup_valid ? (cache_hit && id_ready) :
          1'b1);
-    assign ic_req_ready = req_space;
-    assign req_fire = ic_req_valid && ic_req_ready;
+    assign if_ready = req_space;
+    assign req_fire = if_valid && if_ready;
 
     assign miss_line_base = {miss_pc[ADDR_WIDTH - 1 : OFFSET_W], {OFFSET_W{1'b0}}};
     assign ifu_axi_araddr = miss_bypass ?
@@ -202,7 +202,7 @@ module icache #(
                 valid_array[i] <= 1'b0;
             end
         end else begin
-            if (ic_invalidate) begin
+            if (fencei_flush) begin
                 lookup_valid <= 1'b0;
                 hold_valid <= 1'b0;
                 for (i = 0; i < LINE_COUNT; i = i + 1) begin
@@ -212,11 +212,11 @@ module icache #(
 
             case (state)
                 S_LOOKUP: begin
-                    if (ic_flush) begin
+                    if (frontend_flush) begin
                         lookup_valid <= 1'b0;
                         hold_valid <= 1'b0;
                     end else if (!pipe_flush) begin
-                        if (hold_valid && ic_resp_ready) begin
+                        if (hold_valid && id_ready) begin
                             hold_valid <= 1'b0;
                             if (lookup_valid) begin
                                 lookup_valid <= 1'b0;
@@ -224,7 +224,7 @@ module icache #(
                         end
 
                         if (!hold_valid && cache_hit) begin
-                            if (ic_resp_ready) begin
+                            if (id_ready) begin
                                 lookup_valid <= 1'b0;
                             end else begin
                                 hold_valid <= 1'b1;
@@ -252,7 +252,7 @@ module icache #(
 
                         if (req_fire) begin
                             lookup_valid <= 1'b1;
-                            lookup_pc <= ic_req_pc;
+                            lookup_pc <= if_pc;
                             lookup_index <= req_index;
                             lookup_tag <= req_tag;
                             lookup_cacheable <= req_cacheable;
@@ -262,7 +262,7 @@ module icache #(
                 end
 
                 S_MISS_AR: begin
-                    if (ic_invalidate) begin
+                    if (fencei_flush) begin
                         if (ar_fire) begin
                             need_flush <= 1'b1;
                             kill_miss_refill <= !miss_bypass;
@@ -273,7 +273,7 @@ module icache #(
                             state <= S_LOOKUP;
                         end
                     end else begin
-                        if (ic_flush) begin
+                        if (frontend_flush) begin
                             lookup_valid <= 1'b0;
                             hold_valid <= 1'b0;
                             need_flush <= 1'b1;
@@ -286,10 +286,10 @@ module icache #(
                 end
 
                 S_MISS_R: begin
-                    if (ic_invalidate) begin
+                    if (fencei_flush) begin
                         need_flush <= 1'b1;
                         kill_miss_refill <= !miss_bypass;
-                    end else if (ic_flush) begin
+                    end else if (frontend_flush) begin
                         lookup_valid <= 1'b0;
                         hold_valid <= 1'b0;
                         need_flush <= 1'b1;
@@ -370,8 +370,8 @@ module icache #(
     end
 
     always @(posedge clock) begin
-        if (!reset && req_fire && (ic_req_pc[1:0] != 2'b00)) begin
-            $fatal(1, "unaligned icache fetch pc=%08x", ic_req_pc);
+        if (!reset && req_fire && (if_pc[1:0] != 2'b00)) begin
+            $fatal(1, "unaligned icache fetch pc=%08x", if_pc);
         end
         if (!reset && (state == S_MISS_R) && !miss_bypass && r_fire) begin
             if (refill_is_last_word && !ifu_axi_rlast) begin
