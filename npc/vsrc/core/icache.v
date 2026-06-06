@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 
 module icache #(
-    parameter integer LINE_WORDS = 1,
-    parameter integer LINE_COUNT = 16,
+    parameter integer LINE_WORDS = 4,
+    parameter integer LINE_COUNT = 4,
     parameter integer ADDR_WIDTH = 32,
     parameter integer TARGET_NPC = 0
 ) (
@@ -17,8 +17,8 @@ module icache #(
     input  wire        id_ready,
     output wire [31:0] id_pc,
     output wire [31:0] id_inst,
-    input  wire        frontend_flush,
-    input  wire        fencei_flush,
+    input  wire        flush,
+    input  wire        invalidate,
 
     // AXI4 read master interface
     output wire [31:0] ifu_axi_araddr,
@@ -126,9 +126,9 @@ module icache #(
     assign lookup_resp_valid = (state == S_LOOKUP) && cache_hit;
 
     assign refill_is_last_word = (refill_word_idx == (LINE_WORDS - 1));
-    assign pipe_flush = frontend_flush || fencei_flush;
+    assign pipe_flush = flush || invalidate;
     assign discard_resp = need_flush || pipe_flush;
-    assign kill_refill_now = kill_miss_refill || fencei_flush;
+    assign kill_refill_now = kill_miss_refill || invalidate;
     assign resp_from_hold = hold_valid;
     assign resp_from_lookup = !hold_valid && lookup_resp_valid;
     assign id_valid = resp_from_hold || resp_from_lookup;
@@ -202,7 +202,7 @@ module icache #(
                 valid_array[i] <= 1'b0;
             end
         end else begin
-            if (fencei_flush) begin
+            if (invalidate) begin
                 lookup_valid <= 1'b0;
                 hold_valid <= 1'b0;
                 for (i = 0; i < LINE_COUNT; i = i + 1) begin
@@ -212,7 +212,7 @@ module icache #(
 
             case (state)
                 S_LOOKUP: begin
-                    if (frontend_flush) begin
+                    if (flush) begin
                         lookup_valid <= 1'b0;
                         hold_valid <= 1'b0;
                     end else if (!pipe_flush) begin
@@ -262,7 +262,7 @@ module icache #(
                 end
 
                 S_MISS_AR: begin
-                    if (fencei_flush) begin
+                    if (invalidate) begin
                         if (ar_fire) begin
                             need_flush <= 1'b1;
                             kill_miss_refill <= !miss_bypass;
@@ -273,7 +273,7 @@ module icache #(
                             state <= S_LOOKUP;
                         end
                     end else begin
-                        if (frontend_flush) begin
+                        if (flush) begin
                             lookup_valid <= 1'b0;
                             hold_valid <= 1'b0;
                             need_flush <= 1'b1;
@@ -286,10 +286,10 @@ module icache #(
                 end
 
                 S_MISS_R: begin
-                    if (fencei_flush) begin
+                    if (invalidate) begin
                         need_flush <= 1'b1;
                         kill_miss_refill <= !miss_bypass;
-                    end else if (frontend_flush) begin
+                    end else if (flush) begin
                         lookup_valid <= 1'b0;
                         hold_valid <= 1'b0;
                         need_flush <= 1'b1;

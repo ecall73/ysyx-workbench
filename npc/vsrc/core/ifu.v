@@ -6,34 +6,52 @@ module ifu #(
     input  wire        clock,
     input  wire        reset,
     input  wire        if_ready,
-    input  wire        redirect_flush,
+    input  wire        ex_out_valid,
+    input  wire        ex_out_ready,
+    input  wire [31:0] ex_pc4,
+    input  wire        ex_btype,
+    input  wire        ex_jtype,
+    input  wire        ex_ijtype,
+    input  wire        ex_BRUResult,
+    input  wire [31:0] ex_ALUResult,
+    input  wire        ex_CSRjump,
+    input  wire [31:0] ex_CSRnpc,
+    input  wire        ex_FenceI,
 
     // IF stage request side
     output wire        if_valid,
-    output wire [31:0] if_pc,
-    output wire [31:0] if_pc4,
-    output wire        if_flush,
-
-    input  wire [31:0] npc
+    output reg  [31:0] if_pc,
+    output wire        flush,
+    output wire        invalidate
 );
-    reg [31:0] next_pc;
 
+    wire        ex_btype_taken;
+    wire        redirect_flush;
+    wire [31:0] frontend_restart_pc;
+    wire [31:0] restart_pc;
     wire req_fire;
 
-    assign if_valid = !redirect_flush;
-    assign if_pc = next_pc;
-    assign if_pc4 = next_pc + 32'd4;
-    assign if_flush = redirect_flush;
+    assign ex_btype_taken = ex_btype && ex_BRUResult;
+    assign redirect_flush = ex_out_valid && ex_out_ready &&
+                            (ex_CSRjump || ex_jtype || ex_ijtype || ex_btype_taken);
+    assign invalidate = ex_out_valid && ex_out_ready && ex_FenceI;
+    assign flush = redirect_flush || invalidate;
+    assign frontend_restart_pc = ex_CSRjump ? ex_CSRnpc :
+                                 (ex_btype_taken || ex_jtype || ex_ijtype) ? ex_ALUResult :
+                                 ex_pc4;
+    assign restart_pc = redirect_flush ? frontend_restart_pc : ex_pc4;
+
+    assign if_valid = !flush;
 
     assign req_fire = if_valid && if_ready;
 
     always @(posedge clock) begin
         if (reset) begin
-            next_pc <= RESET_PC;
-        end else if (redirect_flush) begin
-            next_pc <= npc;
+            if_pc <= RESET_PC;
+        end else if (flush) begin
+            if_pc <= restart_pc;
         end else if (req_fire) begin
-            next_pc <= next_pc + 32'd4;
+            if_pc <= if_pc + 32'd4;
         end
     end
 

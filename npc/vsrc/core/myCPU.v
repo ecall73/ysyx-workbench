@@ -62,13 +62,12 @@ module myCPU #(
     endfunction
 `endif
 
-    wire [31:0] npc;
-
     // IF
     wire        if_valid;
     wire        if_ready;
     wire [31:0] if_pc;
-    wire [31:0] if_pc4;
+    wire        flush;
+    wire        invalidate;
 
     // ID
     wire        id_valid;
@@ -110,6 +109,7 @@ module myCPU #(
     reg  [ 4:0] ex_RFwaddr;
     wire [31:0] ex_ALUResult;
     wire        ex_BRUResult;
+    wire [31:0] ex_pc4;
     wire [31:0] ex_RFwdata;
     reg         ex_btype;
     reg         ex_jtype;
@@ -137,17 +137,12 @@ module myCPU #(
     wire [31:0] ls_RFwdata_out;
 
     // Local handshake control
-    wire        waste2;
-    wire        redirect_flush;
-    wire        fencei_flush;
-    wire        frontend_flush;
     wire        forward_pending;
     wire        ex_out_ready;
     wire        id_ready;
     wire        ex_in_ready;
     wire        id_issue_valid; // From IDU handshake output
     wire        ex_out_valid;   // From EXU handshake output
-    wire [31:0] frontend_npc;
 
     // IFU AXI4 (read-only in practice)
     wire [31:0] ifu_axi_araddr;
@@ -194,43 +189,28 @@ module myCPU #(
 
 ////////////////////////////////////////////////////////////////
 
-    npc u_npc (
-        .if_pc4                 (if_pc4),
-
+    ifu #(
+        .RESET_PC               (RESET_PC)
+    ) u_ifu (
+        .clock                  (clock),
+        .reset                  (reset),
+        .if_ready               (if_ready),
+        .ex_out_valid           (ex_out_valid),
+        .ex_out_ready           (ex_out_ready),
+        .ex_pc4                 (ex_pc4),
         .ex_btype               (ex_btype),
         .ex_jtype               (ex_jtype),
         .ex_ijtype              (ex_ijtype),
-
         .ex_BRUResult           (ex_BRUResult),
         .ex_ALUResult           (ex_ALUResult),
         .ex_CSRjump             (ex_CSRjump),
         .ex_CSRnpc              (ex_CSRnpc),
-
-        .npc                    (npc),
-        .waste2                 (waste2)
-    );
-
-    // EX stage redirect decision (flush IF/ID and ID/EX)
-    // Redirect only when EX really handshakes out; otherwise a stalled EX jump
-    // could be flushed away before it reaches commit order.
-    assign redirect_flush = ex_out_valid && ex_out_ready && waste2;
-    assign fencei_flush = ex_out_valid && ex_out_ready && ex_FenceI;
-    assign frontend_flush = redirect_flush || fencei_flush;
-    assign frontend_npc = redirect_flush ? npc : (ex_pc + 32'd4);
-
-    ifu #(
-        .RESET_PC               (RESET_PC)
-    ) u_ifu (
-        .clock                    (clock),
-        .reset                    (reset),
-        .if_ready               (if_ready),
-        .redirect_flush         (frontend_flush),
+        .ex_FenceI              (ex_FenceI),
 
         .if_valid               (if_valid),
         .if_pc                  (if_pc),
-        .if_pc4                 (if_pc4),
-
-        .npc                    (frontend_npc)
+        .flush                  (flush),
+        .invalidate             (invalidate)
     );
 
 
@@ -243,15 +223,15 @@ module myCPU #(
         .clock                  (clock),
         .reset                  (reset),
 
-        .if_valid           (if_valid),
-        .if_ready           (if_ready),
-        .if_pc              (if_pc),
-        .id_valid          (id_valid),
-        .id_ready          (id_ready),
-        .id_pc             (id_pc),
-        .id_inst           (id_inst),
-        .frontend_flush               (frontend_flush),
-        .fencei_flush          (fencei_flush),
+        .if_valid               (if_valid),
+        .if_ready               (if_ready),
+        .if_pc                  (if_pc),
+        .id_valid               (id_valid),
+        .id_ready               (id_ready),
+        .id_pc                  (id_pc),
+        .id_inst                (id_inst),
+        .flush                  (flush),
+        .invalidate             (invalidate),
 
         .ifu_axi_araddr         (ifu_axi_araddr),
         .ifu_axi_arlen          (ifu_axi_arlen),
@@ -266,8 +246,8 @@ module myCPU #(
     );
 
     idu u_idu (
-        .clock                    (clock),
-        .reset                    (reset),
+        .clock                  (clock),
+        .reset                  (reset),
         .id_valid               (id_valid),
         .id_ready               (id_ready),
         .id_issue_valid         (id_issue_valid),
@@ -301,8 +281,8 @@ module myCPU #(
     );
 
     RF u_RF (
-        .clock                    (clock),
-        .reset                    (reset),
+        .clock                  (clock),
+        .reset                  (reset),
 
         .wen                    (ls_out_valid && ls_RegWrite),
         .waddr                  (ls_RFwaddr),
@@ -344,7 +324,7 @@ module myCPU #(
     always @(posedge clock) begin
         if (reset) begin
             ex_in_valid        <= 1'b0;
-        end else if (frontend_flush) begin
+        end else if (flush) begin
             ex_in_valid        <= 1'b0;
         end else if (ex_in_ready) begin
             ex_in_valid <= id_issue_valid;
@@ -379,7 +359,7 @@ module myCPU #(
                 pc_EX <= 32'b0;
                 inst_EX <= 32'b0;
                 have_inst_EX <= 1'b0;
-            end else if (frontend_flush) begin
+            end else if (flush) begin
                 pc_EX <= 32'b0;
                 inst_EX <= 32'b0;
                 have_inst_EX <= 1'b0;
@@ -401,8 +381,8 @@ module myCPU #(
     assign ex_out_ready = ls_in_ready;
 
     exu u_exu (
-        .clock                    (clock),
-        .reset                    (reset),
+        .clock                  (clock),
+        .reset                  (reset),
         .ex_in_valid            (ex_in_valid),
         .ex_in_ready            (ex_in_ready),
         .ex_out_valid           (ex_out_valid),
@@ -425,6 +405,7 @@ module myCPU #(
 
         .ex_ALUResult           (ex_ALUResult),
         .ex_BRUResult           (ex_BRUResult),
+        .ex_pc4                 (ex_pc4),
 
         .ex_CSRjump             (ex_CSRjump),
         .ex_CSRnpc              (ex_CSRnpc),
@@ -479,108 +460,108 @@ module myCPU #(
     assign ls_out_ready = 1'b1;
 
     lsu u_lsu (
-        .clock                     (clock),
-        .reset                     (reset),
-        .ls_in_valid             (ls_in_valid),
-        .ls_in_ready             (ls_in_ready),
-        .ls_out_valid            (ls_out_valid),
-        .ls_out_ready            (ls_out_ready),
+        .clock                  (clock),
+        .reset                  (reset),
+        .ls_in_valid            (ls_in_valid),
+        .ls_in_ready            (ls_in_ready),
+        .ls_out_valid           (ls_out_valid),
+        .ls_out_ready           (ls_out_ready),
 
-        .ls_ALUResult            (ls_ALUResult),
-        .ls_funct3               (ls_funct3),
-        .ls_MemWrite             (ls_MemWrite),
-        .ls_MemRead              (ls_MemRead),
-        .ls_rR2_data             (ls_rR2_data),
+        .ls_ALUResult           (ls_ALUResult),
+        .ls_funct3              (ls_funct3),
+        .ls_MemWrite            (ls_MemWrite),
+        .ls_MemRead             (ls_MemRead),
+        .ls_rR2_data            (ls_rR2_data),
 
-        .ls_RFwdata              (ls_RFwdata),
+        .ls_RFwdata             (ls_RFwdata),
 
-        .lsu_axi_araddr          (lsu_axi_araddr),
-        .lsu_axi_arsize          (lsu_axi_arsize),
-        .lsu_axi_arvalid         (lsu_axi_arvalid),
-        .lsu_axi_arready         (lsu_axi_arready),
-        .lsu_axi_rdata           (lsu_axi_rdata),
-        .lsu_axi_rresp           (lsu_axi_rresp),
-        .lsu_axi_rvalid          (lsu_axi_rvalid),
-        .lsu_axi_rready          (lsu_axi_rready),
-        .lsu_axi_awaddr          (lsu_axi_awaddr),
-        .lsu_axi_awsize          (lsu_axi_awsize),
-        .lsu_axi_awvalid         (lsu_axi_awvalid),
-        .lsu_axi_awready         (lsu_axi_awready),
-        .lsu_axi_wdata           (lsu_axi_wdata),
-        .lsu_axi_wstrb           (lsu_axi_wstrb),
-        .lsu_axi_wvalid          (lsu_axi_wvalid),
-        .lsu_axi_wready          (lsu_axi_wready),
-        .lsu_axi_bresp           (lsu_axi_bresp),
-        .lsu_axi_bvalid          (lsu_axi_bvalid),
-        .lsu_axi_bready          (lsu_axi_bready),
+        .lsu_axi_araddr         (lsu_axi_araddr),
+        .lsu_axi_arsize         (lsu_axi_arsize),
+        .lsu_axi_arvalid        (lsu_axi_arvalid),
+        .lsu_axi_arready        (lsu_axi_arready),
+        .lsu_axi_rdata          (lsu_axi_rdata),
+        .lsu_axi_rresp          (lsu_axi_rresp),
+        .lsu_axi_rvalid         (lsu_axi_rvalid),
+        .lsu_axi_rready         (lsu_axi_rready),
+        .lsu_axi_awaddr         (lsu_axi_awaddr),
+        .lsu_axi_awsize         (lsu_axi_awsize),
+        .lsu_axi_awvalid        (lsu_axi_awvalid),
+        .lsu_axi_awready        (lsu_axi_awready),
+        .lsu_axi_wdata          (lsu_axi_wdata),
+        .lsu_axi_wstrb          (lsu_axi_wstrb),
+        .lsu_axi_wvalid         (lsu_axi_wvalid),
+        .lsu_axi_wready         (lsu_axi_wready),
+        .lsu_axi_bresp          (lsu_axi_bresp),
+        .lsu_axi_bvalid         (lsu_axi_bvalid),
+        .lsu_axi_bready         (lsu_axi_bready),
 
-        .ls_RFwdata_out          (ls_RFwdata_out)
+        .ls_RFwdata_out         (ls_RFwdata_out)
     );
 
     axi4lite_arbiter u_axi4lite_arbiter (
-        .clock                     (clock),
-        .reset                     (reset),
+        .clock                  (clock),
+        .reset                  (reset),
 
-        .ifu_axi_araddr          (ifu_axi_araddr),
-        .ifu_axi_arlen           (ifu_axi_arlen),
-        .ifu_axi_arburst         (ifu_axi_arburst),
-        .ifu_axi_arvalid         (ifu_axi_arvalid),
-        .ifu_axi_arready         (ifu_axi_arready),
-        .ifu_axi_rdata           (ifu_axi_rdata),
-        .ifu_axi_rresp           (ifu_axi_rresp),
-        .ifu_axi_rlast           (ifu_axi_rlast),
-        .ifu_axi_rvalid          (ifu_axi_rvalid),
-        .ifu_axi_rready          (ifu_axi_rready),
+        .ifu_axi_araddr         (ifu_axi_araddr),
+        .ifu_axi_arlen          (ifu_axi_arlen),
+        .ifu_axi_arburst        (ifu_axi_arburst),
+        .ifu_axi_arvalid        (ifu_axi_arvalid),
+        .ifu_axi_arready        (ifu_axi_arready),
+        .ifu_axi_rdata          (ifu_axi_rdata),
+        .ifu_axi_rresp          (ifu_axi_rresp),
+        .ifu_axi_rlast          (ifu_axi_rlast),
+        .ifu_axi_rvalid         (ifu_axi_rvalid),
+        .ifu_axi_rready         (ifu_axi_rready),
 
-        .lsu_axi_araddr          (lsu_axi_araddr),
-        .lsu_axi_arsize          (lsu_axi_arsize),
-        .lsu_axi_arvalid         (lsu_axi_arvalid),
-        .lsu_axi_arready         (lsu_axi_arready),
-        .lsu_axi_rdata           (lsu_axi_rdata),
-        .lsu_axi_rresp           (lsu_axi_rresp),
-        .lsu_axi_rvalid          (lsu_axi_rvalid),
-        .lsu_axi_rready          (lsu_axi_rready),
-        .lsu_axi_awaddr          (lsu_axi_awaddr),
-        .lsu_axi_awsize          (lsu_axi_awsize),
-        .lsu_axi_awvalid         (lsu_axi_awvalid),
-        .lsu_axi_awready         (lsu_axi_awready),
-        .lsu_axi_wdata           (lsu_axi_wdata),
-        .lsu_axi_wstrb           (lsu_axi_wstrb),
-        .lsu_axi_wvalid          (lsu_axi_wvalid),
-        .lsu_axi_wready          (lsu_axi_wready),
-        .lsu_axi_bresp           (lsu_axi_bresp),
-        .lsu_axi_bvalid          (lsu_axi_bvalid),
-        .lsu_axi_bready          (lsu_axi_bready),
+        .lsu_axi_araddr         (lsu_axi_araddr),
+        .lsu_axi_arsize         (lsu_axi_arsize),
+        .lsu_axi_arvalid        (lsu_axi_arvalid),
+        .lsu_axi_arready        (lsu_axi_arready),
+        .lsu_axi_rdata          (lsu_axi_rdata),
+        .lsu_axi_rresp          (lsu_axi_rresp),
+        .lsu_axi_rvalid         (lsu_axi_rvalid),
+        .lsu_axi_rready         (lsu_axi_rready),
+        .lsu_axi_awaddr         (lsu_axi_awaddr),
+        .lsu_axi_awsize         (lsu_axi_awsize),
+        .lsu_axi_awvalid        (lsu_axi_awvalid),
+        .lsu_axi_awready        (lsu_axi_awready),
+        .lsu_axi_wdata          (lsu_axi_wdata),
+        .lsu_axi_wstrb          (lsu_axi_wstrb),
+        .lsu_axi_wvalid         (lsu_axi_wvalid),
+        .lsu_axi_wready         (lsu_axi_wready),
+        .lsu_axi_bresp          (lsu_axi_bresp),
+        .lsu_axi_bvalid         (lsu_axi_bvalid),
+        .lsu_axi_bready         (lsu_axi_bready),
 
-        .mem_axi_araddr          (mem_axi_araddr),
-        .mem_axi_arid            (mem_axi_arid),
-        .mem_axi_arlen           (mem_axi_arlen),
-        .mem_axi_arsize          (mem_axi_arsize),
-        .mem_axi_arburst         (mem_axi_arburst),
-        .mem_axi_arvalid         (mem_axi_arvalid),
-        .mem_axi_arready         (mem_axi_arready),
-        .mem_axi_rdata           (mem_axi_rdata),
-        .mem_axi_rid             (mem_axi_rid),
-        .mem_axi_rresp           (mem_axi_rresp),
-        .mem_axi_rlast           (mem_axi_rlast),
-        .mem_axi_rvalid          (mem_axi_rvalid),
-        .mem_axi_rready          (mem_axi_rready),
-        .mem_axi_awaddr          (mem_axi_awaddr),
-        .mem_axi_awid            (mem_axi_awid),
-        .mem_axi_awlen           (mem_axi_awlen),
-        .mem_axi_awsize          (mem_axi_awsize),
-        .mem_axi_awburst         (mem_axi_awburst),
-        .mem_axi_awvalid         (mem_axi_awvalid),
-        .mem_axi_awready         (mem_axi_awready),
-        .mem_axi_wdata           (mem_axi_wdata),
-        .mem_axi_wstrb           (mem_axi_wstrb),
-        .mem_axi_wlast           (mem_axi_wlast),
-        .mem_axi_wvalid          (mem_axi_wvalid),
-        .mem_axi_wready          (mem_axi_wready),
-        .mem_axi_bid             (mem_axi_bid),
-        .mem_axi_bresp           (mem_axi_bresp),
-        .mem_axi_bvalid          (mem_axi_bvalid),
-        .mem_axi_bready          (mem_axi_bready)
+        .mem_axi_araddr         (mem_axi_araddr),
+        .mem_axi_arid           (mem_axi_arid),
+        .mem_axi_arlen          (mem_axi_arlen),
+        .mem_axi_arsize         (mem_axi_arsize),
+        .mem_axi_arburst        (mem_axi_arburst),
+        .mem_axi_arvalid        (mem_axi_arvalid),
+        .mem_axi_arready        (mem_axi_arready),
+        .mem_axi_rdata          (mem_axi_rdata),
+        .mem_axi_rid            (mem_axi_rid),
+        .mem_axi_rresp          (mem_axi_rresp),
+        .mem_axi_rlast          (mem_axi_rlast),
+        .mem_axi_rvalid         (mem_axi_rvalid),
+        .mem_axi_rready         (mem_axi_rready),
+        .mem_axi_awaddr         (mem_axi_awaddr),
+        .mem_axi_awid           (mem_axi_awid),
+        .mem_axi_awlen          (mem_axi_awlen),
+        .mem_axi_awsize         (mem_axi_awsize),
+        .mem_axi_awburst        (mem_axi_awburst),
+        .mem_axi_awvalid        (mem_axi_awvalid),
+        .mem_axi_awready        (mem_axi_awready),
+        .mem_axi_wdata          (mem_axi_wdata),
+        .mem_axi_wstrb          (mem_axi_wstrb),
+        .mem_axi_wlast          (mem_axi_wlast),
+        .mem_axi_wvalid         (mem_axi_wvalid),
+        .mem_axi_wready         (mem_axi_wready),
+        .mem_axi_bid            (mem_axi_bid),
+        .mem_axi_bresp          (mem_axi_bresp),
+        .mem_axi_bvalid         (mem_axi_bvalid),
+        .mem_axi_bready         (mem_axi_bready)
     );
 
 `ifndef SYNTHESIS
@@ -635,7 +616,7 @@ module myCPU #(
     assign pmu_lsu_load_req = (u_lsu.state == PMU_LSU_IDLE) && ls_in_valid && u_lsu.ls_is_load;
     assign pmu_lsu_load_pending = (u_lsu.state == PMU_LSU_RD_AR) || (u_lsu.state == PMU_LSU_RD_WAIT_R);
     assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
-    assign pmu_dec_total = !frontend_flush && id_issue_valid && ex_in_ready && have_inst_ID;
+    assign pmu_dec_total = !flush && id_issue_valid && ex_in_ready && have_inst_ID;
     assign pmu_icache_miss_refill_busy =
         ((u_icache.state == PMU_ICACHE_MISS_AR) ||
          (u_icache.state == PMU_ICACHE_MISS_R)) && !u_icache.miss_bypass;
@@ -649,7 +630,7 @@ module myCPU #(
             end
             if (pmu_ifu_nosupply) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
-                if (frontend_flush || u_icache.need_flush) begin
+                if (flush || u_icache.need_flush) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
                 end else if (id_valid && !id_ready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;

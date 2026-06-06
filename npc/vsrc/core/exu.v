@@ -28,6 +28,7 @@ module exu (
     // Outputs
     output wire [31:0] ex_ALUResult,
     output wire        ex_BRUResult,
+    output wire [31:0] ex_pc4,
 
     output wire [31:0] CSRrdata,
     output wire        ex_CSRjump,
@@ -39,7 +40,6 @@ module exu (
 
     wire [31:0] ex_A;
     wire [31:0] ex_B;
-    wire [31:0] ex_pc4;
 
     assign ex_in_ready = ~ex_in_valid || ex_out_ready;
     assign ex_out_valid = ex_in_valid;
