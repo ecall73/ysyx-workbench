@@ -41,6 +41,7 @@ static uint8_t mrom[MROM_SIZE] = {};
 static uint8_t flash[FLASH_SIZE] = {};
 static uint8_t sram[SRAM_SIZE] = {};
 static uint8_t sdram[SDRAM_SIZE] = {};
+static bool soc_memory_map_active = false;
 
 uint8_t* guest_to_host(paddr_t paddr) { return pmem + paddr - CONFIG_MBASE; }
 paddr_t host_to_guest(uint8_t *haddr) { return haddr - pmem + CONFIG_MBASE; }
@@ -72,6 +73,17 @@ static inline bool in_sdram_range(paddr_t addr, int len) {
   return in_region_range(addr, len, SDRAM_BASE, SDRAM_SIZE);
 }
 
+static inline bool in_soc_boot_range(paddr_t addr, int len) {
+  return in_mrom_range(addr, len) || in_flash_range(addr, len) || in_sram_range(addr, len);
+}
+
+static inline void activate_soc_memory_map_if_needed(paddr_t addr, int len) {
+  if (!soc_memory_map_active && in_soc_boot_range(addr, len)) {
+    soc_memory_map_active = true;
+    Log("Enable SoC memory map on first boot-region access at " FMT_PADDR, addr);
+  }
+}
+
 static word_t mem_read(uint8_t *space, paddr_t addr, paddr_t base, int len) {
   word_t ret = host_read(space + (addr - base), len);
   return ret;
@@ -97,6 +109,7 @@ void init_mem() {
   memset(flash, 0, sizeof(flash));
   memset(sram, 0, sizeof(sram));
   memset(sdram, 0, sizeof(sdram));
+  soc_memory_map_active = false;
   Log("physical memory area [" FMT_PADDR ", " FMT_PADDR "]", PMEM_LEFT, PMEM_RIGHT);
   Log("MROM area [0x%08x, 0x%08x]", MROM_BASE, MROM_RIGHT);
   Log("FLASH area [0x%08x, 0x%08x]", FLASH_BASE, FLASH_RIGHT);
@@ -124,22 +137,23 @@ word_t paddr_read(paddr_t addr, int len) {
     IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
     return data;
   }
-  if (likely(in_mrom_range(addr, len))) {
+  activate_soc_memory_map_if_needed(addr, len);
+  if (likely(soc_memory_map_active && in_mrom_range(addr, len))) {
     word_t data = mem_read(mrom, addr, MROM_BASE, len);
     IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
     return data;
   }
-  if (likely(in_flash_range(addr, len))) {
+  if (likely(soc_memory_map_active && in_flash_range(addr, len))) {
     word_t data = mem_read(flash, addr, FLASH_BASE, len);
     IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
     return data;
   }
-  if (likely(in_sram_range(addr, len))) {
+  if (likely(soc_memory_map_active && in_sram_range(addr, len))) {
     word_t data = mem_read(sram, addr, SRAM_BASE, len);
     IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
     return data;
   }
-  if (likely(in_sdram_range(addr, len))) {
+  if (likely(soc_memory_map_active && in_sdram_range(addr, len))) {
     word_t data = mem_read(sdram, addr, SDRAM_BASE, len);
     IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
     return data;
@@ -159,22 +173,23 @@ void paddr_write(paddr_t addr, int len, word_t data) {
     IFDEF(CONFIG_MTRACE, mtrace_log_write(addr, len, data));
     return;
   }
-  if (likely(in_mrom_range(addr, len))) {
+  activate_soc_memory_map_if_needed(addr, len);
+  if (likely(soc_memory_map_active && in_mrom_range(addr, len))) {
     mem_write(mrom, addr, MROM_BASE, len, data);
     IFDEF(CONFIG_MTRACE, mtrace_log_write(addr, len, data));
     return;
   }
-  if (likely(in_flash_range(addr, len))) {
+  if (likely(soc_memory_map_active && in_flash_range(addr, len))) {
     mem_write(flash, addr, FLASH_BASE, len, data);
     IFDEF(CONFIG_MTRACE, mtrace_log_write(addr, len, data));
     return;
   }
-  if (likely(in_sram_range(addr, len))) {
+  if (likely(soc_memory_map_active && in_sram_range(addr, len))) {
     mem_write(sram, addr, SRAM_BASE, len, data);
     IFDEF(CONFIG_MTRACE, mtrace_log_write(addr, len, data));
     return;
   }
-  if (likely(in_sdram_range(addr, len))) {
+  if (likely(soc_memory_map_active && in_sdram_range(addr, len))) {
     mem_write(sdram, addr, SDRAM_BASE, len, data);
     IFDEF(CONFIG_MTRACE, mtrace_log_write(addr, len, data));
     return;
