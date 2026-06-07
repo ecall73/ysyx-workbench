@@ -1,6 +1,6 @@
 #include <device/mmio.h>
 #include <isa.h>
-#include <memory/paddr.h>
+#include <memory/paddr_internal.h>
 
 static bool native_read(paddr_t addr, int len, word_t *data) {
   if (nemu_in_region_range(addr, len, CONFIG_MBASE, CONFIG_MSIZE)) {

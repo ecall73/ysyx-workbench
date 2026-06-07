@@ -14,7 +14,7 @@
 ***************************************************************************************/
 
 #include <memory/host.h>
-#include <memory/paddr.h>
+#include <memory/paddr_internal.h>
 
 #if   defined(CONFIG_PMEM_MALLOC)
 static uint8_t *pmem = NULL;
@@ -22,7 +22,6 @@ static uint8_t *pmem = NULL;
 static uint8_t pmem[CONFIG_MSIZE] PG_ALIGN = {};
 #endif
 
-static NemuMemBackend current_mem_backend = NEMU_MEM_BACKEND_NATIVE;
 static const NemuPaddrBackendOps *current_backend = NULL;
 
 uint8_t* guest_to_host(paddr_t paddr) { return pmem + paddr - CONFIG_MBASE; }
@@ -47,21 +46,8 @@ void nemu_host_write_region(uint8_t *space, paddr_t addr, paddr_t base, int len,
   host_write(space + (addr - base), len, data);
 }
 
-static const NemuPaddrBackendOps *get_backend_ops(NemuMemBackend backend) {
-  switch (backend) {
-    case NEMU_MEM_BACKEND_NATIVE: return nemu_native_paddr_backend();
-    case NEMU_MEM_BACKEND_YSYXSOC: return nemu_ysyxsoc_paddr_backend();
-    default: panic("unknown memory backend %d", backend);
-  }
-}
-
-void nemu_set_mem_backend(NemuMemBackend backend) {
-  current_mem_backend = backend;
-  current_backend = get_backend_ops(backend);
-}
-
-NemuMemBackend nemu_get_mem_backend(void) {
-  return current_mem_backend;
+void nemu_select_ysyxsoc_paddr_backend(void) {
+  current_backend = nemu_ysyxsoc_paddr_backend();
 }
 
 static void out_of_bound(paddr_t addr) {
@@ -74,7 +60,9 @@ void init_mem() {
   assert(pmem);
 #endif
   IFDEF(CONFIG_MEM_RANDOM, memset(pmem, rand(), CONFIG_MSIZE));
-  current_backend = get_backend_ops(current_mem_backend);
+  if (current_backend == NULL) {
+    current_backend = nemu_native_paddr_backend();
+  }
   if (current_backend->init != NULL) {
     current_backend->init();
   }

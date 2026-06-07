@@ -1,7 +1,7 @@
 #include <device/mmio.h>
 #include <isa.h>
 #include <string.h>
-#include <memory/paddr.h>
+#include <memory/paddr_internal.h>
 
 #define FLASH_BASE 0x30000000u
 #define FLASH_SIZE (16u * 1024u * 1024u)
