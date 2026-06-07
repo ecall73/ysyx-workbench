@@ -23,10 +23,9 @@
 #define RESET_VECTOR (PMEM_LEFT + CONFIG_PC_RESET_OFFSET)
 
 typedef enum {
-  NEMU_MACHINE_STANDALONE = 0,
-  NEMU_MACHINE_NPC_REF,
-  NEMU_MACHINE_YSYXSOC_REF,
-} NemuMachineProfile;
+  NEMU_MEM_BACKEND_NATIVE = 0,
+  NEMU_MEM_BACKEND_YSYXSOC = 1,
+} NemuMemBackend;
 
 /* convert the guest physical address in the guest program to host virtual address in NEMU */
 uint8_t* guest_to_host(paddr_t paddr);
@@ -37,10 +36,8 @@ static inline bool in_pmem(paddr_t addr) {
   return addr - CONFIG_MBASE < CONFIG_MSIZE;
 }
 
-void nemu_set_machine_profile(NemuMachineProfile profile);
-NemuMachineProfile nemu_get_machine_profile(void);
-const char *nemu_machine_profile_name(NemuMachineProfile profile);
-bool nemu_parse_machine_profile(const char *name, NemuMachineProfile *out);
+void nemu_set_mem_backend(NemuMemBackend backend);
+NemuMemBackend nemu_get_mem_backend(void);
 
 word_t paddr_read(paddr_t addr, int len);
 void paddr_write(paddr_t addr, int len, word_t data);
