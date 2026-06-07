@@ -27,6 +27,15 @@ typedef enum {
   NEMU_MEM_BACKEND_YSYXSOC = 1,
 } NemuMemBackend;
 
+typedef struct {
+  const char *name;
+  void (*init)(void);
+  bool (*read)(paddr_t addr, int len, word_t *data);
+  bool (*write)(paddr_t addr, int len, word_t data);
+  void (*log_ranges)(void);
+  void (*out_of_bound)(paddr_t addr);
+} NemuPaddrBackendOps;
+
 /* convert the guest physical address in the guest program to host virtual address in NEMU */
 uint8_t* guest_to_host(paddr_t paddr);
 /* convert the host virtual address in NEMU to guest physical address in the guest program */
@@ -38,6 +47,12 @@ static inline bool in_pmem(paddr_t addr) {
 
 void nemu_set_mem_backend(NemuMemBackend backend);
 NemuMemBackend nemu_get_mem_backend(void);
+bool nemu_in_region_range(paddr_t addr, int len, paddr_t base, uint32_t size);
+word_t nemu_host_read_region(uint8_t *space, paddr_t addr, paddr_t base, int len);
+void nemu_host_write_region(uint8_t *space, paddr_t addr, paddr_t base, int len, word_t data);
+uint8_t *nemu_pmem_base(void);
+const NemuPaddrBackendOps *nemu_native_paddr_backend(void);
+const NemuPaddrBackendOps *nemu_ysyxsoc_paddr_backend(void);
 
 word_t paddr_read(paddr_t addr, int len);
 void paddr_write(paddr_t addr, int len, word_t data);
