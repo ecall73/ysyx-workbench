@@ -1,6 +1,4 @@
 `timescale 1ns / 1ps
-`include "defines.v"
-
 module ysyx_26030082 (
     input  wire        clock,
     input  wire        reset,
@@ -66,6 +64,9 @@ module ysyx_26030082 (
     output wire [ 1:0] io_slave_rresp,
     output wire        io_slave_rlast
 );
+
+    localparam [31:0] CLINT_BASE_ADDR = 32'h0200_0000;
+    localparam [31:0] CLINT_END_ADDR  = 32'h0200_ffff;
 
     localparam X_IDLE      = 2'd0;
     localparam X_RD_WAIT_R = 2'd1;
@@ -139,9 +140,10 @@ module ysyx_26030082 (
     wire b_fire;
     wire aw_done_next;
     wire w_done_next;
+    wire wr_sel_clint_cur;
 
-    assign ar_to_clint = (core_axi_araddr >= `CLINT_BASE_ADDR) && (core_axi_araddr <= `CLINT_END_ADDR);
-    assign aw_to_clint = (core_axi_awaddr >= `CLINT_BASE_ADDR) && (core_axi_awaddr <= `CLINT_END_ADDR);
+    assign ar_to_clint = (core_axi_araddr >= CLINT_BASE_ADDR) && (core_axi_araddr <= CLINT_END_ADDR);
+    assign aw_to_clint = (core_axi_awaddr >= CLINT_BASE_ADDR) && (core_axi_awaddr <= CLINT_END_ADDR);
 
     assign ar_fire = core_axi_arvalid && core_axi_arready;
     assign r_fire = core_axi_rvalid && core_axi_rready;
@@ -150,6 +152,7 @@ module ysyx_26030082 (
     assign b_fire = core_axi_bvalid && core_axi_bready;
     assign aw_done_next = wr_aw_done || aw_fire;
     assign w_done_next = wr_w_done || w_fire;
+    assign wr_sel_clint_cur = wr_aw_done ? wr_sel_clint : aw_to_clint;
 
     // Unused slave port is tied off to zero.
     assign io_slave_awready = 1'b0;
@@ -263,8 +266,8 @@ module ysyx_26030082 (
                     end
                 end
 
-                if (wr_aw_done && ~wr_w_done) begin
-                    if (wr_sel_clint) begin
+                if (~wr_w_done) begin
+                    if (wr_sel_clint_cur) begin
                         clint_axi_wdata = core_axi_wdata;
                         clint_axi_wstrb = core_axi_wstrb;
                         clint_axi_wvalid = core_axi_wvalid;
@@ -324,7 +327,7 @@ module ysyx_26030082 (
                 end
 
                 X_RD_WAIT_R: begin
-                    if (r_fire) begin
+                    if (r_fire && core_axi_rlast) begin
                         state <= X_IDLE;
                     end
                 end
@@ -365,8 +368,8 @@ module ysyx_26030082 (
 `ifndef SYNTHESIS
     always @(posedge clock) begin
         if (!reset) begin
-            if (core_axi_arvalid && core_axi_arready && (core_axi_arlen != 8'h00)) begin
-                $fatal(1, "ysyx_26030082: burst read is not supported");
+            if (core_axi_arvalid && core_axi_arready && ar_to_clint && (core_axi_arlen != 8'h00)) begin
+                $fatal(1, "ysyx_26030082: CLINT burst read is not supported");
             end
             if (core_axi_awvalid && core_axi_awready && (core_axi_awlen != 8'h00)) begin
                 $fatal(1, "ysyx_26030082: burst write is not supported");
@@ -388,9 +391,12 @@ module ysyx_26030082 (
     end
 `endif
 
-    myCPU u_cpu (
-        .clk                (clock),
-        .rst                (reset),
+    myCPU #(
+        .RESET_PC             (32'h3000_0000),
+        .TARGET_NPC           (0)
+    ) u_cpu (
+        .clock                (clock),
+        .reset                (reset),
         .mem_axi_araddr     (core_axi_araddr),
         .mem_axi_arid       (core_axi_arid),
         .mem_axi_arlen      (core_axi_arlen),
@@ -422,9 +428,12 @@ module ysyx_26030082 (
         .mem_axi_bready     (core_axi_bready)
     );
 
-    clint_axi4lite u_clint_axi4lite (
-        .clk                (clock),
-        .rst                (reset),
+    clint_axi4lite #(
+        .MTIME_ADDR           (32'h0200_bff8),
+        .MTIMEH_ADDR          (32'h0200_bffc)
+    ) u_clint_axi4lite (
+        .clock                (clock),
+        .reset                (reset),
         .clint_axi_araddr   (clint_axi_araddr),
         .clint_axi_arvalid  (clint_axi_arvalid),
         .clint_axi_arready  (clint_axi_arready),

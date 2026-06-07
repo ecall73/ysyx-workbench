@@ -1,21 +1,12 @@
 `timescale 1ns / 1ps
 
-`include "defines.v"
-
-// CSRControl
-`define CCTL_csrrw      5'b00001
-`define CCTL_csrrs      5'b00010
-`define CCTL_csrrc      5'b00100
-`define CCTL_ecall      5'b01000
-`define CCTL_mret       5'b10000
-
 module CSR (
-    input  wire        clk,
-    input  wire        rst,
+    input  wire        clock,
+    input  wire        reset,
 
-    input  wire [ 4:0] CSRControl, // one-hot CCTL
+    input  wire        system,
+    input  wire [ 2:0] funct3,
     input  wire [11:0] CSRaddr,
-    input  wire        CSRSrc,     // CSR写入选择
     input  wire [31:0] rR1_data,   // CSR写入寄存器值(csrrx),已递进
     input  wire [31:0] imm,        // CSR写入立即数(csrrxi)
 
@@ -40,9 +31,13 @@ module CSR (
 
     localparam [31:0] CAUSE_ECALL_M = 32'd11;
 
-    wire        ecall = CSRControl[3];
-    wire        mret  = CSRControl[4];
-    wire [31:0] CSRwdata = CSRSrc ? imm : rR1_data;  // csrrxi: imm, csrrx: rR1
+    wire        csr_rw = system && (funct3[1:0] == 2'b01);
+    wire        csr_rs = system && (funct3[1:0] == 2'b10);
+    wire        csr_rc = system && (funct3[1:0] == 2'b11);
+    wire        csr_sys0 = system && (funct3 == 3'b000);
+    wire        ecall = csr_sys0 && (CSRaddr == 12'h000);
+    wire        mret  = csr_sys0 && (CSRaddr == 12'h302);
+    wire [31:0] CSRwdata = funct3[2] ? imm : rR1_data;  // csrrxi: imm, csrrx: rR1
 
     wire        sync_trap_req   = ecall;
     wire        trap_taken      = sync_trap_req;
@@ -69,88 +64,80 @@ module CSR (
     assign CSRjump = trap_taken || mret_taken;
 
     // mstatus
-    always @(posedge clk) begin
-		if (rst) begin
+    always @(posedge clock) begin
+		if (reset) begin
             mstatus <= 32'h1800;
         end else if (trap_taken) begin
             mstatus[3] <= 0;
             mstatus[7] <= mstatus[3];
             mstatus[12:11] <= 3;        // privilege M-mode 3
         end else begin
-			case (CSRControl)
-				`CCTL_csrrw: if (CSRaddr == CSR_mstatus) mstatus <= CSRwdata;
-				`CCTL_csrrs: if (CSRaddr == CSR_mstatus) mstatus <= (mstatus | CSRwdata);
-                `CCTL_csrrc: if (CSRaddr == CSR_mstatus) mstatus <= (mstatus & ~CSRwdata);
-
-				/*`CCTL_ecall: begin
-					mstatus[7]  	<= mstatus[3];  	// MPIE <= 当前 MIE
-					mstatus[3]  	<= 1'b0;        	// MIE <= 0
-					mstatus[12:11] 	<= 2'b11;    		// MPP <= M模式
-				end*/
-				`CCTL_mret: begin
-					mstatus[3]  	<= mstatus[7];  	// MIE <= MPIE
-				end
-				default: mstatus <= mstatus; // 保持原值
-			endcase
+                if (csr_rw && (CSRaddr == CSR_mstatus)) begin
+                    mstatus <= CSRwdata;
+                end else if (csr_rs && (CSRaddr == CSR_mstatus)) begin
+                    mstatus <= (mstatus | CSRwdata);
+                end else if (csr_rc && (CSRaddr == CSR_mstatus)) begin
+                    mstatus <= (mstatus & ~CSRwdata);
+                end else if (mret) begin
+                    mstatus[3] <= mstatus[7];   // MIE <= MPIE
+                end else begin
+                    mstatus <= mstatus; // 保持原值
+                end
+			end
 		end
-	end
 
     // mcause
-    always @(posedge clk) begin
-		if (rst) begin
+    always @(posedge clock) begin
+		if (reset) begin
 			mcause <= 32'h0;
         end else if (trap_taken) begin
             mcause <= {trap_is_interrupt, trap_cause_code[30:0]};
         end else begin
-			case (CSRControl)
-                /*`CCTL_csrrw: if (CSRaddr == CSR_mcause) mcause <= CSRwdata;
-				`CCTL_csrrs: if (CSRaddr == CSR_mcause) mcause <= mcause | CSRwdata;
-                `CCTL_csrrc: if (CSRaddr == CSR_mcause) mcause <= mcause & ~CSRwdata;*/
-
-				/*`CCTL_ecall: mcause <= 32'h0b;  // environment call from M-mode*/
-				default: mcause <= mcause;
-			endcase
+                mcause <= mcause;
+			end
 		end
-	end
 
     // mepc
-    always @(posedge clk) begin
-		if (rst) begin
+    always @(posedge clock) begin
+		if (reset) begin
 			mepc <= 32'h0;
         end else if (trap_taken) begin
             mepc <= pc;
         end else begin
-			case (CSRControl)
-                `CCTL_csrrw: if (CSRaddr == CSR_mepc) mepc <= CSRwdata;
-				`CCTL_csrrs: if (CSRaddr == CSR_mepc) mepc <= mepc | CSRwdata;
-                `CCTL_csrrc: if (CSRaddr == CSR_mepc) mepc <= mepc & ~CSRwdata;
-
-				/*`CCTL_ecall: mepc <= pc;*/
-				default: mepc <= mepc;
-			endcase
+                if (csr_rw && (CSRaddr == CSR_mepc)) begin
+                    mepc <= CSRwdata;
+                end else if (csr_rs && (CSRaddr == CSR_mepc)) begin
+                    mepc <= mepc | CSRwdata;
+                end else if (csr_rc && (CSRaddr == CSR_mepc)) begin
+                    mepc <= mepc & ~CSRwdata;
+                end else begin
+                    mepc <= mepc;
+                end
+			end
 		end
-	end
 
 	// mtvec
-	always @(posedge clk) begin
-		if (rst) begin
+	always @(posedge clock) begin
+		if (reset) begin
             mtvec <= 1;
         end else if (trap_taken) begin
             mtvec <= mtvec;
 		end else begin
-			case (CSRControl)
-                `CCTL_csrrw: if (CSRaddr == CSR_mtvec) mtvec <= CSRwdata;
-				`CCTL_csrrs: if (CSRaddr == CSR_mtvec) mtvec <= mtvec | CSRwdata;
-                `CCTL_csrrc: if (CSRaddr == CSR_mtvec) mtvec <= mtvec & ~CSRwdata;
-
-				default: mtvec <= mtvec;
-			endcase
+                if (csr_rw && (CSRaddr == CSR_mtvec)) begin
+                    mtvec <= CSRwdata;
+                end else if (csr_rs && (CSRaddr == CSR_mtvec)) begin
+                    mtvec <= mtvec | CSRwdata;
+                end else if (csr_rc && (CSRaddr == CSR_mtvec)) begin
+                    mtvec <= mtvec & ~CSRwdata;
+                end else begin
+                    mtvec <= mtvec;
+                end
+			end
 		end
-	end
 
     // mcycle/mcycleh
-    always @(posedge clk) begin
-        if (rst) begin
+    always @(posedge clock) begin
+        if (reset) begin
             mcycle <= 64'b0;
         end else begin
             mcycle <= mcycle + 64'd1;
@@ -159,7 +146,7 @@ module CSR (
 
     // CSRnpc
     always @(*) begin
-        if (rst)                                    CSRnpc = 0;
+        if (reset)                                    CSRnpc = 0;
         else if (trap_taken)                        CSRnpc = trap_vector;
         else if (mret_taken)                        CSRnpc = mepc;
         else                                        CSRnpc = mepc;

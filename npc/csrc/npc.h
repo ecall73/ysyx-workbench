@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-class VysyxSoCFull;
+#include "sim_mode.h"
 class VerilatedContext;
 class VerilatedVcdC;
 
@@ -42,9 +42,37 @@ void init_log(const char *log_file);
 
 // Memory size 128MB
 #define MEM_SIZE 0x8000000
-#define MAX_SIM_TIME 100000000
+#define MAX_SIM_TIME 1000000000
 #define SERIAL_PORT 0x10000000
 #define RTC_ADDR    0x00100048
+
+// Unified memory map constants.
+#define NPC_PMEM_BASE        0x80000000u
+#define NPC_PMEM_SIZE        MEM_SIZE
+#define NPC_FLASH_BASE       0x30000000u
+#define NPC_FLASH_SIZE       0x01000000u
+#define NPC_SRAM_BASE        0x0f000000u
+#define NPC_SRAM_SIZE        0x00002000u
+#define NPC_SDRAM_BASE       0xa0000000u
+#define NPC_SDRAM_SIZE       0x02000000u
+#define NPC_RESET_PC_NPC     NPC_PMEM_BASE
+#define NPC_RESET_PC_YSYXSOC NPC_FLASH_BASE
+
+// PMU event bit definitions shared by RTL (DPI producer) and C++ (counter consumer).
+#define NPC_PMU_EVT_IFU_R_FIRE      (1u << 0)
+#define NPC_PMU_EVT_LSU_R_FIRE      (1u << 2)
+#define NPC_PMU_EVT_EXU_DONE_FIRE   (1u << 3)
+#define NPC_PMU_EVT_DEC_TOTAL       (1u << 4)
+#define NPC_PMU_EVT_IFU_NOSUPPLY_TOTAL   (1u << 11)
+#define NPC_PMU_EVT_IFU_WAIT_ARREADY     (1u << 12)
+#define NPC_PMU_EVT_IFU_WAIT_RVALID      (1u << 13)
+#define NPC_PMU_EVT_IFU_ID_BACKPRESSURE  (1u << 14)
+#define NPC_PMU_EVT_IFU_REDIRECT_DROP    (1u << 15)
+#define NPC_PMU_EVT_LSU_LOAD_REQ         (1u << 18)
+#define NPC_PMU_EVT_LSU_LOAD_PENDING_CYCLE (1u << 21)
+#define NPC_PMU_EVT_ICACHE_HIT           (1u << 22)
+#define NPC_PMU_EVT_ICACHE_MISS          (1u << 23)
+#define NPC_PMU_EVT_ICACHE_MISS_REFILL_CYCLE (1u << 24)
 
 extern bool is_finished;
 extern int trap_a0;
@@ -56,7 +84,7 @@ extern FILE *log_fp;
 
 extern uint8_t pmem[MEM_SIZE];
 
-extern VysyxSoCFull *g_top;
+extern SimTop *g_top;
 extern VerilatedContext *g_contextp;
 extern VerilatedVcdC *g_tfp;
 
@@ -72,11 +100,12 @@ void sdb_mainloop();
 
 // cpu
 void cpu_exec(uint64_t n);
-extern "C" void npc_trap(int pc, int a0);
+extern "C" int npc_get_gpr(int idx);
+uint32_t npc_read_dut_gpr(int idx);
 
 // difftest
 void init_difftest(const char *ref_so_file, long img_size, int port);
-bool difftest_step(uint32_t dut_pc, bool dut_wen, uint8_t dut_waddr, uint32_t dut_wdata, uint32_t dut_inst);
+bool difftest_step(uint32_t dut_pc, uint32_t dut_inst);
 bool difftest_is_enabled();
 
 // memory and image
@@ -91,6 +120,7 @@ void init_disasm();
 void disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
 
 // commit callback from RTL
-extern "C" void npc_commit(int pc, char wen, char waddr, int wdata, int inst);
+extern "C" void npc_commit(int pc, int inst);
+extern "C" void npc_pmu_event(int event_mask);
 
 #endif

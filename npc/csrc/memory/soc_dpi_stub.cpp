@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
-static const uint32_t kFlashBase = 0x30000000u;
-static const uint32_t kFlashSize = 16u * 1024u * 1024u;
-static uint8_t flash_image[kFlashSize];
+#include "npc.h"
+
+static uint8_t flash_image[NPC_FLASH_SIZE];
 static bool flash_initialized = false;
 static bool flash_oob_warned = false;
 static bool flash_boot_loaded = false;
@@ -18,7 +18,7 @@ void flash_init_default_image() {
     flash_oob_warned = false;
     flash_boot_loaded = false;
     flash_boot_size = 0;
-    printf("Flash image initialized: erased state(0xFF), size = %u\n", kFlashSize);
+    printf("Flash image initialized: erased state(0xFF), size = %u\n", NPC_FLASH_SIZE);
 }
 
 bool flash_load_boot_image(const char *img_file) {
@@ -47,10 +47,10 @@ bool flash_load_boot_image(const char *img_file) {
         fprintf(stderr, "flash_load_boot_image: failed to tell size for %s\n", img_file);
         return false;
     }
-    if ((uint32_t)size > kFlashSize) {
+    if ((uint32_t)size > NPC_FLASH_SIZE) {
         fclose(fp);
         fprintf(stderr, "flash_load_boot_image: image too large (%ld > %u): %s\n",
-                size, kFlashSize, img_file);
+                size, NPC_FLASH_SIZE, img_file);
         return false;
     }
     if (fseek(fp, 0, SEEK_SET) != 0) {
@@ -72,7 +72,7 @@ bool flash_load_boot_image(const char *img_file) {
     flash_boot_size = (size_t)size;
     flash_oob_warned = false;
     printf("Flash boot image loaded: %s, size = %ld, base = 0x%08x\n",
-           img_file, size, kFlashBase);
+           img_file, size, NPC_FLASH_BASE);
     return true;
 }
 
@@ -81,7 +81,7 @@ bool flash_get_boot_image_info(uint32_t *base, const uint8_t **img, size_t *size
         return false;
     }
     if (base != NULL) {
-        *base = kFlashBase;
+        *base = NPC_FLASH_BASE;
     }
     if (img != NULL) {
         *img = flash_image;
@@ -100,7 +100,7 @@ extern "C" void flash_read(int32_t addr, int32_t *data) {
     }
 
     uint32_t uaddr = (uint32_t)addr;
-    if (uaddr > (kFlashSize - 4u)) {
+    if (uaddr > (NPC_FLASH_SIZE - 4u)) {
         if (!flash_oob_warned) {
             fprintf(stderr, "flash_read: address out of range: 0x%08x\n", uaddr);
             flash_oob_warned = true;

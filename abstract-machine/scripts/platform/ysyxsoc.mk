@@ -1,6 +1,7 @@
 AM_SRCS := riscv/ysyxsoc/start.S \
            riscv/ysyxsoc/trm.c \
            riscv/ysyxsoc/ioe.c \
+           riscv/ysyxsoc/gpu.c \
            riscv/ysyxsoc/timer.c \
            riscv/ysyxsoc/input.c \
            riscv/ysyxsoc/cte.c \
@@ -44,6 +45,6 @@ image: image-dep
 	@$(OBJCOPY) -S -O binary $(IMAGE).elf $(IMAGE).bin
 
 run: insert-arg
-	$(MAKE) -C $(AM_HOME)/../npc run ARGS="$(YSYXSOCFLAGS) $(IMAGE).bin"
+	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=ysyxsoc run ARGS="$(YSYXSOCFLAGS) $(IMAGE).bin"
 
 .PHONY: insert-arg
