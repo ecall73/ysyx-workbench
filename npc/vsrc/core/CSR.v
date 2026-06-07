@@ -4,9 +4,9 @@ module CSR (
     input  wire        clock,
     input  wire        reset,
 
-    input  wire        system,
-    input  wire [ 2:0] funct3,
+    input  wire [ 4:0] CSRControl, // one-hot CCTL
     input  wire [11:0] CSRaddr,
+    input  wire        CSRSrc,     // CSR写入选择
     input  wire [31:0] rR1_data,   // CSR写入寄存器值(csrrx),已递进
     input  wire [31:0] imm,        // CSR写入立即数(csrrxi)
 
@@ -16,6 +16,11 @@ module CSR (
     output wire        CSRjump,    // CSR触发跳转 PCTrap
     output reg  [31:0] CSRnpc      // CSR跳转pc
 );
+
+    localparam [4:0] CCTL_CSRRW = 5'b00001;
+    localparam [4:0] CCTL_CSRRS = 5'b00010;
+    localparam [4:0] CCTL_CSRRC = 5'b00100;
+    localparam [4:0] CCTL_MRET  = 5'b10000;
 
     localparam [11:0] CSR_mstatus   = 12'h300;
     localparam [11:0] CSR_mtvec     = 12'h305;
@@ -31,13 +36,9 @@ module CSR (
 
     localparam [31:0] CAUSE_ECALL_M = 32'd11;
 
-    wire        csr_rw = system && (funct3[1:0] == 2'b01);
-    wire        csr_rs = system && (funct3[1:0] == 2'b10);
-    wire        csr_rc = system && (funct3[1:0] == 2'b11);
-    wire        csr_sys0 = system && (funct3 == 3'b000);
-    wire        ecall = csr_sys0 && (CSRaddr == 12'h000);
-    wire        mret  = csr_sys0 && (CSRaddr == 12'h302);
-    wire [31:0] CSRwdata = funct3[2] ? imm : rR1_data;  // csrrxi: imm, csrrx: rR1
+    wire        ecall = CSRControl[3];
+    wire        mret  = CSRControl[4];
+    wire [31:0] CSRwdata = CSRSrc ? imm : rR1_data;  // csrrxi: imm, csrrx: rR1
 
     wire        sync_trap_req   = ecall;
     wire        trap_taken      = sync_trap_req;
@@ -72,19 +73,18 @@ module CSR (
             mstatus[7] <= mstatus[3];
             mstatus[12:11] <= 3;        // privilege M-mode 3
         end else begin
-                if (csr_rw && (CSRaddr == CSR_mstatus)) begin
-                    mstatus <= CSRwdata;
-                end else if (csr_rs && (CSRaddr == CSR_mstatus)) begin
-                    mstatus <= (mstatus | CSRwdata);
-                end else if (csr_rc && (CSRaddr == CSR_mstatus)) begin
-                    mstatus <= (mstatus & ~CSRwdata);
-                end else if (mret) begin
-                    mstatus[3] <= mstatus[7];   // MIE <= MPIE
-                end else begin
-                    mstatus <= mstatus; // 保持原值
-                end
-			end
+			case (CSRControl)
+				CCTL_CSRRW: if (CSRaddr == CSR_mstatus) mstatus <= CSRwdata;
+				CCTL_CSRRS: if (CSRaddr == CSR_mstatus) mstatus <= (mstatus | CSRwdata);
+                CCTL_CSRRC: if (CSRaddr == CSR_mstatus) mstatus <= (mstatus & ~CSRwdata);
+
+				CCTL_MRET: begin
+					mstatus[3]  	<= mstatus[7];  	// MIE <= MPIE
+				end
+				default: mstatus <= mstatus; // 保持原值
+			endcase
 		end
+	end
 
     // mcause
     always @(posedge clock) begin
@@ -93,9 +93,11 @@ module CSR (
         end else if (trap_taken) begin
             mcause <= {trap_is_interrupt, trap_cause_code[30:0]};
         end else begin
-                mcause <= mcause;
-			end
+			case (CSRControl)
+				default: mcause <= mcause;
+			endcase
 		end
+	end
 
     // mepc
     always @(posedge clock) begin
@@ -104,17 +106,15 @@ module CSR (
         end else if (trap_taken) begin
             mepc <= pc;
         end else begin
-                if (csr_rw && (CSRaddr == CSR_mepc)) begin
-                    mepc <= CSRwdata;
-                end else if (csr_rs && (CSRaddr == CSR_mepc)) begin
-                    mepc <= mepc | CSRwdata;
-                end else if (csr_rc && (CSRaddr == CSR_mepc)) begin
-                    mepc <= mepc & ~CSRwdata;
-                end else begin
-                    mepc <= mepc;
-                end
-			end
+			case (CSRControl)
+                CCTL_CSRRW: if (CSRaddr == CSR_mepc) mepc <= CSRwdata;
+				CCTL_CSRRS: if (CSRaddr == CSR_mepc) mepc <= mepc | CSRwdata;
+                CCTL_CSRRC: if (CSRaddr == CSR_mepc) mepc <= mepc & ~CSRwdata;
+
+				default: mepc <= mepc;
+			endcase
 		end
+	end
 
 	// mtvec
 	always @(posedge clock) begin
@@ -123,17 +123,15 @@ module CSR (
         end else if (trap_taken) begin
             mtvec <= mtvec;
 		end else begin
-                if (csr_rw && (CSRaddr == CSR_mtvec)) begin
-                    mtvec <= CSRwdata;
-                end else if (csr_rs && (CSRaddr == CSR_mtvec)) begin
-                    mtvec <= mtvec | CSRwdata;
-                end else if (csr_rc && (CSRaddr == CSR_mtvec)) begin
-                    mtvec <= mtvec & ~CSRwdata;
-                end else begin
-                    mtvec <= mtvec;
-                end
-			end
+			case (CSRControl)
+                CCTL_CSRRW: if (CSRaddr == CSR_mtvec) mtvec <= CSRwdata;
+				CCTL_CSRRS: if (CSRaddr == CSR_mtvec) mtvec <= mtvec | CSRwdata;
+                CCTL_CSRRC: if (CSRaddr == CSR_mtvec) mtvec <= mtvec & ~CSRwdata;
+
+				default: mtvec <= mtvec;
+			endcase
 		end
+	end
 
     // mcycle/mcycleh
     always @(posedge clock) begin

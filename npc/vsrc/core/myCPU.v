@@ -87,8 +87,9 @@ module myCPU #(
     wire        id_btype;
     wire        id_jtype;
     wire        id_ijtype;
-    wire        id_system;
+    wire        id_CSRSrc;
     wire [11:0] id_CSRaddr;
+    wire [ 4:0] id_CSRControl;
     wire        id_FenceI;
 
     // EX
@@ -113,8 +114,9 @@ module myCPU #(
     reg         ex_btype;
     reg         ex_jtype;
     reg         ex_ijtype;
-    reg         ex_system;
+    reg         ex_CSRSrc;
     reg  [11:0] ex_CSRaddr;
+    reg  [ 4:0] ex_CSRControl;
     reg         ex_FenceI;
     wire [31:0] ex_CSRnpc;
     wire        ex_CSRjump;
@@ -268,8 +270,9 @@ module myCPU #(
         .id_jtype               (id_jtype),
         .id_ijtype              (id_ijtype),
 
-        .id_system              (id_system),
+        .id_CSRSrc              (id_CSRSrc),
         .id_CSRaddr             (id_CSRaddr),
+        .id_CSRControl          (id_CSRControl),
         .id_FenceI              (id_FenceI)
 
         `ifndef SYNTHESIS
@@ -338,8 +341,9 @@ module myCPU #(
                 ex_ALUSrcB      <= id_ALUSrcB;
                 ex_rR1_data     <= id_rR1_data_forward;
                 ex_rR2_data     <= id_rR2_data_forward;
-                ex_system       <= id_system;
+                ex_CSRSrc       <= id_CSRSrc;
                 ex_CSRaddr      <= id_CSRaddr;
+                ex_CSRControl   <= id_CSRControl;
                 ex_FenceI       <= id_FenceI;
                 ex_btype        <= id_btype;
                 ex_jtype        <= id_jtype;
@@ -393,8 +397,9 @@ module myCPU #(
         .ex_imm                 (ex_imm),
         .ex_ALUControl          (ex_ALUControl),
 
-        .ex_system              (ex_system),
+        .ex_CSRSrc              (ex_CSRSrc),
         .ex_CSRaddr             (ex_CSRaddr),
+        .ex_CSRControl          (ex_CSRControl),
 
         .ex_MemToReg            (ex_MemToReg),
 
