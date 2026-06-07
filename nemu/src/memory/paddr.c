@@ -18,9 +18,6 @@
 #include <device/mmio.h>
 #include <isa.h>
 
-#define MROM_BASE 0x20000000u
-#define MROM_SIZE 0x1000u
-#define MROM_RIGHT (MROM_BASE + MROM_SIZE - 1)
 #define FLASH_BASE 0x30000000u
 #define FLASH_SIZE (16u * 1024u * 1024u)
 #define FLASH_RIGHT (FLASH_BASE + FLASH_SIZE - 1)
@@ -37,7 +34,6 @@ static uint8_t *pmem = NULL;
 static uint8_t pmem[CONFIG_MSIZE] PG_ALIGN = {};
 #endif
 
-static uint8_t mrom[MROM_SIZE] = {};
 static uint8_t flash[FLASH_SIZE] = {};
 static uint8_t sram[SRAM_SIZE] = {};
 static uint8_t sdram[SDRAM_SIZE] = {};
@@ -57,10 +53,6 @@ static inline bool in_pmem_range(paddr_t addr, int len) {
   return in_region_range(addr, len, CONFIG_MBASE, CONFIG_MSIZE);
 }
 
-static inline bool in_mrom_range(paddr_t addr, int len) {
-  return in_region_range(addr, len, MROM_BASE, MROM_SIZE);
-}
-
 static inline bool in_sram_range(paddr_t addr, int len) {
   return in_region_range(addr, len, SRAM_BASE, SRAM_SIZE);
 }
@@ -74,7 +66,7 @@ static inline bool in_sdram_range(paddr_t addr, int len) {
 }
 
 static inline bool in_soc_boot_range(paddr_t addr, int len) {
-  return in_mrom_range(addr, len) || in_flash_range(addr, len) || in_sram_range(addr, len);
+  return in_flash_range(addr, len) || in_sram_range(addr, len);
 }
 
 static inline void activate_soc_memory_map_if_needed(paddr_t addr, int len) {
@@ -94,8 +86,8 @@ static void mem_write(uint8_t *space, paddr_t addr, paddr_t base, int len, word_
 
 static void out_of_bound(paddr_t addr) {
   panic("address = " FMT_PADDR " is out of bound. valid ranges: pmem[" FMT_PADDR ", " FMT_PADDR "], "
-      "mrom[0x%08x, 0x%08x], flash[0x%08x, 0x%08x], sram[0x%08x, 0x%08x], sdram[0x%08x, 0x%08x], pc = " FMT_WORD,
-      addr, PMEM_LEFT, PMEM_RIGHT, MROM_BASE, MROM_RIGHT, FLASH_BASE, FLASH_RIGHT, SRAM_BASE, SRAM_RIGHT, SDRAM_BASE, SDRAM_RIGHT, cpu.pc);
+      "flash[0x%08x, 0x%08x], sram[0x%08x, 0x%08x], sdram[0x%08x, 0x%08x], pc = " FMT_WORD,
+      addr, PMEM_LEFT, PMEM_RIGHT, FLASH_BASE, FLASH_RIGHT, SRAM_BASE, SRAM_RIGHT, SDRAM_BASE, SDRAM_RIGHT, cpu.pc);
 }
 
 void init_mem() {
@@ -104,13 +96,11 @@ void init_mem() {
   assert(pmem);
 #endif
   IFDEF(CONFIG_MEM_RANDOM, memset(pmem, rand(), CONFIG_MSIZE));
-  memset(mrom, 0, sizeof(mrom));
   memset(flash, 0, sizeof(flash));
   memset(sram, 0, sizeof(sram));
   memset(sdram, 0, sizeof(sdram));
   soc_memory_map_active = false;
   Log("physical memory area [" FMT_PADDR ", " FMT_PADDR "]", PMEM_LEFT, PMEM_RIGHT);
-  Log("MROM area [0x%08x, 0x%08x]", MROM_BASE, MROM_RIGHT);
   Log("FLASH area [0x%08x, 0x%08x]", FLASH_BASE, FLASH_RIGHT);
   Log("SRAM area [0x%08x, 0x%08x]", SRAM_BASE, SRAM_RIGHT);
   Log("SDRAM area [0x%08x, 0x%08x]", SDRAM_BASE, SDRAM_RIGHT);
@@ -137,11 +127,6 @@ word_t paddr_read(paddr_t addr, int len) {
     return data;
   }
   activate_soc_memory_map_if_needed(addr, len);
-  if (likely(soc_memory_map_active && in_mrom_range(addr, len))) {
-    word_t data = mem_read(mrom, addr, MROM_BASE, len);
-    IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
-    return data;
-  }
   if (likely(soc_memory_map_active && in_flash_range(addr, len))) {
     word_t data = mem_read(flash, addr, FLASH_BASE, len);
     IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
@@ -173,11 +158,6 @@ void paddr_write(paddr_t addr, int len, word_t data) {
     return;
   }
   activate_soc_memory_map_if_needed(addr, len);
-  if (likely(soc_memory_map_active && in_mrom_range(addr, len))) {
-    mem_write(mrom, addr, MROM_BASE, len, data);
-    IFDEF(CONFIG_MTRACE, mtrace_log_write(addr, len, data));
-    return;
-  }
   if (likely(soc_memory_map_active && in_flash_range(addr, len))) {
     mem_write(flash, addr, FLASH_BASE, len, data);
     IFDEF(CONFIG_MTRACE, mtrace_log_write(addr, len, data));
