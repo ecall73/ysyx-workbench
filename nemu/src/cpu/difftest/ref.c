@@ -48,6 +48,12 @@ __EXPORT void difftest_raise_intr(word_t NO) {
   assert(0);
 }
 
+__EXPORT void difftest_set_machine(const char *name) {
+  NemuMachineProfile profile = NEMU_MACHINE_STANDALONE;
+  assert(nemu_parse_machine_profile(name, &profile));
+  nemu_set_machine_profile(profile);
+}
+
 __EXPORT void difftest_init(int port) {
   void init_mem();
   init_mem();
