@@ -1,50 +1,104 @@
 `timescale 1ns / 1ps
-
-module myCPU #(
+module ysyx_26030082 #(
     parameter [31:0] RESET_PC = 32'h3000_0000,
     parameter integer TARGET_NPC = 0
 ) (
     input  wire        clock,
     input  wire        reset,
-
-    // Shared MEM AXI4 Interface
-    // Read address channel
-    output wire [31:0] mem_axi_araddr,
-    output wire [ 3:0] mem_axi_arid,
-    output wire [ 7:0] mem_axi_arlen,
-    output wire [ 2:0] mem_axi_arsize,
-    output wire [ 1:0] mem_axi_arburst,
-    output wire        mem_axi_arvalid,
-    input  wire        mem_axi_arready,
-    // Read data channel
-    input  wire [31:0] mem_axi_rdata,
-    input  wire [ 3:0] mem_axi_rid,
-    input  wire [ 1:0] mem_axi_rresp,
-    input  wire        mem_axi_rlast,
-    input  wire        mem_axi_rvalid,
-    output wire        mem_axi_rready,
-    // Write address channel
-    output wire [31:0] mem_axi_awaddr,
-    output wire [ 3:0] mem_axi_awid,
-    output wire [ 7:0] mem_axi_awlen,
-    output wire [ 2:0] mem_axi_awsize,
-    output wire [ 1:0] mem_axi_awburst,
-    output wire        mem_axi_awvalid,
-    input  wire        mem_axi_awready,
-    // Write data channel
-    output wire [31:0] mem_axi_wdata,
-    output wire [ 3:0] mem_axi_wstrb,
-    output wire        mem_axi_wlast,
-    output wire        mem_axi_wvalid,
-    input  wire        mem_axi_wready,
-    // Write response channel
-    input  wire [ 3:0] mem_axi_bid,
-    input  wire [ 1:0] mem_axi_bresp,
-    input  wire        mem_axi_bvalid,
-    output wire        mem_axi_bready
-
+    input  wire        io_interrupt,
+    // AXI4 master interface
+    input  wire        io_master_awready,
+    output wire        io_master_awvalid,
+    output wire [ 3:0] io_master_awid,
+    output wire [31:0] io_master_awaddr,
+    output wire [ 7:0] io_master_awlen,
+    output wire [ 2:0] io_master_awsize,
+    output wire [ 1:0] io_master_awburst,
+    input  wire        io_master_wready,
+    output wire        io_master_wvalid,
+    output wire [31:0] io_master_wdata,
+    output wire [ 3:0] io_master_wstrb,
+    output wire        io_master_wlast,
+    output wire        io_master_bready,
+    input  wire        io_master_bvalid,
+    input  wire [ 3:0] io_master_bid,
+    input  wire [ 1:0] io_master_bresp,
+    input  wire        io_master_arready,
+    output wire        io_master_arvalid,
+    output wire [ 3:0] io_master_arid,
+    output wire [31:0] io_master_araddr,
+    output wire [ 7:0] io_master_arlen,
+    output wire [ 2:0] io_master_arsize,
+    output wire [ 1:0] io_master_arburst,
+    output wire        io_master_rready,
+    input  wire        io_master_rvalid,
+    input  wire [ 3:0] io_master_rid,
+    input  wire [31:0] io_master_rdata,
+    input  wire [ 1:0] io_master_rresp,
+    input  wire        io_master_rlast,
+    // AXI4 slave interface (unused)
+    output wire        io_slave_awready,
+    input  wire        io_slave_awvalid,
+    input  wire [ 3:0] io_slave_awid,
+    input  wire [31:0] io_slave_awaddr,
+    input  wire [ 7:0] io_slave_awlen,
+    input  wire [ 2:0] io_slave_awsize,
+    input  wire [ 1:0] io_slave_awburst,
+    output wire        io_slave_wready,
+    input  wire        io_slave_wvalid,
+    input  wire [31:0] io_slave_wdata,
+    input  wire [ 3:0] io_slave_wstrb,
+    input  wire        io_slave_wlast,
+    input  wire        io_slave_bready,
+    output wire        io_slave_bvalid,
+    output wire [ 3:0] io_slave_bid,
+    output wire [ 1:0] io_slave_bresp,
+    output wire        io_slave_arready,
+    input  wire        io_slave_arvalid,
+    input  wire [ 3:0] io_slave_arid,
+    input  wire [31:0] io_slave_araddr,
+    input  wire [ 7:0] io_slave_arlen,
+    input  wire [ 2:0] io_slave_arsize,
+    input  wire [ 1:0] io_slave_arburst,
+    input  wire        io_slave_rready,
+    output wire        io_slave_rvalid,
+    output wire [ 3:0] io_slave_rid,
+    output wire [31:0] io_slave_rdata,
+    output wire [ 1:0] io_slave_rresp,
+    output wire        io_slave_rlast
 );
 
+    assign io_slave_awready = 1'b0;
+    assign io_slave_wready = 1'b0;
+    assign io_slave_bvalid = 1'b0;
+    assign io_slave_bid = 4'b0;
+    assign io_slave_bresp = 2'b00;
+    assign io_slave_arready = 1'b0;
+    assign io_slave_rvalid = 1'b0;
+    assign io_slave_rid = 4'b0;
+    assign io_slave_rdata = 32'b0;
+    assign io_slave_rresp = 2'b00;
+    assign io_slave_rlast = 1'b0;
+
+`ifndef SYNTHESIS
+    always @(posedge clock) begin
+        if (!reset) begin
+            if (io_master_wvalid && io_master_wready && (io_master_wlast != 1'b1)) begin
+                $fatal(1, "ysyx_26030082: WLAST must be 1 for single-beat write");
+            end
+            if (io_master_rvalid && io_master_rready && (io_master_rresp !== 2'b00)) begin
+                $fatal(1,
+                    "ysyx_26030082: AXI read access fault: resp=%0b rid=%0d",
+                    io_master_rresp, io_master_rid);
+            end
+            if (io_master_bvalid && io_master_bready && (io_master_bresp !== 2'b00)) begin
+                $fatal(1,
+                    "ysyx_26030082: AXI write access fault: resp=%0b bid=%0d",
+                    io_master_bresp, io_master_bid);
+            end
+        end
+    end
+`endif
 `ifndef SYNTHESIS
     import "DPI-C" function void npc_commit(input int pc, input int inst);
     import "DPI-C" function void npc_pmu_event(input int event_mask);
@@ -543,35 +597,35 @@ module myCPU #(
         .lsu_axi_bvalid         (lsu_axi_bvalid),
         .lsu_axi_bready         (lsu_axi_bready),
 
-        .mem_axi_araddr         (mem_axi_araddr),
-        .mem_axi_arid           (mem_axi_arid),
-        .mem_axi_arlen          (mem_axi_arlen),
-        .mem_axi_arsize         (mem_axi_arsize),
-        .mem_axi_arburst        (mem_axi_arburst),
-        .mem_axi_arvalid        (mem_axi_arvalid),
-        .mem_axi_arready        (mem_axi_arready),
-        .mem_axi_rdata          (mem_axi_rdata),
-        .mem_axi_rid            (mem_axi_rid),
-        .mem_axi_rresp          (mem_axi_rresp),
-        .mem_axi_rlast          (mem_axi_rlast),
-        .mem_axi_rvalid         (mem_axi_rvalid),
-        .mem_axi_rready         (mem_axi_rready),
-        .mem_axi_awaddr         (mem_axi_awaddr),
-        .mem_axi_awid           (mem_axi_awid),
-        .mem_axi_awlen          (mem_axi_awlen),
-        .mem_axi_awsize         (mem_axi_awsize),
-        .mem_axi_awburst        (mem_axi_awburst),
-        .mem_axi_awvalid        (mem_axi_awvalid),
-        .mem_axi_awready        (mem_axi_awready),
-        .mem_axi_wdata          (mem_axi_wdata),
-        .mem_axi_wstrb          (mem_axi_wstrb),
-        .mem_axi_wlast          (mem_axi_wlast),
-        .mem_axi_wvalid         (mem_axi_wvalid),
-        .mem_axi_wready         (mem_axi_wready),
-        .mem_axi_bid            (mem_axi_bid),
-        .mem_axi_bresp          (mem_axi_bresp),
-        .mem_axi_bvalid         (mem_axi_bvalid),
-        .mem_axi_bready         (mem_axi_bready)
+        .mem_axi_araddr          (io_master_araddr),
+        .mem_axi_arid            (io_master_arid),
+        .mem_axi_arlen           (io_master_arlen),
+        .mem_axi_arsize          (io_master_arsize),
+        .mem_axi_arburst         (io_master_arburst),
+        .mem_axi_arvalid         (io_master_arvalid),
+        .mem_axi_arready         (io_master_arready),
+        .mem_axi_rdata           (io_master_rdata),
+        .mem_axi_rid             (io_master_rid),
+        .mem_axi_rresp           (io_master_rresp),
+        .mem_axi_rlast           (io_master_rlast),
+        .mem_axi_rvalid          (io_master_rvalid),
+        .mem_axi_rready          (io_master_rready),
+        .mem_axi_awaddr          (io_master_awaddr),
+        .mem_axi_awid            (io_master_awid),
+        .mem_axi_awlen           (io_master_awlen),
+        .mem_axi_awsize          (io_master_awsize),
+        .mem_axi_awburst         (io_master_awburst),
+        .mem_axi_awvalid         (io_master_awvalid),
+        .mem_axi_awready         (io_master_awready),
+        .mem_axi_wdata           (io_master_wdata),
+        .mem_axi_wstrb           (io_master_wstrb),
+        .mem_axi_wlast           (io_master_wlast),
+        .mem_axi_wvalid          (io_master_wvalid),
+        .mem_axi_wready          (io_master_wready),
+        .mem_axi_bid             (io_master_bid),
+        .mem_axi_bresp           (io_master_bresp),
+        .mem_axi_bvalid          (io_master_bvalid),
+        .mem_axi_bready          (io_master_bready)
     );
 
 `ifndef SYNTHESIS
@@ -684,5 +738,15 @@ module myCPU #(
         end
     end
 `endif
+
+
+    wire _unused_ok;
+    assign _unused_ok = &{1'b0,
+        io_interrupt,
+        io_slave_awvalid, io_slave_awid, io_slave_awaddr, io_slave_awlen, io_slave_awsize, io_slave_awburst,
+        io_slave_wvalid, io_slave_wdata, io_slave_wstrb, io_slave_wlast, io_slave_bready,
+        io_slave_arvalid, io_slave_arid, io_slave_araddr, io_slave_arlen, io_slave_arsize, io_slave_arburst,
+        io_slave_rready
+    };
 
 endmodule

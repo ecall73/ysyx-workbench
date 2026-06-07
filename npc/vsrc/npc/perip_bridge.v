@@ -41,12 +41,9 @@ module perip_bridge (
 
     localparam [31:0] UART_BASE_ADDR = 32'h1000_0000;
     localparam [31:0] UART_END_ADDR  = 32'h1000_0fff;
-    localparam [31:0] CLINT_BASE_ADDR = 32'h0200_0000;
-    localparam [31:0] CLINT_END_ADDR  = 32'h0200_ffff;
 
-    localparam SEL_PMEM  = 2'd0;
-    localparam SEL_UART  = 2'd1;
-    localparam SEL_CLINT = 2'd2;
+    localparam SEL_PMEM = 1'b0;
+    localparam SEL_UART = 1'b1;
 
     localparam R_IDLE   = 1'b0;
     localparam R_WAIT_R = 1'b1;
@@ -56,15 +53,15 @@ module perip_bridge (
     localparam W_WAIT_B = 2'd2;
 
     reg        rd_state;
-    reg [1:0]  rd_sel;
+    reg        rd_sel;
 
-    reg [1:0]  wr_state;
-    reg [1:0]  wr_sel;
+    reg  [1:0] wr_state;
+    reg        wr_sel;
     reg        wr_aw_done;
     reg        wr_w_done;
 
-    wire [1:0] ar_sel;
-    wire [1:0] aw_sel;
+    wire       ar_sel;
+    wire       aw_sel;
 
     wire       wr_unknown_target;
     wire       wr_known_target_busy_same_as_ar;
@@ -76,7 +73,7 @@ module perip_bridge (
     wire       wr_aw_done_q;
     wire       wr_w_done_q;
     wire       wr_can_send_w;
-    wire [1:0] wr_w_sel;
+    wire       wr_w_sel;
     wire       w_conflict_rd;
 
     wire       ar_fire;
@@ -126,32 +123,8 @@ module perip_bridge (
     wire        uart_axi_bvalid;
     reg         uart_axi_bready;
 
-    // Xbar -> CLINT
-    reg  [31:0] clint_axi_araddr;
-    reg         clint_axi_arvalid;
-    wire        clint_axi_arready;
-    wire [31:0] clint_axi_rdata;
-    wire [ 1:0] clint_axi_rresp;
-    wire        clint_axi_rvalid;
-    reg         clint_axi_rready;
-    reg  [31:0] clint_axi_awaddr;
-    reg         clint_axi_awvalid;
-    wire        clint_axi_awready;
-    reg  [31:0] clint_axi_wdata;
-    reg  [ 3:0] clint_axi_wstrb;
-    reg         clint_axi_wvalid;
-    wire        clint_axi_wready;
-    wire [ 1:0] clint_axi_bresp;
-    wire        clint_axi_bvalid;
-    reg         clint_axi_bready;
-
-    assign ar_sel = ((mem_axi_araddr >= UART_BASE_ADDR) && (mem_axi_araddr <= UART_END_ADDR)) ? SEL_UART :
-                    ((mem_axi_araddr >= CLINT_BASE_ADDR) && (mem_axi_araddr <= CLINT_END_ADDR)) ? SEL_CLINT :
-                    SEL_PMEM;
-
-    assign aw_sel = ((mem_axi_awaddr >= UART_BASE_ADDR) && (mem_axi_awaddr <= UART_END_ADDR)) ? SEL_UART :
-                    ((mem_axi_awaddr >= CLINT_BASE_ADDR) && (mem_axi_awaddr <= CLINT_END_ADDR)) ? SEL_CLINT :
-                    SEL_PMEM;
+    assign ar_sel = ((mem_axi_araddr >= UART_BASE_ADDR) && (mem_axi_araddr <= UART_END_ADDR)) ? SEL_UART : SEL_PMEM;
+    assign aw_sel = ((mem_axi_awaddr >= UART_BASE_ADDR) && (mem_axi_awaddr <= UART_END_ADDR)) ? SEL_UART : SEL_PMEM;
 
     assign wr_unknown_target = (wr_state == W_AW_W) && !wr_aw_done;
     assign wr_known_target_busy_same_as_ar =
@@ -159,7 +132,6 @@ module perip_bridge (
 
     assign aw_conflict_rd = (rd_state == R_WAIT_R) && (rd_sel == aw_sel);
     assign aw_can_issue = !aw_conflict_rd;
-    // Give pending write a chance when new read/write hit the same target.
     assign rd_conflict_new_write_same_target =
         (wr_state == W_IDLE) && mem_axi_awvalid && (ar_sel == aw_sel);
 
@@ -210,149 +182,92 @@ module perip_bridge (
         uart_axi_wvalid  = 1'b0;
         uart_axi_bready  = 1'b0;
 
-        clint_axi_araddr  = 32'b0;
-        clint_axi_arvalid = 1'b0;
-        clint_axi_rready  = 1'b0;
-        clint_axi_awaddr  = 32'b0;
-        clint_axi_awvalid = 1'b0;
-        clint_axi_wdata   = 32'b0;
-        clint_axi_wstrb   = 4'b0;
-        clint_axi_wvalid  = 1'b0;
-        clint_axi_bready  = 1'b0;
-
-        // Read path
         case (rd_state)
             R_IDLE: begin
                 if (mem_axi_arvalid &&
                     !wr_unknown_target &&
                     !wr_known_target_busy_same_as_ar &&
                     !rd_conflict_new_write_same_target) begin
-                    case (ar_sel)
-                        SEL_UART: begin
-                            uart_axi_araddr  = mem_axi_araddr;
-                            uart_axi_arvalid = mem_axi_arvalid;
-                            mem_axi_arready  = uart_axi_arready;
-                        end
-                        SEL_CLINT: begin
-                            clint_axi_araddr  = mem_axi_araddr;
-                            clint_axi_arvalid = mem_axi_arvalid;
-                            mem_axi_arready   = clint_axi_arready;
-                        end
-                        default: begin
-                            pmem_axi_araddr  = mem_axi_araddr;
-                            pmem_axi_arlen   = mem_axi_arlen;
-                            pmem_axi_arburst = mem_axi_arburst;
-                            pmem_axi_arvalid = mem_axi_arvalid;
-                            mem_axi_arready  = pmem_axi_arready;
-                        end
-                    endcase
+                    if (ar_sel == SEL_UART) begin
+                        uart_axi_araddr  = mem_axi_araddr;
+                        uart_axi_arvalid = mem_axi_arvalid;
+                        mem_axi_arready  = uart_axi_arready;
+                    end else begin
+                        pmem_axi_araddr  = mem_axi_araddr;
+                        pmem_axi_arlen   = mem_axi_arlen;
+                        pmem_axi_arburst = mem_axi_arburst;
+                        pmem_axi_arvalid = mem_axi_arvalid;
+                        mem_axi_arready  = pmem_axi_arready;
+                    end
                 end
             end
 
             R_WAIT_R: begin
-                case (rd_sel)
-                    SEL_UART: begin
-                        mem_axi_rid    = 4'b0;
-                        mem_axi_rdata  = uart_axi_rdata;
-                        mem_axi_rresp  = uart_axi_rresp;
-                        mem_axi_rlast  = 1'b1;
-                        mem_axi_rvalid = uart_axi_rvalid;
-                        uart_axi_rready = mem_axi_rready;
-                    end
-                    SEL_CLINT: begin
-                        mem_axi_rid     = 4'b0;
-                        mem_axi_rdata   = clint_axi_rdata;
-                        mem_axi_rresp   = clint_axi_rresp;
-                        mem_axi_rlast   = 1'b1;
-                        mem_axi_rvalid  = clint_axi_rvalid;
-                        clint_axi_rready = mem_axi_rready;
-                    end
-                    default: begin
-                        mem_axi_rid    = 4'b0;
-                        mem_axi_rdata  = pmem_axi_rdata;
-                        mem_axi_rresp  = pmem_axi_rresp;
-                        mem_axi_rlast  = pmem_axi_rlast;
-                        mem_axi_rvalid = pmem_axi_rvalid;
-                        pmem_axi_rready = mem_axi_rready;
-                    end
-                endcase
+                if (rd_sel == SEL_UART) begin
+                    mem_axi_rid     = 4'b0;
+                    mem_axi_rdata   = uart_axi_rdata;
+                    mem_axi_rresp   = uart_axi_rresp;
+                    mem_axi_rlast   = 1'b1;
+                    mem_axi_rvalid  = uart_axi_rvalid;
+                    uart_axi_rready = mem_axi_rready;
+                end else begin
+                    mem_axi_rid     = 4'b0;
+                    mem_axi_rdata   = pmem_axi_rdata;
+                    mem_axi_rresp   = pmem_axi_rresp;
+                    mem_axi_rlast   = pmem_axi_rlast;
+                    mem_axi_rvalid  = pmem_axi_rvalid;
+                    pmem_axi_rready = mem_axi_rready;
+                end
             end
 
             default: begin
             end
         endcase
 
-        // Write path
         case (wr_state)
             W_IDLE,
             W_AW_W: begin
                 if ((wr_state == W_AW_W) || mem_axi_awvalid || mem_axi_wvalid) begin
                     if (!wr_aw_done_q && mem_axi_awvalid && aw_can_issue) begin
-                        case (aw_sel)
-                            SEL_UART: begin
-                                uart_axi_awaddr  = mem_axi_awaddr;
-                                uart_axi_awvalid = mem_axi_awvalid;
-                                mem_axi_awready  = uart_axi_awready;
-                            end
-                            SEL_CLINT: begin
-                                clint_axi_awaddr  = mem_axi_awaddr;
-                                clint_axi_awvalid = mem_axi_awvalid;
-                                mem_axi_awready   = clint_axi_awready;
-                            end
-                            default: begin
-                                pmem_axi_awaddr  = mem_axi_awaddr;
-                                pmem_axi_awvalid = mem_axi_awvalid;
-                                mem_axi_awready  = pmem_axi_awready;
-                            end
-                        endcase
+                        if (aw_sel == SEL_UART) begin
+                            uart_axi_awaddr  = mem_axi_awaddr;
+                            uart_axi_awvalid = mem_axi_awvalid;
+                            mem_axi_awready  = uart_axi_awready;
+                        end else begin
+                            pmem_axi_awaddr  = mem_axi_awaddr;
+                            pmem_axi_awvalid = mem_axi_awvalid;
+                            mem_axi_awready  = pmem_axi_awready;
+                        end
                     end
 
                     if (!wr_w_done_q && wr_can_send_w && !w_conflict_rd) begin
-                        case (wr_w_sel)
-                            SEL_UART: begin
-                                uart_axi_wdata  = mem_axi_wdata;
-                                uart_axi_wstrb  = mem_axi_wstrb;
-                                uart_axi_wvalid = mem_axi_wvalid;
-                                mem_axi_wready  = uart_axi_wready;
-                            end
-                            SEL_CLINT: begin
-                                clint_axi_wdata  = mem_axi_wdata;
-                                clint_axi_wstrb  = mem_axi_wstrb;
-                                clint_axi_wvalid = mem_axi_wvalid;
-                                mem_axi_wready   = clint_axi_wready;
-                            end
-                            default: begin
-                                pmem_axi_wdata  = mem_axi_wdata;
-                                pmem_axi_wstrb  = mem_axi_wstrb;
-                                pmem_axi_wvalid = mem_axi_wvalid;
-                                mem_axi_wready  = pmem_axi_wready;
-                            end
-                        endcase
+                        if (wr_w_sel == SEL_UART) begin
+                            uart_axi_wdata  = mem_axi_wdata;
+                            uart_axi_wstrb  = mem_axi_wstrb;
+                            uart_axi_wvalid = mem_axi_wvalid;
+                            mem_axi_wready  = uart_axi_wready;
+                        end else begin
+                            pmem_axi_wdata  = mem_axi_wdata;
+                            pmem_axi_wstrb  = mem_axi_wstrb;
+                            pmem_axi_wvalid = mem_axi_wvalid;
+                            mem_axi_wready  = pmem_axi_wready;
+                        end
                     end
                 end
             end
 
             W_WAIT_B: begin
-                case (wr_sel)
-                    SEL_UART: begin
-                        mem_axi_bid    = 4'b0;
-                        mem_axi_bresp  = uart_axi_bresp;
-                        mem_axi_bvalid = uart_axi_bvalid;
-                        uart_axi_bready = mem_axi_bready;
-                    end
-                    SEL_CLINT: begin
-                        mem_axi_bid     = 4'b0;
-                        mem_axi_bresp   = clint_axi_bresp;
-                        mem_axi_bvalid  = clint_axi_bvalid;
-                        clint_axi_bready = mem_axi_bready;
-                    end
-                    default: begin
-                        mem_axi_bid    = 4'b0;
-                        mem_axi_bresp  = pmem_axi_bresp;
-                        mem_axi_bvalid = pmem_axi_bvalid;
-                        pmem_axi_bready = mem_axi_bready;
-                    end
-                endcase
+                if (wr_sel == SEL_UART) begin
+                    mem_axi_bid     = 4'b0;
+                    mem_axi_bresp   = uart_axi_bresp;
+                    mem_axi_bvalid  = uart_axi_bvalid;
+                    uart_axi_bready = mem_axi_bready;
+                end else begin
+                    mem_axi_bid     = 4'b0;
+                    mem_axi_bresp   = pmem_axi_bresp;
+                    mem_axi_bvalid  = pmem_axi_bvalid;
+                    pmem_axi_bready = mem_axi_bready;
+                end
             end
 
             default: begin
@@ -370,7 +285,6 @@ module perip_bridge (
             wr_aw_done <= 1'b0;
             wr_w_done  <= 1'b0;
         end else begin
-            // Read state update
             case (rd_state)
                 R_IDLE: begin
                     if (ar_fire) begin
@@ -390,7 +304,6 @@ module perip_bridge (
                 end
             endcase
 
-            // Write state update
             case (wr_state)
                 W_IDLE: begin
                     wr_aw_done <= 1'b0;
@@ -490,31 +403,6 @@ module perip_bridge (
         .uart_axi_bresp     (uart_axi_bresp),
         .uart_axi_bvalid    (uart_axi_bvalid),
         .uart_axi_bready    (uart_axi_bready)
-    );
-
-    clint_axi4lite #(
-        .MTIME_ADDR           (32'h0200_bff8),
-        .MTIMEH_ADDR          (32'h0200_bffc)
-    ) u_clint_axi4lite (
-        .clock                (clock),
-        .reset                (reset),
-        .clint_axi_araddr   (clint_axi_araddr),
-        .clint_axi_arvalid  (clint_axi_arvalid),
-        .clint_axi_arready  (clint_axi_arready),
-        .clint_axi_rdata    (clint_axi_rdata),
-        .clint_axi_rresp    (clint_axi_rresp),
-        .clint_axi_rvalid   (clint_axi_rvalid),
-        .clint_axi_rready   (clint_axi_rready),
-        .clint_axi_awaddr   (clint_axi_awaddr),
-        .clint_axi_awvalid  (clint_axi_awvalid),
-        .clint_axi_awready  (clint_axi_awready),
-        .clint_axi_wdata    (clint_axi_wdata),
-        .clint_axi_wstrb    (clint_axi_wstrb),
-        .clint_axi_wvalid   (clint_axi_wvalid),
-        .clint_axi_wready   (clint_axi_wready),
-        .clint_axi_bresp    (clint_axi_bresp),
-        .clint_axi_bvalid   (clint_axi_bvalid),
-        .clint_axi_bready   (clint_axi_bready)
     );
 
 `ifndef SYNTHESIS

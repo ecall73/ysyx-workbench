@@ -49,7 +49,6 @@ $(BUILD_DIR):
 # Common project source
 VSRCS_CORE = $(shell find $(abspath ./vsrc/core) -name "*.v")
 VSRCS_NPC = $(shell find $(abspath ./vsrc/npc) -name "*.v")
-VSRCS_YSYXSOC = $(shell find $(abspath ./vsrc/ysyxsoc) -name "*.v")
 VHDRS_BASE = $(shell find $(abspath ./vsrc) -name "*.vh" -o -name "*.svh")
 CSRCS = $(shell find $(abspath ./csrc) \( -name "*.c" -o -name "*.cc" -o -name "*.cpp" \))
 CHDRS = $(shell find $(abspath ./csrc) \( -name "*.h" -o -name "*.hpp" \))
@@ -61,7 +60,7 @@ ifeq ($(SIM_MODE),ysyxsoc)
 $(SRC_AUTO_BIND): $(NXDC_FILES) | $(BUILD_DIR)
 	python3 $(NVBOARD_HOME)/scripts/auto_pin_bind.py $^ $@
 
-  VSRCS = $(VSRCS_CORE) $(VSRCS_YSYXSOC) \
+  VSRCS = $(VSRCS_CORE) \
 	$(shell find $(YSYX_SOC_HOME)/perip -name "*.v") \
 	$(YSYX_SOC_HOME)/build/ysyxSoCFull.v
   VHDRS = $(VHDRS_BASE) \
@@ -72,7 +71,6 @@ $(SRC_AUTO_BIND): $(NXDC_FILES) | $(BUILD_DIR)
 
   # rules for verilator
   INC_PATH := $(INC_PATH_COMMON) \
-	$(abspath ./vsrc/ysyxsoc) \
 	$(YSYX_SOC_HOME)/perip/uart16550/rtl \
 	$(YSYX_SOC_HOME)/perip/spi/rtl
   # rules for NVBoard
