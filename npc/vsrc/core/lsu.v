@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-module lsu (
+module ysyx_26030082_lsu (
     input  wire        clock,
     input  wire        reset,
     // Handshake

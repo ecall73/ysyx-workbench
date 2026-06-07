@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-module axi4lite_arbiter (
+module ysyx_26030082_axi4lite_arbiter (
     input  wire        clock,
     input  wire        reset,
     // IFU master interface

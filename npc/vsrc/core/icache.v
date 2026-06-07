@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-module icache #(
+module ysyx_26030082_icache #(
     parameter integer LINE_WORDS = 4,
     parameter integer LINE_COUNT = 4,
     parameter integer ADDR_WIDTH = 32,

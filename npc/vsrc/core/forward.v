@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-module forward(
+module ysyx_26030082_forward(
     input  wire        id_in_valid,
     input  wire [ 4:0] id_rR1,
     input  wire [ 4:0] id_rR2,

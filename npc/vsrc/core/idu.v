@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-module idu (
+module ysyx_26030082_idu (
     input  wire        clock,
     input  wire        reset,
     input  wire        id_valid,

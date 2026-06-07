@@ -108,7 +108,7 @@ module ysyx_26030082 #(
             if (idx == 0) begin
                 npc_get_gpr = 0;
             end else if (idx > 0 && idx < 16) begin
-                npc_get_gpr = u_RF.reg_bank[idx];
+                npc_get_gpr = RF.reg_bank[idx];
             end else begin
                 npc_get_gpr = 0;
             end
@@ -252,9 +252,9 @@ module ysyx_26030082 #(
         end
     end
 
-    ifu #(
+    ysyx_26030082_ifu #(
         .RESET_PC               (RESET_PC)
-    ) u_ifu (
+    ) ifu (
         .clock                  (clock),
         .reset                  (reset),
         .if_ready               (if_ready),
@@ -277,12 +277,12 @@ module ysyx_26030082 #(
     );
 
 
-    icache #(
+    ysyx_26030082_icache #(
         .LINE_WORDS             (4),
         .LINE_COUNT             (4),
         .ADDR_WIDTH             (32),
         .TARGET_NPC             (TARGET_NPC)
-    ) u_icache (
+    ) icache (
         .clock                  (clock),
         .reset                  (reset),
 
@@ -308,7 +308,7 @@ module ysyx_26030082 #(
         .ifu_axi_rready         (ifu_axi_rready)
     );
 
-    idu u_idu (
+    ysyx_26030082_idu idu (
         .clock                  (clock),
         .reset                  (reset),
         .id_valid               (id_valid),
@@ -343,7 +343,7 @@ module ysyx_26030082 #(
         `endif
     );
 
-    RF u_RF (
+    ysyx_26030082_RF RF (
         .clock                  (clock),
         .reset                  (reset),
 
@@ -358,7 +358,7 @@ module ysyx_26030082 #(
         .rR2_data               (id_rR2_data)
     );
 
-    forward u_forward (
+    ysyx_26030082_forward forward (
         .id_in_valid            (id_valid),
         .id_rR1                 (id_inst[19:15]),
         .id_rR2                 (id_inst[24:20]),
@@ -443,7 +443,7 @@ module ysyx_26030082 #(
     // EX -> LS handshake coupling
     assign ex_out_ready = ls_in_ready;
 
-    exu u_exu (
+    ysyx_26030082_exu exu (
         .clock                  (clock),
         .reset                  (reset),
         .ex_in_valid            (ex_in_valid),
@@ -522,7 +522,7 @@ module ysyx_26030082 #(
     // LSU output is written back directly, so LS is the final pipeline stage.
     assign ls_out_ready = 1'b1;
 
-    lsu u_lsu (
+    ysyx_26030082_lsu lsu (
         .clock                  (clock),
         .reset                  (reset),
         .ls_in_valid            (ls_in_valid),
@@ -562,7 +562,7 @@ module ysyx_26030082 #(
         .ls_RFwdata_out         (ls_RFwdata_out)
     );
 
-    axi4lite_arbiter u_axi4lite_arbiter (
+    ysyx_26030082_axi4lite_arbiter axi4lite_arbiter (
         .clock                  (clock),
         .reset                  (reset),
 
@@ -676,14 +676,14 @@ module ysyx_26030082 #(
     // Direct hierarchical reads: simulation-only, no extra submodule ports.
     assign pmu_ifu_r_fire = id_valid && id_ready;
     assign pmu_ifu_nosupply = !pmu_ifu_r_fire;
-    assign pmu_lsu_r_fire = u_lsu.r_fire;
-    assign pmu_lsu_load_req = (u_lsu.state == PMU_LSU_IDLE) && ls_in_valid && u_lsu.ls_is_load;
-    assign pmu_lsu_load_pending = (u_lsu.state == PMU_LSU_RD_AR) || (u_lsu.state == PMU_LSU_RD_WAIT_R);
+    assign pmu_lsu_r_fire = lsu.r_fire;
+    assign pmu_lsu_load_req = (lsu.state == PMU_LSU_IDLE) && ls_in_valid && lsu.ls_is_load;
+    assign pmu_lsu_load_pending = (lsu.state == PMU_LSU_RD_AR) || (lsu.state == PMU_LSU_RD_WAIT_R);
     assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
     assign pmu_dec_total = !flush && id_issue_valid && ex_in_ready && have_inst_ID;
     assign pmu_icache_miss_refill_busy =
-        ((u_icache.state == PMU_ICACHE_MISS_AR) ||
-         (u_icache.state == PMU_ICACHE_MISS_R)) && !u_icache.miss_bypass;
+        ((icache.state == PMU_ICACHE_MISS_AR) ||
+         (icache.state == PMU_ICACHE_MISS_R)) && !icache.miss_bypass;
 
     always @(*) begin
         pmu_event_mask = 32'b0;
@@ -694,7 +694,7 @@ module ysyx_26030082 #(
             end
             if (pmu_ifu_nosupply) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
-                if (flush || u_icache.need_flush) begin
+                if (flush || icache.need_flush) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
                 end else if (id_valid && !id_ready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;
@@ -704,10 +704,10 @@ module ysyx_26030082 #(
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
                 end
             end
-            if (u_icache.lookup_resp_valid) begin
+            if (icache.lookup_resp_valid) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_HIT;
             end
-            if ((u_icache.state == PMU_ICACHE_LOOKUP) && u_icache.cache_miss) begin
+            if ((icache.state == PMU_ICACHE_LOOKUP) && icache.cache_miss) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_MISS;
             end
             if (pmu_icache_miss_refill_busy) begin
