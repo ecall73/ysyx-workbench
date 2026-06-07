@@ -30,15 +30,10 @@ image: image-dep
 	@echo + OBJCOPY "->" $(IMAGE_REL).bin
 	@$(OBJCOPY) -S --set-section-flags .bss=alloc,contents -O binary $(IMAGE).elf $(IMAGE).bin
 
-nemu-config:
-	$(MAKE) -s -C $(NEMU_HOME)/tools/kconfig NAME=conf
-	$(MAKE) -s -C $(NEMU_HOME)/tools/fixdep
-	cd $(NEMU_HOME) && ./tools/kconfig/build/conf --defconfig=configs/$(ISA)-host_defconfig Kconfig && ./tools/kconfig/build/conf --syncconfig Kconfig
-
-run: nemu-config insert-arg
+run: insert-arg
 	$(MAKE) -C $(NEMU_HOME) ISA=$(ISA) run ARGS="$(NEMUFLAGS)" IMG=$(IMAGE).bin
 
-gdb: nemu-config insert-arg
+gdb: insert-arg
 	$(MAKE) -C $(NEMU_HOME) ISA=$(ISA) gdb ARGS="$(NEMUFLAGS)" IMG=$(IMAGE).bin
 
-.PHONY: insert-arg nemu-config
+.PHONY: insert-arg

@@ -43,11 +43,6 @@ static int _uart_getc(struct rt_serial_device *serial) {
     return *(p ++);
   }
 
-  AM_UART_CONFIG_T cfg = io_read(AM_UART_CONFIG);
-  if (!cfg.present) {
-    return -1;
-  }
-
   AM_UART_RX_T rx = io_read(AM_UART_RX);
   uint8_t data = (uint8_t)rx.data;
   // IOE uses 0xff as "no data"; RT-Thread serial getc uses -1 for that.

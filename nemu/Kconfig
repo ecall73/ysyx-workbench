@@ -228,7 +228,6 @@ config DIFFTEST_REF_NAME
   default "none"
 
 config WATCHPOINT
-  depends on TARGET_NATIVE_ELF
   bool "Enable watchpoint"
   default y
   help
