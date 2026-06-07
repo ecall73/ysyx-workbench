@@ -80,7 +80,6 @@ static inline bool in_soc_boot_range(paddr_t addr, int len) {
 static inline void activate_soc_memory_map_if_needed(paddr_t addr, int len) {
   if (!soc_memory_map_active && in_soc_boot_range(addr, len)) {
     soc_memory_map_active = true;
-    Log("Enable SoC memory map on first boot-region access at " FMT_PADDR, addr);
   }
 }
 
