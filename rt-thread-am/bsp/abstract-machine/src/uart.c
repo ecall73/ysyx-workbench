@@ -39,8 +39,18 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
 
 static int _uart_getc(struct rt_serial_device *serial) {
   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+  static int uart_rx_available = -1;
   if (*p != '\0') {
     return *(p ++);
+  }
+
+  if (uart_rx_available < 0) {
+    AM_UART_CONFIG_T cfg = io_read(AM_UART_CONFIG);
+    uart_rx_available = cfg.present ? 1 : 0;
+  }
+
+  if (!uart_rx_available) {
+    return -1;
   }
 
   AM_UART_RX_T rx = io_read(AM_UART_RX);
