@@ -1,5 +1,3 @@
-`timescale 1ns / 1ps
-
 module ysyx_26030082_clint_axi4lite #(
     parameter [31:0] MTIME_ADDR  = 32'h0200_bff8,
     parameter [31:0] MTIMEH_ADDR = 32'h0200_bffc

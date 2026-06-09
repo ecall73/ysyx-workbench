@@ -1,4 +1,3 @@
-`timescale 1ns / 1ps
 module ysyx_26030082 #(
     parameter [31:0] RESET_PC = 32'h3000_0000,
     parameter integer TARGET_NPC = 0

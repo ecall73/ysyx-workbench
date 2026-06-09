@@ -1,5 +1,3 @@
-`timescale 1ns / 1ps
-
 module ysyx_26030082_BRU(
     input  wire [31:0] A,
     input  wire [31:0] B,

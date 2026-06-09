@@ -1,4 +1,3 @@
-`timescale 1ns / 1ps
 module pmem_axi4lite (
     input  wire        clock,
     input  wire        reset,

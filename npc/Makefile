@@ -27,6 +27,8 @@ VERILATOR_CFLAGS += -MMD --build -cc  \
 BUILD_DIR = ./build/$(SIM_MODE)
 OBJ_DIR = $(BUILD_DIR)/obj_dir
 BIN = $(BUILD_DIR)/$(TOPNAME)
+VERILOG_BUILD_DIR = ./build
+CPU_VERILOG = $(abspath $(VERILOG_BUILD_DIR)/ysyx_26030082.v)
 YSYX_SOC_HOME ?= $(abspath ../ysyxSoC)
 NVBOARD_HOME ?= $(abspath ../nvboard)
 NXDC_FILES = $(abspath ./constr/ysyxSoCFull.nxdc)
@@ -46,8 +48,11 @@ default: $(BIN)
 $(BUILD_DIR):
 	@mkdir -p $@
 
+$(VERILOG_BUILD_DIR):
+	@mkdir -p $@
+
 # Common project source
-VSRCS_CORE = $(shell find $(abspath ./vsrc/core) -name "*.v")
+CPU_VSRCS = $(sort $(shell find $(abspath ./vsrc/core) -name "*.v"))
 VSRCS_NPC = $(shell find $(abspath ./vsrc/npc) -name "*.v")
 VHDRS_BASE = $(shell find $(abspath ./vsrc) -name "*.vh" -o -name "*.svh")
 CSRCS = $(shell find $(abspath ./csrc) \( -name "*.c" -o -name "*.cc" -o -name "*.cpp" \))
@@ -55,12 +60,18 @@ CHDRS = $(shell find $(abspath ./csrc) \( -name "*.h" -o -name "*.hpp" \))
 INC_PATH_COMMON := $(abspath ./vsrc) \
 	$(abspath ./vsrc/core)
 
+$(CPU_VERILOG): $(CPU_VSRCS) | $(VERILOG_BUILD_DIR)
+	@echo + CAT "->" $@
+	@cat $(CPU_VSRCS) > $@
+
+verilog: $(CPU_VERILOG)
+
 ifeq ($(SIM_MODE),ysyxsoc)
 # constraint file -> NVBoard auto bind source
 $(SRC_AUTO_BIND): $(NXDC_FILES) | $(BUILD_DIR)
 	python3 $(NVBOARD_HOME)/scripts/auto_pin_bind.py $^ $@
 
-  VSRCS = $(VSRCS_CORE) \
+  VSRCS = $(CPU_VERILOG) \
 	$(shell find $(YSYX_SOC_HOME)/perip -name "*.v") \
 	$(YSYX_SOC_HOME)/build/ysyxSoCFull.v
   VHDRS = $(VHDRS_BASE) \
@@ -76,7 +87,7 @@ $(SRC_AUTO_BIND): $(NXDC_FILES) | $(BUILD_DIR)
   # rules for NVBoard
   include $(NVBOARD_HOME)/scripts/nvboard.mk
 else
-  VSRCS = $(VSRCS_CORE) $(VSRCS_NPC)
+  VSRCS = $(CPU_VERILOG) $(VSRCS_NPC)
   VHDRS = $(VHDRS_BASE)
 
   # rules for verilator
@@ -112,4 +123,4 @@ run: $(BIN)
 clean:
 	rm -rf ./build
 
-.PHONY: default run clean
+.PHONY: default run clean verilog

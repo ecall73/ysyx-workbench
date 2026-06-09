@@ -1,5 +1,3 @@
-`timescale 1ns / 1ps
-
 module perip_bridge (
     input  wire        clock,
     input  wire        reset,
