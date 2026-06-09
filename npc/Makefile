@@ -29,6 +29,14 @@ OBJ_DIR = $(BUILD_DIR)/obj_dir
 BIN = $(BUILD_DIR)/$(TOPNAME)
 VERILOG_BUILD_DIR = ./build
 CPU_VERILOG = $(abspath $(VERILOG_BUILD_DIR)/ysyx_26030082.v)
+IVERILOG_BUILD_DIR = ./build/iverilog
+IVERILOG_VVP = $(abspath $(IVERILOG_BUILD_DIR)/simv)
+IVERILOG_IMG_BIN = $(abspath $(IVERILOG_BUILD_DIR)/image.bin)
+IVERILOG_HEX = $(abspath $(IVERILOG_BUILD_DIR)/image.hex)
+IVERILOG_LOG = $(abspath $(IVERILOG_BUILD_DIR)/sim.log)
+IVERILOG_TMPDIR = $(abspath $(IVERILOG_BUILD_DIR)/tmp)
+IVERILOG_TB = $(abspath ./vsrc/iverilog/tb_iverilog.v)
+IVERILOG_MAX_CYCLES ?= 5000000
 YSYX_SOC_HOME ?= $(abspath ../ysyxSoC)
 NVBOARD_HOME ?= $(abspath ../nvboard)
 NXDC_FILES = $(abspath ./constr/ysyxSoCFull.nxdc)
@@ -51,6 +59,9 @@ $(BUILD_DIR):
 $(VERILOG_BUILD_DIR):
 	@mkdir -p $@
 
+$(IVERILOG_BUILD_DIR):
+	@mkdir -p $@
+
 # Common project source
 CPU_VSRCS = $(sort $(shell find $(abspath ./vsrc/core) -name "*.v"))
 VSRCS_NPC = $(shell find $(abspath ./vsrc/npc) -name "*.v")
@@ -65,6 +76,11 @@ $(CPU_VERILOG): $(CPU_VSRCS) | $(VERILOG_BUILD_DIR)
 	@cat $(CPU_VSRCS) > $@
 
 verilog: $(CPU_VERILOG)
+
+IVERILOG_SRCS = \
+	$(CPU_VERILOG) \
+	$(sort $(shell find $(abspath ./vsrc/npc) -name "*.v")) \
+	$(IVERILOG_TB)
 
 ifeq ($(SIM_MODE),ysyxsoc)
 # constraint file -> NVBoard auto bind source
@@ -120,7 +136,23 @@ $(BIN): $(NPC_DEPS) | $(BUILD_DIR)
 run: $(BIN)
 	@$^ $(ARGS)
 
+sim-iverilog: verilog $(IVERILOG_TB) | $(IVERILOG_BUILD_DIR)
+	@test -n "$(IMG)" || { echo "IMG=...bin is required"; exit 1; }
+	@echo + COPY "->" $(IVERILOG_IMG_BIN)
+	@cp "$(abspath $(IMG))" "$(IVERILOG_IMG_BIN)"
+	@echo + BIN2HEX "->" $(IVERILOG_HEX)
+	@python3 -c 'from pathlib import Path; import sys; data = Path(sys.argv[1]).read_bytes(); Path(sys.argv[2]).write_text("\n".join(f"{b:02x}" for b in data) + "\n")' "$(IVERILOG_IMG_BIN)" "$(IVERILOG_HEX)"
+	@echo + IVERILOG "->" $(IVERILOG_VVP)
+	@mkdir -p "$(IVERILOG_TMPDIR)"
+	@TMPDIR="$(IVERILOG_TMPDIR)" TMP="$(IVERILOG_TMPDIR)" TEMP="$(IVERILOG_TMPDIR)" iverilog -g2012 -o $(IVERILOG_VVP) -s tb_iverilog $(IVERILOG_SRCS)
+	@img_bytes=$$(wc -c < "$(IVERILOG_IMG_BIN)"); \
+	rm -f "$(IVERILOG_LOG)" "$(IVERILOG_BUILD_DIR)/wave.vcd"; \
+	bash -o pipefail -c ' \
+		vvp "$$0" +IMG="$$1" +IMG_BYTES="$$2" +MAX_CYCLES="$$3" $$4 2>&1 | tee "$$5" \
+	' "$(IVERILOG_VVP)" "$(IVERILOG_HEX)" "$$img_bytes" "$(IVERILOG_MAX_CYCLES)" "$(if $(filter 1 y yes true,$(WAVE)),+WAVE=1,)" "$(IVERILOG_LOG)"; \
+	grep -q "HIT GOOD TRAP" "$(IVERILOG_LOG)"
+
 clean:
 	rm -rf ./build
 
-.PHONY: default run clean verilog
+.PHONY: default run clean verilog sim-iverilog

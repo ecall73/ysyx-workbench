@@ -99,6 +99,7 @@ module ysyx_26030082 #(
     end
 `endif
 `ifndef SYNTHESIS
+`ifndef __ICARUS__
     import "DPI-C" function void npc_commit(input int pc, input int inst);
     import "DPI-C" function void npc_pmu_event(input int event_mask);
     export "DPI-C" function npc_get_gpr;
@@ -113,6 +114,7 @@ module ysyx_26030082 #(
             end
         end
     endfunction
+`endif
 `endif
 
     // IF
@@ -325,8 +327,6 @@ module ysyx_26030082 #(
         .id_ALUSrcA             (id_ALUSrcA),
         .id_ALUSrcB             (id_ALUSrcB),
         .id_imm                 (id_imm),
-        .id_rR1_data            (id_rR1_data),
-        .id_rR2_data            (id_rR2_data),
 
         .id_btype               (id_btype),
         .id_jtype               (id_jtype),
@@ -628,17 +628,20 @@ module ysyx_26030082 #(
     );
 
 `ifndef SYNTHESIS
+`ifndef __ICARUS__
     always @(posedge clock) begin
         if (!reset && ls_out_valid && have_inst_LS) begin
             npc_commit(pc_LS, inst_LS);
         end
     end
 `endif
+`endif
 
     // ================================================================
     // PMU hooks (simulation-only, kept at module tail to avoid clutter)
     // ================================================================
 `ifndef SYNTHESIS
+`ifndef __ICARUS__
     localparam [31:0] PMU_EVT_IFU_R_FIRE      = 32'h0000_0001;
     localparam [31:0] PMU_EVT_LSU_R_FIRE      = 32'h0000_0004;
     localparam [31:0] PMU_EVT_EXU_DONE_FIRE   = 32'h0000_0008;
@@ -736,6 +739,7 @@ module ysyx_26030082 #(
             npc_pmu_event(pmu_event_mask);
         end
     end
+`endif
 `endif
 
 

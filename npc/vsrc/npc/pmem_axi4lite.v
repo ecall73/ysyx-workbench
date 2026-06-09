@@ -27,9 +27,80 @@ module pmem_axi4lite (
     output wire        pmem_axi_bvalid,
     input  wire        pmem_axi_bready
 );
+`ifdef __ICARUS__
+    localparam [31:0] PMEM_BASE_ADDR = 32'h8000_0000;
+    localparam integer PMEM_BYTES = 32'h0800_0000;
 
+    reg [7:0] pmem [0:PMEM_BYTES-1];
+    reg [8*256-1:0] img_file;
+    integer img_load_status;
+    integer img_bytes;
+
+    function [31:0] pmem_model_read;
+        input [31:0] raddr;
+        integer byte_addr;
+        begin
+            byte_addr = {raddr[31:2], 2'b00} - PMEM_BASE_ADDR;
+            if ((raddr < PMEM_BASE_ADDR) || (byte_addr < 0) || (byte_addr > (PMEM_BYTES - 4))) begin
+                pmem_model_read = 32'hxxxx_xxxx;
+            end else begin
+                pmem_model_read = {
+                    pmem[byte_addr + 3],
+                    pmem[byte_addr + 2],
+                    pmem[byte_addr + 1],
+                    pmem[byte_addr + 0]
+                };
+            end
+        end
+    endfunction
+
+    task pmem_model_write;
+        input [31:0] waddr;
+        input [31:0] wdata;
+        input [7:0]  wmask;
+        integer byte_addr;
+        begin
+            byte_addr = {waddr[31:2], 2'b00} - PMEM_BASE_ADDR;
+            if ((waddr < PMEM_BASE_ADDR) || (byte_addr < 0) || (byte_addr > (PMEM_BYTES - 4))) begin
+                $display("pmem_axi4lite: write out of range addr=0x%08x", waddr);
+            end else begin
+                if (wmask[0]) begin
+                    pmem[byte_addr + 0] = wdata[7:0];
+                end
+                if (wmask[1]) begin
+                    pmem[byte_addr + 1] = wdata[15:8];
+                end
+                if (wmask[2]) begin
+                    pmem[byte_addr + 2] = wdata[23:16];
+                end
+                if (wmask[3]) begin
+                    pmem[byte_addr + 3] = wdata[31:24];
+                end
+            end
+        end
+    endtask
+
+    initial begin
+        if (!$value$plusargs("IMG=%s", img_file)) begin
+            $display("pmem_axi4lite: missing +IMG=<image.hex> plusarg");
+            $finish;
+        end
+        img_load_status = $fopen(img_file, "r");
+        if (img_load_status == 0) begin
+            $display("pmem_axi4lite: failed to open image %0s", img_file);
+            $finish;
+        end
+        $fclose(img_load_status);
+        if ($value$plusargs("IMG_BYTES=%d", img_bytes)) begin
+            $readmemh(img_file, pmem, 0, img_bytes - 1);
+        end else begin
+            $readmemh(img_file, pmem);
+        end
+    end
+`else
     import "DPI-C" function int pmem_read(input int raddr);
     import "DPI-C" function void pmem_write(input int waddr, input int wdata, input byte wmask);
+`endif
 
     localparam S_IDLE       = 2'd0;
     localparam S_RD_RESP    = 2'd1;
@@ -101,7 +172,11 @@ module pmem_axi4lite (
                     w_captured  <= 1'b0;
 
                     if (ar_fire) begin
+`ifdef __ICARUS__
+                        rd_data_reg <= pmem_model_read(pmem_axi_araddr);
+`else
                         rd_data_reg <= pmem_read(pmem_axi_araddr);
+`endif
                         rd_addr_reg <= pmem_axi_araddr;
                         rd_beats_left <= pmem_axi_arlen + 8'd1;
                         rd_burst_reg <= pmem_axi_arburst;
@@ -118,7 +193,11 @@ module pmem_axi4lite (
                         end
 
                         if (aw_fire && w_fire) begin
+`ifdef __ICARUS__
+                            pmem_model_write(pmem_axi_awaddr, pmem_axi_wdata, {4'b0000, pmem_axi_wstrb});
+`else
                             pmem_write(pmem_axi_awaddr, pmem_axi_wdata, {4'b0000, pmem_axi_wstrb});
+`endif
                             state <= S_WR_RESP;
                         end else begin
                             state <= S_WR_COLLECT;
@@ -138,9 +217,15 @@ module pmem_axi4lite (
                                 default: rd_addr_reg <= rd_addr_reg + 32'd4;
                             endcase
                             case (rd_burst_reg)
+`ifdef __ICARUS__
+                                2'b00: rd_data_reg <= pmem_model_read(rd_addr_reg);
+                                2'b01: rd_data_reg <= pmem_model_read(rd_addr_reg + 32'd4);
+                                default: rd_data_reg <= pmem_model_read(rd_addr_reg + 32'd4);
+`else
                                 2'b00: rd_data_reg <= pmem_read(rd_addr_reg);
                                 2'b01: rd_data_reg <= pmem_read(rd_addr_reg + 32'd4);
                                 default: rd_data_reg <= pmem_read(rd_addr_reg + 32'd4);
+`endif
                             endcase
                         end
                     end
@@ -158,7 +243,11 @@ module pmem_axi4lite (
                     end
 
                     if (wr_complete_now) begin
+`ifdef __ICARUS__
+                        pmem_model_write(wr_addr_now, wr_data_now, {4'b0000, wr_strb_now});
+`else
                         pmem_write(wr_addr_now, wr_data_now, {4'b0000, wr_strb_now});
+`endif
                         state <= S_WR_RESP;
                     end
                 end

@@ -18,8 +18,6 @@ module ysyx_26030082_idu (
     output wire        id_ALUSrcA,
     output wire        id_ALUSrcB,
     output reg  [31:0] id_imm,
-    output wire [31:0] id_rR1_data,
-    output wire [31:0] id_rR2_data,
 
     // Branch/jump type decode
     output wire        id_btype,
