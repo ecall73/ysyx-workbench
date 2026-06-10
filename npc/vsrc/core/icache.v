@@ -165,11 +165,9 @@ module ysyx_26030082_icache #(
                 S_MISS_AR: begin
                     if (invalidate) begin
                         if (ar_fire) begin
-                            need_flush <= 1'b1;
                             drop_fill <= 1'b1;
                             state <= S_MISS_R;
                         end else begin
-                            need_flush <= 1'b0;
                             drop_fill <= 1'b0;
                             state <= S_LOOKUP;
                         end
@@ -186,7 +184,6 @@ module ysyx_26030082_icache #(
 
                 S_MISS_R: begin
                     if (invalidate) begin
-                        need_flush <= 1'b1;
                         drop_fill <= 1'b1;
                     end else if (flush) begin
                         need_flush <= 1'b1;
