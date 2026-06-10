@@ -34,7 +34,7 @@ module ysyx_26030082_ifu #(
     assign invalidate = ex_commit_fire && ex_FenceI;
     assign flush = ex_commit_fire && (ex_redirect || ex_FenceI);
 
-    assign if_valid = 1'b1;
+    assign if_valid = !flush;
 
     assign req_fire = if_ready;
 
