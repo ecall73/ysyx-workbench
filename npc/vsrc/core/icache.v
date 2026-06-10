@@ -36,6 +36,7 @@ module ysyx_26030082_icache #(
     localparam integer INDEX_W         = $clog2(LINE_COUNT);
     localparam integer OFFSET_W        = WORD_OFF_W + LINE_ADDR_OFF_W;
     localparam integer TAG_W           = ADDR_WIDTH - INDEX_W - OFFSET_W;
+    localparam integer LINE_BITS       = 32 * LINE_WORDS;
 
     localparam [1:0] S_LOOKUP  = 2'd0;
     localparam [1:0] S_MISS_AR = 2'd1;
@@ -43,7 +44,7 @@ module ysyx_26030082_icache #(
 
     reg [1:0] state;
 
-    reg [31:0] data_array [0:LINE_COUNT-1][0:LINE_WORDS-1];
+    reg [LINE_BITS-1:0] data_array [0:LINE_COUNT-1];
     reg [TAG_W-1:0] tag_array [0:LINE_COUNT-1];
     reg [LINE_COUNT-1:0] valid_array;
 
@@ -58,7 +59,7 @@ module ysyx_26030082_icache #(
     reg         miss_bypass;
     reg         need_flush;
     reg         kill_miss_refill;
-    reg [31:0]  miss_target_inst;
+    reg [LINE_BITS-1:0] refill_line_buf;
 
     wire [LINE_WORD_OFF_W-1:0] req_word_offset;
     wire [INDEX_W-1:0] req_index;
@@ -92,11 +93,12 @@ module ysyx_26030082_icache #(
     wire               pipe_flush;
     wire               kill_refill_now;
 
-    reg [31:0] lookup_inst;
-
     wire [31:0] miss_line_base;
+    wire [LINE_BITS-1:0] lookup_line;
+    wire [31:0]          lookup_inst;
+    reg  [LINE_BITS-1:0] refill_line_next;
+    wire [31:0]          refill_resp_inst;
     localparam [31:0] LINE_WORD_MASK_FULL = LINE_WORDS - 1;
-    integer i;
     integer j;
 
     function is_cacheable;
@@ -169,14 +171,15 @@ module ysyx_26030082_icache #(
     assign ar_fire = ifu_axi_arvalid && ifu_axi_arready;
     assign r_fire = ifu_axi_rvalid && ifu_axi_rready;
 
+    assign lookup_line = data_array[lookup_index];
+    assign lookup_inst = lookup_line[(lookup_word_offset << 5) +: 32];
+
     always @(*) begin
-        lookup_inst = data_array[lookup_index][0];
-        for (i = 1; i < LINE_WORDS; i = i + 1) begin
-            if (lookup_word_offset == i[LINE_WORD_OFF_W-1:0]) begin
-                lookup_inst = data_array[lookup_index][i];
-            end
-        end
+        refill_line_next = refill_line_buf;
+        refill_line_next[(refill_word_idx << 5) +: 32] = ifu_axi_rdata;
     end
+
+    assign refill_resp_inst = refill_line_next[(miss_word_offset << 5) +: 32];
 
     always @(posedge clock) begin
         if (reset) begin
@@ -190,7 +193,7 @@ module ysyx_26030082_icache #(
             miss_bypass <= 1'b0;
             need_flush <= 1'b0;
             kill_miss_refill <= 1'b0;
-            miss_target_inst <= 32'b0;
+            refill_line_buf <= {LINE_BITS{1'b0}};
             valid_array <= {LINE_COUNT{1'b0}};
         end else begin
             if (invalidate) begin
@@ -218,7 +221,7 @@ module ysyx_26030082_icache #(
                                 miss_bypass <= 1'b0;
                                 need_flush <= 1'b0;
                                 kill_miss_refill <= 1'b0;
-                                miss_target_inst <= 32'b0;
+                                refill_line_buf <= {LINE_BITS{1'b0}};
                                 lookup_valid <= 1'b0;
                                 state <= S_MISS_AR;
                             end else if (lookup_valid && cache_bypass) begin
@@ -227,7 +230,7 @@ module ysyx_26030082_icache #(
                                 miss_bypass <= 1'b1;
                                 need_flush <= 1'b0;
                                 kill_miss_refill <= 1'b0;
-                                miss_target_inst <= 32'b0;
+                                refill_line_buf <= {LINE_BITS{1'b0}};
                                 lookup_valid <= 1'b0;
                                 state <= S_MISS_AR;
                             end
@@ -271,14 +274,6 @@ module ysyx_26030082_icache #(
                     end
 
                     if (r_fire) begin
-                        if (!miss_bypass && !kill_refill_now) begin
-                            data_array[miss_index][refill_word_idx] <= ifu_axi_rdata;
-                        end
-
-                        if (refill_is_target_word) begin
-                            miss_target_inst <= ifu_axi_rdata;
-                        end
-
                         if (miss_bypass) begin
                             if (discard_resp) begin
                                 need_flush <= 1'b0;
@@ -291,6 +286,7 @@ module ysyx_26030082_icache #(
                         end else begin
                             if (refill_is_last_word) begin
                                 if (!kill_refill_now) begin
+                                    data_array[miss_index] <= refill_line_next;
                                     tag_array[miss_index] <= miss_tag;
                                     valid_array[miss_index] <= 1'b1;
                                 end
@@ -298,11 +294,12 @@ module ysyx_26030082_icache #(
                                     need_flush <= 1'b0;
                                 end else begin
                                     hold_valid <= 1'b1;
-                                    hold_inst <= refill_is_target_word ? ifu_axi_rdata : miss_target_inst;
+                                    hold_inst <= refill_resp_inst;
                                 end
                                 kill_miss_refill <= 1'b0;
                                 state <= S_LOOKUP;
                             end else begin
+                                refill_line_buf <= refill_line_next;
                                 refill_word_idx <= refill_word_idx + 1'b1;
                             end
                         end
