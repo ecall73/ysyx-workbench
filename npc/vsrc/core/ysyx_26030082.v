@@ -684,8 +684,8 @@ module ysyx_26030082 #(
     assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
     assign pmu_dec_total = !flush && id_issue_valid && ex_in_ready && have_inst_ID;
     assign pmu_icache_miss_refill_busy =
-        ((icache.state == PMU_ICACHE_MISS_AR) ||
-         (icache.state == PMU_ICACHE_MISS_R)) && !icache.miss_bypass;
+        (icache.state == PMU_ICACHE_MISS_AR) ||
+        (icache.state == PMU_ICACHE_MISS_R);
 
     always @(*) begin
         pmu_event_mask = 32'b0;
