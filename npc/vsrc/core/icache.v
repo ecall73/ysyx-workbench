@@ -110,7 +110,7 @@ module ysyx_26030082_icache #(
     assign if_ready = req_space;
     assign req_fire = if_valid && if_ready;
 
-    assign miss_line_base = {lookup_pc[ADDR_WIDTH - 1 : OFFSET_W], {OFFSET_W{1'b0}}};
+    assign miss_line_base = {lookup_tag, lookup_index, {OFFSET_W{1'b0}}};
     assign ifu_axi_araddr = miss_line_base;
     assign ifu_axi_arlen = LINE_WORDS[7:0] - 8'd1;
     assign ifu_axi_arburst = 2'b01;
