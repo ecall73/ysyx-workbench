@@ -1,6 +1,4 @@
-`timescale 1ns / 1ps
-
-module RF(
+module ysyx_26030082_RF(
     input  wire        clock,
     input  wire        reset,
     // Write rd

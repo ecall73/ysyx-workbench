@@ -1,6 +1,4 @@
-`timescale 1ns / 1ps
-
-module idu (
+module ysyx_26030082_idu (
     input  wire        clock,
     input  wire        reset,
     input  wire        id_valid,
@@ -20,8 +18,6 @@ module idu (
     output wire        id_ALUSrcA,
     output wire        id_ALUSrcB,
     output reg  [31:0] id_imm,
-    output wire [31:0] id_rR1_data,
-    output wire [31:0] id_rR2_data,
 
     // Branch/jump type decode
     output wire        id_btype,

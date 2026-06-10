@@ -1,6 +1,4 @@
-`timescale 1ns / 1ps
-
-module CSR (
+module ysyx_26030082_CSR (
     input  wire        clock,
     input  wire        reset,
 

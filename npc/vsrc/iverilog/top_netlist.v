@@ -1,4 +1,4 @@
-module top
+module top_netlist
 (
     input             clock,
     input             reset
@@ -35,10 +35,7 @@ module top
     wire        mem_axi_bvalid;
     wire        mem_axi_bready;
 
-    ysyx_26030082 #(
-        .RESET_PC             (32'h8000_0000),
-        .TARGET_NPC           (1)
-    ) Core_cpu (
+    ysyx_26030082 Core_cpu (
         .clock                (clock),
         .reset                (reset),
         .io_interrupt         (1'b0),

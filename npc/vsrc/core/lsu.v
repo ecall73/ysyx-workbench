@@ -1,6 +1,4 @@
-`timescale 1ns / 1ps
-
-module lsu (
+module ysyx_26030082_lsu (
     input  wire        clock,
     input  wire        reset,
     // Handshake
@@ -16,6 +14,7 @@ module lsu (
     input  wire        ls_MemRead,
     input  wire [31:0] ls_rR2_data,
     input  wire [31:0] ls_RFwdata,
+    input  wire [63:0] ls_mtime,
 
     // LSU AXI4-Lite interface
     // Read address channel
@@ -52,6 +51,10 @@ module lsu (
     localparam L_RD_WAIT_R = 3'd2;
     localparam L_WR_AW_W   = 3'd3;
     localparam L_WR_WAIT_B = 3'd4;
+    localparam [31:0] CLINT_BASE_ADDR = 32'h0200_0000;
+    localparam [31:0] CLINT_END_ADDR  = 32'h0200_ffff;
+    localparam [31:0] MTIME_ADDR      = 32'h0200_bff8;
+    localparam [31:0] MTIMEH_ADDR     = 32'h0200_bffc;
 
     reg  [2:0]  state;
     reg         wr_aw_done;
@@ -59,12 +62,17 @@ module lsu (
 
     wire        ls_is_mem;
     wire        ls_is_load;
+    wire        ls_is_clint;
+    wire        ls_is_local;
+    wire        ls_is_local_load;
     wire        ar_fire;
     wire        r_fire;
     wire        aw_fire;
     wire        w_fire;
     wire        b_fire;
     wire [1:0]  ls_offset;
+    wire [31:0] ls_local_rdata;
+    wire [31:0] ls_load_raw_data;
     reg  [3:0]  ls_wmask_calc;
     reg  [31:0] ls_wdata_aligned;
     reg  [31:0] ls_rdata_decoded;
@@ -72,6 +80,9 @@ module lsu (
 
     assign ls_is_mem = ls_MemRead || ls_MemWrite;
     assign ls_is_load = ls_MemRead && ~ls_MemWrite;
+    assign ls_is_clint = (ls_ALUResult >= CLINT_BASE_ADDR) && (ls_ALUResult <= CLINT_END_ADDR);
+    assign ls_is_local = ls_is_mem && ls_is_clint;
+    assign ls_is_local_load = ls_is_load && ls_is_clint;
 
     assign ar_fire = lsu_axi_arvalid && lsu_axi_arready;
     assign r_fire = lsu_axi_rvalid && lsu_axi_rready;
@@ -79,13 +90,17 @@ module lsu (
     assign w_fire = lsu_axi_wvalid && lsu_axi_wready;
     assign b_fire = lsu_axi_bvalid && lsu_axi_bready;
     assign ls_offset = ls_ALUResult[1:0];
+    assign ls_local_rdata = (ls_ALUResult == MTIME_ADDR)  ? ls_mtime[31:0]  :
+                            (ls_ALUResult == MTIMEH_ADDR) ? ls_mtime[63:32] :
+                            32'b0;
+    assign ls_load_raw_data = ls_is_local_load ? ls_local_rdata : lsu_axi_rdata;
 
     // Non-memory ops pass through in IDLE with zero extra delay.
     // For memory ops, ls_in_ready is only released when R/B handshakes.
-    assign ls_in_ready = (state == L_IDLE) ? ((ls_in_valid && ls_is_mem) ? 1'b0 : ls_out_ready) :
+    assign ls_in_ready = (state == L_IDLE) ? ((ls_in_valid && ls_is_mem && ~ls_is_local) ? 1'b0 : ls_out_ready) :
                          (state == L_RD_WAIT_R) ? (lsu_axi_rvalid && ls_out_ready) :
                          (state == L_WR_WAIT_B) ? (lsu_axi_bvalid && ls_out_ready) : 1'b0;
-    assign ls_out_valid = (state == L_IDLE) ? (ls_in_valid && ~ls_is_mem) :
+    assign ls_out_valid = (state == L_IDLE) ? (ls_in_valid && (~ls_is_mem || ls_is_local)) :
                           (state == L_RD_WAIT_R) ? lsu_axi_rvalid :
                           (state == L_WR_WAIT_B) ? lsu_axi_bvalid : 1'b0;
 
@@ -102,7 +117,9 @@ module lsu (
     assign lsu_axi_wvalid = (state == L_WR_AW_W) && ~wr_w_done;
     assign lsu_axi_bready = (state == L_WR_WAIT_B) && ls_out_ready;
 
-    assign ls_RFwdata_out = ((state == L_RD_WAIT_R) && lsu_axi_rvalid && ls_MemRead) ? ls_rdata_decoded : ls_RFwdata;
+    assign ls_RFwdata_out =
+        (((state == L_RD_WAIT_R) && lsu_axi_rvalid && ls_MemRead) ||
+         ((state == L_IDLE) && ls_in_valid && ls_is_local_load)) ? ls_rdata_decoded : ls_RFwdata;
 
     // Store alignment
     always @(*) begin
@@ -159,41 +176,41 @@ module lsu (
 
     // Load sign/zero extension
     always @(*) begin
-        ls_rdata_decoded = lsu_axi_rdata; // lw
+        ls_rdata_decoded = ls_load_raw_data; // lw
         case (ls_funct3)
             3'b000: begin // lb
                 case (ls_offset)
-                    2'b00: ls_rdata_decoded = {{24{lsu_axi_rdata[7]}}, lsu_axi_rdata[7:0]};
-                    2'b01: ls_rdata_decoded = {{24{lsu_axi_rdata[15]}}, lsu_axi_rdata[15:8]};
-                    2'b10: ls_rdata_decoded = {{24{lsu_axi_rdata[23]}}, lsu_axi_rdata[23:16]};
-                    2'b11: ls_rdata_decoded = {{24{lsu_axi_rdata[31]}}, lsu_axi_rdata[31:24]};
+                    2'b00: ls_rdata_decoded = {{24{ls_load_raw_data[7]}}, ls_load_raw_data[7:0]};
+                    2'b01: ls_rdata_decoded = {{24{ls_load_raw_data[15]}}, ls_load_raw_data[15:8]};
+                    2'b10: ls_rdata_decoded = {{24{ls_load_raw_data[23]}}, ls_load_raw_data[23:16]};
+                    2'b11: ls_rdata_decoded = {{24{ls_load_raw_data[31]}}, ls_load_raw_data[31:24]};
                     default: ls_rdata_decoded = 32'b0;
                 endcase
             end
             3'b001: begin // lh
                 case (ls_offset[1])
-                    1'b0: ls_rdata_decoded = {{16{lsu_axi_rdata[15]}}, lsu_axi_rdata[15:0]};
-                    1'b1: ls_rdata_decoded = {{16{lsu_axi_rdata[31]}}, lsu_axi_rdata[31:16]};
+                    1'b0: ls_rdata_decoded = {{16{ls_load_raw_data[15]}}, ls_load_raw_data[15:0]};
+                    1'b1: ls_rdata_decoded = {{16{ls_load_raw_data[31]}}, ls_load_raw_data[31:16]};
                     default: ls_rdata_decoded = 32'b0;
                 endcase
             end
             3'b100: begin // lbu
                 case (ls_offset)
-                    2'b00: ls_rdata_decoded = {24'b0, lsu_axi_rdata[7:0]};
-                    2'b01: ls_rdata_decoded = {24'b0, lsu_axi_rdata[15:8]};
-                    2'b10: ls_rdata_decoded = {24'b0, lsu_axi_rdata[23:16]};
-                    2'b11: ls_rdata_decoded = {24'b0, lsu_axi_rdata[31:24]};
+                    2'b00: ls_rdata_decoded = {24'b0, ls_load_raw_data[7:0]};
+                    2'b01: ls_rdata_decoded = {24'b0, ls_load_raw_data[15:8]};
+                    2'b10: ls_rdata_decoded = {24'b0, ls_load_raw_data[23:16]};
+                    2'b11: ls_rdata_decoded = {24'b0, ls_load_raw_data[31:24]};
                     default: ls_rdata_decoded = 32'b0;
                 endcase
             end
             3'b101: begin // lhu
                 case (ls_offset[1])
-                    1'b0: ls_rdata_decoded = {16'b0, lsu_axi_rdata[15:0]};
-                    1'b1: ls_rdata_decoded = {16'b0, lsu_axi_rdata[31:16]};
+                    1'b0: ls_rdata_decoded = {16'b0, ls_load_raw_data[15:0]};
+                    1'b1: ls_rdata_decoded = {16'b0, ls_load_raw_data[31:16]};
                     default: ls_rdata_decoded = 32'b0;
                 endcase
             end
-            default: ls_rdata_decoded = lsu_axi_rdata;
+            default: ls_rdata_decoded = ls_load_raw_data;
         endcase
     end
 
@@ -207,7 +224,7 @@ module lsu (
                 L_IDLE: begin
                     wr_aw_done <= 1'b0;
                     wr_w_done <= 1'b0;
-                    if (ls_in_valid && ls_is_mem) begin
+                    if (ls_in_valid && ls_is_mem && ~ls_is_local) begin
                         if (ls_is_load) begin
                             state <= L_RD_AR;
                         end else begin

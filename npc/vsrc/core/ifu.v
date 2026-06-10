@@ -1,6 +1,4 @@
-`timescale 1ns / 1ps
-
-module ifu #(
+module ysyx_26030082_ifu #(
     parameter [31:0] RESET_PC = 32'h3000_0000
 ) (
     input  wire        clock,

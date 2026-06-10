@@ -1,5 +1,3 @@
-`timescale 1ns / 1ps
-
 module uart_axi4lite (
     input  wire        clock,
     input  wire        reset,
@@ -105,6 +103,7 @@ module uart_axi4lite (
                         if (aw_fire && w_fire) begin
                             uart_reg <= uart_after_write;
                             $write("%c", uart_axi_wdata[7:0]);
+                            $fflush();
                             state <= U_WR_RESP;
                         end else begin
                             state <= U_WR_COLLECT;
@@ -131,6 +130,7 @@ module uart_axi4lite (
                     if (wr_complete_now) begin
                         uart_reg <= uart_after_write;
                         $write("%c", wr_data_now[7:0]);
+                        $fflush();
                         state <= U_WR_RESP;
                     end
                 end

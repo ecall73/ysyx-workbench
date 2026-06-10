@@ -1,51 +1,105 @@
-`timescale 1ns / 1ps
-
-module myCPU #(
+module ysyx_26030082 #(
     parameter [31:0] RESET_PC = 32'h3000_0000,
     parameter integer TARGET_NPC = 0
 ) (
     input  wire        clock,
     input  wire        reset,
-
-    // Shared MEM AXI4 Interface
-    // Read address channel
-    output wire [31:0] mem_axi_araddr,
-    output wire [ 3:0] mem_axi_arid,
-    output wire [ 7:0] mem_axi_arlen,
-    output wire [ 2:0] mem_axi_arsize,
-    output wire [ 1:0] mem_axi_arburst,
-    output wire        mem_axi_arvalid,
-    input  wire        mem_axi_arready,
-    // Read data channel
-    input  wire [31:0] mem_axi_rdata,
-    input  wire [ 3:0] mem_axi_rid,
-    input  wire [ 1:0] mem_axi_rresp,
-    input  wire        mem_axi_rlast,
-    input  wire        mem_axi_rvalid,
-    output wire        mem_axi_rready,
-    // Write address channel
-    output wire [31:0] mem_axi_awaddr,
-    output wire [ 3:0] mem_axi_awid,
-    output wire [ 7:0] mem_axi_awlen,
-    output wire [ 2:0] mem_axi_awsize,
-    output wire [ 1:0] mem_axi_awburst,
-    output wire        mem_axi_awvalid,
-    input  wire        mem_axi_awready,
-    // Write data channel
-    output wire [31:0] mem_axi_wdata,
-    output wire [ 3:0] mem_axi_wstrb,
-    output wire        mem_axi_wlast,
-    output wire        mem_axi_wvalid,
-    input  wire        mem_axi_wready,
-    // Write response channel
-    input  wire [ 3:0] mem_axi_bid,
-    input  wire [ 1:0] mem_axi_bresp,
-    input  wire        mem_axi_bvalid,
-    output wire        mem_axi_bready
-
+    input  wire        io_interrupt,
+    // AXI4 master interface
+    input  wire        io_master_awready,
+    output wire        io_master_awvalid,
+    output wire [ 3:0] io_master_awid,
+    output wire [31:0] io_master_awaddr,
+    output wire [ 7:0] io_master_awlen,
+    output wire [ 2:0] io_master_awsize,
+    output wire [ 1:0] io_master_awburst,
+    input  wire        io_master_wready,
+    output wire        io_master_wvalid,
+    output wire [31:0] io_master_wdata,
+    output wire [ 3:0] io_master_wstrb,
+    output wire        io_master_wlast,
+    output wire        io_master_bready,
+    input  wire        io_master_bvalid,
+    input  wire [ 3:0] io_master_bid,
+    input  wire [ 1:0] io_master_bresp,
+    input  wire        io_master_arready,
+    output wire        io_master_arvalid,
+    output wire [ 3:0] io_master_arid,
+    output wire [31:0] io_master_araddr,
+    output wire [ 7:0] io_master_arlen,
+    output wire [ 2:0] io_master_arsize,
+    output wire [ 1:0] io_master_arburst,
+    output wire        io_master_rready,
+    input  wire        io_master_rvalid,
+    input  wire [ 3:0] io_master_rid,
+    input  wire [31:0] io_master_rdata,
+    input  wire [ 1:0] io_master_rresp,
+    input  wire        io_master_rlast,
+    // AXI4 slave interface (unused)
+    output wire        io_slave_awready,
+    input  wire        io_slave_awvalid,
+    input  wire [ 3:0] io_slave_awid,
+    input  wire [31:0] io_slave_awaddr,
+    input  wire [ 7:0] io_slave_awlen,
+    input  wire [ 2:0] io_slave_awsize,
+    input  wire [ 1:0] io_slave_awburst,
+    output wire        io_slave_wready,
+    input  wire        io_slave_wvalid,
+    input  wire [31:0] io_slave_wdata,
+    input  wire [ 3:0] io_slave_wstrb,
+    input  wire        io_slave_wlast,
+    input  wire        io_slave_bready,
+    output wire        io_slave_bvalid,
+    output wire [ 3:0] io_slave_bid,
+    output wire [ 1:0] io_slave_bresp,
+    output wire        io_slave_arready,
+    input  wire        io_slave_arvalid,
+    input  wire [ 3:0] io_slave_arid,
+    input  wire [31:0] io_slave_araddr,
+    input  wire [ 7:0] io_slave_arlen,
+    input  wire [ 2:0] io_slave_arsize,
+    input  wire [ 1:0] io_slave_arburst,
+    input  wire        io_slave_rready,
+    output wire        io_slave_rvalid,
+    output wire [ 3:0] io_slave_rid,
+    output wire [31:0] io_slave_rdata,
+    output wire [ 1:0] io_slave_rresp,
+    output wire        io_slave_rlast
 );
 
+    assign io_slave_awready = 1'b0;
+    assign io_slave_wready = 1'b0;
+    assign io_slave_bvalid = 1'b0;
+    assign io_slave_bid = 4'b0;
+    assign io_slave_bresp = 2'b00;
+    assign io_slave_arready = 1'b0;
+    assign io_slave_rvalid = 1'b0;
+    assign io_slave_rid = 4'b0;
+    assign io_slave_rdata = 32'b0;
+    assign io_slave_rresp = 2'b00;
+    assign io_slave_rlast = 1'b0;
+
 `ifndef SYNTHESIS
+    always @(posedge clock) begin
+        if (!reset) begin
+            if (io_master_wvalid && io_master_wready && (io_master_wlast != 1'b1)) begin
+                $fatal(1, "ysyx_26030082: WLAST must be 1 for single-beat write");
+            end
+            if (io_master_rvalid && io_master_rready && (io_master_rresp !== 2'b00)) begin
+                $fatal(1,
+                    "ysyx_26030082: AXI read access fault: resp=%0b rid=%0d",
+                    io_master_rresp, io_master_rid);
+            end
+            if (io_master_bvalid && io_master_bready && (io_master_bresp !== 2'b00)) begin
+                $fatal(1,
+                    "ysyx_26030082: AXI write access fault: resp=%0b bid=%0d",
+                    io_master_bresp, io_master_bid);
+            end
+        end
+    end
+`endif
+`ifndef SYNTHESIS
+`ifndef __ICARUS__
     import "DPI-C" function void npc_commit(input int pc, input int inst);
     import "DPI-C" function void npc_pmu_event(input int event_mask);
     export "DPI-C" function npc_get_gpr;
@@ -54,12 +108,13 @@ module myCPU #(
             if (idx == 0) begin
                 npc_get_gpr = 0;
             end else if (idx > 0 && idx < 16) begin
-                npc_get_gpr = u_RF.reg_bank[idx];
+                npc_get_gpr = RF.reg_bank[idx];
             end else begin
                 npc_get_gpr = 0;
             end
         end
     endfunction
+`endif
 `endif
 
     // IF
@@ -176,6 +231,7 @@ module myCPU #(
     wire [ 1:0] lsu_axi_bresp;
     wire        lsu_axi_bvalid;
     wire        lsu_axi_bready;
+    reg  [63:0] mtime;
 
     // Debug Interface
     `ifndef SYNTHESIS
@@ -189,9 +245,17 @@ module myCPU #(
 
 ////////////////////////////////////////////////////////////////
 
-    ifu #(
+    always @(posedge clock) begin
+        if (reset) begin
+            mtime <= 64'b0;
+        end else begin
+            mtime <= mtime + 64'd1;
+        end
+    end
+
+    ysyx_26030082_ifu #(
         .RESET_PC               (RESET_PC)
-    ) u_ifu (
+    ) ifu (
         .clock                  (clock),
         .reset                  (reset),
         .if_ready               (if_ready),
@@ -214,12 +278,12 @@ module myCPU #(
     );
 
 
-    icache #(
+    ysyx_26030082_icache #(
         .LINE_WORDS             (4),
         .LINE_COUNT             (4),
         .ADDR_WIDTH             (32),
         .TARGET_NPC             (TARGET_NPC)
-    ) u_icache (
+    ) icache (
         .clock                  (clock),
         .reset                  (reset),
 
@@ -245,7 +309,7 @@ module myCPU #(
         .ifu_axi_rready         (ifu_axi_rready)
     );
 
-    idu u_idu (
+    ysyx_26030082_idu idu (
         .clock                  (clock),
         .reset                  (reset),
         .id_valid               (id_valid),
@@ -263,8 +327,6 @@ module myCPU #(
         .id_ALUSrcA             (id_ALUSrcA),
         .id_ALUSrcB             (id_ALUSrcB),
         .id_imm                 (id_imm),
-        .id_rR1_data            (id_rR1_data),
-        .id_rR2_data            (id_rR2_data),
 
         .id_btype               (id_btype),
         .id_jtype               (id_jtype),
@@ -280,7 +342,7 @@ module myCPU #(
         `endif
     );
 
-    RF u_RF (
+    ysyx_26030082_RF RF (
         .clock                  (clock),
         .reset                  (reset),
 
@@ -295,7 +357,7 @@ module myCPU #(
         .rR2_data               (id_rR2_data)
     );
 
-    forward u_forward (
+    ysyx_26030082_forward forward (
         .id_in_valid            (id_valid),
         .id_rR1                 (id_inst[19:15]),
         .id_rR2                 (id_inst[24:20]),
@@ -380,7 +442,7 @@ module myCPU #(
     // EX -> LS handshake coupling
     assign ex_out_ready = ls_in_ready;
 
-    exu u_exu (
+    ysyx_26030082_exu exu (
         .clock                  (clock),
         .reset                  (reset),
         .ex_in_valid            (ex_in_valid),
@@ -459,7 +521,7 @@ module myCPU #(
     // LSU output is written back directly, so LS is the final pipeline stage.
     assign ls_out_ready = 1'b1;
 
-    lsu u_lsu (
+    ysyx_26030082_lsu lsu (
         .clock                  (clock),
         .reset                  (reset),
         .ls_in_valid            (ls_in_valid),
@@ -474,6 +536,7 @@ module myCPU #(
         .ls_rR2_data            (ls_rR2_data),
 
         .ls_RFwdata             (ls_RFwdata),
+        .ls_mtime               (mtime),
 
         .lsu_axi_araddr         (lsu_axi_araddr),
         .lsu_axi_arsize         (lsu_axi_arsize),
@@ -498,7 +561,7 @@ module myCPU #(
         .ls_RFwdata_out         (ls_RFwdata_out)
     );
 
-    axi4lite_arbiter u_axi4lite_arbiter (
+    ysyx_26030082_axi4lite_arbiter axi4lite_arbiter (
         .clock                  (clock),
         .reset                  (reset),
 
@@ -533,49 +596,52 @@ module myCPU #(
         .lsu_axi_bvalid         (lsu_axi_bvalid),
         .lsu_axi_bready         (lsu_axi_bready),
 
-        .mem_axi_araddr         (mem_axi_araddr),
-        .mem_axi_arid           (mem_axi_arid),
-        .mem_axi_arlen          (mem_axi_arlen),
-        .mem_axi_arsize         (mem_axi_arsize),
-        .mem_axi_arburst        (mem_axi_arburst),
-        .mem_axi_arvalid        (mem_axi_arvalid),
-        .mem_axi_arready        (mem_axi_arready),
-        .mem_axi_rdata          (mem_axi_rdata),
-        .mem_axi_rid            (mem_axi_rid),
-        .mem_axi_rresp          (mem_axi_rresp),
-        .mem_axi_rlast          (mem_axi_rlast),
-        .mem_axi_rvalid         (mem_axi_rvalid),
-        .mem_axi_rready         (mem_axi_rready),
-        .mem_axi_awaddr         (mem_axi_awaddr),
-        .mem_axi_awid           (mem_axi_awid),
-        .mem_axi_awlen          (mem_axi_awlen),
-        .mem_axi_awsize         (mem_axi_awsize),
-        .mem_axi_awburst        (mem_axi_awburst),
-        .mem_axi_awvalid        (mem_axi_awvalid),
-        .mem_axi_awready        (mem_axi_awready),
-        .mem_axi_wdata          (mem_axi_wdata),
-        .mem_axi_wstrb          (mem_axi_wstrb),
-        .mem_axi_wlast          (mem_axi_wlast),
-        .mem_axi_wvalid         (mem_axi_wvalid),
-        .mem_axi_wready         (mem_axi_wready),
-        .mem_axi_bid            (mem_axi_bid),
-        .mem_axi_bresp          (mem_axi_bresp),
-        .mem_axi_bvalid         (mem_axi_bvalid),
-        .mem_axi_bready         (mem_axi_bready)
+        .mem_axi_araddr          (io_master_araddr),
+        .mem_axi_arid            (io_master_arid),
+        .mem_axi_arlen           (io_master_arlen),
+        .mem_axi_arsize          (io_master_arsize),
+        .mem_axi_arburst         (io_master_arburst),
+        .mem_axi_arvalid         (io_master_arvalid),
+        .mem_axi_arready         (io_master_arready),
+        .mem_axi_rdata           (io_master_rdata),
+        .mem_axi_rid             (io_master_rid),
+        .mem_axi_rresp           (io_master_rresp),
+        .mem_axi_rlast           (io_master_rlast),
+        .mem_axi_rvalid          (io_master_rvalid),
+        .mem_axi_rready          (io_master_rready),
+        .mem_axi_awaddr          (io_master_awaddr),
+        .mem_axi_awid            (io_master_awid),
+        .mem_axi_awlen           (io_master_awlen),
+        .mem_axi_awsize          (io_master_awsize),
+        .mem_axi_awburst         (io_master_awburst),
+        .mem_axi_awvalid         (io_master_awvalid),
+        .mem_axi_awready         (io_master_awready),
+        .mem_axi_wdata           (io_master_wdata),
+        .mem_axi_wstrb           (io_master_wstrb),
+        .mem_axi_wlast           (io_master_wlast),
+        .mem_axi_wvalid          (io_master_wvalid),
+        .mem_axi_wready          (io_master_wready),
+        .mem_axi_bid             (io_master_bid),
+        .mem_axi_bresp           (io_master_bresp),
+        .mem_axi_bvalid          (io_master_bvalid),
+        .mem_axi_bready          (io_master_bready)
     );
 
 `ifndef SYNTHESIS
+`ifndef __ICARUS__
     always @(posedge clock) begin
         if (!reset && ls_out_valid && have_inst_LS) begin
             npc_commit(pc_LS, inst_LS);
         end
     end
 `endif
+`endif
 
     // ================================================================
     // PMU hooks (simulation-only, kept at module tail to avoid clutter)
     // ================================================================
 `ifndef SYNTHESIS
+`ifndef __ICARUS__
     localparam [31:0] PMU_EVT_IFU_R_FIRE      = 32'h0000_0001;
     localparam [31:0] PMU_EVT_LSU_R_FIRE      = 32'h0000_0004;
     localparam [31:0] PMU_EVT_EXU_DONE_FIRE   = 32'h0000_0008;
@@ -612,14 +678,14 @@ module myCPU #(
     // Direct hierarchical reads: simulation-only, no extra submodule ports.
     assign pmu_ifu_r_fire = id_valid && id_ready;
     assign pmu_ifu_nosupply = !pmu_ifu_r_fire;
-    assign pmu_lsu_r_fire = u_lsu.r_fire;
-    assign pmu_lsu_load_req = (u_lsu.state == PMU_LSU_IDLE) && ls_in_valid && u_lsu.ls_is_load;
-    assign pmu_lsu_load_pending = (u_lsu.state == PMU_LSU_RD_AR) || (u_lsu.state == PMU_LSU_RD_WAIT_R);
+    assign pmu_lsu_r_fire = lsu.r_fire;
+    assign pmu_lsu_load_req = (lsu.state == PMU_LSU_IDLE) && ls_in_valid && lsu.ls_is_load;
+    assign pmu_lsu_load_pending = (lsu.state == PMU_LSU_RD_AR) || (lsu.state == PMU_LSU_RD_WAIT_R);
     assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
     assign pmu_dec_total = !flush && id_issue_valid && ex_in_ready && have_inst_ID;
     assign pmu_icache_miss_refill_busy =
-        ((u_icache.state == PMU_ICACHE_MISS_AR) ||
-         (u_icache.state == PMU_ICACHE_MISS_R)) && !u_icache.miss_bypass;
+        ((icache.state == PMU_ICACHE_MISS_AR) ||
+         (icache.state == PMU_ICACHE_MISS_R)) && !icache.miss_bypass;
 
     always @(*) begin
         pmu_event_mask = 32'b0;
@@ -630,7 +696,7 @@ module myCPU #(
             end
             if (pmu_ifu_nosupply) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
-                if (flush || u_icache.need_flush) begin
+                if (flush || icache.need_flush) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
                 end else if (id_valid && !id_ready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;
@@ -640,10 +706,10 @@ module myCPU #(
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
                 end
             end
-            if (u_icache.lookup_resp_valid) begin
+            if (icache.lookup_resp_valid) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_HIT;
             end
-            if ((u_icache.state == PMU_ICACHE_LOOKUP) && u_icache.cache_miss) begin
+            if ((icache.state == PMU_ICACHE_LOOKUP) && icache.cache_miss) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_MISS;
             end
             if (pmu_icache_miss_refill_busy) begin
@@ -674,5 +740,16 @@ module myCPU #(
         end
     end
 `endif
+`endif
+
+
+    wire _unused_ok;
+    assign _unused_ok = &{1'b0,
+        io_interrupt,
+        io_slave_awvalid, io_slave_awid, io_slave_awaddr, io_slave_awlen, io_slave_awsize, io_slave_awburst,
+        io_slave_wvalid, io_slave_wdata, io_slave_wstrb, io_slave_wlast, io_slave_bready,
+        io_slave_arvalid, io_slave_arid, io_slave_araddr, io_slave_arlen, io_slave_arsize, io_slave_arburst,
+        io_slave_rready
+    };
 
 endmodule
