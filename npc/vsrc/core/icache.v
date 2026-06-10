@@ -46,10 +46,6 @@ module ysyx_26030082_icache #(
     localparam integer DATA_ADDR_W = INDEX_W + LINE_WORD_OFF_W;
     localparam integer DATA_DEPTH = LINE_COUNT * LINE_WORDS;
     localparam USE_TARGET_NPC = (TARGET_NPC != 0);
-    localparam [31:0] CACHEABLE_BASE_SOC = 32'ha000_0000;
-    localparam [31:0] CACHEABLE_LIMIT_SOC = 32'ha200_0000;
-    localparam [31:0] CACHEABLE_BASE_NPC = 32'h8000_0000;
-    localparam [31:0] CACHEABLE_LIMIT_NPC = 32'h8800_0000;
 
     reg [31:0] data_array [0:DATA_DEPTH-1];
     reg [TAG_W-1:0] tag_array [0:LINE_COUNT-1];
@@ -97,24 +93,23 @@ module ysyx_26030082_icache #(
     wire               kill_refill_now;
 
     wire [31:0] miss_line_base;
-    wire [31:0] cacheable_base;
-    wire [31:0] cacheable_limit;
-
-    assign cacheable_base = USE_TARGET_NPC ? CACHEABLE_BASE_NPC : CACHEABLE_BASE_SOC;
-    assign cacheable_limit = USE_TARGET_NPC ? CACHEABLE_LIMIT_NPC : CACHEABLE_LIMIT_SOC;
 
     assign lookup_word_offset =
         lookup_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
     assign lookup_index = lookup_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
     assign lookup_tag = lookup_pc[ADDR_WIDTH - 1 : OFFSET_W + INDEX_W];
-    assign lookup_cacheable = (lookup_pc >= cacheable_base) && (lookup_pc < cacheable_limit);
+    assign lookup_cacheable = USE_TARGET_NPC ?
+        (lookup_pc[31:27] == 5'b10000) :
+        (lookup_pc[31:25] == 7'b1010000);
     assign lookup_data_addr = {lookup_index, lookup_word_offset};
 
     assign miss_word_offset =
         miss_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
     assign miss_index = miss_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
     assign miss_tag = miss_pc[ADDR_WIDTH - 1 : OFFSET_W + INDEX_W];
-    assign miss_bypass = !((miss_pc >= cacheable_base) && (miss_pc < cacheable_limit));
+    assign miss_bypass = !(USE_TARGET_NPC ?
+        (miss_pc[31:27] == 5'b10000) :
+        (miss_pc[31:25] == 7'b1010000));
     assign refill_data_addr = {miss_index, refill_word_idx};
 
     assign lookup_rd_tag = tag_array[lookup_index];
