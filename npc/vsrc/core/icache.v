@@ -44,7 +44,11 @@ module ysyx_26030082_icache #(
 
     reg [1:0] state;
 
+`ifdef SYNTHESIS
     reg [LINE_BITS-1:0] data_array [0:LINE_COUNT-1];
+`else
+    reg [31:0] data_array [0:LINE_COUNT-1][0:LINE_WORDS-1];
+`endif
     reg [TAG_W-1:0] tag_array [0:LINE_COUNT-1];
     reg [LINE_COUNT-1:0] valid_array;
 
@@ -59,7 +63,11 @@ module ysyx_26030082_icache #(
     reg         miss_bypass;
     reg         need_flush;
     reg         kill_miss_refill;
+`ifdef SYNTHESIS
     reg [LINE_BITS-1:0] refill_line_buf;
+`else
+    reg [31:0]  miss_target_inst;
+`endif
 
     wire [LINE_WORD_OFF_W-1:0] req_word_offset;
     wire [INDEX_W-1:0] req_index;
@@ -94,11 +102,18 @@ module ysyx_26030082_icache #(
     wire               kill_refill_now;
 
     wire [31:0] miss_line_base;
+`ifdef SYNTHESIS
     wire [LINE_BITS-1:0] lookup_line;
-    wire [31:0]          lookup_inst;
+    reg  [31:0]          lookup_inst;
     reg  [LINE_BITS-1:0] refill_line_next;
-    wire [31:0]          refill_resp_inst;
+    reg  [31:0]          refill_resp_inst;
+`else
+    reg [31:0] lookup_inst;
+`endif
     localparam [31:0] LINE_WORD_MASK_FULL = LINE_WORDS - 1;
+`ifndef SYNTHESIS
+    integer i;
+`endif
     integer j;
 
     function is_cacheable;
@@ -114,6 +129,7 @@ module ysyx_26030082_icache #(
         end
     endfunction
 
+`ifdef SYNTHESIS
     function [31:0] line_word_select;
         input [LINE_BITS-1:0] line_data;
         input [LINE_WORD_OFF_W-1:0] word_offset;
@@ -127,6 +143,7 @@ module ysyx_26030082_icache #(
             end
         end
     endfunction
+`endif
 
     function [LINE_BITS-1:0] line_with_word;
         input [LINE_BITS-1:0] line_data;
@@ -200,14 +217,24 @@ module ysyx_26030082_icache #(
     assign ar_fire = ifu_axi_arvalid && ifu_axi_arready;
     assign r_fire = ifu_axi_rvalid && ifu_axi_rready;
 
+`ifdef SYNTHESIS
     assign lookup_line = data_array[lookup_index];
-    assign lookup_inst = line_word_select(lookup_line, lookup_word_offset);
 
     always @(*) begin
+        lookup_inst = line_word_select(lookup_line, lookup_word_offset);
         refill_line_next = line_with_word(refill_line_buf, refill_word_idx, ifu_axi_rdata);
+        refill_resp_inst = line_word_select(refill_line_next, miss_word_offset);
     end
-
-    assign refill_resp_inst = line_word_select(refill_line_next, miss_word_offset);
+`else
+    always @(*) begin
+        lookup_inst = data_array[lookup_index][0];
+        for (i = 1; i < LINE_WORDS; i = i + 1) begin
+            if (lookup_word_offset == i[LINE_WORD_OFF_W-1:0]) begin
+                lookup_inst = data_array[lookup_index][i];
+            end
+        end
+    end
+`endif
 
     always @(posedge clock) begin
         if (reset) begin
@@ -221,7 +248,11 @@ module ysyx_26030082_icache #(
             miss_bypass <= 1'b0;
             need_flush <= 1'b0;
             kill_miss_refill <= 1'b0;
+`ifdef SYNTHESIS
             refill_line_buf <= {LINE_BITS{1'b0}};
+`else
+            miss_target_inst <= 32'b0;
+`endif
             valid_array <= {LINE_COUNT{1'b0}};
         end else begin
             if (invalidate) begin
@@ -249,7 +280,11 @@ module ysyx_26030082_icache #(
                                 miss_bypass <= 1'b0;
                                 need_flush <= 1'b0;
                                 kill_miss_refill <= 1'b0;
+`ifdef SYNTHESIS
                                 refill_line_buf <= {LINE_BITS{1'b0}};
+`else
+                                miss_target_inst <= 32'b0;
+`endif
                                 lookup_valid <= 1'b0;
                                 state <= S_MISS_AR;
                             end else if (lookup_valid && cache_bypass) begin
@@ -258,7 +293,11 @@ module ysyx_26030082_icache #(
                                 miss_bypass <= 1'b1;
                                 need_flush <= 1'b0;
                                 kill_miss_refill <= 1'b0;
+`ifdef SYNTHESIS
                                 refill_line_buf <= {LINE_BITS{1'b0}};
+`else
+                                miss_target_inst <= 32'b0;
+`endif
                                 lookup_valid <= 1'b0;
                                 state <= S_MISS_AR;
                             end
@@ -312,6 +351,7 @@ module ysyx_26030082_icache #(
                             kill_miss_refill <= 1'b0;
                             state <= S_LOOKUP;
                         end else begin
+`ifdef SYNTHESIS
                             if (refill_is_last_word) begin
                                 if (!kill_refill_now) begin
                                     data_array[miss_index] <= refill_line_next;
@@ -330,6 +370,32 @@ module ysyx_26030082_icache #(
                                 refill_line_buf <= refill_line_next;
                                 refill_word_idx <= refill_word_idx + 1'b1;
                             end
+`else
+                            if (!kill_refill_now) begin
+                                data_array[miss_index][refill_word_idx] <= ifu_axi_rdata;
+                            end
+
+                            if (refill_is_target_word) begin
+                                miss_target_inst <= ifu_axi_rdata;
+                            end
+
+                            if (refill_is_last_word) begin
+                                if (!kill_refill_now) begin
+                                    tag_array[miss_index] <= miss_tag;
+                                    valid_array[miss_index] <= 1'b1;
+                                end
+                                if (discard_resp || kill_refill_now) begin
+                                    need_flush <= 1'b0;
+                                end else begin
+                                    hold_valid <= 1'b1;
+                                    hold_inst <= refill_is_target_word ? ifu_axi_rdata : miss_target_inst;
+                                end
+                                kill_miss_refill <= 1'b0;
+                                state <= S_LOOKUP;
+                            end else begin
+                                refill_word_idx <= refill_word_idx + 1'b1;
+                            end
+`endif
                         end
                     end
                 end
