@@ -92,8 +92,8 @@ module ysyx_26030082_icache #(
     assign lookup_rd_tag = tag_array[lookup_index];
     assign lookup_rd_valid = valid_array[lookup_index];
     assign cache_hit = lookup_rd_valid && (lookup_rd_tag == lookup_tag);
-    assign cache_miss = (state == S_LOOKUP) && !pipe_flush && if_valid && !cache_hit;
-    assign lookup_resp_valid = (state == S_LOOKUP) && !pipe_flush && if_valid && cache_hit;
+    assign cache_miss = (state == S_LOOKUP) && !pipe_flush && !cache_hit;
+    assign lookup_resp_valid = (state == S_LOOKUP) && !pipe_flush && cache_hit;
 
     assign pipe_flush = flush || invalidate;
     assign discard_resp = need_flush || pipe_flush;
