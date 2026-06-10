@@ -2,3 +2,4 @@
 /nvboard
 .*/
 out/
+__pycache__/
