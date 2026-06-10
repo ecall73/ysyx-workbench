@@ -61,7 +61,6 @@ module ysyx_26030082_icache #(
     wire [TAG_W-1:0]           lookup_tag;
     wire [DATA_ADDR_W-1:0]     lookup_data_addr;
 
-    wire [LINE_WORD_OFF_W-1:0] miss_word_offset;
     wire [INDEX_W-1:0]         miss_index;
     wire [TAG_W-1:0]           miss_tag;
     wire [DATA_ADDR_W-1:0]     refill_data_addr;
@@ -71,7 +70,6 @@ module ysyx_26030082_icache #(
     wire               lookup_resp_valid;
     wire [TAG_W-1:0]   lookup_rd_tag;
     wire               lookup_rd_valid;
-    wire               refill_is_target_word;
     wire               req_space;
     wire               req_fire;
     wire               ar_fire;
@@ -89,10 +87,8 @@ module ysyx_26030082_icache #(
     assign lookup_data_addr = {lookup_index, lookup_word_offset};
 
     assign miss_pc = lookup_pc;
-    assign miss_word_offset =
-        miss_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
-    assign miss_index = miss_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
-    assign miss_tag = lookup_pc[ADDR_WIDTH - 1 : OFFSET_W + INDEX_W];
+    assign miss_index = lookup_index;
+    assign miss_tag = lookup_tag;
     assign refill_data_addr = {miss_index, refill_word_idx};
 
     assign lookup_rd_tag = tag_array[lookup_index];
