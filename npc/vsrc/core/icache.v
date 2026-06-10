@@ -75,7 +75,6 @@ module ysyx_26030082_icache #(
     wire               r_fire;
     wire               discard_resp;
     wire               pipe_flush;
-    wire               lookup_active;
     wire [31:0] miss_line_base;
 
     assign lookup_word_offset =
@@ -93,9 +92,8 @@ module ysyx_26030082_icache #(
     assign lookup_rd_tag = tag_array[lookup_index];
     assign lookup_rd_valid = valid_array[lookup_index];
     assign cache_hit = lookup_rd_valid && (lookup_rd_tag == lookup_tag);
-    assign lookup_active = (state == S_LOOKUP) && !pipe_flush && if_valid;
-    assign cache_miss = lookup_active && !cache_hit;
-    assign lookup_resp_valid = lookup_active && cache_hit;
+    assign cache_miss = (state == S_LOOKUP) && !pipe_flush && if_valid && !cache_hit;
+    assign lookup_resp_valid = (state == S_LOOKUP) && !pipe_flush && if_valid && cache_hit;
 
     assign pipe_flush = flush || invalidate;
     assign discard_resp = need_flush || pipe_flush;
