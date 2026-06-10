@@ -102,12 +102,7 @@ module ysyx_26030082_icache #(
     assign id_pc = if_pc;
     assign id_inst = data_array[lookup_data_addr];
 
-    assign req_space =
-        (state == S_LOOKUP) &&
-        !pipe_flush &&
-        if_valid &&
-        cache_hit &&
-        id_ready;
+    assign req_space = lookup_resp_valid && id_ready;
     assign if_ready = req_space;
     assign req_fire = if_valid && if_ready;
 
