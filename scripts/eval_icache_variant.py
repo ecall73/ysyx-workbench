@@ -73,13 +73,22 @@ def parse_metric(pattern: re.Pattern[str], text: str, name: str) -> str:
 
 
 def append_markdown_row(log_md: pathlib.Path, row: list[str]) -> None:
+    header = (
+        "# icache/fetch 优化实验记录\n\n"
+        "| 时间 | 标签 | new area | old area | CI 面积结论 | new fmax(MHz) | old fmax(MHz) | 主频结论(>=600MHz) | IPC(ysyxsoc microbench) | 指令数 | 周期数 | 备注 |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+    )
     log_md.parent.mkdir(parents=True, exist_ok=True)
     if not log_md.exists():
-        log_md.write_text(
-            "# icache/fetch 优化实验记录\n\n"
+        log_md.write_text(header)
+    else:
+        text = log_md.read_text()
+        old_header = (
             "| 时间 | 标签 | new area | old area | CI 面积结论 | IPC(ysyxsoc microbench) | 指令数 | 周期数 | 备注 |\n"
             "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
         )
+        if old_header in text and "new fmax(MHz)" not in text:
+            log_md.write_text(text.replace(old_header, header.split("\n\n", 1)[1], 1))
     with log_md.open("a") as fp:
         fp.write("| " + " | ".join(row) + " |\n")
 
@@ -155,11 +164,14 @@ def main() -> int:
 
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n")
 
-    new_area = old_area = ci_pass = "-"
+    new_area = old_area = ci_pass = new_fmax = old_fmax = freq_ok = "-"
     if area is not None:
         new_area = f"{area['new_flow']['area']:.3f}"
         old_area = f"{area['old_flow']['area']:.3f}"
         ci_pass = "PASS" if area["pass_ci"] else "FAIL"
+        new_fmax = f"{area['new_flow']['fmax_mhz']:.3f}"
+        old_fmax = f"{area['old_flow']['fmax_mhz']:.3f}"
+        freq_ok = "PASS" if area["new_flow"]["fmax_mhz"] >= 600.0 else "FAIL"
     ipc_text = "-" if ipc is None else str(ipc)
     inst_text = "-" if insts is None else str(insts)
     cycle_text = "-" if cycles is None else str(cycles)
@@ -171,6 +183,9 @@ def main() -> int:
             new_area,
             old_area,
             ci_pass,
+            new_fmax,
+            old_fmax,
+            freq_ok,
             ipc_text,
             inst_text,
             cycle_text,
@@ -183,6 +198,9 @@ def main() -> int:
         print(f"new area  : {new_area}")
         print(f"old area  : {old_area}")
         print(f"ci result : {ci_pass}")
+        print(f"new fmax  : {new_fmax} MHz")
+        print(f"old fmax  : {old_fmax} MHz")
+        print(f"freq>=600 : {freq_ok}")
     if ipc is not None:
         print(f"ipc       : {ipc_text}")
         print(f"insts     : {inst_text}")

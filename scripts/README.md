@@ -32,6 +32,7 @@ python3 scripts/gen_ci_patches.py --project ysyxSoC
 - 在本机执行一套与当前 CI `yosys-sta` 流程等效的面积评估
 - 自动从 CI workflow 中读取 `yosys-sta` 分支、`revert` 提交和面积门限
 - 同时跑新 flow 和旧 flow，并给出最终的 CI 通过/失败结论
+- 额外解析 `sta` 报告中的最差路径主频和 slack，方便同时判断是否高于 `600MHz`
 
 默认假设：
 - `ysyx-workbench` 就是当前 `scripts/` 所在仓库根目录
@@ -72,6 +73,7 @@ python3 scripts/eval_ci_area.py \
 - 对当前 `ysyx-workbench` 中的 `icache/取指` 版本做一次统一评测
 - 同时跑：
   - CI 等效面积评估
+  - `yosys-sta` 报告中的最差路径主频
   - `ARCH=riscv32e-ysyxsoc` 的 `microbench`，提取 `IPC`
 - 自动把原始日志和摘要结果保存到 `out/icache-opt/`
 - 自动向 `out/icache-opt/experiment_log.md` 追加一行实验记录
