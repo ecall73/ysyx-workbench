@@ -14,17 +14,27 @@ import sys
 IPC_RE = re.compile(r"IPC = ([0-9.]+)")
 CYCLES_RE = re.compile(r"total simulation cycles = (\d+)")
 INST_RE = re.compile(r"total guest instructions = (\d+)")
+DEFAULT_SIM_TIMEOUT_SECONDS = 60
 
 
-def run_capture(cmd: list[str], cwd: pathlib.Path) -> str:
+def run_capture(cmd: list[str], cwd: pathlib.Path, timeout_seconds: int | None = None) -> str:
     print("+", " ".join(cmd), file=sys.stderr)
-    proc = subprocess.run(
-        cmd,
-        cwd=str(cwd),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(cwd),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        output = exc.stdout or ""
+        if isinstance(output, bytes):
+            output = output.decode(errors="replace")
+        raise RuntimeError(
+            f"command timed out after {timeout_seconds}s: {' '.join(cmd)}\n{output}"
+        ) from exc
     if proc.returncode not in (0, 1):
         raise subprocess.CalledProcessError(proc.returncode, cmd, output=proc.stdout)
     return proc.stdout
@@ -53,6 +63,12 @@ def parse_args() -> argparse.Namespace:
         help="Markdown log file to append one summary row into",
     )
     parser.add_argument("--mainargs", default="test")
+    parser.add_argument(
+        "--sim-timeout-seconds",
+        type=int,
+        default=DEFAULT_SIM_TIMEOUT_SECONDS,
+        help="Timeout applied to each simulation command, in seconds",
+    )
     parser.add_argument("--skip-area", action="store_true")
     parser.add_argument("--skip-ipc", action="store_true")
     return parser.parse_args()
@@ -149,7 +165,7 @@ def main() -> int:
             "DIFFTEST=1",
             f"mainargs={args.mainargs}",
         ]
-        ipc_output = run_capture(ipc_cmd, microbench_dir)
+        ipc_output = run_capture(ipc_cmd, microbench_dir, timeout_seconds=args.sim_timeout_seconds)
         ipc_log_path.write_text(ipc_output)
         ipc = parse_metric(IPC_RE, ipc_output, "IPC")
         cycles = parse_metric(CYCLES_RE, ipc_output, "simulation cycles")

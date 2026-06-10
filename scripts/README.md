@@ -77,6 +77,7 @@ python3 scripts/eval_ci_area.py \
   - `ARCH=riscv32e-ysyxsoc` 的 `microbench`，提取 `IPC`
 - 自动把原始日志和摘要结果保存到 `out/icache-opt/`
 - 自动向 `out/icache-opt/experiment_log.md` 追加一行实验记录
+- 默认对仿真命令启用 `60s` 门禁，避免坏候选无限挂住
 
 用法：
 
@@ -90,6 +91,7 @@ python3 scripts/eval_icache_variant.py \
 常用参数：
 - `--label`：实验标签，必填
 - `--notes`：附加备注，会写入实验日志
+- `--sim-timeout-seconds`：仿真超时门限，默认 `60`
 - `--skip-area`：只跑 `IPC`
 - `--skip-ipc`：只跑面积
 - `--log-md`：指定实验记录 markdown 文件
