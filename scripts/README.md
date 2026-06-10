@@ -65,3 +65,30 @@ python3 scripts/eval_ci_area.py \
 - `--stuid`：手动指定学号，覆盖从 `Makefile` 自动解析的结果
 - `--yosys-bin`：指定使用的 Yosys 可执行文件
 - `--cache-dir`：指定 `yosys-sta` 本地缓存目录
+
+## `eval_icache_variant.py`
+
+功能：
+- 对当前 `ysyx-workbench` 中的 `icache/取指` 版本做一次统一评测
+- 同时跑：
+  - CI 等效面积评估
+  - `ARCH=riscv32e-ysyxsoc` 的 `microbench`，提取 `IPC`
+- 自动把原始日志和摘要结果保存到 `out/icache-opt/`
+- 自动向 `out/icache-opt/experiment_log.md` 追加一行实验记录
+
+用法：
+
+```bash
+cd ~/ysyx-workbench
+python3 scripts/eval_icache_variant.py \
+  --label current-fulladdr \
+  --notes "取消cacheable判定，tag覆盖全地址空间"
+```
+
+常用参数：
+- `--label`：实验标签，必填
+- `--notes`：附加备注，会写入实验日志
+- `--skip-area`：只跑 `IPC`
+- `--skip-ipc`：只跑面积
+- `--log-md`：指定实验记录 markdown 文件
+- `--output-root`：指定原始日志输出目录
