@@ -43,7 +43,15 @@ module ysyx_26030082_icache #(
 
     reg [1:0] state;
 
-    reg [31:0] data_array [0:LINE_COUNT-1][0:LINE_WORDS-1];
+    localparam integer DATA_ADDR_W = INDEX_W + LINE_WORD_OFF_W;
+    localparam integer DATA_DEPTH = LINE_COUNT * LINE_WORDS;
+    localparam USE_TARGET_NPC = (TARGET_NPC != 0);
+    localparam [31:0] CACHEABLE_BASE_SOC = 32'ha000_0000;
+    localparam [31:0] CACHEABLE_LIMIT_SOC = 32'ha200_0000;
+    localparam [31:0] CACHEABLE_BASE_NPC = 32'h8000_0000;
+    localparam [31:0] CACHEABLE_LIMIT_NPC = 32'h8800_0000;
+
+    reg [31:0] data_array [0:DATA_DEPTH-1];
     reg [TAG_W-1:0] tag_array [0:LINE_COUNT-1];
     reg [LINE_COUNT-1:0] valid_array;
 
@@ -59,19 +67,16 @@ module ysyx_26030082_icache #(
     reg         need_flush;
     reg         kill_miss_refill;
 
-    wire [LINE_WORD_OFF_W-1:0] req_word_offset;
-    wire [INDEX_W-1:0] req_index;
-    wire [TAG_W-1:0]   req_tag;
-    wire               req_cacheable;
-
     wire [LINE_WORD_OFF_W-1:0] lookup_word_offset;
     wire [INDEX_W-1:0]         lookup_index;
     wire [TAG_W-1:0]           lookup_tag;
     wire                       lookup_cacheable;
+    wire [DATA_ADDR_W-1:0]     lookup_data_addr;
 
     wire [LINE_WORD_OFF_W-1:0] miss_word_offset;
     wire [INDEX_W-1:0]         miss_index;
     wire [TAG_W-1:0]           miss_tag;
+    wire [DATA_ADDR_W-1:0]     refill_data_addr;
 
     wire               cache_hit;
     wire               cache_miss;
@@ -91,46 +96,26 @@ module ysyx_26030082_icache #(
     wire               pipe_flush;
     wire               kill_refill_now;
 
-    reg [31:0] lookup_inst;
-
     wire [31:0] miss_line_base;
-    localparam [31:0] LINE_WORD_MASK_FULL = LINE_WORDS - 1;
-    integer i;
-    integer j;
+    wire [31:0] cacheable_base;
+    wire [31:0] cacheable_limit;
 
-    function is_cacheable;
-        input [31:0] addr;
-        begin
-            if (TARGET_NPC == 1) begin
-                is_cacheable =
-                    ((addr >= 32'h8000_0000) && (addr < 32'h8800_0000));
-            end else begin
-                is_cacheable =
-                    ((addr >= 32'ha000_0000) && (addr < 32'ha200_0000));
-            end
-        end
-    endfunction
-
-    assign req_word_offset =
-        if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W] &
-        LINE_WORD_MASK_FULL[LINE_WORD_OFF_W - 1 : 0];
-    assign req_index = if_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
-    assign req_tag = if_pc[ADDR_WIDTH - 1 : OFFSET_W + INDEX_W];
-    assign req_cacheable = is_cacheable(if_pc);
+    assign cacheable_base = USE_TARGET_NPC ? CACHEABLE_BASE_NPC : CACHEABLE_BASE_SOC;
+    assign cacheable_limit = USE_TARGET_NPC ? CACHEABLE_LIMIT_NPC : CACHEABLE_LIMIT_SOC;
 
     assign lookup_word_offset =
-        lookup_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W] &
-        LINE_WORD_MASK_FULL[LINE_WORD_OFF_W - 1 : 0];
+        lookup_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
     assign lookup_index = lookup_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
     assign lookup_tag = lookup_pc[ADDR_WIDTH - 1 : OFFSET_W + INDEX_W];
-    assign lookup_cacheable = is_cacheable(lookup_pc);
+    assign lookup_cacheable = (lookup_pc >= cacheable_base) && (lookup_pc < cacheable_limit);
+    assign lookup_data_addr = {lookup_index, lookup_word_offset};
 
     assign miss_word_offset =
-        miss_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W] &
-        LINE_WORD_MASK_FULL[LINE_WORD_OFF_W - 1 : 0];
+        miss_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
     assign miss_index = miss_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
     assign miss_tag = miss_pc[ADDR_WIDTH - 1 : OFFSET_W + INDEX_W];
-    assign miss_bypass = !is_cacheable(miss_pc);
+    assign miss_bypass = !((miss_pc >= cacheable_base) && (miss_pc < cacheable_limit));
+    assign refill_data_addr = {miss_index, refill_word_idx};
 
     assign lookup_rd_tag = tag_array[lookup_index];
     assign lookup_rd_valid = valid_array[lookup_index];
@@ -148,7 +133,7 @@ module ysyx_26030082_icache #(
     assign resp_from_lookup = !hold_valid && lookup_resp_valid;
     assign id_valid = resp_from_hold || resp_from_lookup;
     assign id_pc = resp_from_hold ? miss_pc : lookup_pc;
-    assign id_inst = resp_from_hold ? hold_inst : lookup_inst;
+    assign id_inst = resp_from_hold ? hold_inst : data_array[lookup_data_addr];
 
     assign req_space =
         (state == S_LOOKUP) &&
@@ -168,15 +153,6 @@ module ysyx_26030082_icache #(
     assign ifu_axi_rready = (state == S_MISS_R);
     assign ar_fire = ifu_axi_arvalid && ifu_axi_arready;
     assign r_fire = ifu_axi_rvalid && ifu_axi_rready;
-
-    always @(*) begin
-        lookup_inst = data_array[lookup_index][0];
-        for (i = 1; i < LINE_WORDS; i = i + 1) begin
-            if (lookup_word_offset == i[LINE_WORD_OFF_W-1:0]) begin
-                lookup_inst = data_array[lookup_index][i];
-            end
-        end
-    end
 
     always @(posedge clock) begin
         if (reset) begin
@@ -281,7 +257,7 @@ module ysyx_26030082_icache #(
                         end else begin
                             if (refill_is_last_word) begin
                                 if (!kill_refill_now) begin
-                                    data_array[miss_index][refill_word_idx] <= ifu_axi_rdata;
+                                    data_array[refill_data_addr] <= ifu_axi_rdata;
                                     tag_array[miss_index] <= miss_tag;
                                     valid_array[miss_index] <= 1'b1;
                                 end
@@ -297,7 +273,7 @@ module ysyx_26030082_icache #(
                                 state <= S_LOOKUP;
                             end else begin
                                 if (!kill_refill_now) begin
-                                    data_array[miss_index][refill_word_idx] <= ifu_axi_rdata;
+                                    data_array[refill_data_addr] <= ifu_axi_rdata;
                                 end
                                 refill_word_idx <= refill_word_idx + 1'b1;
                             end
