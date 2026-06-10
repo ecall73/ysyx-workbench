@@ -50,10 +50,11 @@ module tb_iverilog;
             if (dut.Core_cpu.ls_out_valid && dut.Core_cpu.have_inst_LS) begin
                 if (dut.Core_cpu.inst_LS === EBREAK_INST) begin
                     if (dut.Core_cpu.RF.reg_bank[10] === 32'h0000_0000) begin
-                        $display("HIT GOOD TRAP at pc = 0x%08x", dut.Core_cpu.pc_LS);
+                        $display("HIT GOOD TRAP at pc = 0x%08x cycle = %0d",
+                            dut.Core_cpu.pc_LS, cycle_count);
                     end else begin
-                        $display("HIT BAD TRAP at pc = 0x%08x a0 = 0x%08x",
-                            dut.Core_cpu.pc_LS, dut.Core_cpu.RF.reg_bank[10]);
+                        $display("HIT BAD TRAP at pc = 0x%08x a0 = 0x%08x cycle = %0d",
+                            dut.Core_cpu.pc_LS, dut.Core_cpu.RF.reg_bank[10], cycle_count);
                     end
                     $finish;
                 end

@@ -29,6 +29,7 @@ module pmem_axi4lite (
 );
 `ifdef __ICARUS__
     localparam [31:0] PMEM_BASE_ADDR = 32'h8000_0000;
+    localparam [31:0] PMEM_BOOT_ALIAS_ADDR = 32'h3000_0000;
     localparam integer PMEM_BYTES = 32'h0800_0000;
 
     reg [7:0] pmem [0:PMEM_BYTES-1];
@@ -41,7 +42,13 @@ module pmem_axi4lite (
         integer byte_addr;
         begin
             byte_addr = {raddr[31:2], 2'b00} - PMEM_BASE_ADDR;
-            if ((raddr < PMEM_BASE_ADDR) || (byte_addr < 0) || (byte_addr > (PMEM_BYTES - 4))) begin
+            if ((raddr >= PMEM_BOOT_ALIAS_ADDR) && (raddr < (PMEM_BOOT_ALIAS_ADDR + 32'h40))) begin
+                case (raddr - PMEM_BOOT_ALIAS_ADDR)
+                    32'h0000_0000: pmem_model_read = 32'h8000_02b7;
+                    32'h0000_0004: pmem_model_read = 32'h0002_8067;
+                    default:       pmem_model_read = 32'h0000_0013;
+                endcase
+            end else if ((raddr < PMEM_BASE_ADDR) || (byte_addr < 0) || (byte_addr > (PMEM_BYTES - 4))) begin
                 pmem_model_read = 32'hxxxx_xxxx;
             end else begin
                 pmem_model_read = {
