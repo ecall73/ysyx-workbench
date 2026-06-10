@@ -24,20 +24,15 @@ module ysyx_26030082_ifu #(
 );
 
     wire        ex_btype_taken;
-    wire        redirect_flush;
-    wire [31:0] frontend_restart_pc;
-    wire [31:0] restart_pc;
+    wire        ex_commit_fire;
+    wire        ex_redirect;
     wire req_fire;
 
     assign ex_btype_taken = ex_btype && ex_BRUResult;
-    assign redirect_flush = ex_out_valid && ex_out_ready &&
-                            (ex_CSRjump || ex_jtype || ex_ijtype || ex_btype_taken);
-    assign invalidate = ex_out_valid && ex_out_ready && ex_FenceI;
-    assign flush = redirect_flush || invalidate;
-    assign frontend_restart_pc = ex_CSRjump ? ex_CSRnpc :
-                                 (ex_btype_taken || ex_jtype || ex_ijtype) ? ex_ALUResult :
-                                 ex_pc4;
-    assign restart_pc = redirect_flush ? frontend_restart_pc : ex_pc4;
+    assign ex_commit_fire = ex_out_valid && ex_out_ready;
+    assign ex_redirect = ex_CSRjump || ex_jtype || ex_ijtype || ex_btype_taken;
+    assign invalidate = ex_commit_fire && ex_FenceI;
+    assign flush = ex_commit_fire && (ex_redirect || ex_FenceI);
 
     assign if_valid = !flush;
 
@@ -47,7 +42,9 @@ module ysyx_26030082_ifu #(
         if (reset) begin
             if_pc <= RESET_PC;
         end else if (flush) begin
-            if_pc <= restart_pc;
+            if_pc <= ex_CSRjump ? ex_CSRnpc :
+                     ex_redirect ? ex_ALUResult :
+                     ex_pc4;
         end else if (req_fire) begin
             if_pc <= if_pc + 32'd4;
         end
