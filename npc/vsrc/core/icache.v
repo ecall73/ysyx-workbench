@@ -37,11 +37,11 @@ module ysyx_26030082_icache #(
     localparam integer OFFSET_W        = WORD_OFF_W + LINE_ADDR_OFF_W;
     localparam integer TAG_W           = ADDR_WIDTH - INDEX_W - OFFSET_W;
 
-    localparam [1:0] S_LOOKUP  = 2'd0;
-    localparam [1:0] S_MISS_AR = 2'd1;
-    localparam [1:0] S_MISS_R  = 2'd2;
+    localparam [2:0] S_LOOKUP  = 3'b001;
+    localparam [2:0] S_MISS_AR = 3'b010;
+    localparam [2:0] S_MISS_R  = 3'b100;
 
-    reg [1:0] state;
+    reg [2:0] state;
 
     localparam integer DATA_ADDR_W = INDEX_W + LINE_WORD_OFF_W;
     localparam integer DATA_DEPTH = LINE_COUNT * LINE_WORDS;
