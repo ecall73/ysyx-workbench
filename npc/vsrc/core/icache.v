@@ -36,7 +36,6 @@ module ysyx_26030082_icache #(
     localparam integer INDEX_W         = $clog2(LINE_COUNT);
     localparam integer OFFSET_W        = WORD_OFF_W + LINE_ADDR_OFF_W;
     localparam integer TAG_W           = ADDR_WIDTH - INDEX_W - OFFSET_W;
-    localparam integer LINE_BITS       = 32 * LINE_WORDS;
 
     localparam [1:0] S_LOOKUP  = 2'd0;
     localparam [1:0] S_MISS_AR = 2'd1;
@@ -44,11 +43,8 @@ module ysyx_26030082_icache #(
 
     reg [1:0] state;
 
-`ifdef SYNTHESIS
-    reg [LINE_BITS-1:0] data_array [0:LINE_COUNT-1];
-`else
     reg [31:0] data_array [0:LINE_COUNT-1][0:LINE_WORDS-1];
-`endif
+    reg [31:0] refill_words [0:LINE_WORDS-1];
     reg [TAG_W-1:0] tag_array [0:LINE_COUNT-1];
     reg [LINE_COUNT-1:0] valid_array;
 
@@ -63,16 +59,12 @@ module ysyx_26030082_icache #(
     reg         miss_bypass;
     reg         need_flush;
     reg         kill_miss_refill;
-`ifdef SYNTHESIS
-    reg [LINE_BITS-1:0] refill_line_buf;
-`else
     reg [31:0]  miss_target_inst;
-`endif
 
     wire [LINE_WORD_OFF_W-1:0] req_word_offset;
-    wire [INDEX_W-1:0] req_index;
-    wire [TAG_W-1:0]   req_tag;
-    wire               req_cacheable;
+    wire [INDEX_W-1:0]         req_index;
+    wire [TAG_W-1:0]           req_tag;
+    wire                       req_cacheable;
 
     wire [LINE_WORD_OFF_W-1:0] lookup_word_offset;
     wire [INDEX_W-1:0]         lookup_index;
@@ -83,37 +75,29 @@ module ysyx_26030082_icache #(
     wire [INDEX_W-1:0]         miss_index;
     wire [TAG_W-1:0]           miss_tag;
 
-    wire               cache_hit;
-    wire               cache_miss;
-    wire               cache_bypass;
-    wire               lookup_resp_valid;
-    wire [TAG_W-1:0]   lookup_rd_tag;
-    wire               lookup_rd_valid;
-    wire               refill_is_last_word;
-    wire               refill_is_target_word;
-    wire               resp_from_hold;
-    wire               resp_from_lookup;
-    wire               req_space;
-    wire               req_fire;
-    wire               ar_fire;
-    wire               r_fire;
-    wire               discard_resp;
-    wire               pipe_flush;
-    wire               kill_refill_now;
+    wire             cache_hit;
+    wire             cache_miss;
+    wire             cache_bypass;
+    wire             lookup_resp_valid;
+    wire [TAG_W-1:0] lookup_rd_tag;
+    wire             lookup_rd_valid;
+    wire             refill_is_last_word;
+    wire             refill_is_target_word;
+    wire             resp_from_hold;
+    wire             resp_from_lookup;
+    wire             req_space;
+    wire             req_fire;
+    wire             ar_fire;
+    wire             r_fire;
+    wire             discard_resp;
+    wire             pipe_flush;
+    wire             kill_refill_now;
+
+    reg [31:0] lookup_inst;
 
     wire [31:0] miss_line_base;
-`ifdef SYNTHESIS
-    wire [LINE_BITS-1:0] lookup_line;
-    reg  [31:0]          lookup_inst;
-    reg  [LINE_BITS-1:0] refill_line_next;
-    reg  [31:0]          refill_resp_inst;
-`else
-    reg [31:0] lookup_inst;
-`endif
     localparam [31:0] LINE_WORD_MASK_FULL = LINE_WORDS - 1;
-`ifndef SYNTHESIS
     integer i;
-`endif
     integer j;
 
     function is_cacheable;
@@ -125,37 +109,6 @@ module ysyx_26030082_icache #(
             end else begin
                 is_cacheable =
                     ((addr >= 32'ha000_0000) && (addr < 32'ha200_0000));
-            end
-        end
-    endfunction
-
-`ifdef SYNTHESIS
-    function [31:0] line_word_select;
-        input [LINE_BITS-1:0] line_data;
-        input [LINE_WORD_OFF_W-1:0] word_offset;
-        integer word_idx;
-        begin
-            line_word_select = line_data[31:0];
-            for (word_idx = 1; word_idx < LINE_WORDS; word_idx = word_idx + 1) begin
-                if (word_offset == word_idx[LINE_WORD_OFF_W-1:0]) begin
-                    line_word_select = line_data[(word_idx * 32) +: 32];
-                end
-            end
-        end
-    endfunction
-`endif
-
-    function [LINE_BITS-1:0] line_with_word;
-        input [LINE_BITS-1:0] line_data;
-        input [LINE_WORD_OFF_W-1:0] word_offset;
-        input [31:0] word_data;
-        integer word_idx;
-        begin
-            line_with_word = line_data;
-            for (word_idx = 0; word_idx < LINE_WORDS; word_idx = word_idx + 1) begin
-                if (word_offset == word_idx[LINE_WORD_OFF_W-1:0]) begin
-                    line_with_word[(word_idx * 32) +: 32] = word_data;
-                end
             end
         end
     endfunction
@@ -217,15 +170,6 @@ module ysyx_26030082_icache #(
     assign ar_fire = ifu_axi_arvalid && ifu_axi_arready;
     assign r_fire = ifu_axi_rvalid && ifu_axi_rready;
 
-`ifdef SYNTHESIS
-    assign lookup_line = data_array[lookup_index];
-
-    always @(*) begin
-        lookup_inst = line_word_select(lookup_line, lookup_word_offset);
-        refill_line_next = line_with_word(refill_line_buf, refill_word_idx, ifu_axi_rdata);
-        refill_resp_inst = line_word_select(refill_line_next, miss_word_offset);
-    end
-`else
     always @(*) begin
         lookup_inst = data_array[lookup_index][0];
         for (i = 1; i < LINE_WORDS; i = i + 1) begin
@@ -234,7 +178,6 @@ module ysyx_26030082_icache #(
             end
         end
     end
-`endif
 
     always @(posedge clock) begin
         if (reset) begin
@@ -248,11 +191,7 @@ module ysyx_26030082_icache #(
             miss_bypass <= 1'b0;
             need_flush <= 1'b0;
             kill_miss_refill <= 1'b0;
-`ifdef SYNTHESIS
-            refill_line_buf <= {LINE_BITS{1'b0}};
-`else
             miss_target_inst <= 32'b0;
-`endif
             valid_array <= {LINE_COUNT{1'b0}};
         end else begin
             if (invalidate) begin
@@ -280,11 +219,7 @@ module ysyx_26030082_icache #(
                                 miss_bypass <= 1'b0;
                                 need_flush <= 1'b0;
                                 kill_miss_refill <= 1'b0;
-`ifdef SYNTHESIS
-                                refill_line_buf <= {LINE_BITS{1'b0}};
-`else
                                 miss_target_inst <= 32'b0;
-`endif
                                 lookup_valid <= 1'b0;
                                 state <= S_MISS_AR;
                             end else if (lookup_valid && cache_bypass) begin
@@ -293,11 +228,7 @@ module ysyx_26030082_icache #(
                                 miss_bypass <= 1'b1;
                                 need_flush <= 1'b0;
                                 kill_miss_refill <= 1'b0;
-`ifdef SYNTHESIS
-                                refill_line_buf <= {LINE_BITS{1'b0}};
-`else
                                 miss_target_inst <= 32'b0;
-`endif
                                 lookup_valid <= 1'b0;
                                 state <= S_MISS_AR;
                             end
@@ -351,28 +282,8 @@ module ysyx_26030082_icache #(
                             kill_miss_refill <= 1'b0;
                             state <= S_LOOKUP;
                         end else begin
-`ifdef SYNTHESIS
-                            if (refill_is_last_word) begin
-                                if (!kill_refill_now) begin
-                                    data_array[miss_index] <= refill_line_next;
-                                    tag_array[miss_index] <= miss_tag;
-                                    valid_array[miss_index] <= 1'b1;
-                                end
-                                if (discard_resp || kill_refill_now) begin
-                                    need_flush <= 1'b0;
-                                end else begin
-                                    hold_valid <= 1'b1;
-                                    hold_inst <= refill_resp_inst;
-                                end
-                                kill_miss_refill <= 1'b0;
-                                state <= S_LOOKUP;
-                            end else begin
-                                refill_line_buf <= refill_line_next;
-                                refill_word_idx <= refill_word_idx + 1'b1;
-                            end
-`else
-                            if (!kill_refill_now) begin
-                                data_array[miss_index][refill_word_idx] <= ifu_axi_rdata;
+                            if (!kill_refill_now && !refill_is_last_word) begin
+                                refill_words[refill_word_idx] <= ifu_axi_rdata;
                             end
 
                             if (refill_is_target_word) begin
@@ -381,6 +292,13 @@ module ysyx_26030082_icache #(
 
                             if (refill_is_last_word) begin
                                 if (!kill_refill_now) begin
+                                    for (j = 0; j < LINE_WORDS; j = j + 1) begin
+                                        if (refill_word_idx == j[LINE_WORD_OFF_W-1:0]) begin
+                                            data_array[miss_index][j] <= ifu_axi_rdata;
+                                        end else begin
+                                            data_array[miss_index][j] <= refill_words[j];
+                                        end
+                                    end
                                     tag_array[miss_index] <= miss_tag;
                                     valid_array[miss_index] <= 1'b1;
                                 end
@@ -395,7 +313,6 @@ module ysyx_26030082_icache #(
                             end else begin
                                 refill_word_idx <= refill_word_idx + 1'b1;
                             end
-`endif
                         end
                     end
                 end
