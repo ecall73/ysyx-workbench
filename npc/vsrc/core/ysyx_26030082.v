@@ -118,9 +118,9 @@ module ysyx_26030082 #(
 `endif
 
     // IF
+    wire        if_valid;
+    wire        if_ready;
     wire [31:0] if_pc;
-    wire        if_hit;
-    wire [31:0] if_inst;
     wire        flush;
     wire        invalidate;
 
@@ -258,12 +258,7 @@ module ysyx_26030082 #(
     ) ifu (
         .clock                  (clock),
         .reset                  (reset),
-        .cache_hit              (if_hit),
-        .cache_inst             (if_inst),
-        .id_ready               (id_ready),
-        .id_valid               (id_valid),
-        .id_pc                  (id_pc),
-        .id_inst                (id_inst),
+        .if_ready               (if_ready),
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
         .ex_pc4                 (ex_pc4),
@@ -276,6 +271,7 @@ module ysyx_26030082 #(
         .ex_CSRnpc              (ex_CSRnpc),
         .ex_FenceI              (ex_FenceI),
 
+        .if_valid               (if_valid),
         .if_pc                  (if_pc),
         .flush                  (flush),
         .invalidate             (invalidate)
@@ -291,10 +287,15 @@ module ysyx_26030082 #(
         .clock                  (clock),
         .reset                  (reset),
 
+        .if_valid               (if_valid),
+        .if_ready               (if_ready),
         .if_pc                  (if_pc),
+        .id_valid               (id_valid),
+        .id_ready               (id_ready),
+        .id_pc                  (id_pc),
+        .id_inst                (id_inst),
+        .flush                  (flush),
         .invalidate             (invalidate),
-        .if_hit                 (if_hit),
-        .if_inst                (if_inst),
 
         .ifu_axi_araddr         (ifu_axi_araddr),
         .ifu_axi_arlen          (ifu_axi_arlen),
