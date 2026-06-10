@@ -52,9 +52,6 @@ module ysyx_26030082_icache #(
     reg         lookup_valid;
     reg [31:0]  lookup_pc;
 
-    reg         hold_valid;
-    reg [31:0]  hold_inst;
-
     reg [LINE_WORD_OFF_W-1:0] refill_word_idx;
     reg         need_flush;
     reg         kill_miss_refill;
@@ -76,8 +73,6 @@ module ysyx_26030082_icache #(
     wire               lookup_rd_valid;
     wire               refill_is_last_word;
     wire               refill_is_target_word;
-    wire               resp_from_hold;
-    wire               resp_from_lookup;
     wire               req_space;
     wire               req_fire;
     wire               ar_fire;
@@ -113,16 +108,13 @@ module ysyx_26030082_icache #(
     assign pipe_flush = flush || invalidate;
     assign discard_resp = need_flush || pipe_flush;
     assign kill_refill_now = kill_miss_refill || invalidate;
-    assign resp_from_hold = hold_valid;
-    assign resp_from_lookup = !hold_valid && lookup_resp_valid;
-    assign id_valid = resp_from_hold || resp_from_lookup;
+    assign id_valid = lookup_resp_valid;
     assign id_pc = lookup_pc;
-    assign id_inst = resp_from_hold ? hold_inst : data_array[lookup_data_addr];
+    assign id_inst = data_array[lookup_data_addr];
 
     assign req_space =
         (state == S_LOOKUP) &&
         !pipe_flush &&
-        !hold_valid &&
         (!lookup_valid || (cache_hit && id_ready));
     assign if_ready = req_space;
     assign req_fire = if_valid && if_ready;
@@ -141,8 +133,6 @@ module ysyx_26030082_icache #(
             state <= S_LOOKUP;
             lookup_valid <= 1'b0;
             lookup_pc <= 32'b0;
-            hold_valid <= 1'b0;
-            hold_inst <= 32'b0;
             refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
             need_flush <= 1'b0;
             kill_miss_refill <= 1'b0;
@@ -150,7 +140,6 @@ module ysyx_26030082_icache #(
         end else begin
             if (invalidate) begin
                 lookup_valid <= 1'b0;
-                hold_valid <= 1'b0;
                 valid_array <= {LINE_COUNT{1'b0}};
             end
 
@@ -158,22 +147,15 @@ module ysyx_26030082_icache #(
                 S_LOOKUP: begin
                     if (flush) begin
                         lookup_valid <= 1'b0;
-                        hold_valid <= 1'b0;
                     end else if (!pipe_flush) begin
-                        if (hold_valid && id_ready) begin
-                            hold_valid <= 1'b0;
-                        end
-
-                        if (!hold_valid) begin
-                            if (lookup_valid && cache_hit && id_ready) begin
-                                lookup_valid <= 1'b0;
-                            end else if (lookup_valid && cache_miss) begin
-                                refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
-                                need_flush <= 1'b0;
-                                kill_miss_refill <= 1'b0;
-                                lookup_valid <= 1'b0;
-                                state <= S_MISS_AR;
-                            end
+                        if (lookup_valid && cache_hit && id_ready) begin
+                            lookup_valid <= 1'b0;
+                        end else if (lookup_valid && cache_miss) begin
+                            refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
+                            need_flush <= 1'b0;
+                            kill_miss_refill <= 1'b0;
+                            lookup_valid <= 1'b0;
+                            state <= S_MISS_AR;
                         end
 
                         if (req_fire) begin
@@ -214,10 +196,6 @@ module ysyx_26030082_icache #(
                     end
 
                     if (r_fire) begin
-                        if (refill_is_target_word) begin
-                            hold_inst <= ifu_axi_rdata;
-                        end
-
                         if (refill_is_last_word) begin
                             if (!kill_refill_now) begin
                                 data_array[refill_data_addr] <= ifu_axi_rdata;
@@ -227,10 +205,7 @@ module ysyx_26030082_icache #(
                             if (discard_resp || kill_refill_now) begin
                                 need_flush <= 1'b0;
                             end else begin
-                                hold_valid <= 1'b1;
-                                if (refill_is_target_word) begin
-                                    hold_inst <= ifu_axi_rdata;
-                                end
+                                lookup_valid <= 1'b1;
                             end
                             kill_miss_refill <= 1'b0;
                             state <= S_LOOKUP;
@@ -246,7 +221,6 @@ module ysyx_26030082_icache #(
                 default: begin
                     state <= S_LOOKUP;
                     lookup_valid <= 1'b0;
-                    hold_valid <= 1'b0;
                     need_flush <= 1'b0;
                     kill_miss_refill <= 1'b0;
                 end
