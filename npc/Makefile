@@ -218,4 +218,6 @@ sim-iverilog-netlist: $(IVERILOG_NETLIST_TB) $(IVERILOG_NETLIST_TOP) | $(IVERILO
 clean:
 	rm -rf ./build
 
+include ../Makefile
+
 .PHONY: default run clean verilog sim-iverilog synth-netlist sim-iverilog-netlist
