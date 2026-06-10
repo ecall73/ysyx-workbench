@@ -37,11 +37,11 @@ module ysyx_26030082_icache #(
     localparam integer OFFSET_W        = WORD_OFF_W + LINE_ADDR_OFF_W;
     localparam integer TAG_W           = ADDR_WIDTH - INDEX_W - OFFSET_W;
 
-    localparam [2:0] S_LOOKUP  = 3'b001;
-    localparam [2:0] S_MISS_AR = 3'b010;
-    localparam [2:0] S_MISS_R  = 3'b100;
+    localparam [1:0] S_LOOKUP  = 2'd0;
+    localparam [1:0] S_MISS_AR = 2'd1;
+    localparam [1:0] S_MISS_R  = 2'd2;
 
-    reg [2:0] state;
+    reg [1:0] state;
 
     localparam integer DATA_ADDR_W = INDEX_W + LINE_WORD_OFF_W;
     localparam integer DATA_DEPTH = LINE_COUNT * LINE_WORDS;
@@ -71,7 +71,6 @@ module ysyx_26030082_icache #(
     wire               lookup_resp_valid;
     wire [TAG_W-1:0]   lookup_rd_tag;
     wire               lookup_rd_valid;
-    wire               refill_is_last_word;
     wire               refill_is_target_word;
     wire               req_space;
     wire               req_fire;
@@ -102,7 +101,6 @@ module ysyx_26030082_icache #(
     assign cache_miss = lookup_valid && !cache_hit;
     assign lookup_resp_valid = (state == S_LOOKUP) && cache_hit;
 
-    assign refill_is_last_word = (refill_word_idx == (LINE_WORDS - 1));
     assign pipe_flush = flush || invalidate;
     assign discard_resp = need_flush || pipe_flush;
     assign id_valid = lookup_resp_valid;
@@ -193,7 +191,7 @@ module ysyx_26030082_icache #(
                     end
 
                     if (r_fire) begin
-                        if (refill_is_last_word) begin
+                        if (ifu_axi_rlast) begin
                             data_array[refill_data_addr] <= ifu_axi_rdata;
                             if (!drop_fill && !invalidate) begin
                                 tag_array[miss_index] <= miss_tag;
@@ -256,10 +254,10 @@ module ysyx_26030082_icache #(
             $fatal(1, "unaligned icache fetch pc=%08x", if_pc);
         end
         if (!reset && (state == S_MISS_R) && r_fire) begin
-            if (refill_is_last_word && !ifu_axi_rlast) begin
+            if ((refill_word_idx == (LINE_WORDS - 1)) && !ifu_axi_rlast) begin
                 $fatal(1, "icache burst refill missing rlast on final beat pc=%08x", miss_pc);
             end
-            if (!refill_is_last_word && ifu_axi_rlast) begin
+            if ((refill_word_idx != (LINE_WORDS - 1)) && ifu_axi_rlast) begin
                 $fatal(1, "icache burst refill saw early rlast pc=%08x beat=%0d", miss_pc, refill_word_idx);
             end
         end
