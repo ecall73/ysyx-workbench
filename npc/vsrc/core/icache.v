@@ -114,6 +114,35 @@ module ysyx_26030082_icache #(
         end
     endfunction
 
+    function [31:0] line_word_select;
+        input [LINE_BITS-1:0] line_data;
+        input [LINE_WORD_OFF_W-1:0] word_offset;
+        integer word_idx;
+        begin
+            line_word_select = line_data[31:0];
+            for (word_idx = 1; word_idx < LINE_WORDS; word_idx = word_idx + 1) begin
+                if (word_offset == word_idx[LINE_WORD_OFF_W-1:0]) begin
+                    line_word_select = line_data[(word_idx * 32) +: 32];
+                end
+            end
+        end
+    endfunction
+
+    function [LINE_BITS-1:0] line_with_word;
+        input [LINE_BITS-1:0] line_data;
+        input [LINE_WORD_OFF_W-1:0] word_offset;
+        input [31:0] word_data;
+        integer word_idx;
+        begin
+            line_with_word = line_data;
+            for (word_idx = 0; word_idx < LINE_WORDS; word_idx = word_idx + 1) begin
+                if (word_offset == word_idx[LINE_WORD_OFF_W-1:0]) begin
+                    line_with_word[(word_idx * 32) +: 32] = word_data;
+                end
+            end
+        end
+    endfunction
+
     assign req_word_offset =
         if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W] &
         LINE_WORD_MASK_FULL[LINE_WORD_OFF_W - 1 : 0];
@@ -172,14 +201,13 @@ module ysyx_26030082_icache #(
     assign r_fire = ifu_axi_rvalid && ifu_axi_rready;
 
     assign lookup_line = data_array[lookup_index];
-    assign lookup_inst = lookup_line[(lookup_word_offset << 5) +: 32];
+    assign lookup_inst = line_word_select(lookup_line, lookup_word_offset);
 
     always @(*) begin
-        refill_line_next = refill_line_buf;
-        refill_line_next[(refill_word_idx << 5) +: 32] = ifu_axi_rdata;
+        refill_line_next = line_with_word(refill_line_buf, refill_word_idx, ifu_axi_rdata);
     end
 
-    assign refill_resp_inst = refill_line_next[(miss_word_offset << 5) +: 32];
+    assign refill_resp_inst = line_word_select(refill_line_next, miss_word_offset);
 
     always @(posedge clock) begin
         if (reset) begin
