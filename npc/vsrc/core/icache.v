@@ -54,7 +54,6 @@ module ysyx_26030082_icache #(
 
     reg [LINE_WORD_OFF_W-1:0] refill_word_idx;
     reg         need_flush;
-    reg         drop_fill;
 
     wire [LINE_WORD_OFF_W-1:0] lookup_word_offset;
     wire [INDEX_W-1:0]         lookup_index;
@@ -130,7 +129,6 @@ module ysyx_26030082_icache #(
             lookup_pc <= 32'b0;
             refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
             need_flush <= 1'b0;
-            drop_fill <= 1'b0;
             valid_array <= {LINE_COUNT{1'b0}};
         end else begin
             if (invalidate) begin
@@ -148,7 +146,6 @@ module ysyx_26030082_icache #(
                         end else if (lookup_valid && cache_miss) begin
                             refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
                             need_flush <= 1'b0;
-                            drop_fill <= 1'b0;
                             lookup_valid <= 1'b0;
                             state <= S_MISS_AR;
                         end
@@ -164,11 +161,9 @@ module ysyx_26030082_icache #(
                     if (invalidate) begin
                         if (ar_fire) begin
                             need_flush <= 1'b1;
-                            drop_fill <= 1'b1;
                             state <= S_MISS_R;
                         end else begin
                             need_flush <= 1'b0;
-                            drop_fill <= 1'b0;
                             state <= S_LOOKUP;
                         end
                     end else begin
@@ -185,7 +180,6 @@ module ysyx_26030082_icache #(
                 S_MISS_R: begin
                     if (invalidate) begin
                         need_flush <= 1'b1;
-                        drop_fill <= 1'b1;
                     end else if (flush) begin
                         need_flush <= 1'b1;
                     end
@@ -193,7 +187,7 @@ module ysyx_26030082_icache #(
                     if (r_fire) begin
                         if (ifu_axi_rlast) begin
                             data_array[refill_data_addr] <= ifu_axi_rdata;
-                            if (!drop_fill && !invalidate) begin
+                            if (!(need_flush || pipe_flush)) begin
                                 tag_array[miss_index] <= miss_tag;
                                 valid_array[miss_index] <= 1'b1;
                             end
@@ -202,7 +196,6 @@ module ysyx_26030082_icache #(
                             end else begin
                                 lookup_valid <= 1'b1;
                             end
-                            drop_fill <= 1'b0;
                             state <= S_LOOKUP;
                         end else begin
                             data_array[refill_data_addr] <= ifu_axi_rdata;
@@ -215,7 +208,6 @@ module ysyx_26030082_icache #(
                     state <= S_LOOKUP;
                     lookup_valid <= 1'b0;
                     need_flush <= 1'b0;
-                    drop_fill <= 1'b0;
                 end
             endcase
         end
