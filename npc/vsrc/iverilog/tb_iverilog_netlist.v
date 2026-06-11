@@ -3,10 +3,12 @@
 module tb_iverilog_netlist;
 
     localparam [31:0] DEFAULT_BOOT_FETCH_PC = 32'h3000_0000;
+    localparam integer DEFAULT_MAX_CYCLES = 2000000;
 
     reg clock;
     reg reset;
     reg [31:0] boot_fetch_pc;
+    integer max_cycles;
 
     integer cycle_count;
     reg dump_started;
@@ -29,12 +31,16 @@ module tb_iverilog_netlist;
     initial begin
         reset = 1'b1;
         boot_fetch_pc = DEFAULT_BOOT_FETCH_PC;
+        max_cycles = DEFAULT_MAX_CYCLES;
         cycle_count = 0;
         dump_started = 1'b0;
         first_ifu_seen = 1'b0;
 
         if (!$value$plusargs("BOOT_FETCH_PC=%h", boot_fetch_pc)) begin
             boot_fetch_pc = DEFAULT_BOOT_FETCH_PC;
+        end
+        if (!$value$plusargs("MAX_CYCLES=%d", max_cycles)) begin
+            max_cycles = DEFAULT_MAX_CYCLES;
         end
 
         repeat (10) @(posedge clock);
@@ -61,6 +67,11 @@ module tb_iverilog_netlist;
                         dut.axi_araddr, boot_fetch_pc);
                     $finish;
                 end
+            end
+
+            if ((max_cycles > 0) && (cycle_count >= max_cycles)) begin
+                $display("TIMEOUT at cycle %0d", cycle_count);
+                $finish;
             end
 
         end
