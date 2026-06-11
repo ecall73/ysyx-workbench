@@ -24,32 +24,6 @@ uint64_t g_nr_guest_inst = 0;
 bool sdb_batch_mode = false;
 FILE *log_fp = NULL;
 
-static void build_default_char_test_path(const char *argv0, char *buf, size_t buflen) {
-    const char *fallback = "build/char-test.bin";
-    if (buflen == 0) {
-        return;
-    }
-
-    if (argv0 == NULL || argv0[0] == '\0') {
-        snprintf(buf, buflen, "%s", fallback);
-        return;
-    }
-
-    const char *slash = strrchr(argv0, '/');
-    if (slash == NULL) {
-        snprintf(buf, buflen, "%s", fallback);
-        return;
-    }
-
-    size_t dir_len = (size_t)(slash - argv0 + 1);
-    if (dir_len + strlen("char-test.bin") + 1 > buflen) {
-        snprintf(buf, buflen, "%s", fallback);
-        return;
-    }
-    memcpy(buf, argv0, dir_len);
-    memcpy(buf + dir_len, "char-test.bin", strlen("char-test.bin") + 1);
-}
-
 static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file, int *diff_port) {
     char *log_file = NULL;
     char *img_file = NULL;
@@ -89,10 +63,9 @@ static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file
     init_log(log_file);
 
 #ifdef NPC_SIM_MODE_YSYXSOC
-    char default_flash_path[1024];
     if (img_file == NULL) {
-        build_default_char_test_path((argc > 0) ? argv[0] : NULL, default_flash_path, sizeof(default_flash_path));
-        img_file = default_flash_path;
+        fprintf(stderr, "Missing flash boot image. Please pass a ysyxsoc image path.\n");
+        exit(1);
     }
 
     flash_init_default_image();
