@@ -25,6 +25,7 @@ static void (*ref_difftest_regcpy)(void *dut, bool direction) = NULL;
 static void (*ref_difftest_exec)(uint64_t n) = NULL;
 static void (*ref_difftest_raise_intr)(uint64_t NO) = NULL;
 static void (*ref_difftest_init)(int port) = NULL;
+static void (*ref_difftest_enable_ysyxsoc_paddr)(void) = NULL;
 
 enum SkipReason {
     SKIP_NONE = 0,
@@ -154,6 +155,12 @@ void init_difftest(const char *ref_so_file, long img_size, int port) {
 
     ref_difftest_init = (void (*)(int))dlsym(ref_handle, "difftest_init");
     assert(ref_difftest_init);
+
+    ref_difftest_enable_ysyxsoc_paddr = (void (*)(void))dlsym(ref_handle, "difftest_enable_ysyxsoc_paddr");
+#ifndef NPC_SIM_MODE_NPC
+    assert(ref_difftest_enable_ysyxsoc_paddr);
+    ref_difftest_enable_ysyxsoc_paddr();
+#endif
 
     ref_difftest_init(port);
 

@@ -1,4 +1,5 @@
 .*//fceux-am
 /nvboard
-.tmp/
+.*/
 out/
+__pycache__/

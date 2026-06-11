@@ -1,5 +1,4 @@
-`timescale 1ns / 1ps
-module exu (
+module ysyx_26030082_exu (
     input  wire        clock,
     input  wire        reset,
     input  wire        ex_in_valid,
@@ -11,11 +10,11 @@ module exu (
     input  wire        ex_ALUSrcA,
     input  wire        ex_ALUSrcB,
     input  wire [31:0] ex_pc,
-    input  wire [31:0] ex_pc4,
     input  wire [31:0] ex_rR1_data,
     input  wire [31:0] ex_rR2_data,
+    input  wire [ 2:0] ex_funct3,
     input  wire [31:0] ex_imm,
-    input  wire [13:0] ex_ALUControl,
+    input  wire [ 3:0] ex_ALUControl,
 
     // CSR inputs
     input  wire        ex_CSRSrc,
@@ -27,8 +26,8 @@ module exu (
 
     // Outputs
     output wire [31:0] ex_ALUResult,
-    output wire [31:0] ex_BranchTarget,
-    output wire        ex_ALUisTrue,
+    output wire        ex_BRUResult,
+    output wire [31:0] ex_pc4,
 
     output wire [31:0] CSRrdata,
     output wire        ex_CSRjump,
@@ -46,18 +45,24 @@ module exu (
 
     assign ex_A = ex_ALUSrcA ? ex_pc : ex_rR1_data;
     assign ex_B = ex_ALUSrcB ? ex_imm : ex_rR2_data;
-    assign ex_BranchTarget = ex_pc + ex_imm;
+    assign ex_pc4 = ex_pc + 32'd4;
 
-    ALU u_ALU (
+    ysyx_26030082_ALU ALU (
         .A                      (ex_A),
         .B                      (ex_B),
         .ALUControl             (ex_ALUControl),
 
-        .Result                 (ex_ALUResult),
-        .isTrue                 (ex_ALUisTrue)
+        .Result                 (ex_ALUResult)
     );
 
-    CSR u_CSR (
+    ysyx_26030082_BRU BRU (
+        .A                      (ex_rR1_data),
+        .B                      (ex_rR2_data),
+        .funct3                 (ex_funct3),
+        .Result                 (ex_BRUResult)
+    );
+
+    ysyx_26030082_CSR CSR (
         .clock                    (clock),
         .reset                    (reset),
 

@@ -1,6 +1,4 @@
-`timescale 1ns / 1ps
-
-module forward(
+module ysyx_26030082_forward(
     input  wire        id_in_valid,
     input  wire [ 4:0] id_rR1,
     input  wire [ 4:0] id_rR2,
@@ -18,10 +16,6 @@ module forward(
     input  wire [31:0] ls_RFwdata,
     input  wire        ls_load_pending,
 
-    input  wire        wb_RegWrite,
-    input  wire [ 4:0] wb_RFwaddr,
-    input  wire [31:0] wb_RFwdata,
-
     output wire        forward_pending,
     output reg  [31:0] id_rR1_data_forward,
     output reg  [31:0] id_rR2_data_forward
@@ -31,8 +25,6 @@ module forward(
     wire forward_ex_B;
     wire forward_ls_A;
     wire forward_ls_B;
-    wire forward_wb_A;
-    wire forward_wb_B;
     wire ls_load_use_hazard;
 
     assign forward_ex_A = (id_rR1 == ex_RFwaddr) && ex_RegWrite && ~(ex_RFwaddr == 0);
@@ -40,9 +32,6 @@ module forward(
 
     assign forward_ls_A = (id_rR1 == ls_RFwaddr) && ls_RegWrite && ~(ls_RFwaddr == 0);
     assign forward_ls_B = (id_rR2 == ls_RFwaddr) && ls_RegWrite && ~(ls_RFwaddr == 0);
-
-    assign forward_wb_A = (id_rR1 == wb_RFwaddr) && wb_RegWrite && ~(wb_RFwaddr == 0);
-    assign forward_wb_B = (id_rR2 == wb_RFwaddr) && wb_RegWrite && ~(wb_RFwaddr == 0);
 
     assign ls_load_use_hazard = ls_load_pending &&
                                 (ls_RFwaddr != 5'b0) &&
@@ -60,14 +49,12 @@ module forward(
     always @(*) begin
         if      (forward_ex_A) id_rR1_data_forward = ex_RFwdata;
         else if (forward_ls_A) id_rR1_data_forward = ls_RFwdata;
-        else if (forward_wb_A) id_rR1_data_forward = wb_RFwdata;
         else                   id_rR1_data_forward = id_rR1_data;
     end
 
     always @(*) begin
         if      (forward_ex_B) id_rR2_data_forward = ex_RFwdata;
         else if (forward_ls_B) id_rR2_data_forward = ls_RFwdata;
-        else if (forward_wb_B) id_rR2_data_forward = wb_RFwdata;
         else                   id_rR2_data_forward = id_rR2_data;
     end
 

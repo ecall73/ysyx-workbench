@@ -13,8 +13,8 @@ uint32_t npc_read_dut_gpr(int idx) {
         };
 #else
         const char *candidates[] = {
-            "ysyxSoCFull.asic.cpu.cpu.u_cpu",
-            "TOP.ysyxSoCFull.asic.cpu.cpu.u_cpu",
+            "ysyxSoCFull.asic.cpu.cpu",
+            "TOP.ysyxSoCFull.asic.cpu.cpu",
         };
 #endif
 

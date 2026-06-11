@@ -1,13 +1,11 @@
-`timescale 1ns / 1ps
-
-module RF(
+module ysyx_26030082_RF(
     input  wire        clock,
     input  wire        reset,
-    // Write rd                   
+    // Write rd
     input  wire        wen,
     input  wire [ 4:0] waddr,
     input  wire [31:0] wdata,
-    // Read  rs1 rs2
+    // Read rs1 rs2
     input  wire [ 4:0] rR1,
     input  wire [ 4:0] rR2,
 
@@ -15,23 +13,17 @@ module RF(
     output reg  [31:0] rR2_data
 );
 
-    reg [31:0] reg_bank [0:31];
-    integer i;
+    reg [31:0] reg_bank [1:15];
 
     always @(posedge clock) begin
-        if (reset) begin
-            for (i = 0; i < 32; i = i + 1) begin
-                reg_bank[i] <= 0;
-            end
-        end
-        else if (wen & (waddr != 5'd0)) begin
-            reg_bank[waddr] <= wdata;
+        if (wen & (waddr != 5'd0) & ~waddr[4]) begin
+            reg_bank[waddr[3:0]] <= wdata;
         end
     end
 
     always @(*) begin
-        rR1_data = reg_bank[rR1];
-        rR2_data = reg_bank[rR2];
+        rR1_data = (rR1 == 5'd0 || rR1[4]) ? 32'b0 : reg_bank[rR1[3:0]];
+        rR2_data = (rR2 == 5'd0 || rR2[4]) ? 32'b0 : reg_bank[rR2[3:0]];
     end
 
 endmodule

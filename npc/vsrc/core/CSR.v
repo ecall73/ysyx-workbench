@@ -1,6 +1,4 @@
-`timescale 1ns / 1ps
-
-module CSR (
+module ysyx_26030082_CSR (
     input  wire        clock,
     input  wire        reset,
 
@@ -78,11 +76,6 @@ module CSR (
 				CCTL_CSRRS: if (CSRaddr == CSR_mstatus) mstatus <= (mstatus | CSRwdata);
                 CCTL_CSRRC: if (CSRaddr == CSR_mstatus) mstatus <= (mstatus & ~CSRwdata);
 
-				/*CCTL_ECALL: begin
-					mstatus[7]  	<= mstatus[3];  	// MPIE <= 当前 MIE
-					mstatus[3]  	<= 1'b0;        	// MIE <= 0
-					mstatus[12:11] 	<= 2'b11;    		// MPP <= M模式
-				end*/
 				CCTL_MRET: begin
 					mstatus[3]  	<= mstatus[7];  	// MIE <= MPIE
 				end
@@ -99,11 +92,6 @@ module CSR (
             mcause <= {trap_is_interrupt, trap_cause_code[30:0]};
         end else begin
 			case (CSRControl)
-                /*CCTL_CSRRW: if (CSRaddr == CSR_mcause) mcause <= CSRwdata;
-				CCTL_CSRRS: if (CSRaddr == CSR_mcause) mcause <= mcause | CSRwdata;
-                CCTL_CSRRC: if (CSRaddr == CSR_mcause) mcause <= mcause & ~CSRwdata;*/
-
-				/*CCTL_ECALL: mcause <= 32'h0b;  // environment call from M-mode*/
 				default: mcause <= mcause;
 			endcase
 		end
@@ -121,7 +109,6 @@ module CSR (
 				CCTL_CSRRS: if (CSRaddr == CSR_mepc) mepc <= mepc | CSRwdata;
                 CCTL_CSRRC: if (CSRaddr == CSR_mepc) mepc <= mepc & ~CSRwdata;
 
-				/*CCTL_ECALL: mepc <= pc;*/
 				default: mepc <= mepc;
 			endcase
 		end

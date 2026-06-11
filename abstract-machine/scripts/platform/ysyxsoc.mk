@@ -45,6 +45,6 @@ image: image-dep
 	@$(OBJCOPY) -S -O binary $(IMAGE).elf $(IMAGE).bin
 
 run: insert-arg
-	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=ysyxsoc run ARGS="$(YSYXSOCFLAGS) $(IMAGE).bin"
+	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=ysyxsoc sim ARGS="$(YSYXSOCFLAGS) $(IMAGE).bin"
 
 .PHONY: insert-arg

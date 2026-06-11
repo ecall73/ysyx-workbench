@@ -80,6 +80,7 @@ _ssbl_entry:
   j 5b
 
 6:
+  fence.i
   la t0, _trm_init
   jr t0
 
