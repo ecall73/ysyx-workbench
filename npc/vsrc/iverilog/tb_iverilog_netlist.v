@@ -18,7 +18,7 @@ module tb_iverilog_netlist;
 
     assign ifu_ar_fire = dut.mem_axi_arvalid && dut.mem_axi_arready;
 
-    top_netlist dut (
+    top dut (
         .clock                  (clock),
         .reset                  (reset)
     );

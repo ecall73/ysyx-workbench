@@ -49,7 +49,6 @@ IVERILOG_NETLIST_HEX = $(abspath $(IVERILOG_NETLIST_BUILD_DIR)/image.hex)
 IVERILOG_NETLIST_LOG = $(abspath $(IVERILOG_NETLIST_BUILD_DIR)/sim.log)
 IVERILOG_NETLIST_TMPDIR = $(abspath $(IVERILOG_NETLIST_BUILD_DIR)/tmp)
 IVERILOG_NETLIST_TB = $(abspath ./vsrc/iverilog/tb_iverilog_netlist.v)
-IVERILOG_NETLIST_TOP = $(abspath ./vsrc/iverilog/top_netlist.v)
 YOSYS_STA_HOME ?= $(HOME)/yosys-sta
 NETLIST_CELLS_DEFAULT = $(YOSYS_STA_HOME)/pdk/icsprout55/IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/verilog/ics55_LLSC_H7CL.v
 NETLIST_BUILD_ROOT = $(abspath ./build/netlist)
@@ -110,7 +109,7 @@ IVERILOG_SRCS = \
 
 IVERILOG_NETLIST_SRCS = \
 	$(VSRCS_NPC_NO_TOP) \
-	$(IVERILOG_NETLIST_TOP) \
+	$(abspath ./vsrc/npc/top.v) \
 	$(IVERILOG_NETLIST_TB)
 
 ifeq ($(SIM_MODE),ysyxsoc)
@@ -189,7 +188,7 @@ synth-netlist: verilog
 	@python3 "$(abspath ./scripts/gen_yosys_netlist_compat.py)" "$(YOSYS_STA_HOME)/scripts/yosys.tcl" "$(NETLIST_COMPAT_TCL)" "$(YOSYS_STA_HOME)"
 	@echo tcl "$(NETLIST_COMPAT_TCL)" ysyx_26030082 icsprout55 "\"$(CPU_VERILOG)\"" "$(NETLIST_RESULT)" | NETLIST_RESET_PC="$(NETLIST_RESET_PC)" CLK_FREQ_MHZ="$(CLK_FREQ_MHZ)" "$(YOSYS)" -g -l "$(NETLIST_RESULT_DIR)/yosys.log" -s -
 
-sim-iverilog-netlist: $(IVERILOG_NETLIST_TB) $(IVERILOG_NETLIST_TOP) | $(IVERILOG_NETLIST_BUILD_DIR)
+sim-iverilog-netlist: $(IVERILOG_NETLIST_TB) $(abspath ./vsrc/npc/top.v) | $(IVERILOG_NETLIST_BUILD_DIR)
 	@test -n "$(IMG)" || { echo "IMG=...bin is required"; exit 1; }
 	@test -n "$(NETLIST)" || { echo "NETLIST=... is required"; exit 1; }
 	@echo + COPY "->" $(IVERILOG_NETLIST_IMG_BIN)
@@ -206,7 +205,7 @@ sim-iverilog-netlist: $(IVERILOG_NETLIST_TB) $(IVERILOG_NETLIST_TOP) | $(IVERILO
 	echo + IVERILOG "->" "$(IVERILOG_NETLIST_VVP)"; \
 	mkdir -p "$(IVERILOG_NETLIST_TMPDIR)"; \
 		TMPDIR="$(IVERILOG_NETLIST_TMPDIR)" TMP="$(IVERILOG_NETLIST_TMPDIR)" TEMP="$(IVERILOG_NETLIST_TMPDIR)" \
-		"$(IVERILOG)" $(NETLIST_IVERILOG_FLAGS) -I"$(abspath ./vsrc/npc)" -g2012 -o "$(IVERILOG_NETLIST_VVP)" -s tb_iverilog_netlist $$netlist_sim $$cells_file $(IVERILOG_NETLIST_SRCS); \
+		"$(IVERILOG)" $(NETLIST_IVERILOG_FLAGS) -DNETLIST_SIM -I"$(abspath ./vsrc/npc)" -g2012 -o "$(IVERILOG_NETLIST_VVP)" -s tb_iverilog_netlist $$netlist_sim $$cells_file $(IVERILOG_NETLIST_SRCS); \
 	img_bytes=$$(wc -c < "$(IVERILOG_NETLIST_IMG_BIN)"); \
 	rm -f "$(IVERILOG_NETLIST_LOG)" "$(IVERILOG_NETLIST_BUILD_DIR)/wave.vcd"; \
 	bash -o pipefail -c ' \
