@@ -176,7 +176,7 @@ sim-iverilog: verilog $(IVERILOG_TB) | $(IVERILOG_BUILD_DIR)
 	@python3 -c 'from pathlib import Path; import sys; data = Path(sys.argv[1]).read_bytes(); Path(sys.argv[2]).write_text("\n".join(f"{b:02x}" for b in data) + "\n")' "$(IVERILOG_IMG_BIN)" "$(IVERILOG_HEX)"
 	@echo + IVERILOG "->" $(IVERILOG_VVP)
 	@mkdir -p "$(IVERILOG_TMPDIR)"
-	@TMPDIR="$(IVERILOG_TMPDIR)" TMP="$(IVERILOG_TMPDIR)" TEMP="$(IVERILOG_TMPDIR)" "$(IVERILOG)" $(IVERILOG_FLAGS) -g2012 -o $(IVERILOG_VVP) -s tb_iverilog $(IVERILOG_SRCS)
+	@TMPDIR="$(IVERILOG_TMPDIR)" TMP="$(IVERILOG_TMPDIR)" TEMP="$(IVERILOG_TMPDIR)" "$(IVERILOG)" $(IVERILOG_FLAGS) -I"$(abspath ./vsrc/npc)" -g2012 -o $(IVERILOG_VVP) -s tb_iverilog $(IVERILOG_SRCS)
 	@img_bytes=$$(wc -c < "$(IVERILOG_IMG_BIN)"); \
 	rm -f "$(IVERILOG_LOG)" "$(IVERILOG_BUILD_DIR)/wave.vcd"; \
 	bash -o pipefail -c ' \
@@ -206,7 +206,7 @@ sim-iverilog-netlist: $(IVERILOG_NETLIST_TB) $(IVERILOG_NETLIST_TOP) | $(IVERILO
 	echo + IVERILOG "->" "$(IVERILOG_NETLIST_VVP)"; \
 	mkdir -p "$(IVERILOG_NETLIST_TMPDIR)"; \
 		TMPDIR="$(IVERILOG_NETLIST_TMPDIR)" TMP="$(IVERILOG_NETLIST_TMPDIR)" TEMP="$(IVERILOG_NETLIST_TMPDIR)" \
-		"$(IVERILOG)" $(NETLIST_IVERILOG_FLAGS) -g2012 -o "$(IVERILOG_NETLIST_VVP)" -s tb_iverilog_netlist $$netlist_sim $$cells_file $(IVERILOG_NETLIST_SRCS); \
+		"$(IVERILOG)" $(NETLIST_IVERILOG_FLAGS) -I"$(abspath ./vsrc/npc)" -g2012 -o "$(IVERILOG_NETLIST_VVP)" -s tb_iverilog_netlist $$netlist_sim $$cells_file $(IVERILOG_NETLIST_SRCS); \
 	img_bytes=$$(wc -c < "$(IVERILOG_NETLIST_IMG_BIN)"); \
 	rm -f "$(IVERILOG_NETLIST_LOG)" "$(IVERILOG_NETLIST_BUILD_DIR)/wave.vcd"; \
 	bash -o pipefail -c ' \

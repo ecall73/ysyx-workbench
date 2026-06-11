@@ -103,6 +103,6 @@ module top
         .io_slave_rlast       ()
     );
 
-`include "./vsrc/npc/top_axi_slave_impl.vh"
+`include "top_axi_slave_impl.vh"
 
 endmodule
