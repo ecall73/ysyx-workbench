@@ -13,9 +13,9 @@ else
 endif
 
 VERILATOR = verilator
-YOSYS ?= $(if $(wildcard $(HOME)/oss-cad-suite/bin/yosys),$(HOME)/oss-cad-suite/bin/yosys,yosys)
-IVERILOG ?= $(if $(wildcard /usr/bin/iverilog),/usr/bin/iverilog,$(if $(wildcard $(HOME)/oss-cad-suite/bin/iverilog),$(HOME)/oss-cad-suite/bin/iverilog,iverilog))
-VVP ?= $(if $(wildcard /usr/bin/vvp),/usr/bin/vvp,$(if $(wildcard $(HOME)/oss-cad-suite/bin/vvp),$(HOME)/oss-cad-suite/bin/vvp,vvp))
+YOSYS ?= $(shell command -v yosys 2>/dev/null || echo yosys)
+IVERILOG ?= $(shell command -v iverilog 2>/dev/null || echo iverilog)
+VVP ?= $(shell command -v vvp 2>/dev/null || echo vvp)
 IVERILOG_FLAGS ?=
 NETLIST_IVERILOG_FLAGS ?= -Dfunctional
 UART_STDOUT ?= 0
@@ -193,7 +193,7 @@ sim-iverilog-netlist: $(IVERILOG_NETLIST_TB) $(abspath ./vsrc/npc/top.v) | $(IVE
 	echo + IVERILOG "->" "$(IVERILOG_NETLIST_VVP)"; \
 	mkdir -p "$(IVERILOG_NETLIST_TMPDIR)"; \
 		TMPDIR="$(IVERILOG_NETLIST_TMPDIR)" TMP="$(IVERILOG_NETLIST_TMPDIR)" TEMP="$(IVERILOG_NETLIST_TMPDIR)" \
-		"$(IVERILOG)" $(NETLIST_IVERILOG_FLAGS) -DNETLIST_SIM -I"$(abspath ./vsrc/npc)" -g2012 -o "$(IVERILOG_NETLIST_VVP)" -s tb_iverilog_netlist $$netlist_sim $$cells_file $(IVERILOG_NETLIST_SRCS); \
+		"$(IVERILOG)" $(NETLIST_IVERILOG_FLAGS) -I"$(abspath ./vsrc/npc)" -g2012 -o "$(IVERILOG_NETLIST_VVP)" -s tb_iverilog_netlist $$netlist_sim $$cells_file $(IVERILOG_NETLIST_SRCS); \
 	img_bytes=$$(wc -c < "$(IVERILOG_NETLIST_IMG_BIN)"); \
 	rm -f "$(IVERILOG_NETLIST_LOG)" "$(IVERILOG_NETLIST_BUILD_DIR)/wave.vcd"; \
 	bash -o pipefail -c ' \

@@ -35,7 +35,7 @@ module top
     reg         axi_bvalid;
     wire        axi_bready;
 
-`ifdef NETLIST_SIM
+`ifdef __ICARUS__
     ysyx_26030082 Core_cpu (
 `else
     ysyx_26030082 #(
