@@ -55,7 +55,6 @@ NETLIST_CELLS_DEFAULT = $(YOSYS_STA_HOME)/pdk/icsprout55/IP/STD_cell/ics55_LLSC_
 NETLIST_BUILD_ROOT = $(abspath ./build/netlist)
 CLK_FREQ_MHZ ?= 800
 NETLIST_RESET_PC ?= 32'h80000000
-NETLIST_TARGET_NPC ?= 1
 NETLIST_RESULT_DIR = $(NETLIST_BUILD_ROOT)/ysyx_26030082-$(CLK_FREQ_MHZ)MHz
 NETLIST_RESULT = $(NETLIST_RESULT_DIR)/ysyx_26030082.netlist.v
 NETLIST_SCRIPT_DIR = $(NETLIST_BUILD_ROOT)/scripts
@@ -188,7 +187,7 @@ sim-iverilog: verilog $(IVERILOG_TB) | $(IVERILOG_BUILD_DIR)
 synth-netlist: verilog
 	@mkdir -p "$(NETLIST_BUILD_ROOT)" "$(NETLIST_SCRIPT_DIR)" "$(NETLIST_RESULT_DIR)"
 	@python3 "$(abspath ./scripts/gen_yosys_netlist_compat.py)" "$(YOSYS_STA_HOME)/scripts/yosys.tcl" "$(NETLIST_COMPAT_TCL)" "$(YOSYS_STA_HOME)"
-	@echo tcl "$(NETLIST_COMPAT_TCL)" ysyx_26030082 icsprout55 "\"$(CPU_VERILOG)\"" "$(NETLIST_RESULT)" | NETLIST_RESET_PC="$(NETLIST_RESET_PC)" NETLIST_TARGET_NPC="$(NETLIST_TARGET_NPC)" CLK_FREQ_MHZ="$(CLK_FREQ_MHZ)" "$(YOSYS)" -g -l "$(NETLIST_RESULT_DIR)/yosys.log" -s -
+	@echo tcl "$(NETLIST_COMPAT_TCL)" ysyx_26030082 icsprout55 "\"$(CPU_VERILOG)\"" "$(NETLIST_RESULT)" | NETLIST_RESET_PC="$(NETLIST_RESET_PC)" CLK_FREQ_MHZ="$(CLK_FREQ_MHZ)" "$(YOSYS)" -g -l "$(NETLIST_RESULT_DIR)/yosys.log" -s -
 
 sim-iverilog-netlist: $(IVERILOG_NETLIST_TB) $(IVERILOG_NETLIST_TOP) | $(IVERILOG_NETLIST_BUILD_DIR)
 	@test -n "$(IMG)" || { echo "IMG=...bin is required"; exit 1; }
