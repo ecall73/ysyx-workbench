@@ -134,10 +134,10 @@ endif
 
 NPC_DEPS = $(VSRCS) $(VHDRS) $(CSRCS) $(CHDRS) $(MODE_EXTRA_DEPS) Makefile
 
-INCFLAGS = $(addprefix -I, $(INC_PATH)) -I$(abspath ./csrc) -I$(NEMU_HOME)/tools/capstone/repo/include
+INCFLAGS = $(addprefix -I, $(INC_PATH)) -I$(abspath ./csrc)
 CFLAGS += $(INCFLAGS) $(MODE_CPPFLAGS) -DTOP_NAME="\"V$(TOPNAME)\""
 
-LDFLAGS += -lreadline $(NEMU_HOME)/tools/capstone/repo/libcapstone.a
+LDFLAGS += -lreadline
 
 $(BIN): $(NPC_DEPS) | $(BUILD_DIR)
 	$(VERILATOR) $(VERILATOR_CFLAGS) $(INCFLAGS) \
