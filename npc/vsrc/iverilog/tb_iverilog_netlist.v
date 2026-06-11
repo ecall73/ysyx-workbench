@@ -3,14 +3,12 @@
 module tb_iverilog_netlist;
 
     localparam [31:0] DEFAULT_BOOT_FETCH_PC = 32'h3000_0000;
-    localparam integer DEFAULT_MAX_CYCLES = 5000000;
 
     reg clock;
     reg reset;
     reg [31:0] boot_fetch_pc;
 
     integer cycle_count;
-    integer max_cycles;
     reg dump_started;
     reg first_ifu_seen;
 
@@ -32,16 +30,11 @@ module tb_iverilog_netlist;
         reset = 1'b1;
         boot_fetch_pc = DEFAULT_BOOT_FETCH_PC;
         cycle_count = 0;
-        max_cycles = DEFAULT_MAX_CYCLES;
         dump_started = 1'b0;
         first_ifu_seen = 1'b0;
 
         if (!$value$plusargs("BOOT_FETCH_PC=%h", boot_fetch_pc)) begin
             boot_fetch_pc = DEFAULT_BOOT_FETCH_PC;
-        end
-
-        if (!$value$plusargs("MAX_CYCLES=%d", max_cycles)) begin
-            max_cycles = DEFAULT_MAX_CYCLES;
         end
 
         repeat (10) @(posedge clock);
@@ -70,14 +63,6 @@ module tb_iverilog_netlist;
                 end
             end
 
-            if (cycle_count >= max_cycles) begin
-                if (!first_ifu_seen) begin
-                    $display("TIMEOUT before first fetch at cycle %0d", cycle_count);
-                end else begin
-                    $display("HIT GOOD TRAP via MAX_CYCLES at cycle %0d", cycle_count);
-                end
-                $finish;
-            end
         end
     end
 

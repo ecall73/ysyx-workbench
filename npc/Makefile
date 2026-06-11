@@ -47,7 +47,6 @@ IVERILOG_HEX = $(abspath $(IVERILOG_BUILD_DIR)/image.hex)
 IVERILOG_LOG = $(abspath $(IVERILOG_BUILD_DIR)/sim.log)
 IVERILOG_TMPDIR = $(abspath $(IVERILOG_BUILD_DIR)/tmp)
 IVERILOG_TB = $(abspath ./vsrc/iverilog/tb_iverilog.v)
-IVERILOG_MAX_CYCLES ?= 5000000
 IVERILOG_NETLIST_BUILD_DIR = ./build/iverilog-netlist
 IVERILOG_NETLIST_VVP = $(abspath $(IVERILOG_NETLIST_BUILD_DIR)/simv)
 IVERILOG_NETLIST_IMG_BIN = $(abspath $(IVERILOG_NETLIST_BUILD_DIR)/image.bin)
@@ -168,8 +167,8 @@ sim-iverilog: verilog $(IVERILOG_TB) | $(IVERILOG_BUILD_DIR)
 	@img_bytes=$$(wc -c < "$(IVERILOG_IMG_BIN)"); \
 	rm -f "$(IVERILOG_LOG)" "$(IVERILOG_BUILD_DIR)/wave.vcd"; \
 	bash -o pipefail -c ' \
-		"$(VVP)" "$$0" +IMG="$$1" +IMG_BYTES="$$2" +MAX_CYCLES="$$3" $$4 $$5 2>&1 | tee "$$6" \
-	' "$(IVERILOG_VVP)" "$(IVERILOG_HEX)" "$$img_bytes" "$(IVERILOG_MAX_CYCLES)" "$(if $(filter 1 y yes true,$(WAVE)),+WAVE=1,)" "$(VVP_ARGS)" "$(IVERILOG_LOG)"; \
+		"$(VVP)" "$$0" +IMG="$$1" +IMG_BYTES="$$2" $$3 $$4 2>&1 | tee "$$5" \
+	' "$(IVERILOG_VVP)" "$(IVERILOG_HEX)" "$$img_bytes" "$(if $(filter 1 y yes true,$(WAVE)),+WAVE=1,)" "$(VVP_ARGS)" "$(IVERILOG_LOG)"; \
 	grep -q "HIT GOOD TRAP" "$(IVERILOG_LOG)"
 
 synth-netlist: verilog
@@ -198,8 +197,8 @@ sim-iverilog-netlist: $(IVERILOG_NETLIST_TB) $(abspath ./vsrc/npc/top.v) | $(IVE
 	img_bytes=$$(wc -c < "$(IVERILOG_NETLIST_IMG_BIN)"); \
 	rm -f "$(IVERILOG_NETLIST_LOG)" "$(IVERILOG_NETLIST_BUILD_DIR)/wave.vcd"; \
 	bash -o pipefail -c ' \
-		"$(VVP)" "$$0" +IMG="$$1" +IMG_BYTES="$$2" +MAX_CYCLES="$$3" $$4 $$5 2>&1 | tee "$$6" \
-	' "$(IVERILOG_NETLIST_VVP)" "$(IVERILOG_NETLIST_HEX)" "$$img_bytes" "$(IVERILOG_MAX_CYCLES)" "$(if $(filter 1 y yes true,$(WAVE)),+WAVE=1,)" "$(VVP_ARGS)" "$(IVERILOG_NETLIST_LOG)"; \
+		"$(VVP)" "$$0" +IMG="$$1" +IMG_BYTES="$$2" $$3 $$4 2>&1 | tee "$$5" \
+	' "$(IVERILOG_NETLIST_VVP)" "$(IVERILOG_NETLIST_HEX)" "$$img_bytes" "$(if $(filter 1 y yes true,$(WAVE)),+WAVE=1,)" "$(VVP_ARGS)" "$(IVERILOG_NETLIST_LOG)"; \
 	grep -q "HIT GOOD TRAP" "$(IVERILOG_NETLIST_LOG)"
 
 clean:
