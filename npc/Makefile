@@ -18,6 +18,12 @@ IVERILOG ?= $(if $(wildcard /usr/bin/iverilog),/usr/bin/iverilog,$(if $(wildcard
 VVP ?= $(if $(wildcard /usr/bin/vvp),/usr/bin/vvp,$(if $(wildcard $(HOME)/oss-cad-suite/bin/vvp),$(HOME)/oss-cad-suite/bin/vvp,vvp))
 IVERILOG_FLAGS ?=
 NETLIST_IVERILOG_FLAGS ?= -Dfunctional
+UART_STDOUT ?= 0
+ifeq ($(UART_STDOUT),1)
+  VERILOG_DEFINES += -DNPC_UART_STDOUT_RTL
+else ifneq ($(UART_STDOUT),0)
+  $(error Unsupported UART_STDOUT='$(UART_STDOUT)'. Expected '0' or '1')
+endif
 # GCC 11 may ICE on some Verilator-generated PCH compilations when ccache is
 # injected by verilated.mk. Keep objcache disabled by default for stability.
 # To re-enable cache manually: `make ... OBJCACHE=ccache`.
@@ -140,7 +146,7 @@ CFLAGS += $(INCFLAGS) $(MODE_CPPFLAGS) -DTOP_NAME="\"V$(TOPNAME)\""
 LDFLAGS += -lreadline
 
 $(BIN): $(NPC_DEPS) | $(BUILD_DIR)
-	$(VERILATOR) $(VERILATOR_CFLAGS) $(INCFLAGS) \
+	$(VERILATOR) $(VERILATOR_CFLAGS) $(VERILOG_DEFINES) $(INCFLAGS) \
 		--top-module $(TOPNAME) $(VSRCS) $(CSRCS) $(MODE_EXTRA_INPUTS) \
 		$(addprefix -CFLAGS , $(CFLAGS)) \
 		$(addprefix -LDFLAGS , $(LDFLAGS)) \
