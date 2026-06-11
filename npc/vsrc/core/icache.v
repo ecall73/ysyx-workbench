@@ -1,8 +1,6 @@
 module ysyx_26030082_icache #(
     parameter integer LINE_WORDS = 4,
-    parameter integer LINE_COUNT = 4,
-    parameter integer ADDR_WIDTH = 32,
-    parameter integer TARGET_NPC = 0
+    parameter integer LINE_COUNT = 4
 ) (
     input  wire        clock,
     input  wire        reset,
@@ -35,7 +33,7 @@ module ysyx_26030082_icache #(
     localparam integer LINE_WORD_OFF_W = $clog2((LINE_WORDS < 2) ? 2 : LINE_WORDS);
     localparam integer INDEX_W         = $clog2(LINE_COUNT);
     localparam integer OFFSET_W        = WORD_OFF_W + LINE_ADDR_OFF_W;
-    localparam integer TAG_W           = ADDR_WIDTH - INDEX_W - OFFSET_W;
+    localparam integer TAG_W           = 32 - INDEX_W - OFFSET_W;
 
     localparam [1:0] S_LOOKUP  = 2'd0;
     localparam [1:0] S_MISS_AR = 2'd1;
@@ -80,13 +78,13 @@ module ysyx_26030082_icache #(
     assign lookup_word_offset =
         if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
     assign lookup_index = if_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
-    assign lookup_tag = if_pc[ADDR_WIDTH - 1 : OFFSET_W + INDEX_W];
+    assign lookup_tag = if_pc[31 : OFFSET_W + INDEX_W];
     assign lookup_data_addr = {lookup_index, lookup_word_offset};
 
     assign miss_word_offset =
         miss_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
     assign miss_index = miss_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
-    assign miss_tag = miss_pc[ADDR_WIDTH - 1 : OFFSET_W + INDEX_W];
+    assign miss_tag = miss_pc[31 : OFFSET_W + INDEX_W];
     assign refill_data_addr = {miss_index, refill_word_idx};
 
     assign lookup_rd_tag = tag_array[lookup_index];
@@ -213,14 +211,8 @@ module ysyx_26030082_icache #(
         if (LINE_WORDS > 256) begin
             $fatal(1, "icache LINE_WORDS must be <= 256");
         end
-        if (ADDR_WIDTH != 32) begin
-            $fatal(1, "icache first version only supports ADDR_WIDTH=32");
-        end
-        if (ADDR_WIDTH <= (OFFSET_W + INDEX_W)) begin
+        if (OFFSET_W + INDEX_W >= 32) begin
             $fatal(1, "icache geometry is too large for ADDR_WIDTH");
-        end
-        if ((TARGET_NPC != 0) && (TARGET_NPC != 1)) begin
-            $fatal(1, "icache TARGET_NPC must be 0 or 1");
         end
     end
 

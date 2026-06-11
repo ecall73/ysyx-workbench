@@ -280,9 +280,7 @@ module ysyx_26030082 #(
 
     ysyx_26030082_icache #(
         .LINE_WORDS             (4),
-        .LINE_COUNT             (4),
-        .ADDR_WIDTH             (32),
-        .TARGET_NPC             (TARGET_NPC)
+        .LINE_COUNT             (4)
     ) icache (
         .clock                  (clock),
         .reset                  (reset),
