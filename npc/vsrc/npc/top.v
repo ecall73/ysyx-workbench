@@ -4,91 +4,77 @@ module top
     input             reset
 );
 
-`ifdef NETLIST_SIM
-`define TOP_WRITE_OOR_FMT "top(netlist): write out of range addr=0x%08x"
-`define TOP_MISSING_IMG_FMT "top(netlist): missing +IMG=<image.hex> plusarg"
-`define TOP_OPEN_IMG_FMT "top(netlist): failed to open image %0s"
-`define TOP_MMIO_BURST_FMT "top(netlist): MMIO burst read is not supported addr=%08x"
-`define TOP_WR_BURST_FMT "top(netlist): burst write is not supported addr=%08x"
-`define TOP_WLAST_FMT "top(netlist): WLAST must be 1 for single-beat write"
-`define TOP_RD_BURST_FMT "top(netlist): unsupported read burst type %0b"
-`else
-`define TOP_WRITE_OOR_FMT "top: write out of range addr=0x%08x"
-`define TOP_MISSING_IMG_FMT "top: missing +IMG=<image.hex> plusarg"
-`define TOP_OPEN_IMG_FMT "top: failed to open image %0s"
-`define TOP_MMIO_BURST_FMT "top: MMIO burst read is not supported addr=%08x"
-`define TOP_WR_BURST_FMT "top: burst write is not supported addr=%08x"
-`define TOP_WLAST_FMT "top: WLAST must be 1 for single-beat write"
-`define TOP_RD_BURST_FMT "top: unsupported read burst type %0b"
-`endif
-
     // Shared MEM AXI4
-    wire [31:0] mem_axi_araddr;
-    wire [ 3:0] mem_axi_arid;
-    wire [ 7:0] mem_axi_arlen;
-    wire [ 2:0] mem_axi_arsize;
-    wire [ 1:0] mem_axi_arburst;
-    wire        mem_axi_arvalid;
-    reg         mem_axi_arready;
-    reg  [31:0] mem_axi_rdata;
-    reg  [ 3:0] mem_axi_rid;
-    reg  [ 1:0] mem_axi_rresp;
-    reg         mem_axi_rlast;
-    reg         mem_axi_rvalid;
-    wire        mem_axi_rready;
-    wire [31:0] mem_axi_awaddr;
-    wire [ 3:0] mem_axi_awid;
-    wire [ 7:0] mem_axi_awlen;
-    wire [ 2:0] mem_axi_awsize;
-    wire [ 1:0] mem_axi_awburst;
-    wire        mem_axi_awvalid;
-    reg         mem_axi_awready;
-    wire [31:0] mem_axi_wdata;
-    wire [ 3:0] mem_axi_wstrb;
-    wire        mem_axi_wlast;
-    wire        mem_axi_wvalid;
-    reg         mem_axi_wready;
-    reg  [ 3:0] mem_axi_bid;
-    reg  [ 1:0] mem_axi_bresp;
-    reg         mem_axi_bvalid;
-    wire        mem_axi_bready;
+    wire [31:0] axi_araddr;
+    wire [ 3:0] axi_arid;
+    wire [ 7:0] axi_arlen;
+    wire [ 2:0] axi_arsize;
+    wire [ 1:0] axi_arburst;
+    wire        axi_arvalid;
+    reg         axi_arready;
+    reg  [31:0] axi_rdata;
+    reg  [ 3:0] axi_rid;
+    reg  [ 1:0] axi_rresp;
+    reg         axi_rlast;
+    reg         axi_rvalid;
+    wire        axi_rready;
+    wire [31:0] axi_awaddr;
+    wire [ 3:0] axi_awid;
+    wire [ 7:0] axi_awlen;
+    wire [ 2:0] axi_awsize;
+    wire [ 1:0] axi_awburst;
+    wire        axi_awvalid;
+    reg         axi_awready;
+    wire [31:0] axi_wdata;
+    wire [ 3:0] axi_wstrb;
+    wire        axi_wlast;
+    wire        axi_wvalid;
+    reg         axi_wready;
+    reg  [ 3:0] axi_bid;
+    reg  [ 1:0] axi_bresp;
+    reg         axi_bvalid;
+    wire        axi_bready;
 
+`ifdef NETLIST_SIM
+    ysyx_26030082 Core_cpu (
+`else
     ysyx_26030082 #(
         .RESET_PC             (32'h8000_0000)
     ) Core_cpu (
+`endif
         .clock                (clock),
         .reset                (reset),
         .io_interrupt         (1'b0),
 
-        .io_master_araddr     (mem_axi_araddr),
-        .io_master_arid       (mem_axi_arid),
-        .io_master_arlen      (mem_axi_arlen),
-        .io_master_arsize     (mem_axi_arsize),
-        .io_master_arburst    (mem_axi_arburst),
-        .io_master_arvalid    (mem_axi_arvalid),
-        .io_master_arready    (mem_axi_arready),
-        .io_master_rdata      (mem_axi_rdata),
-        .io_master_rid        (mem_axi_rid),
-        .io_master_rresp      (mem_axi_rresp),
-        .io_master_rlast      (mem_axi_rlast),
-        .io_master_rvalid     (mem_axi_rvalid),
-        .io_master_rready     (mem_axi_rready),
-        .io_master_awaddr     (mem_axi_awaddr),
-        .io_master_awid       (mem_axi_awid),
-        .io_master_awlen      (mem_axi_awlen),
-        .io_master_awsize     (mem_axi_awsize),
-        .io_master_awburst    (mem_axi_awburst),
-        .io_master_awvalid    (mem_axi_awvalid),
-        .io_master_awready    (mem_axi_awready),
-        .io_master_wdata      (mem_axi_wdata),
-        .io_master_wstrb      (mem_axi_wstrb),
-        .io_master_wlast      (mem_axi_wlast),
-        .io_master_wvalid     (mem_axi_wvalid),
-        .io_master_wready     (mem_axi_wready),
-        .io_master_bid        (mem_axi_bid),
-        .io_master_bresp      (mem_axi_bresp),
-        .io_master_bvalid     (mem_axi_bvalid),
-        .io_master_bready     (mem_axi_bready),
+        .io_master_araddr     (axi_araddr),
+        .io_master_arid       (axi_arid),
+        .io_master_arlen      (axi_arlen),
+        .io_master_arsize     (axi_arsize),
+        .io_master_arburst    (axi_arburst),
+        .io_master_arvalid    (axi_arvalid),
+        .io_master_arready    (axi_arready),
+        .io_master_rdata      (axi_rdata),
+        .io_master_rid        (axi_rid),
+        .io_master_rresp      (axi_rresp),
+        .io_master_rlast      (axi_rlast),
+        .io_master_rvalid     (axi_rvalid),
+        .io_master_rready     (axi_rready),
+        .io_master_awaddr     (axi_awaddr),
+        .io_master_awid       (axi_awid),
+        .io_master_awlen      (axi_awlen),
+        .io_master_awsize     (axi_awsize),
+        .io_master_awburst    (axi_awburst),
+        .io_master_awvalid    (axi_awvalid),
+        .io_master_awready    (axi_awready),
+        .io_master_wdata      (axi_wdata),
+        .io_master_wstrb      (axi_wstrb),
+        .io_master_wlast      (axi_wlast),
+        .io_master_wvalid     (axi_wvalid),
+        .io_master_wready     (axi_wready),
+        .io_master_bid        (axi_bid),
+        .io_master_bresp      (axi_bresp),
+        .io_master_bvalid     (axi_bvalid),
+        .io_master_bready     (axi_bready),
 
         .io_slave_awready     (),
         .io_slave_awvalid     (1'b0),
@@ -136,30 +122,30 @@ module top
     localparam [2:0] S_WR_B       = 3'd6;
 
 `ifdef __ICARUS__
-    localparam [31:0] PMEM_BASE_ADDR = 32'h8000_0000;
-    localparam [31:0] PMEM_BOOT_ALIAS_ADDR = 32'h3000_0000;
-    localparam integer PMEM_BYTES = 32'h0800_0000;
+    localparam [31:0] PBASE_ADDR = 32'h8000_0000;
+    localparam [31:0] PBOOT_ALIAS_ADDR = 32'h3000_0000;
+    localparam integer PBYTES = 32'h0800_0000;
 
-    reg [7:0] pmem [0:PMEM_BYTES-1];
+    reg [7:0] pmem [0:PBYTES-1];
     reg [8*256-1:0] img_file;
     integer img_load_status;
     integer img_bytes;
 
-    function [31:0] pmem_model_read;
+    function [31:0] pmodel_read;
         input [31:0] raddr;
         integer byte_addr;
         begin
-            byte_addr = {raddr[31:2], 2'b00} - PMEM_BASE_ADDR;
-            if ((raddr >= PMEM_BOOT_ALIAS_ADDR) && (raddr < (PMEM_BOOT_ALIAS_ADDR + 32'h40))) begin
-                case (raddr - PMEM_BOOT_ALIAS_ADDR)
-                    32'h0000_0000: pmem_model_read = 32'h8000_02b7;
-                    32'h0000_0004: pmem_model_read = 32'h0002_8067;
-                    default:       pmem_model_read = 32'h0000_0013;
+            byte_addr = {raddr[31:2], 2'b00} - PBASE_ADDR;
+            if ((raddr >= PBOOT_ALIAS_ADDR) && (raddr < (PBOOT_ALIAS_ADDR + 32'h40))) begin
+                case (raddr - PBOOT_ALIAS_ADDR)
+                    32'h0000_0000: pmodel_read = 32'h8000_02b7;
+                    32'h0000_0004: pmodel_read = 32'h0002_8067;
+                    default:       pmodel_read = 32'h0000_0013;
                 endcase
-            end else if ((raddr < PMEM_BASE_ADDR) || (byte_addr < 0) || (byte_addr > (PMEM_BYTES - 4))) begin
-                pmem_model_read = 32'hxxxx_xxxx;
+            end else if ((raddr < PBASE_ADDR) || (byte_addr < 0) || (byte_addr > (PBYTES - 4))) begin
+                pmodel_read = 32'hxxxx_xxxx;
             end else begin
-                pmem_model_read = {
+                pmodel_read = {
                     pmem[byte_addr + 3],
                     pmem[byte_addr + 2],
                     pmem[byte_addr + 1],
@@ -169,15 +155,15 @@ module top
         end
     endfunction
 
-    task pmem_model_write;
+    task pmodel_write;
         input [31:0] waddr;
         input [31:0] wdata;
         input [7:0]  wmask;
         integer byte_addr;
         begin
-            byte_addr = {waddr[31:2], 2'b00} - PMEM_BASE_ADDR;
-            if ((waddr < PMEM_BASE_ADDR) || (byte_addr < 0) || (byte_addr > (PMEM_BYTES - 4))) begin
-                $display(`TOP_WRITE_OOR_FMT, waddr);
+            byte_addr = {waddr[31:2], 2'b00} - PBASE_ADDR;
+            if ((waddr < PBASE_ADDR) || (byte_addr < 0) || (byte_addr > (PBYTES - 4))) begin
+                $display("top: write out of range addr=0x%08x", waddr);
             end else begin
                 if (wmask[0]) pmem[byte_addr + 0] = wdata[7:0];
                 if (wmask[1]) pmem[byte_addr + 1] = wdata[15:8];
@@ -189,12 +175,12 @@ module top
 
     initial begin
         if (!$value$plusargs("IMG=%s", img_file)) begin
-            $display(`TOP_MISSING_IMG_FMT);
+            $display("top: missing +IMG=<image.hex> plusarg");
             $finish;
         end
         img_load_status = $fopen(img_file, "r");
         if (img_load_status == 0) begin
-            $display(`TOP_OPEN_IMG_FMT, img_file);
+            $display("top: failed to open image %0s", img_file);
             $finish;
         end
         $fclose(img_load_status);
@@ -241,14 +227,14 @@ module top
     wire b_fire;
     wire rd_buf_take;
 
-    assign ar_sel = ((mem_axi_araddr >= UART_BASE_ADDR) && (mem_axi_araddr <= UART_END_ADDR)) ? SEL_UART : SEL_PMEM;
-    assign aw_sel = ((mem_axi_awaddr >= UART_BASE_ADDR) && (mem_axi_awaddr <= UART_END_ADDR)) ? SEL_UART : SEL_PMEM;
-    assign ar_fire = mem_axi_arvalid && mem_axi_arready;
-    assign r_fire  = mem_axi_rvalid  && mem_axi_rready;
-    assign aw_fire = mem_axi_awvalid && mem_axi_awready;
-    assign w_fire  = mem_axi_wvalid  && mem_axi_wready;
-    assign b_fire  = mem_axi_bvalid  && mem_axi_bready;
-    assign rd_buf_take = rd_buf_valid && mem_axi_rready;
+    assign ar_sel = ((axi_araddr >= UART_BASE_ADDR) && (axi_araddr <= UART_END_ADDR)) ? SEL_UART : SEL_PMEM;
+    assign aw_sel = ((axi_awaddr >= UART_BASE_ADDR) && (axi_awaddr <= UART_END_ADDR)) ? SEL_UART : SEL_PMEM;
+    assign ar_fire = axi_arvalid && axi_arready;
+    assign r_fire  = axi_rvalid  && axi_rready;
+    assign aw_fire = axi_awvalid && axi_awready;
+    assign w_fire  = axi_wvalid  && axi_wready;
+    assign b_fire  = axi_bvalid  && axi_bready;
+    assign rd_buf_take = rd_buf_valid && axi_rready;
 
     always @(*) begin
         rd_next_addr = rd_addr_reg;
@@ -269,44 +255,44 @@ module top
 
     always @(*) begin
 `ifdef __ICARUS__
-        rd_next_data = pmem_model_read(rd_next_addr);
+        rd_next_data = pmodel_read(rd_next_addr);
 `else
         rd_next_data = pmem_read(rd_next_addr);
 `endif
     end
 
     always @(*) begin
-        mem_axi_arready = 1'b0;
-        mem_axi_rid     = 4'b0;
-        mem_axi_rdata   = 32'b0;
-        mem_axi_rresp   = 2'b00;
-        mem_axi_rlast   = 1'b0;
-        mem_axi_rvalid  = 1'b0;
-        mem_axi_awready = 1'b0;
-        mem_axi_wready  = 1'b0;
-        mem_axi_bid     = 4'b0;
-        mem_axi_bresp   = 2'b00;
-        mem_axi_bvalid  = 1'b0;
+        axi_arready = 1'b0;
+        axi_rid     = 4'b0;
+        axi_rdata   = 32'b0;
+        axi_rresp   = 2'b00;
+        axi_rlast   = 1'b0;
+        axi_rvalid  = 1'b0;
+        axi_awready = 1'b0;
+        axi_wready  = 1'b0;
+        axi_bid     = 4'b0;
+        axi_bresp   = 2'b00;
+        axi_bvalid  = 1'b0;
 
         case (state)
             S_IDLE: begin
-                mem_axi_arready = 1'b1;
-                mem_axi_awready = 1'b1;
-                mem_axi_wready  = 1'b1;
+                axi_arready = 1'b1;
+                axi_awready = 1'b1;
+                axi_wready  = 1'b1;
             end
             S_WR_COLLECT: begin
-                mem_axi_awready = !wr_have_aw;
-                mem_axi_wready  = !wr_have_w;
+                axi_awready = !wr_have_aw;
+                axi_wready  = !wr_have_w;
             end
             S_RD_R: begin
-                mem_axi_rdata  = rd_buf_data;
-                mem_axi_rresp  = rd_buf_resp;
-                mem_axi_rlast  = rd_buf_last;
-                mem_axi_rvalid = rd_buf_valid;
+                axi_rdata  = rd_buf_data;
+                axi_rresp  = rd_buf_resp;
+                axi_rlast  = rd_buf_last;
+                axi_rvalid = rd_buf_valid;
             end
             S_WR_B: begin
-                mem_axi_bresp  = wr_buf_resp;
-                mem_axi_bvalid = wr_buf_valid;
+                axi_bresp  = wr_buf_resp;
+                axi_bvalid = wr_buf_valid;
             end
             default: begin
             end
@@ -344,18 +330,18 @@ module top
 
                     if (ar_fire) begin
                         rd_sel       <= ar_sel;
-                        rd_addr_reg  <= mem_axi_araddr;
-                        rd_len_reg   <= mem_axi_arlen;
-                        rd_burst_reg <= mem_axi_arburst;
+                        rd_addr_reg  <= axi_araddr;
+                        rd_len_reg   <= axi_arlen;
+                        rd_burst_reg <= axi_arburst;
                         state        <= S_RD_AR;
                     end else if (aw_fire || w_fire) begin
                         if (aw_fire) begin
                             wr_sel      <= aw_sel;
-                            wr_addr_reg <= mem_axi_awaddr;
+                            wr_addr_reg <= axi_awaddr;
                         end
                         if (w_fire) begin
-                            wr_data_reg <= mem_axi_wdata;
-                            wr_strb_reg <= mem_axi_wstrb;
+                            wr_data_reg <= axi_wdata;
+                            wr_strb_reg <= axi_wstrb;
                         end
                         wr_have_aw <= aw_fire;
                         wr_have_w  <= w_fire;
@@ -373,7 +359,7 @@ module top
                         rd_beats_left <= rd_len_reg + 8'd1;
                         rd_buf_valid  <= 1'b1;
 `ifdef __ICARUS__
-                        rd_buf_data   <= pmem_model_read(rd_addr_reg);
+                        rd_buf_data   <= pmodel_read(rd_addr_reg);
 `else
                         rd_buf_data   <= pmem_read(rd_addr_reg);
 `endif
@@ -400,12 +386,12 @@ module top
                 S_WR_COLLECT: begin
                     if (!wr_have_aw && aw_fire) begin
                         wr_sel      <= aw_sel;
-                        wr_addr_reg <= mem_axi_awaddr;
+                        wr_addr_reg <= axi_awaddr;
                         wr_have_aw  <= 1'b1;
                     end
                     if (!wr_have_w && w_fire) begin
-                        wr_data_reg <= mem_axi_wdata;
-                        wr_strb_reg <= mem_axi_wstrb;
+                        wr_data_reg <= axi_wdata;
+                        wr_strb_reg <= axi_wstrb;
                         wr_have_w   <= 1'b1;
                     end
                     if ((wr_have_aw || aw_fire) && (wr_have_w || w_fire)) begin
@@ -422,7 +408,7 @@ module top
                         $fflush();
                     end else begin
 `ifdef __ICARUS__
-                        pmem_model_write(wr_addr_reg, wr_data_reg, {4'b0000, wr_strb_reg});
+                        pmodel_write(wr_addr_reg, wr_data_reg, {4'b0000, wr_strb_reg});
 `else
                         pmem_write(wr_addr_reg, wr_data_reg, {4'b0000, wr_strb_reg});
 `endif
@@ -447,34 +433,26 @@ module top
 `ifndef SYNTHESIS
     always @(posedge clock) begin
         if (!reset) begin
-            if (mem_axi_arvalid && mem_axi_arready && (ar_sel != SEL_PMEM) &&
-                ((mem_axi_arlen != 8'h00) || (mem_axi_arburst != 2'b00))) begin
-                $fatal(1, `TOP_MMIO_BURST_FMT, mem_axi_araddr);
+            if (axi_arvalid && axi_arready && (ar_sel != SEL_PMEM) &&
+                ((axi_arlen != 8'h00) || (axi_arburst != 2'b00))) begin
+                $fatal(1, "top: MMIO burst read is not supported addr=%08x", axi_araddr);
             end
-            if (mem_axi_awvalid && mem_axi_awready &&
-                ((mem_axi_awlen != 8'h00) || (mem_axi_awburst != 2'b00))) begin
-                $fatal(1, `TOP_WR_BURST_FMT, mem_axi_awaddr);
+            if (axi_awvalid && axi_awready &&
+                ((axi_awlen != 8'h00) || (axi_awburst != 2'b00))) begin
+                $fatal(1, "top: burst write is not supported addr=%08x", axi_awaddr);
             end
-            if (mem_axi_wvalid && mem_axi_wready && (mem_axi_wlast != 1'b1)) begin
-                $fatal(1, `TOP_WLAST_FMT);
+            if (axi_wvalid && axi_wready && (axi_wlast != 1'b1)) begin
+                $fatal(1, "top: WLAST must be 1 for single-beat write");
             end
-            if (mem_axi_arvalid && mem_axi_arready && (ar_sel == SEL_PMEM) &&
-                (mem_axi_arburst != 2'b00) && (mem_axi_arburst != 2'b01)) begin
-                $fatal(1, `TOP_RD_BURST_FMT, mem_axi_arburst);
+            if (axi_arvalid && axi_arready && (ar_sel == SEL_PMEM) &&
+                (axi_arburst != 2'b00) && (axi_arburst != 2'b01)) begin
+                $fatal(1, "top: unsupported read burst type %0b", axi_arburst);
             end
         end
     end
 `endif
 
     wire _unused_ok;
-    assign _unused_ok = &{1'b0, clock, mem_axi_arid, mem_axi_arsize, mem_axi_awid, mem_axi_awsize};
-
-`undef TOP_WRITE_OOR_FMT
-`undef TOP_MISSING_IMG_FMT
-`undef TOP_OPEN_IMG_FMT
-`undef TOP_MMIO_BURST_FMT
-`undef TOP_WR_BURST_FMT
-`undef TOP_WLAST_FMT
-`undef TOP_RD_BURST_FMT
+    assign _unused_ok = &{1'b0, clock, axi_arid, axi_arsize, axi_awid, axi_awsize};
 
 endmodule
