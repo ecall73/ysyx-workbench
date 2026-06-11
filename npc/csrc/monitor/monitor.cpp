@@ -107,8 +107,6 @@ void init_monitor(int argc, char **argv) {
     int diff_port = 1234;
     long img_size = parse_args_and_load_image(argc, argv, &diff_so_file, &diff_port);
 
-    init_disasm();
-
     if (!sdb_batch_mode) {
         Verilated::traceEverOn(true);
         tfp = new VerilatedVcdC;

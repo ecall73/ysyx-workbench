@@ -115,10 +115,6 @@ void flash_init_default_image();
 bool flash_load_boot_image(const char *img_file);
 bool flash_get_boot_image_info(uint32_t *base, const uint8_t **img, size_t *size);
 
-// disasm
-void init_disasm();
-void disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
-
 // commit callback from RTL
 extern "C" void npc_commit(int pc, int inst);
 extern "C" void npc_pmu_event(int event_mask);
