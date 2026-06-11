@@ -2,7 +2,7 @@
 
 module tb_iverilog_netlist;
 
-    localparam [31:0] DEFAULT_BOOT_FETCH_PC = 32'h8000_0000;
+    localparam [31:0] DEFAULT_BOOT_FETCH_PC = 32'h3000_0000;
     localparam integer DEFAULT_MAX_CYCLES = 5000000;
 
     reg clock;
@@ -16,9 +16,9 @@ module tb_iverilog_netlist;
 
     wire ifu_ar_fire;
 
-    assign ifu_ar_fire = dut.mem_axi_arvalid && dut.mem_axi_arready;
+    assign ifu_ar_fire = dut.axi_arvalid && dut.axi_arready;
 
-    top_netlist dut (
+    top dut (
         .clock                  (clock),
         .reset                  (reset)
     );
@@ -63,9 +63,9 @@ module tb_iverilog_netlist;
 
             if (ifu_ar_fire && !first_ifu_seen) begin
                 first_ifu_seen = 1'b1;
-                if (dut.mem_axi_araddr !== boot_fetch_pc) begin
+                if (dut.axi_araddr !== boot_fetch_pc) begin
                     $display("BAD RESET FETCH at pc = 0x%08x expected = 0x%08x",
-                        dut.mem_axi_araddr, boot_fetch_pc);
+                        dut.axi_araddr, boot_fetch_pc);
                     $finish;
                 end
             end

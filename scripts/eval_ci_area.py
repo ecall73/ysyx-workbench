@@ -26,6 +26,8 @@ class CiConfig:
 class AreaResult:
     area: float
     result_dir: str
+    worst_slack_ns: float
+    fmax_mhz: float
 
 
 @dataclass
@@ -46,6 +48,10 @@ class EvalSummary:
 
 
 AREA_RE = re.compile(r"Chip area for module '.*?': ([0-9.]+)")
+TIMING_ROW_RE = re.compile(
+    r"^\|.*?\|\s*[^|]+\s*\|\s*max\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*([0-9.]+)\s*\|\s*([0-9.]+)\s*\|$",
+    re.MULTILINE,
+)
 STUID_RE = re.compile(r"^STUID\s*=\s*ysyx_(\d{8})\s*$", re.MULTILINE)
 WORKFLOW_CLONE_RE = re.compile(r"git clone -b ([^\s]+) https://github\.com/OSCPU/yosys-sta")
 WORKFLOW_REVERT_RE = re.compile(r"git revert --no-edit ([0-9a-f]{40})")
@@ -233,8 +239,10 @@ def run_sta(
     )
     result_dir = run_dir / "result" / f"{design}-500MHz"
     log_path = result_dir / "yosys-fixed.log"
+    rpt_path = result_dir / f"{design}.rpt"
     area = parse_area(log_path)
-    return AreaResult(area=area, result_dir=str(result_dir))
+    worst_slack_ns, fmax_mhz = parse_timing(rpt_path)
+    return AreaResult(area=area, result_dir=str(result_dir), worst_slack_ns=worst_slack_ns, fmax_mhz=fmax_mhz)
 
 
 def parse_area(log_path: pathlib.Path) -> float:
@@ -243,6 +251,16 @@ def parse_area(log_path: pathlib.Path) -> float:
     if not matches:
         raise RuntimeError(f"can not obtain area from {log_path}")
     return float(matches[-1])
+
+
+def parse_timing(rpt_path: pathlib.Path) -> tuple[float, float]:
+    text = rpt_path.read_text()
+    matches = TIMING_ROW_RE.findall(text)
+    if not matches:
+        raise RuntimeError(f"can not obtain timing summary from {rpt_path}")
+    slacks = [float(slack) for slack, _ in matches]
+    freqs = [float(freq) for _, freq in matches]
+    return min(slacks), min(freqs)
 
 
 def verify_module_name(log_path: pathlib.Path, design: str) -> None:
@@ -287,7 +305,17 @@ def print_summary(summary: EvalSummary) -> None:
     print(f"vfile     : {summary.vfile}")
     print(f"yosys     : {summary.yosys_bin}")
     print(f"new area  : {summary.new_flow.area:.3f} / {summary.ci.area_budget:.0f} ({'PASS' if new_ok else 'FAIL'})")
+    print(
+        "new fmax  : "
+        f"{summary.new_flow.fmax_mhz:.3f} MHz, slack {summary.new_flow.worst_slack_ns:.3f} ns "
+        f"({'PASS' if summary.new_flow.fmax_mhz >= 600.0 else 'FAIL'} for 600 MHz)"
+    )
     print(f"old area  : {summary.old_flow.area:.3f} / {summary.ci.area_old_budget:.0f} ({'PASS' if old_ok else 'FAIL'})")
+    print(
+        "old fmax  : "
+        f"{summary.old_flow.fmax_mhz:.3f} MHz, slack {summary.old_flow.worst_slack_ns:.3f} ns "
+        f"({'PASS' if summary.old_flow.fmax_mhz >= 600.0 else 'FAIL'} for 600 MHz)"
+    )
     print(f"ci result : {'PASS' if summary.pass_ci else 'FAIL'}")
     if summary.run_dir:
         print(f"run dir   : {summary.run_dir}")
@@ -322,7 +350,12 @@ def main() -> int:
         new_flow = run_sta(run_dir, env=env, design=design, vfile=vfile)
         verify_module_name(pathlib.Path(new_flow.result_dir) / "yosys.log", design)
         verify_no_latch(pathlib.Path(new_flow.result_dir) / "synth_stat.txt")
-        new_flow = AreaResult(area=new_flow.area, result_dir=str(copy_new_result(run_dir, design)))
+        new_flow = AreaResult(
+            area=new_flow.area,
+            result_dir=str(copy_new_result(run_dir, design)),
+            worst_slack_ns=new_flow.worst_slack_ns,
+            fmax_mhz=new_flow.fmax_mhz,
+        )
 
         revert_old_flow(run_dir, ci.revert_commit)
         old_flow = run_sta(run_dir, env=env, design=design, vfile=vfile)
