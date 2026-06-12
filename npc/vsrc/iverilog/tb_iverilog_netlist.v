@@ -3,7 +3,7 @@
 module tb_iverilog_netlist;
 
     localparam [31:0] DEFAULT_BOOT_FETCH_PC = 32'h3000_0000;
-    localparam integer DEFAULT_MAX_CYCLES = 5000000;
+    localparam integer DEFAULT_MAX_CYCLES = 2000000;
 
     reg clock;
     reg reset;
