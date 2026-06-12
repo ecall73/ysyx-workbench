@@ -2055,6 +2055,7 @@ module ysyx_26030082_wbu
     `endif
 
     import "DPI-C" function void trap(input int reg_data, input int halt_pc);
+    import "DPI-C" function void npc_commit(input int pc, input int inst);
 
     import "DPI-C" function void cpu_value(input int diff_skip, input int valid, input int inst, input int inst_addr, input int pc, 
         input int gpr0, input int gpr1, input int gpr2, input int gpr3, 
@@ -2090,6 +2091,7 @@ module ysyx_26030082_wbu
 
     always @(posedge clk) begin
         if(valid_r && (|inst_r1) && (|inst_addr_r1)) begin
+            npc_commit(inst_addr_r1, inst_r1);
             cpu_value
             (
                 skip_r, 1, inst_r1, inst_addr_r1, pc, 
@@ -4156,7 +4158,6 @@ module ysyx_26030082
 
     always @(posedge clock) begin
         if (!reset && dbg_wb_valid) begin
-            npc_commit(dbg_wb_inst_addr, dbg_wb_inst);
             npc_pmu_event(0);
         end
     end
