@@ -3590,7 +3590,7 @@ module ysyx_26030082_cpu_core
     assign ex_enable = O_ex_valid & cpu_execute;
     assign ex_flush = O_flush & cpu_execute;
 
-    assign dbg_wb_valid = ex_enable;
+    assign dbg_wb_valid = u_wbu.valid_r;
     assign dbg_wb_rd_we = I_wb_rd_we;
     assign dbg_wb_rd_waddr = I_wb_rd_waddr;
     assign dbg_wb_rd_wdata = I_wb_rd_wdata;
