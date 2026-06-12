@@ -3300,7 +3300,7 @@ module ysyx_26030082_cpu_core
 `endif
 
 `ifdef __ICARUS__
-        .O_inst                 (O_ex_inst                  ),
+        .O_inst                 (I_ex_inst                  ),
 `endif
 
         .O_inst_addr            (O_ex_inst_addr             ),
