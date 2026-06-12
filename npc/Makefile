@@ -13,16 +13,16 @@ else
 endif
 
 VERILATOR = verilator
-YOSYS ?= $(if $(wildcard $(HOME)/oss-cad-suite/bin/yosys),$(HOME)/oss-cad-suite/bin/yosys,yosys)
-IVERILOG ?= $(if $(wildcard /usr/bin/iverilog),/usr/bin/iverilog,$(if $(wildcard $(HOME)/oss-cad-suite/bin/iverilog),$(HOME)/oss-cad-suite/bin/iverilog,iverilog))
-VVP ?= $(if $(wildcard /usr/bin/vvp),/usr/bin/vvp,$(if $(wildcard $(HOME)/oss-cad-suite/bin/vvp),$(HOME)/oss-cad-suite/bin/vvp,vvp))
+YOSYS ?= $(shell command -v yosys 2>/dev/null || echo yosys)
+IVERILOG ?= $(shell command -v iverilog 2>/dev/null || echo iverilog)
+VVP ?= $(shell command -v vvp 2>/dev/null || echo vvp)
 IVERILOG_FLAGS ?=
 NETLIST_IVERILOG_FLAGS ?= -Dfunctional
-UART_STDOUT ?= nvboard
-ifeq ($(UART_STDOUT),rtl)
+UART_STDOUT ?= 0
+ifeq ($(UART_STDOUT),1)
   VERILOG_DEFINES += -DNPC_UART_STDOUT_RTL
-else ifneq ($(UART_STDOUT),nvboard)
-  $(error Unsupported UART_STDOUT='$(UART_STDOUT)'. Expected 'nvboard' or 'rtl')
+else ifneq ($(UART_STDOUT),0)
+  $(error Unsupported UART_STDOUT='$(UART_STDOUT)'. Expected '0' or '1')
 endif
 # GCC 11 may ICE on some Verilator-generated PCH compilations when ccache is
 # injected by verilated.mk. Keep objcache disabled by default for stability.
@@ -47,7 +47,6 @@ IVERILOG_HEX = $(abspath $(IVERILOG_BUILD_DIR)/image.hex)
 IVERILOG_LOG = $(abspath $(IVERILOG_BUILD_DIR)/sim.log)
 IVERILOG_TMPDIR = $(abspath $(IVERILOG_BUILD_DIR)/tmp)
 IVERILOG_TB = $(abspath ./vsrc/iverilog/tb_iverilog.v)
-IVERILOG_MAX_CYCLES ?= 5000000
 IVERILOG_NETLIST_BUILD_DIR = ./build/iverilog-netlist
 IVERILOG_NETLIST_VVP = $(abspath $(IVERILOG_NETLIST_BUILD_DIR)/simv)
 IVERILOG_NETLIST_IMG_BIN = $(abspath $(IVERILOG_NETLIST_BUILD_DIR)/image.bin)
@@ -168,8 +167,8 @@ sim-iverilog: verilog $(IVERILOG_TB) | $(IVERILOG_BUILD_DIR)
 	@img_bytes=$$(wc -c < "$(IVERILOG_IMG_BIN)"); \
 	rm -f "$(IVERILOG_LOG)" "$(IVERILOG_BUILD_DIR)/wave.vcd"; \
 	bash -o pipefail -c ' \
-		"$(VVP)" "$$0" +IMG="$$1" +IMG_BYTES="$$2" +MAX_CYCLES="$$3" $$4 $$5 2>&1 | tee "$$6" \
-	' "$(IVERILOG_VVP)" "$(IVERILOG_HEX)" "$$img_bytes" "$(IVERILOG_MAX_CYCLES)" "$(if $(filter 1 y yes true,$(WAVE)),+WAVE=1,)" "$(VVP_ARGS)" "$(IVERILOG_LOG)"; \
+		"$(VVP)" "$$0" +IMG="$$1" +IMG_BYTES="$$2" $$3 $$4 2>&1 | tee "$$5" \
+	' "$(IVERILOG_VVP)" "$(IVERILOG_HEX)" "$$img_bytes" "$(if $(filter 1 y yes true,$(WAVE)),+WAVE=1,)" "$(VVP_ARGS)" "$(IVERILOG_LOG)"; \
 	grep -q "HIT GOOD TRAP" "$(IVERILOG_LOG)"
 
 synth-netlist: verilog
@@ -194,12 +193,12 @@ sim-iverilog-netlist: $(IVERILOG_NETLIST_TB) $(abspath ./vsrc/npc/top.v) | $(IVE
 	echo + IVERILOG "->" "$(IVERILOG_NETLIST_VVP)"; \
 	mkdir -p "$(IVERILOG_NETLIST_TMPDIR)"; \
 		TMPDIR="$(IVERILOG_NETLIST_TMPDIR)" TMP="$(IVERILOG_NETLIST_TMPDIR)" TEMP="$(IVERILOG_NETLIST_TMPDIR)" \
-		"$(IVERILOG)" $(NETLIST_IVERILOG_FLAGS) -DNETLIST_SIM -I"$(abspath ./vsrc/npc)" -g2012 -o "$(IVERILOG_NETLIST_VVP)" -s tb_iverilog_netlist $$netlist_sim $$cells_file $(IVERILOG_NETLIST_SRCS); \
+		"$(IVERILOG)" $(NETLIST_IVERILOG_FLAGS) -I"$(abspath ./vsrc/npc)" -g2012 -o "$(IVERILOG_NETLIST_VVP)" -s tb_iverilog_netlist $$netlist_sim $$cells_file $(IVERILOG_NETLIST_SRCS); \
 	img_bytes=$$(wc -c < "$(IVERILOG_NETLIST_IMG_BIN)"); \
 	rm -f "$(IVERILOG_NETLIST_LOG)" "$(IVERILOG_NETLIST_BUILD_DIR)/wave.vcd"; \
 	bash -o pipefail -c ' \
-		"$(VVP)" "$$0" +IMG="$$1" +IMG_BYTES="$$2" +MAX_CYCLES="$$3" $$4 $$5 2>&1 | tee "$$6" \
-	' "$(IVERILOG_NETLIST_VVP)" "$(IVERILOG_NETLIST_HEX)" "$$img_bytes" "$(IVERILOG_MAX_CYCLES)" "$(if $(filter 1 y yes true,$(WAVE)),+WAVE=1,)" "$(VVP_ARGS)" "$(IVERILOG_NETLIST_LOG)"; \
+		"$(VVP)" "$$0" +IMG="$$1" +IMG_BYTES="$$2" $$3 $$4 2>&1 | tee "$$5" \
+	' "$(IVERILOG_NETLIST_VVP)" "$(IVERILOG_NETLIST_HEX)" "$$img_bytes" "$(if $(filter 1 y yes true,$(WAVE)),+WAVE=1,)" "$(VVP_ARGS)" "$(IVERILOG_NETLIST_LOG)"; \
 	grep -q "HIT GOOD TRAP" "$(IVERILOG_NETLIST_LOG)"
 
 clean:

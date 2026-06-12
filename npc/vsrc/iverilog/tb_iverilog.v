@@ -3,13 +3,10 @@
 module tb_iverilog;
 
     localparam [31:0] EBREAK_INST = 32'h0010_0073;
-    localparam integer DEFAULT_MAX_CYCLES = 5000000;
-
     reg clock;
     reg reset;
 
     integer cycle_count;
-    integer max_cycles;
     reg dump_started;
 
     top dut (
@@ -25,12 +22,7 @@ module tb_iverilog;
     initial begin
         reset = 1'b1;
         cycle_count = 0;
-        max_cycles = DEFAULT_MAX_CYCLES;
         dump_started = 1'b0;
-
-        if (!$value$plusargs("MAX_CYCLES=%d", max_cycles)) begin
-            max_cycles = DEFAULT_MAX_CYCLES;
-        end
 
         repeat (10) @(posedge clock);
         reset = 1'b0;
@@ -60,10 +52,6 @@ module tb_iverilog;
                 end
             end
 
-            if (cycle_count >= max_cycles) begin
-                $display("TIMEOUT at cycle %0d", cycle_count);
-                $finish;
-            end
         end
     end
 

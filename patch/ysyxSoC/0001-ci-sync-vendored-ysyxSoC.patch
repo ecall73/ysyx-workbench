@@ -1,6 +1,6 @@
-From 27a7c4a31646c6f7ac7d14299d5ca18a1015cd46 Mon Sep 17 00:00:00 2001
+From bda0e4b1ff2c2659d85025e8649728d82db5917d Mon Sep 17 00:00:00 2001
 From: ysyx-ci-local <ci-local@ysyx.org>
-Date: Wed, 10 Jun 2026 19:57:15 +0800
+Date: Thu, 11 Jun 2026 17:02:23 +0800
 Subject: [PATCH] ci: sync vendored ysyxSoC
 
 ---
@@ -16,10 +16,11 @@ Subject: [PATCH] ci: sync vendored ysyxSoC
  perip/psram/psram.v                     | 198 ++++++++++-
  perip/sdram/sdram.v                     | 293 +++++++++++++++-
  perip/spi/rtl/spi_top_apb.v             | 233 ++++++++++++-
+ perip/uart16550/rtl/uart_tfifo.v        |   4 +
  perip/vga/vga_top_apb.v                 | 110 ++++++
  src/CPU.scala                           |   4 +-
  src/Top.scala                           |   2 +-
- 15 files changed, 1744 insertions(+), 94 deletions(-)
+ 16 files changed, 1748 insertions(+), 94 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 3c0160d..606c84a 100644
@@ -30,13 +31,13 @@ index 3c0160d..606c84a 100644
  out/
 +patch/firtool/
 diff --git a/patch/rocket-chip.patch b/patch/rocket-chip.patch
-index 9d46875..ecd58dc 100644
+index 9d46875..6483245 100644
 --- a/patch/rocket-chip.patch
 +++ b/patch/rocket-chip.patch
 @@ -1,5 +1,5 @@
  diff --git a/src/main/scala/amba/axi4/Parameters.scala b/src/main/scala/amba/axi4/Parameters.scala
 -index b059fb192..bd1fa835b 100644
-+index 088c226d8..20522d11e 100644
++index 088c226..20522d1 100644
  --- a/src/main/scala/amba/axi4/Parameters.scala
  +++ b/src/main/scala/amba/axi4/Parameters.scala
  @@ -127,10 +127,10 @@ case class AXI4BundleParameters(
@@ -1927,6 +1928,30 @@ index 92d3751..dafef1c 100644
    .wb_int_o(spi_irq_out),
  
    .ss_pad_o(spi_ss),
+diff --git a/perip/uart16550/rtl/uart_tfifo.v b/perip/uart16550/rtl/uart_tfifo.v
+index 7132911..7d70109 100644
+--- a/perip/uart16550/rtl/uart_tfifo.v
++++ b/perip/uart16550/rtl/uart_tfifo.v
+@@ -211,7 +211,9 @@ begin
+             begin
+                 top   <= #1 top_plus_1;
+                 count <= #1 count + 1'b1;
++`ifdef NPC_UART_STDOUT_RTL
+                 $write("%c", data_in);
++`endif
+             end
+         2'b01 : if(count>0)
+             begin
+@@ -221,7 +223,9 @@ begin
+         2'b11 : begin
+                 bottom <= #1 bottom + 1'b1;
+                 top    <= #1 top_plus_1;
++`ifdef NPC_UART_STDOUT_RTL
+                 $write("%c", data_in);
++`endif
+                 end
+         default: ;
+         endcase
 diff --git a/perip/vga/vga_top_apb.v b/perip/vga/vga_top_apb.v
 index 5c74cfb..1b328f9 100644
 --- a/perip/vga/vga_top_apb.v
