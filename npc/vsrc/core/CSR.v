@@ -27,9 +27,7 @@ module ysyx_26030082_CSR (
     localparam [11:0] CSR_mvendorid = 12'hF11;
     localparam [11:0] CSR_marchid   = 12'hF12;
 
-    reg  [12:0] mstatus;
-    reg  [31:0] mtvec, mepc;
-    reg  [3:0]  mcause;
+    reg  [31:0] mstatus, mtvec, mepc, mcause;
 
     localparam [31:0] CAUSE_ECALL_M = 32'd11;
 
@@ -47,10 +45,10 @@ module ysyx_26030082_CSR (
     // CSR read
     always @(*) begin
         case(CSRaddr)
-            CSR_mstatus:   CSRrdata = {19'b0, mstatus};
+            CSR_mstatus:   CSRrdata = mstatus;
             CSR_mtvec:     CSRrdata = mtvec;
             CSR_mepc:      CSRrdata = mepc;
-            CSR_mcause:    CSRrdata = {28'b0, mcause};
+            CSR_mcause:    CSRrdata = mcause;
             CSR_mvendorid: CSRrdata = 32'h7973_7978;
             CSR_marchid:   CSRrdata = 32'd26030082;
             default:        CSRrdata = 0;
@@ -62,16 +60,16 @@ module ysyx_26030082_CSR (
     // mstatus
     always @(posedge clock) begin
 		if (reset) begin
-            mstatus <= 13'h1800;
+            mstatus <= 32'h1800;
         end else if (trap_taken) begin
             mstatus[3] <= 0;
             mstatus[7] <= mstatus[3];
             mstatus[12:11] <= 3;        // privilege M-mode 3
         end else begin
 			case (CSRControl)
-				CCTL_CSRRW: if (CSRaddr == CSR_mstatus) mstatus <= CSRwdata[12:0];
-				CCTL_CSRRS: if (CSRaddr == CSR_mstatus) mstatus <= (mstatus | CSRwdata[12:0]);
-                CCTL_CSRRC: if (CSRaddr == CSR_mstatus) mstatus <= (mstatus & ~CSRwdata[12:0]);
+				CCTL_CSRRW: if (CSRaddr == CSR_mstatus) mstatus <= CSRwdata;
+				CCTL_CSRRS: if (CSRaddr == CSR_mstatus) mstatus <= (mstatus | CSRwdata);
+                CCTL_CSRRC: if (CSRaddr == CSR_mstatus) mstatus <= (mstatus & ~CSRwdata);
 
 				CCTL_MRET: begin
 					mstatus[3]  	<= mstatus[7];  	// MIE <= MPIE
@@ -84,9 +82,9 @@ module ysyx_26030082_CSR (
     // mcause
     always @(posedge clock) begin
 		if (reset) begin
-				mcause <= 4'h0;
+			mcause <= 32'h0;
         end else if (trap_taken) begin
-            mcause <= trap_cause_code[3:0];
+            mcause <= {trap_is_interrupt, trap_cause_code[30:0]};
         end else begin
 			case (CSRControl)
 				default: mcause <= mcause;

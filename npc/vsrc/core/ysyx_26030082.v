@@ -230,7 +230,7 @@ module ysyx_26030082 #(
     wire [ 1:0] lsu_axi_bresp;
     wire        lsu_axi_bvalid;
     wire        lsu_axi_bready;
-    reg  [31:0] mtime;
+    reg  [63:0] mtime;
 
     // Debug Interface
     `ifndef SYNTHESIS
@@ -246,9 +246,9 @@ module ysyx_26030082 #(
 
     always @(posedge clock) begin
         if (reset) begin
-            mtime <= 32'b0;
+            mtime <= 64'b0;
         end else begin
-            mtime <= mtime + 32'd1;
+            mtime <= mtime + 64'd1;
         end
     end
 
