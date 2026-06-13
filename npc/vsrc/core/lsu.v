@@ -80,7 +80,7 @@ module ysyx_26030082_lsu (
 
     assign ls_is_mem = ls_MemRead || ls_MemWrite;
     assign ls_is_load = ls_MemRead && ~ls_MemWrite;
-    assign ls_is_clint = (ls_ALUResult[31:16] == CLINT_BASE_ADDR[31:16]);
+    assign ls_is_clint = (ls_ALUResult >= CLINT_BASE_ADDR) && (ls_ALUResult <= CLINT_END_ADDR);
     assign ls_is_local = ls_is_mem && ls_is_clint;
     assign ls_is_local_load = ls_is_load && ls_is_clint;
 

@@ -41,9 +41,7 @@ module ysyx_26030082_icache #(
 
     reg [1:0] state;
 
-    localparam integer DATA_ADDR_W = INDEX_W + LINE_WORD_OFF_W;
-    localparam integer DATA_DEPTH = LINE_COUNT * LINE_WORDS;
-    reg [31:0] data_array [0:DATA_DEPTH-1];
+    reg [31:0] data_array [0:LINE_COUNT-1][0:LINE_WORDS-1];
     reg [TAG_W-1:0] tag_array [0:LINE_COUNT-1];
     reg [LINE_COUNT-1:0] valid_array;
 
@@ -55,12 +53,10 @@ module ysyx_26030082_icache #(
     wire [LINE_WORD_OFF_W-1:0] lookup_word_offset;
     wire [INDEX_W-1:0]         lookup_index;
     wire [TAG_W-1:0]           lookup_tag;
-    wire [DATA_ADDR_W-1:0]     lookup_data_addr;
 
     wire [LINE_WORD_OFF_W-1:0] miss_word_offset;
     wire [INDEX_W-1:0]         miss_index;
     wire [TAG_W-1:0]           miss_tag;
-    wire [DATA_ADDR_W-1:0]     refill_data_addr;
 
     wire               cache_hit;
     wire               cache_miss;
@@ -79,13 +75,11 @@ module ysyx_26030082_icache #(
         if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
     assign lookup_index = if_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
     assign lookup_tag = if_pc[31 : OFFSET_W + INDEX_W];
-    assign lookup_data_addr = {lookup_index, lookup_word_offset};
 
     assign miss_word_offset =
         miss_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
     assign miss_index = miss_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
     assign miss_tag = miss_pc[31 : OFFSET_W + INDEX_W];
-    assign refill_data_addr = {miss_index, refill_word_idx};
 
     assign lookup_rd_tag = tag_array[lookup_index];
     assign lookup_rd_valid = valid_array[lookup_index];
@@ -97,7 +91,7 @@ module ysyx_26030082_icache #(
     assign discard_resp = need_flush || pipe_flush;
     assign id_valid = lookup_resp_valid;
     assign id_pc = if_pc;
-    assign id_inst = data_array[lookup_data_addr];
+    assign id_inst = data_array[lookup_index][lookup_word_offset];
 
     assign req_space = lookup_resp_valid && id_ready;
     assign if_ready = req_space;
@@ -167,7 +161,7 @@ module ysyx_26030082_icache #(
                     end
 
                     if (r_fire) begin
-                        data_array[refill_data_addr] <= ifu_axi_rdata;
+                        data_array[miss_index][refill_word_idx] <= ifu_axi_rdata;
                         if (ifu_axi_rlast) begin
                             if (!drop_fill && !invalidate) begin
                                 tag_array[miss_index] <= miss_tag;
