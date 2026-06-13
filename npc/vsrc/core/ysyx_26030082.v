@@ -278,7 +278,7 @@ module ysyx_26030082 #(
 
 
     ysyx_26030082_icache #(
-        .LINE_WORDS             (4),
+        .LINE_WORDS             (8),
         .LINE_COUNT             (4)
     ) icache (
         .clock                  (clock),
