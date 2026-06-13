@@ -14,7 +14,7 @@ module ysyx_26030082_lsu (
     input  wire        ls_MemRead,
     input  wire [31:0] ls_rR2_data,
     input  wire [31:0] ls_RFwdata,
-    input  wire [63:0] ls_mtime,
+    input  wire [31:0] ls_mtime,
 
     // LSU AXI4-Lite interface
     // Read address channel
@@ -90,8 +90,8 @@ module ysyx_26030082_lsu (
     assign w_fire = lsu_axi_wvalid && lsu_axi_wready;
     assign b_fire = lsu_axi_bvalid && lsu_axi_bready;
     assign ls_offset = ls_ALUResult[1:0];
-    assign ls_local_rdata = (ls_ALUResult == MTIME_ADDR)  ? ls_mtime[31:0]  :
-                            (ls_ALUResult == MTIMEH_ADDR) ? ls_mtime[63:32] :
+    assign ls_local_rdata = (ls_ALUResult == MTIME_ADDR)  ? ls_mtime :
+                            (ls_ALUResult == MTIMEH_ADDR) ? 32'b0 :
                             32'b0;
     assign ls_load_raw_data = ls_is_local_load ? ls_local_rdata : lsu_axi_rdata;
 
