@@ -157,6 +157,21 @@ def shell_quote(path: pathlib.Path | str) -> str:
     return shlex.quote(str(path))
 
 
+def git_https_rewrite_env() -> list[str]:
+    return [
+        "export GIT_CONFIG_COUNT=1",
+        "export GIT_CONFIG_KEY_0=url.https://github.com/.insteadOf",
+        "export GIT_CONFIG_VALUE_0=git@github.com:",
+    ]
+
+
+def git_ci_identity_lines() -> list[str]:
+    return [
+        'git config user.email "ci@ysyx.org"',
+        'git config user.name "ysyx-ci"',
+    ]
+
+
 def run_process(
     logger: StageLogger,
     title: str,
@@ -444,14 +459,6 @@ def run_setup_stage(
     logger = StageLogger(log_path, mirror_stream=mirror_stream)
     env = build_job_env(stage_root, spec, oss_cad_suite)
     try:
-        run_process(
-            logger,
-            'git config --global user.email "ci@ysyx.org"',
-            'git config --global user.email "ci@ysyx.org"\ngit config --global user.name "ysyx-ci"',
-            cwd=job_repo,
-            env=env,
-        )
-
         temp_dir = pathlib.Path(tempfile.mkdtemp(prefix="tmp.", dir=job_repo))
         ysyx_home = temp_dir / "ysyx-workbench"
         ysyx_home_suffix = ysyx_home.relative_to(job_repo)
@@ -461,6 +468,7 @@ def run_setup_stage(
             f"git clone --depth 1 -b {target.branch} {target.repo_url} ysyx-workbench",
             "\n".join(
                 [
+                    *git_https_rewrite_env(),
                     f"mkdir -p {shell_quote(ysyx_home)}",
                     f"cd {shell_quote(ysyx_home.parent)}",
                     f"git clone --depth 1 -b {shlex.quote(target.branch)} {shlex.quote(target.repo_url)} ysyx-workbench",
@@ -478,6 +486,7 @@ def run_setup_stage(
             "\n".join(
                 [
                     f"cd {shell_quote(ysyx_home)}",
+                    *git_ci_identity_lines(),
                     "git checkout --orphan tmp-ci",
                     'git commit -m "orphan branch created by CI"',
                     f"cd {shell_quote(ysyx_home.parent)}",
@@ -590,9 +599,10 @@ def run_setup_stage(
             "git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC ysyxSoC-inited",
             "\n".join(
                 [
+                    *git_https_rewrite_env(),
                     "git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC ysyxSoC-inited",
-                    'git config --global url."https://github.com/".insteadOf "git@github.com:"',
                     "cd ysyxSoC-inited",
+                    *git_ci_identity_lines(),
                     "make dev-init",
                     "mill __.compile",
                 ]
@@ -751,12 +761,11 @@ def run_common_stage(
         "clone other repos",
         "\n".join(
             [
-                'git config --global user.email "ci@ysyx.org"',
-                'git config --global user.name "ysyx-ci"',
                 "cd $YSYX_HOME",
                 "git clone --depth 1 -b ci https://github.com/NJU-ProjectN/am-kernels",
                 "git clone --depth 1 https://github.com/NJU-ProjectN/rt-thread-am",
                 "cd rt-thread-am",
+                *git_ci_identity_lines(),
                 "git am $YSYX_HOME/patch/rt-thread-am/*",
                 "cd $YSYX_HOME",
             ]
@@ -903,8 +912,7 @@ def run_yosys_stage(
             "\n".join(
                 [
                     "cd yosys-sta",
-                    'git config --global user.email "ci@ysyx.org"',
-                    'git config --global user.name "ysyx-ci"',
+                    *git_ci_identity_lines(),
                     f"git revert --no-edit {spec.yosys_sta_revert_commit}",
                     "make clean",
                     "make sta DESIGN=ysyx_$STUID CLK_FREQ_MHZ=500 CLK_PORT_NAME=clock RTL_FILES=$VFILE",
