@@ -29,7 +29,6 @@ module ysyx_26030082_exu (
     output wire        ex_BRUResult,
     output wire [31:0] ex_pc4,
 
-    output wire [31:0] CSRrdata,
     output wire        ex_CSRjump,
     output wire [31:0] ex_CSRnpc,
 
@@ -39,6 +38,7 @@ module ysyx_26030082_exu (
 
     wire [31:0] ex_A;
     wire [31:0] ex_B;
+    wire [31:0] CSRrdata;
 
     assign ex_in_ready = ~ex_in_valid || ex_out_ready;
     assign ex_out_valid = ex_in_valid;
