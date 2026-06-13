@@ -64,55 +64,39 @@ module ysyx_26030082_axi4lite_arbiter (
     output reg         mem_axi_bready
 );
 
-    localparam A_IDLE        = 4'd0;
-    localparam A_LSU_WR_AW_W = 4'd1;
-    localparam A_LSU_WR_B    = 4'd2;
-    localparam A_LSU_RD_AR   = 4'd3;
-    localparam A_LSU_RD_R    = 4'd4;
-    localparam A_IFU_RD_AR   = 4'd5;
-    localparam A_IFU_RD_R    = 4'd6;
+    localparam R_IDLE = 2'd0;
+    localparam R_AR   = 2'd1;
+    localparam R_DATA = 2'd2;
 
-    reg [3:0] state;
-    reg       wr_aw_done;
-    reg       wr_w_done;
+    localparam R_OWNER_NONE = 1'b0;
+    localparam R_OWNER_LSU  = 1'b0;
+    localparam R_OWNER_IFU  = 1'b1;
 
-    wire      req_lsu_wr;
-    wire      req_lsu_rd;
-    wire      req_ifu_rd;
-    reg [3:0] next_req_state;
+    reg [1:0] rd_state;
+    reg       rd_owner;
 
-    wire lsu_aw_fire;
-    wire lsu_w_fire;
-    wire lsu_b_fire;
+    wire req_lsu_rd;
+    wire req_ifu_rd;
+    wire rd_sel_lsu;
+    wire rd_sel_ifu;
+    wire rd_data_lsu;
+    wire rd_data_ifu;
     wire lsu_ar_fire;
     wire lsu_r_fire;
     wire ifu_ar_fire;
     wire ifu_r_fire;
 
-    assign lsu_aw_fire = (state == A_LSU_WR_AW_W) && (~wr_aw_done) && lsu_axi_awvalid && mem_axi_awready;
-    assign lsu_w_fire = (state == A_LSU_WR_AW_W) && (~wr_w_done) && lsu_axi_wvalid && mem_axi_wready;
-    assign lsu_b_fire = (state == A_LSU_WR_B) && mem_axi_bvalid && lsu_axi_bready;
-
-    assign lsu_ar_fire = (state == A_LSU_RD_AR) && lsu_axi_arvalid && mem_axi_arready;
-    assign lsu_r_fire = (state == A_LSU_RD_R) && mem_axi_rvalid && lsu_axi_rready;
-
-    assign ifu_ar_fire = (state == A_IFU_RD_AR) && ifu_axi_arvalid && mem_axi_arready;
-    assign ifu_r_fire = (state == A_IFU_RD_R) && mem_axi_rvalid && ifu_axi_rready;
-
-    assign req_lsu_wr = lsu_axi_awvalid || lsu_axi_wvalid;
     assign req_lsu_rd = lsu_axi_arvalid;
     assign req_ifu_rd = ifu_axi_arvalid;
+    assign rd_sel_lsu = (rd_state == R_AR) && (rd_owner == R_OWNER_LSU);
+    assign rd_sel_ifu = (rd_state == R_AR) && (rd_owner == R_OWNER_IFU);
+    assign rd_data_lsu = (rd_state == R_DATA) && (rd_owner == R_OWNER_LSU);
+    assign rd_data_ifu = (rd_state == R_DATA) && (rd_owner == R_OWNER_IFU);
 
-    always @(*) begin
-        next_req_state = A_IDLE;
-        if (req_lsu_wr) begin
-            next_req_state = A_LSU_WR_AW_W;
-        end else if (req_lsu_rd) begin
-            next_req_state = A_LSU_RD_AR;
-        end else if (req_ifu_rd) begin
-            next_req_state = A_IFU_RD_AR;
-        end
-    end
+    assign lsu_ar_fire = rd_sel_lsu && lsu_axi_arvalid && mem_axi_arready;
+    assign ifu_ar_fire = rd_sel_ifu && ifu_axi_arvalid && mem_axi_arready;
+    assign lsu_r_fire = rd_data_lsu && mem_axi_rvalid && lsu_axi_rready;
+    assign ifu_r_fire = rd_data_ifu && mem_axi_rvalid && ifu_axi_rready;
 
     always @(*) begin
         // IFU side defaults (blocked)
@@ -122,17 +106,19 @@ module ysyx_26030082_axi4lite_arbiter (
         ifu_axi_rlast = 1'b0;
         ifu_axi_rvalid = 1'b0;
 
-        // LSU side defaults (blocked)
+        // LSU read side defaults (blocked)
         lsu_axi_arready = 1'b0;
         lsu_axi_rdata = 32'b0;
         lsu_axi_rresp = 2'b00;
         lsu_axi_rvalid = 1'b0;
-        lsu_axi_awready = 1'b0;
-        lsu_axi_wready = 1'b0;
-        lsu_axi_bresp = 2'b00;
-        lsu_axi_bvalid = 1'b0;
 
-        // MEM side defaults
+        // LSU write side bypasses the read arbiter.
+        lsu_axi_awready = mem_axi_awready;
+        lsu_axi_wready = mem_axi_wready;
+        lsu_axi_bresp = mem_axi_bresp;
+        lsu_axi_bvalid = mem_axi_bvalid;
+
+        // MEM read side defaults
         mem_axi_araddr = 32'b0;
         mem_axi_arid = 4'b0;
         mem_axi_arlen = 8'b0;
@@ -140,77 +126,54 @@ module ysyx_26030082_axi4lite_arbiter (
         mem_axi_arburst = 2'b00;
         mem_axi_arvalid = 1'b0;
         mem_axi_rready = 1'b0;
-        mem_axi_awaddr = 32'b0;
-        mem_axi_awid = 4'b0;
-        mem_axi_awlen = 8'b0;
-        mem_axi_awsize = 3'b010;
+
+        // MEM write side is LSU-only.
+        mem_axi_awaddr = lsu_axi_awaddr;
+        mem_axi_awid = 4'h0;
+        mem_axi_awlen = 8'h00;
+        mem_axi_awsize = lsu_axi_awsize;
         mem_axi_awburst = 2'b00;
-        mem_axi_awvalid = 1'b0;
-        mem_axi_wdata = 32'b0;
-        mem_axi_wstrb = 4'b0000;
-        mem_axi_wlast = 1'b0;
-        mem_axi_wvalid = 1'b0;
-        mem_axi_bready = 1'b0;
+        mem_axi_awvalid = lsu_axi_awvalid;
+        mem_axi_wdata = lsu_axi_wdata;
+        mem_axi_wstrb = lsu_axi_wstrb;
+        mem_axi_wlast = 1'b1;
+        mem_axi_wvalid = lsu_axi_wvalid;
+        mem_axi_bready = lsu_axi_bready;
 
-        case (state)
-            A_LSU_WR_AW_W: begin
-                if (~wr_aw_done) begin
-                    mem_axi_awaddr = lsu_axi_awaddr;
-                    mem_axi_awid = 4'h0;
-                    mem_axi_awlen = 8'h00;
-                    mem_axi_awsize = lsu_axi_awsize;
-                    mem_axi_awburst = 2'b00;
-                    mem_axi_awvalid = lsu_axi_awvalid;
-                    lsu_axi_awready = mem_axi_awready;
+        case (rd_state)
+            R_AR: begin
+                if (rd_owner == R_OWNER_LSU) begin
+                    mem_axi_araddr = lsu_axi_araddr;
+                    mem_axi_arid = 4'h0;
+                    mem_axi_arlen = 8'h00;
+                    mem_axi_arsize = lsu_axi_arsize;
+                    mem_axi_arburst = 2'b00;
+                    mem_axi_arvalid = lsu_axi_arvalid;
+                    lsu_axi_arready = mem_axi_arready;
+                end else begin
+                    mem_axi_araddr = ifu_axi_araddr;
+                    mem_axi_arid = 4'h1;
+                    mem_axi_arlen = ifu_axi_arlen;
+                    mem_axi_arsize = 3'b010;
+                    mem_axi_arburst = ifu_axi_arburst;
+                    mem_axi_arvalid = ifu_axi_arvalid;
+                    ifu_axi_arready = mem_axi_arready;
                 end
-                if (~wr_w_done) begin
-                    mem_axi_wdata = lsu_axi_wdata;
-                    mem_axi_wstrb = lsu_axi_wstrb;
-                    mem_axi_wlast = 1'b1;
-                    mem_axi_wvalid = lsu_axi_wvalid;
-                    lsu_axi_wready = mem_axi_wready;
+            end
+
+            R_DATA: begin
+                if (rd_owner == R_OWNER_LSU) begin
+                    lsu_axi_rdata = mem_axi_rdata;
+                    lsu_axi_rresp = mem_axi_rresp;
+                    lsu_axi_rvalid = mem_axi_rvalid;
+                    mem_axi_rready = lsu_axi_rready;
+                end else begin
+                    ifu_axi_rdata = mem_axi_rdata;
+                    ifu_axi_rresp = mem_axi_rresp;
+                    ifu_axi_rlast = mem_axi_rlast;
+                    ifu_axi_rvalid = mem_axi_rvalid;
+                    mem_axi_rready = ifu_axi_rready;
                 end
-            end
-
-            A_LSU_WR_B: begin
-                lsu_axi_bresp = mem_axi_bresp;
-                lsu_axi_bvalid = mem_axi_bvalid;
-                mem_axi_bready = lsu_axi_bready;
-            end
-
-            A_LSU_RD_AR: begin
-                mem_axi_araddr = lsu_axi_araddr;
-                mem_axi_arid = 4'h0;
-                mem_axi_arlen = 8'h00;
-                mem_axi_arsize = lsu_axi_arsize;
-                mem_axi_arburst = 2'b00;
-                mem_axi_arvalid = lsu_axi_arvalid;
-                lsu_axi_arready = mem_axi_arready;
-            end
-
-            A_LSU_RD_R: begin
-                lsu_axi_rdata = mem_axi_rdata;
-                lsu_axi_rresp = mem_axi_rresp;
-                lsu_axi_rvalid = mem_axi_rvalid;
-                mem_axi_rready = lsu_axi_rready;
-            end
-
-            A_IFU_RD_AR: begin
-                mem_axi_araddr = ifu_axi_araddr;
-                mem_axi_arid = 4'h1;
-                mem_axi_arlen = ifu_axi_arlen;
-                mem_axi_arsize = 3'b010;
-                mem_axi_arburst = ifu_axi_arburst;
-                mem_axi_arvalid = ifu_axi_arvalid;
-                ifu_axi_arready = mem_axi_arready;
-            end
-
-            A_IFU_RD_R: begin
-                ifu_axi_rdata = mem_axi_rdata;
-                ifu_axi_rresp = mem_axi_rresp;
-                ifu_axi_rlast = mem_axi_rlast;
-                ifu_axi_rvalid = mem_axi_rvalid;
-                mem_axi_rready = ifu_axi_rready;
             end
 
             default: begin
@@ -220,76 +183,50 @@ module ysyx_26030082_axi4lite_arbiter (
 
     always @(posedge clock) begin
         if (reset) begin
-            state <= A_IDLE;
-            wr_aw_done <= 1'b0;
-            wr_w_done <= 1'b0;
+            rd_state <= R_IDLE;
+            rd_owner <= R_OWNER_NONE;
         end else begin
-            case (state)
-                A_IDLE: begin
-                    wr_aw_done <= 1'b0;
-                    wr_w_done <= 1'b0;
-                    if (next_req_state != A_IDLE) begin
-                        state <= next_req_state;
+            case (rd_state)
+                R_IDLE: begin
+                    if (req_lsu_rd) begin
+                        rd_state <= R_AR;
+                        rd_owner <= R_OWNER_LSU;
+                    end else if (req_ifu_rd) begin
+                        rd_state <= R_AR;
+                        rd_owner <= R_OWNER_IFU;
                     end
                 end
 
-                A_LSU_WR_AW_W: begin
-                    if (lsu_aw_fire) begin
-                        wr_aw_done <= 1'b1;
-                    end
-                    if (lsu_w_fire) begin
-                        wr_w_done <= 1'b1;
-                    end
-                    if ((wr_aw_done || lsu_aw_fire) && (wr_w_done || lsu_w_fire)) begin
-                        wr_aw_done <= 1'b0;
-                        wr_w_done <= 1'b0;
-                        state <= A_LSU_WR_B;
+                R_AR: begin
+                    if (lsu_ar_fire || ifu_ar_fire) begin
+                        rd_state <= R_DATA;
                     end
                 end
 
-                A_LSU_WR_B: begin
-                    if (lsu_b_fire) begin
-                        wr_aw_done <= 1'b0;
-                        wr_w_done <= 1'b0;
-                        state <= next_req_state;
-                    end
-                end
-
-                A_LSU_RD_AR: begin
-                    if (lsu_ar_fire) begin
-                        state <= A_LSU_RD_R;
-                    end
-                end
-
-                A_LSU_RD_R: begin
-                    if (lsu_r_fire && mem_axi_rlast) begin
-                        wr_aw_done <= 1'b0;
-                        wr_w_done <= 1'b0;
-                        state <= next_req_state;
-                    end
-                end
-
-                A_IFU_RD_AR: begin
-                    if (ifu_ar_fire) begin
-                        state <= A_IFU_RD_R;
-                    end
-                end
-
-                A_IFU_RD_R: begin
-                    if (ifu_r_fire && mem_axi_rlast) begin
-                        wr_aw_done <= 1'b0;
-                        wr_w_done <= 1'b0;
-                        state <= next_req_state;
+                R_DATA: begin
+                    if ((lsu_r_fire || ifu_r_fire) && mem_axi_rlast) begin
+                        if (req_lsu_rd) begin
+                            rd_state <= R_AR;
+                            rd_owner <= R_OWNER_LSU;
+                        end else if (req_ifu_rd) begin
+                            rd_state <= R_AR;
+                            rd_owner <= R_OWNER_IFU;
+                        end else begin
+                            rd_state <= R_IDLE;
+                            rd_owner <= R_OWNER_NONE;
+                        end
                     end
                 end
 
                 default: begin
-                    state <= A_IDLE;
-                    wr_aw_done <= 1'b0;
-                    wr_w_done <= 1'b0;
+                    rd_state <= R_IDLE;
+                    rd_owner <= R_OWNER_NONE;
                 end
             endcase
         end
     end
+
+    wire _unused_ok;
+    assign _unused_ok = &{1'b0, mem_axi_rid, mem_axi_bid};
 
 endmodule

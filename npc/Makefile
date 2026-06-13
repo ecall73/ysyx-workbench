@@ -18,7 +18,7 @@ IVERILOG ?= $(shell command -v iverilog 2>/dev/null || echo iverilog)
 VVP ?= $(shell command -v vvp 2>/dev/null || echo vvp)
 IVERILOG_FLAGS ?=
 NETLIST_IVERILOG_FLAGS ?= -Dfunctional
-UART_STDOUT ?= 0
+UART_STDOUT ?= 1
 ifeq ($(UART_STDOUT),1)
   VERILOG_DEFINES += -DNPC_UART_STDOUT_RTL
 else ifneq ($(UART_STDOUT),0)
