@@ -113,13 +113,15 @@ module top
     localparam SEL_PMEM = 1'b0;
     localparam SEL_UART = 1'b1;
 
-    localparam [2:0] S_IDLE       = 3'd0;
-    localparam [2:0] S_RD_AR      = 3'd1;
-    localparam [2:0] S_RD_R       = 3'd2;
-    localparam [2:0] S_WR_COLLECT = 3'd3;
-    localparam [2:0] S_WR_ISSUE   = 3'd4;
-    localparam [2:0] S_WR_DATA    = 3'd5;
-    localparam [2:0] S_WR_B       = 3'd6;
+    localparam [1:0] RD_IDLE = 2'd0;
+    localparam [1:0] RD_PREP = 2'd1;
+    localparam [1:0] RD_R    = 2'd2;
+
+    localparam [2:0] WR_IDLE    = 3'd0;
+    localparam [2:0] WR_COLLECT = 3'd1;
+    localparam [2:0] WR_ISSUE   = 3'd2;
+    localparam [2:0] WR_DATA    = 3'd3;
+    localparam [2:0] WR_B       = 3'd4;
 
 `ifdef __ICARUS__
     localparam [31:0] PBASE_ADDR = 32'h8000_0000;
@@ -195,7 +197,8 @@ module top
     import "DPI-C" function void pmem_write(input int waddr, input int wdata, input byte wmask);
 `endif
 
-    reg [2:0] state;
+    reg [1:0] rd_state;
+    reg [2:0] wr_state;
     reg        rd_sel;
     reg [31:0] rd_addr_reg;
     reg [ 7:0] rd_len_reg;
@@ -274,23 +277,30 @@ module top
         axi_bresp   = 2'b00;
         axi_bvalid  = 1'b0;
 
-        case (state)
-            S_IDLE: begin
+        case (rd_state)
+            RD_IDLE: begin
                 axi_arready = 1'b1;
-                axi_awready = 1'b1;
-                axi_wready  = 1'b1;
             end
-            S_WR_COLLECT: begin
-                axi_awready = !wr_have_aw;
-                axi_wready  = !wr_have_w;
-            end
-            S_RD_R: begin
+            RD_R: begin
                 axi_rdata  = rd_buf_data;
                 axi_rresp  = rd_buf_resp;
                 axi_rlast  = rd_buf_last;
                 axi_rvalid = rd_buf_valid;
             end
-            S_WR_B: begin
+            default: begin
+            end
+        endcase
+
+        case (wr_state)
+            WR_IDLE: begin
+                axi_awready = 1'b1;
+                axi_wready  = 1'b1;
+            end
+            WR_COLLECT: begin
+                axi_awready = !wr_have_aw;
+                axi_wready  = !wr_have_w;
+            end
+            WR_B: begin
                 axi_bresp  = wr_buf_resp;
                 axi_bvalid = wr_buf_valid;
             end
@@ -301,7 +311,8 @@ module top
 
     always @(posedge clock) begin
         if (reset) begin
-            state         <= S_IDLE;
+            rd_state      <= RD_IDLE;
+            wr_state      <= WR_IDLE;
             rd_sel        <= SEL_PMEM;
             rd_addr_reg   <= 32'b0;
             rd_len_reg    <= 8'b0;
@@ -321,34 +332,20 @@ module top
             wr_strb_reg   <= 4'b0;
             uart_reg      <= 32'b0;
         end else begin
-            case (state)
-                S_IDLE: begin
+            case (rd_state)
+                RD_IDLE: begin
                     rd_buf_valid <= 1'b0;
-                    wr_have_aw   <= 1'b0;
-                    wr_have_w    <= 1'b0;
-                    wr_buf_valid <= 1'b0;
 
                     if (ar_fire) begin
                         rd_sel       <= ar_sel;
                         rd_addr_reg  <= axi_araddr;
                         rd_len_reg   <= axi_arlen;
                         rd_burst_reg <= axi_arburst;
-                        state        <= S_RD_AR;
-                    end else if (aw_fire || w_fire) begin
-                        if (aw_fire) begin
-                            wr_sel      <= aw_sel;
-                            wr_addr_reg <= axi_awaddr;
-                        end
-                        if (w_fire) begin
-                            wr_data_reg <= axi_wdata;
-                            wr_strb_reg <= axi_wstrb;
-                        end
-                        wr_have_aw <= aw_fire;
-                        wr_have_w  <= w_fire;
-                        state      <= (aw_fire && w_fire) ? S_WR_ISSUE : S_WR_COLLECT;
+                        rd_state     <= RD_PREP;
                     end
                 end
-                S_RD_AR: begin
+
+                RD_PREP: begin
                     if (rd_sel == SEL_UART) begin
                         rd_beats_left <= 8'd1;
                         rd_buf_valid  <= 1'b1;
@@ -366,13 +363,14 @@ module top
                         rd_buf_resp   <= 2'b00;
                         rd_buf_last   <= (rd_len_reg == 8'd0);
                     end
-                    state <= S_RD_R;
+                    rd_state <= RD_R;
                 end
-                S_RD_R: begin
+
+                RD_R: begin
                     if (rd_buf_take) begin
                         if (rd_buf_last) begin
                             rd_buf_valid <= 1'b0;
-                            state <= S_IDLE;
+                            rd_state <= RD_IDLE;
                         end else begin
                             rd_beats_left <= rd_beats_left - 8'd1;
                             rd_addr_reg   <= rd_next_addr;
@@ -383,7 +381,34 @@ module top
                         end
                     end
                 end
-                S_WR_COLLECT: begin
+
+                default: begin
+                    rd_state <= RD_IDLE;
+                end
+            endcase
+
+            case (wr_state)
+                WR_IDLE: begin
+                    wr_have_aw   <= 1'b0;
+                    wr_have_w    <= 1'b0;
+                    wr_buf_valid <= 1'b0;
+
+                    if (aw_fire || w_fire) begin
+                        if (aw_fire) begin
+                            wr_sel      <= aw_sel;
+                            wr_addr_reg <= axi_awaddr;
+                        end
+                        if (w_fire) begin
+                            wr_data_reg <= axi_wdata;
+                            wr_strb_reg <= axi_wstrb;
+                        end
+                        wr_have_aw <= aw_fire;
+                        wr_have_w  <= w_fire;
+                        wr_state   <= (aw_fire && w_fire) ? WR_ISSUE : WR_COLLECT;
+                    end
+                end
+
+                WR_COLLECT: begin
                     if (!wr_have_aw && aw_fire) begin
                         wr_sel      <= aw_sel;
                         wr_addr_reg <= axi_awaddr;
@@ -395,13 +420,15 @@ module top
                         wr_have_w   <= 1'b1;
                     end
                     if ((wr_have_aw || aw_fire) && (wr_have_w || w_fire)) begin
-                        state <= S_WR_ISSUE;
+                        wr_state <= WR_ISSUE;
                     end
                 end
-                S_WR_ISSUE: begin
-                    state <= S_WR_DATA;
+
+                WR_ISSUE: begin
+                    wr_state <= WR_DATA;
                 end
-                S_WR_DATA: begin
+
+                WR_DATA: begin
                     if (wr_sel == SEL_UART) begin
                         uart_reg <= uart_after_write;
                         $write("%c", wr_data_reg[7:0]);
@@ -415,16 +442,18 @@ module top
                     end
                     wr_buf_valid <= 1'b1;
                     wr_buf_resp  <= 2'b00;
-                    state <= S_WR_B;
+                    wr_state <= WR_B;
                 end
-                S_WR_B: begin
+
+                WR_B: begin
                     if (b_fire) begin
                         wr_buf_valid <= 1'b0;
-                        state <= S_IDLE;
+                        wr_state <= WR_IDLE;
                     end
                 end
+
                 default: begin
-                    state <= S_IDLE;
+                    wr_state <= WR_IDLE;
                 end
             endcase
         end
