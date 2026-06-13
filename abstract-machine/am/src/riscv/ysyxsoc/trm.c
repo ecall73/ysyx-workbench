@@ -23,6 +23,16 @@ static inline uint8_t uart_read8(uint32_t off) {
   return inb(UART_BASE + off);
 }
 
+static inline uint64_t read_mtime() {
+  uint32_t hi1, lo, hi2;
+  do {
+    hi1 = inl(CLINT_MTIMEH);
+    lo = inl(CLINT_MTIME);
+    hi2 = inl(CLINT_MTIMEH);
+  } while (hi1 != hi2);
+  return ((uint64_t)hi1 << 32) | lo;
+}
+
 static void uart_init(void) {
   // Enable divisor latch access.
   uart_write8(UART_REG_LCR, UART_LCR_DLAB);
@@ -49,8 +59,12 @@ void halt(int code) {
 
 void _trm_init() {
   uint32_t vendor = 0, arch = 0;
+  uint64_t t0 = 0, t1 = 0, t2 = 0;
   asm volatile("csrr %0, mvendorid" : "=r"(vendor));
   asm volatile("csrr %0, marchid" : "=r"(arch));
+  t0 = read_mtime();
+  t1 = read_mtime();
+  t2 = read_mtime();
 
   // Show marchid in decimal on 8-digit 7-seg (one BCD digit per nibble).
   uint32_t packed_bcd = 0;
@@ -63,6 +77,10 @@ void _trm_init() {
 
   uart_init();
   printf("CSR mvendorid=0x%08x marchid=%u(0x%08x)\n", vendor, arch, arch);
+  printf("CLINT mtime samples: 0x%08x%08x -> 0x%08x%08x -> 0x%08x%08x\n",
+      (uint32_t)(t0 >> 32), (uint32_t)t0,
+      (uint32_t)(t1 >> 32), (uint32_t)t1,
+      (uint32_t)(t2 >> 32), (uint32_t)t2);
   int ret = main(mainargs);
   halt(ret);
 }

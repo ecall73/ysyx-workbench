@@ -24,13 +24,10 @@ module ysyx_26030082_CSR (
     localparam [11:0] CSR_mtvec     = 12'h305;
     localparam [11:0] CSR_mepc      = 12'h341;
     localparam [11:0] CSR_mcause    = 12'h342;
-    localparam [11:0] CSR_mcycle    = 12'hB00;
-    localparam [11:0] CSR_mcycleh   = 12'hB80;
     localparam [11:0] CSR_mvendorid = 12'hF11;
     localparam [11:0] CSR_marchid   = 12'hF12;
 
     reg  [31:0] mstatus, mtvec, mepc, mcause;
-    reg  [63:0] mcycle;
 
     localparam [31:0] CAUSE_ECALL_M = 32'd11;
 
@@ -52,8 +49,6 @@ module ysyx_26030082_CSR (
             CSR_mtvec:     CSRrdata = mtvec;
             CSR_mepc:      CSRrdata = mepc;
             CSR_mcause:    CSRrdata = mcause;
-            CSR_mcycle:    CSRrdata = mcycle[31:0];
-            CSR_mcycleh:   CSRrdata = mcycle[63:32];
             CSR_mvendorid: CSRrdata = 32'h7973_7978;
             CSR_marchid:   CSRrdata = 32'd26030082;
             default:        CSRrdata = 0;
@@ -130,15 +125,6 @@ module ysyx_26030082_CSR (
 			endcase
 		end
 	end
-
-    // mcycle/mcycleh
-    always @(posedge clock) begin
-        if (reset) begin
-            mcycle <= 64'b0;
-        end else begin
-            mcycle <= mcycle + 64'd1;
-        end
-    end
 
     // CSRnpc
     always @(*) begin
