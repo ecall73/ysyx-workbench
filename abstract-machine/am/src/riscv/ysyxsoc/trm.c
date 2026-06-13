@@ -49,8 +49,12 @@ void halt(int code) {
 
 void _trm_init() {
   uint32_t vendor = 0, arch = 0;
+  uint32_t t0 = 0, t1 = 0, t2 = 0;
   asm volatile("csrr %0, mvendorid" : "=r"(vendor));
   asm volatile("csrr %0, marchid" : "=r"(arch));
+  t0 = inl(CLINT_MTIME);
+  t1 = inl(CLINT_MTIME);
+  t2 = inl(CLINT_MTIME);
 
   // Show marchid in decimal on 8-digit 7-seg (one BCD digit per nibble).
   uint32_t packed_bcd = 0;
@@ -63,6 +67,7 @@ void _trm_init() {
 
   uart_init();
   printf("CSR mvendorid=0x%08x marchid=%u(0x%08x)\n", vendor, arch, arch);
+  printf("CLINT mtime samples: %u -> %u -> %u\n", t0, t1, t2);
   int ret = main(mainargs);
   halt(ret);
 }
