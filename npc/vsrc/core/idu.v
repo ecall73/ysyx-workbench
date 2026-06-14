@@ -23,8 +23,6 @@ module ysyx_26030082_idu (
     output wire        id_btype,
     output wire        id_jtype,
     output wire        id_ijtype,
-    output wire        id_rs1_used,
-    output wire        id_rs2_used,
 
     // CSR
     output wire        id_CSRSrc,
@@ -128,9 +126,6 @@ module ysyx_26030082_idu (
     assign id_btype = op_branch;
     assign id_jtype = op_jal;
     assign id_ijtype = op_jalr;
-    assign id_rs1_used = op_rtype | op_itype | op_load | op_jalr |
-                         op_store | op_branch | (op_csr & ~funct3[2]);
-    assign id_rs2_used = op_rtype | op_store | op_branch;
 
     assign op_add = (op_rtype && funct == 4'b0000) ||
                     (op_itype && funct3 == 3'b000) ||

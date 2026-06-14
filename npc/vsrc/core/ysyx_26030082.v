@@ -141,8 +141,6 @@ module ysyx_26030082 #(
     wire        id_btype;
     wire        id_jtype;
     wire        id_ijtype;
-    wire        id_rs1_used;
-    wire        id_rs2_used;
     wire        id_CSRSrc;
     wire [ 2:0] id_CSRaddr;
     wire [ 2:0] id_CSRControl;
@@ -329,8 +327,6 @@ module ysyx_26030082 #(
         .id_btype               (id_btype),
         .id_jtype               (id_jtype),
         .id_ijtype              (id_ijtype),
-        .id_rs1_used            (id_rs1_used),
-        .id_rs2_used            (id_rs2_used),
 
         .id_CSRSrc              (id_CSRSrc),
         .id_CSRaddr             (id_CSRaddr),
@@ -359,8 +355,6 @@ module ysyx_26030082 #(
 
     ysyx_26030082_forward forward (
         .id_in_valid            (id_valid),
-        .id_rs1_used            (id_rs1_used),
-        .id_rs2_used            (id_rs2_used),
         .id_rR1                 (id_inst[19:15]),
         .id_rR2                 (id_inst[24:20]),
         .id_rR1_data            (id_rR1_data),
@@ -691,7 +685,7 @@ module ysyx_26030082 #(
             end
             if (pmu_ifu_nosupply) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
-                if (flush || icache.need_flush) begin
+                if (flush || icache.drop_fill) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
                 end else if (id_valid && !id_ready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;
