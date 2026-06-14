@@ -21,10 +21,7 @@ module ysyx_26030082_ALU(
     localparam [3:0] ALU_AND  = 4'b0111;
 
     wire [31:0] add_sub_result, and_result, or_result, xor_result;
-    wire [31:0] sll_result;
-    wire [31:0] srl_result;
-    wire [31:0] sra_result;
-    wire [ 4:0] shamt;
+    wire [31:0] sll_result, srl_result, sra_result;
     wire        is_sub_family;
     wire        cmp_lt;
     wire        cmp_ltu;
@@ -35,7 +32,6 @@ module ysyx_26030082_ALU(
     reg  [31:0] result_r;
 
     wire [31:0] adder_a, adder_b;
-    wire signed [31:0] signed_a;
     wire cin, carry;
 
     assign adder_a = A;
@@ -50,11 +46,9 @@ module ysyx_26030082_ALU(
     assign and_result   = A & B;
     assign or_result    = A | B;
     assign xor_result   = A ^ B;
-    assign shamt = B[4:0];
-    assign signed_a = A;
-    assign sll_result = A << shamt;
-    assign srl_result = A >> shamt;
-    assign sra_result = signed_a >>> shamt;
+    assign sll_result   = A << B[4:0];
+    assign srl_result   = A >> B[4:0];
+    assign sra_result   = ($signed(A)) >>> B[4:0];
     assign cmp_lt = (A[31] & ~B[31]) | ((~A[31] ^ B[31]) & add_sub_result[31]);
     assign cmp_ltu = ~carry;
     assign bru_cmp_eq = (BRU_A == BRU_B);
