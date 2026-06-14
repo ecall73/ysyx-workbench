@@ -2,8 +2,8 @@ module ysyx_26030082_CSR (
     input  wire        clock,
     input  wire        reset,
 
-    input  wire [ 4:0] CSRControl, // one-hot CCTL
-    input  wire [11:0] CSRaddr,
+    input  wire [ 2:0] CSRControl,
+    input  wire [ 2:0] CSRaddr,
     input  wire        CSRSrc,     // CSR写入选择
     input  wire [31:0] rR1_data,   // CSR写入寄存器值(csrrx),已递进
     input  wire [31:0] imm,        // CSR写入立即数(csrrxi)
@@ -15,24 +15,25 @@ module ysyx_26030082_CSR (
     output reg  [31:0] CSRnpc      // CSR跳转pc
 );
 
-    localparam [4:0] CCTL_CSRRW = 5'b00001;
-    localparam [4:0] CCTL_CSRRS = 5'b00010;
-    localparam [4:0] CCTL_CSRRC = 5'b00100;
-    localparam [4:0] CCTL_MRET  = 5'b10000;
+    localparam [2:0] CCTL_CSRRW = 3'd1;
+    localparam [2:0] CCTL_CSRRS = 3'd2;
+    localparam [2:0] CCTL_CSRRC = 3'd3;
+    localparam [2:0] CCTL_ECALL = 3'd4;
+    localparam [2:0] CCTL_MRET  = 3'd5;
 
-    localparam [11:0] CSR_mstatus   = 12'h300;
-    localparam [11:0] CSR_mtvec     = 12'h305;
-    localparam [11:0] CSR_mepc      = 12'h341;
-    localparam [11:0] CSR_mcause    = 12'h342;
-    localparam [11:0] CSR_mvendorid = 12'hF11;
-    localparam [11:0] CSR_marchid   = 12'hF12;
+    localparam [2:0] CSR_mstatus   = 3'd0;
+    localparam [2:0] CSR_mtvec     = 3'd1;
+    localparam [2:0] CSR_mepc      = 3'd2;
+    localparam [2:0] CSR_mcause    = 3'd3;
+    localparam [2:0] CSR_mvendorid = 3'd4;
+    localparam [2:0] CSR_marchid   = 3'd5;
 
     reg  [31:0] mstatus, mtvec, mepc, mcause;
 
     localparam [31:0] CAUSE_ECALL_M = 32'd11;
 
-    wire        ecall = CSRControl[3];
-    wire        mret  = CSRControl[4];
+    wire        ecall = (CSRControl == CCTL_ECALL);
+    wire        mret  = (CSRControl == CCTL_MRET);
     wire [31:0] CSRwdata = CSRSrc ? imm : rR1_data;  // csrrxi: imm, csrrx: rR1
 
     wire        sync_trap_req   = ecall;

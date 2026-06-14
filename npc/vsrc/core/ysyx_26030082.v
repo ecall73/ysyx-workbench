@@ -142,8 +142,8 @@ module ysyx_26030082 #(
     wire        id_jtype;
     wire        id_ijtype;
     wire        id_CSRSrc;
-    wire [11:0] id_CSRaddr;
-    wire [ 4:0] id_CSRControl;
+    wire [ 2:0] id_CSRaddr;
+    wire [ 2:0] id_CSRControl;
     wire        id_FenceI;
 
     // EX
@@ -169,8 +169,8 @@ module ysyx_26030082 #(
     reg         ex_jtype;
     reg         ex_ijtype;
     reg         ex_CSRSrc;
-    reg  [11:0] ex_CSRaddr;
-    reg  [ 4:0] ex_CSRControl;
+    reg  [ 2:0] ex_CSRaddr;
+    reg  [ 2:0] ex_CSRControl;
     reg         ex_FenceI;
     wire [31:0] ex_CSRnpc;
     wire        ex_CSRjump;
