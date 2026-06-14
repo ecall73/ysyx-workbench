@@ -466,16 +466,22 @@ module ysyx_26030082 #(
             ls_in_valid <= 1'b0;
         end else if (ex_out_ready) begin
             ls_in_valid <= ex_out_valid;
-            ls_RegWrite <= ex_RegWrite;
-            ls_MemWrite <= ex_MemWrite;
-            ls_ALUResult <= ex_ALUResult;
-            ls_rR2_data <= ex_rR2_data;
-            ls_funct3   <= ex_funct3;
-            ls_RFwaddr  <= ex_RFwaddr;
-            ls_WBAltData <= ex_WBAltData;
-            ls_WBUseAlt <= ex_WBUseAlt;
-            ls_MemRead  <= ex_MemRead;
         end
+    end
+
+    // In the 3-stage design, LS backpressure also stalls IF/ID/EX, so the EX
+    // payload stays stable while ex_out_ready=0. Payload flops can therefore
+    // track EX every cycle; only the valid bit needs the handshake hold.
+    always @(posedge clock) begin
+        ls_RegWrite  <= ex_RegWrite;
+        ls_MemWrite  <= ex_MemWrite;
+        ls_ALUResult <= ex_ALUResult;
+        ls_rR2_data  <= ex_rR2_data;
+        ls_funct3    <= ex_funct3;
+        ls_RFwaddr   <= ex_RFwaddr;
+        ls_WBAltData <= ex_WBAltData;
+        ls_WBUseAlt  <= ex_WBUseAlt;
+        ls_MemRead   <= ex_MemRead;
     end
 
     //trace
