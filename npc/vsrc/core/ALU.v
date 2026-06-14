@@ -1,6 +1,8 @@
 module ysyx_26030082_ALU(
     input  wire        ALUSrcA,
     input  wire        ALUSrcB,
+    input  wire        BRUSrcA,
+    input  wire        BRUSrcB,
     input  wire [31:0] rR1_data,
     input  wire [31:0] rR2_data,
     input  wire [31:0] pc,
@@ -27,6 +29,10 @@ module ysyx_26030082_ALU(
     wire        is_sub_family;
     wire        cmp_lt;
     wire        cmp_ltu;
+    wire [31:0] bru_a;
+    wire [31:0] bru_b;
+    wire [31:0] bru_sub_result;
+    wire        bru_carry;
     wire        bru_cmp_eq;
     wire        bru_cmp_lt;
     wire        bru_cmp_ltu;
@@ -39,6 +45,8 @@ module ysyx_26030082_ALU(
 
     assign A = ALUSrcA ? pc : rR1_data;
     assign B = ALUSrcB ? imm : rR2_data;
+    assign bru_a = BRUSrcA ? pc : rR1_data;
+    assign bru_b = BRUSrcB ? imm : rR2_data;
     assign adder_a = A;
     assign is_sub_family = (ALUControl == ALU_SUB) ||
                            (ALUControl == ALU_SLT) ||
@@ -56,9 +64,10 @@ module ysyx_26030082_ALU(
     assign sra_result   = ($signed(A)) >>> B[4:0];
     assign cmp_lt = (A[31] & ~B[31]) | ((~A[31] ^ B[31]) & add_sub_result[31]);
     assign cmp_ltu = ~carry;
-    assign bru_cmp_eq = (rR1_data == rR2_data);
-    assign bru_cmp_lt = ($signed(rR1_data) < $signed(rR2_data));
-    assign bru_cmp_ltu = (rR1_data < rR2_data);
+    assign {bru_carry, bru_sub_result} = {1'b0, bru_a} + {1'b0, ~bru_b} + 33'd1;
+    assign bru_cmp_eq = (bru_sub_result == 32'b0);
+    assign bru_cmp_lt = (bru_a[31] & ~bru_b[31]) | ((~bru_a[31] ^ bru_b[31]) & bru_sub_result[31]);
+    assign bru_cmp_ltu = ~bru_carry;
 
     always @(*) begin
         case (ALUControl)

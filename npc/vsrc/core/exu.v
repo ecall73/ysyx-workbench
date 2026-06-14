@@ -97,6 +97,8 @@ module ysyx_26030082_exu (
     wire [2:0] MemToReg;
     wire       ALUSrcA;
     wire       ALUSrcB;
+    wire       BRUSrcA;
+    wire       BRUSrcB;
     wire       rs1_used;
     wire       rs2_used;
     wire       is_system;
@@ -166,17 +168,19 @@ module ysyx_26030082_exu (
                         op_sltu ? SLTU :
                                   ERR;
 
-    assign ex_RegWrite = ~(op_branch | op_store | op_misc_mem);
+    assign ex_RegWrite = fetch_valid && ~(op_branch | op_store | op_misc_mem);
     assign MemToReg = ({3{op_rtype}} & MEM_TO_REG_ALU) |
                       ({3{op_itype}} & MEM_TO_REG_ALU) |
                       ({3{op_auipc}} & MEM_TO_REG_ALU) |
                       ({3{op_load}} & MEM_TO_REG_DRAM) |
                       ({3{op_lui}} & MEM_TO_REG_IMM) |
                       ({3{op_csr}} & MEM_TO_REG_CSR);
-    assign ex_MemWrite = op_store;
+    assign ex_MemWrite = fetch_valid && op_store;
     assign ex_MemRead = MemToReg[2];
-    assign ALUSrcA = op_auipc | op_branch | op_jal;
+    assign ALUSrcA = op_auipc | op_jal;
     assign ALUSrcB = ~(op_rtype | op_misc_mem);
+    assign BRUSrcA = op_branch;
+    assign BRUSrcB = op_branch;
     assign rs1_used = op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
                       (op_csr && ~funct3[2]);
     assign rs2_used = op_rtype | op_store | op_branch;
@@ -206,10 +210,10 @@ module ysyx_26030082_exu (
 
     assign redirect_base = op_jalr ? rR1_data_forward : fetch_pc;
     assign redirect_target_sum = redirect_base + imm;
-    assign ex_Redirect = op_jal || op_jalr || (op_branch && BRUResult);
+    assign ex_Redirect = fetch_valid && (op_jal || op_jalr || (op_branch && BRUResult));
     assign ex_RedirectTarget = op_jalr ? {redirect_target_sum[31:1], 1'b0}
                                        : redirect_target_sum;
-    assign ex_FenceI = op_fencei;
+    assign ex_FenceI = fetch_valid && op_fencei;
 
     assign ex_WBAltData = MemToReg[1] ?
                               (MemToReg[0] ? imm : CSRrdata) :
@@ -239,6 +243,8 @@ module ysyx_26030082_exu (
     ysyx_26030082_ALU ALU (
         .ALUSrcA    (ALUSrcA),
         .ALUSrcB    (ALUSrcB),
+        .BRUSrcA    (BRUSrcA),
+        .BRUSrcB    (BRUSrcB),
         .rR1_data   (rR1_data_forward),
         .rR2_data   (rR2_data_forward),
         .pc         (fetch_pc),
