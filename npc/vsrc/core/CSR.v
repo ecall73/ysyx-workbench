@@ -66,60 +66,75 @@ module ysyx_26030082_CSR (
 
     assign CSRjump = trap_taken || mret_taken;
 
-    // mstatus
+    // Write-side decode is shared across all CSRs so synthesis can reuse the SYSTEM/CSR address checks.
     always @(posedge clock) begin
         if (reset) begin
             mstatus <= 32'h1800;
-        end else if (trap_taken) begin
-            mstatus[3] <= 0;
-            mstatus[7] <= mstatus[3];
-            mstatus[12:11] <= 3;
-        end else if (mret_taken) begin
-            mstatus[3] <= mstatus[7];
+            mtvec   <= 32'h1;
+            mepc    <= 32'h0;
+            mcause  <= 32'h0;
         end else begin
-            if (csr_cmd_rw && (CSRaddr == CSR_mstatus)) mstatus <= CSRwdata;
-            else if (csr_cmd_rs && (CSRaddr == CSR_mstatus)) mstatus <= mstatus | CSRwdata;
-            else if (csr_cmd_rc && (CSRaddr == CSR_mstatus)) mstatus <= mstatus & ~CSRwdata;
-            else mstatus <= mstatus;
-        end
-    end
+            mstatus <= mstatus;
+            mtvec   <= mtvec;
+            mepc    <= mepc;
+            mcause  <= mcause;
 
-    // mcause
-    always @(posedge clock) begin
-        if (reset) begin
-            mcause <= 32'h0;
-        end else if (trap_taken) begin
-            mcause <= {trap_is_interrupt, trap_cause_code[30:0]};
-        end else begin
-            mcause <= mcause;
-        end
-    end
+            if (is_system) begin
+                case (funct3)
+                    3'b000: begin
+                        case (CSRaddr)
+                            INST_ECALL: begin
+                                mstatus[3] <= 1'b0;
+                                mstatus[7] <= mstatus[3];
+                                mstatus[12:11] <= 2'b11;
+                                mepc <= pc;
+                                mcause <= {trap_is_interrupt, trap_cause_code[30:0]};
+                            end
+                            INST_MRET: begin
+                                mstatus[3] <= mstatus[7];
+                            end
+                            default: begin
+                            end
+                        endcase
+                    end
 
-    // mepc
-    always @(posedge clock) begin
-        if (reset) begin
-            mepc <= 32'h0;
-        end else if (trap_taken) begin
-            mepc <= pc;
-        end else begin
-            if (csr_cmd_rw && (CSRaddr == CSR_mepc)) mepc <= CSRwdata;
-            else if (csr_cmd_rs && (CSRaddr == CSR_mepc)) mepc <= mepc | CSRwdata;
-            else if (csr_cmd_rc && (CSRaddr == CSR_mepc)) mepc <= mepc & ~CSRwdata;
-            else mepc <= mepc;
-        end
-    end
+                    F3_CSRRW,
+                    F3_CSRRWI: begin
+                        case (CSRaddr)
+                            CSR_mstatus: mstatus <= CSRwdata;
+                            CSR_mtvec:   mtvec   <= CSRwdata;
+                            CSR_mepc:    mepc    <= CSRwdata;
+                            default: begin
+                            end
+                        endcase
+                    end
 
-    // mtvec
-    always @(posedge clock) begin
-        if (reset) begin
-            mtvec <= 32'h1;
-        end else if (trap_taken) begin
-            mtvec <= mtvec;
-        end else begin
-            if (csr_cmd_rw && (CSRaddr == CSR_mtvec)) mtvec <= CSRwdata;
-            else if (csr_cmd_rs && (CSRaddr == CSR_mtvec)) mtvec <= mtvec | CSRwdata;
-            else if (csr_cmd_rc && (CSRaddr == CSR_mtvec)) mtvec <= mtvec & ~CSRwdata;
-            else mtvec <= mtvec;
+                    F3_CSRRS,
+                    F3_CSRRSI: begin
+                        case (CSRaddr)
+                            CSR_mstatus: mstatus <= mstatus | CSRwdata;
+                            CSR_mtvec:   mtvec   <= mtvec | CSRwdata;
+                            CSR_mepc:    mepc    <= mepc | CSRwdata;
+                            default: begin
+                            end
+                        endcase
+                    end
+
+                    F3_CSRRC,
+                    F3_CSRRCI: begin
+                        case (CSRaddr)
+                            CSR_mstatus: mstatus <= mstatus & ~CSRwdata;
+                            CSR_mtvec:   mtvec   <= mtvec & ~CSRwdata;
+                            CSR_mepc:    mepc    <= mepc & ~CSRwdata;
+                            default: begin
+                            end
+                        endcase
+                    end
+
+                    default: begin
+                    end
+                endcase
+            end
         end
     end
 
