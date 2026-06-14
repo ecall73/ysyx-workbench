@@ -23,10 +23,15 @@ module ysyx_26030082_forward(
 
     wire forward_ex_A;
     wire forward_ex_B;
+    wire forward_ls_A;
+    wire forward_ls_B;
     wire ls_load_use_hazard;
 
     assign forward_ex_A = (id_rR1 == ex_RFwaddr) && ex_RegWrite && ~(ex_RFwaddr == 0);
     assign forward_ex_B = (id_rR2 == ex_RFwaddr) && ex_RegWrite && ~(ex_RFwaddr == 0);
+
+    assign forward_ls_A = (id_rR1 == ls_RFwaddr) && ls_RegWrite && ~(ls_RFwaddr == 0);
+    assign forward_ls_B = (id_rR2 == ls_RFwaddr) && ls_RegWrite && ~(ls_RFwaddr == 0);
 
     assign ls_load_use_hazard = ls_load_pending &&
                                 (ls_RFwaddr != 5'b0) &&
@@ -43,15 +48,14 @@ module ysyx_26030082_forward(
 
     always @(*) begin
         if      (forward_ex_A) id_rR1_data_forward = ex_RFwdata;
+        else if (forward_ls_A) id_rR1_data_forward = ls_RFwdata;
         else                   id_rR1_data_forward = id_rR1_data;
     end
 
     always @(*) begin
         if      (forward_ex_B) id_rR2_data_forward = ex_RFwdata;
+        else if (forward_ls_B) id_rR2_data_forward = ls_RFwdata;
         else                   id_rR2_data_forward = id_rR2_data;
     end
-
-    wire _unused_ok;
-    assign _unused_ok = &{1'b0, ls_RegWrite, ls_RFwdata};
 
 endmodule
