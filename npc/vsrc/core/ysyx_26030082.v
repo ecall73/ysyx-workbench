@@ -136,8 +136,6 @@ module ysyx_26030082 #(
     wire [31:0] id_imm;
     wire [31:0] id_rR1_data;
     wire [31:0] id_rR2_data;
-    wire [31:0] id_rR1_data_forward;
-    wire [31:0] id_rR2_data_forward;
     wire        id_btype;
     wire        id_jtype;
     wire        id_ijtype;
@@ -340,6 +338,10 @@ module ysyx_26030082 #(
         .clock                  (clock),
         .reset                  (reset),
 
+        .ex_wen                 (ex_in_valid && ex_RegWrite && ~ex_MemRead),
+        .ex_waddr               (ex_RFwaddr),
+        .ex_wdata               (ex_RFwdata),
+
         .wen                    (ls_out_valid && ls_RegWrite),
         .waddr                  (ls_RFwaddr),
         .wdata                  (ls_RFwdata_out),
@@ -355,22 +357,15 @@ module ysyx_26030082 #(
         .id_in_valid            (id_valid),
         .id_rR1                 (id_inst[19:15]),
         .id_rR2                 (id_inst[24:20]),
-        .id_rR1_data            (id_rR1_data),
-        .id_rR2_data            (id_rR2_data),
 
         .ex_out_valid           (ex_out_valid),
         .ex_MemRead             (ex_MemRead),
-        .ex_RegWrite            (ex_in_valid && ex_RegWrite),
         .ex_RFwaddr             (ex_RFwaddr),
-        .ex_RFwdata             (ex_RFwdata),
 
-        .ls_RegWrite            (ls_out_valid && ls_RegWrite),
         .ls_RFwaddr             (ls_RFwaddr),
         .ls_load_pending        (ls_in_valid && ls_MemRead && ~ls_out_valid),
 
-        .forward_pending        (forward_pending),
-        .id_rR1_data_forward    (id_rR1_data_forward),
-        .id_rR2_data_forward    (id_rR2_data_forward)
+        .forward_pending        (forward_pending)
     );
 
     // ================================================================
@@ -393,8 +388,8 @@ module ysyx_26030082 #(
             ex_RFwaddr      <= id_inst[11:7];
             ex_ALUSrcA      <= id_ALUSrcA;
             ex_ALUSrcB      <= id_ALUSrcB;
-            ex_rR1_data     <= id_rR1_data_forward;
-            ex_rR2_data     <= id_rR2_data_forward;
+            ex_rR1_data     <= id_rR1_data;
+            ex_rR2_data     <= id_rR2_data;
             ex_CSRSrc       <= id_CSRSrc;
             ex_CSRaddr      <= id_CSRaddr;
             ex_CSRControl   <= id_CSRControl;

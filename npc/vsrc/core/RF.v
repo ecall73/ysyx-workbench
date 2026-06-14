@@ -1,6 +1,10 @@
 module ysyx_26030082_RF(
     input  wire        clock,
     input  wire        reset,
+    // EX bypass
+    input  wire        ex_wen,
+    input  wire [ 4:0] ex_waddr,
+    input  wire [31:0] ex_wdata,
     // Write rd
     input  wire        wen,
     input  wire [ 4:0] waddr,
@@ -47,6 +51,9 @@ module ysyx_26030082_RF(
         if (wen && ~waddr[4] && (waddr == rR1) && (rR1 != 5'd0)) begin
             rR1_data = wdata;
         end
+        if (ex_wen && ~ex_waddr[4] && (ex_waddr == rR1) && (rR1 != 5'd0)) begin
+            rR1_data = ex_wdata;
+        end
 
         if ((rR2 == 5'd0) || rR2[4]) begin
             rR2_data = 32'b0;
@@ -72,6 +79,9 @@ module ysyx_26030082_RF(
         end
         if (wen && ~waddr[4] && (waddr == rR2) && (rR2 != 5'd0)) begin
             rR2_data = wdata;
+        end
+        if (ex_wen && ~ex_waddr[4] && (ex_waddr == rR2) && (rR2 != 5'd0)) begin
+            rR2_data = ex_wdata;
         end
     end
 
