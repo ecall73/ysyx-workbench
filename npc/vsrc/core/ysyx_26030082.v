@@ -138,8 +138,6 @@ module ysyx_26030082 #(
     wire [31:0] id_rR2_data;
     wire [31:0] id_rR1_data_forward;
     wire [31:0] id_rR2_data_forward;
-    wire [ 3:0] id_rR1_addr;
-    wire [ 3:0] id_rR2_addr;
     wire [ 3:0] id_RFwaddr;
     wire        id_btype;
     wire        id_jtype;
@@ -245,10 +243,7 @@ module ysyx_26030082 #(
     `endif
 
 ////////////////////////////////////////////////////////////////
-
-    assign id_rR1_addr = id_inst[19] ? 4'd0 : id_inst[18:15];
-    assign id_rR2_addr = id_inst[24] ? 4'd0 : id_inst[23:20];
-    assign id_RFwaddr = id_inst[11] ? 4'd0 : id_inst[10:7];
+    assign id_RFwaddr = id_inst[10:7];
 
     always @(posedge clock) begin
         if (reset) begin
@@ -353,8 +348,8 @@ module ysyx_26030082 #(
         .waddr                  (ls_RFwaddr),
         .wdata                  (ls_RFwdata_out),
 
-        .rR1                    (id_rR1_addr),
-        .rR2                    (id_rR2_addr),
+        .rR1                    (id_inst[19:15]),
+        .rR2                    (id_inst[24:20]),
 
         .rR1_data               (id_rR1_data),
         .rR2_data               (id_rR2_data)
@@ -362,8 +357,8 @@ module ysyx_26030082 #(
 
     ysyx_26030082_forward forward (
         .id_in_valid            (id_valid),
-        .id_rR1                 (id_rR1_addr),
-        .id_rR2                 (id_rR2_addr),
+        .id_rR1                 (id_inst[19:15]),
+        .id_rR2                 (id_inst[24:20]),
         .id_rR1_data            (id_rR1_data),
         .id_rR2_data            (id_rR2_data),
 
@@ -393,7 +388,7 @@ module ysyx_26030082 #(
         end else if (ex_in_ready) begin
             ex_in_valid <= id_issue_valid;
             ex_ALUControl   <= id_ALUControl;
-            ex_RegWrite     <= id_RegWrite;
+            ex_RegWrite     <= id_RegWrite & ~id_inst[11];
             ex_MemWrite     <= id_MemWrite;
             ex_MemToReg     <= id_MemToReg;
             ex_funct3       <= id_inst[14:12];
