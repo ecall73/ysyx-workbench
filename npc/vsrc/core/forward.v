@@ -1,5 +1,7 @@
 module ysyx_26030082_forward(
     input  wire        id_in_valid,
+    input  wire        id_rs1_used,
+    input  wire        id_rs2_used,
     input  wire [ 4:0] id_rR1,
     input  wire [ 4:0] id_rR2,
     input  wire [31:0] id_rR1_data,
@@ -27,22 +29,24 @@ module ysyx_26030082_forward(
     wire forward_ls_B;
     wire ls_load_use_hazard;
 
-    assign forward_ex_A = (id_rR1 == ex_RFwaddr) && ex_RegWrite && ~(ex_RFwaddr == 0);
-    assign forward_ex_B = (id_rR2 == ex_RFwaddr) && ex_RegWrite && ~(ex_RFwaddr == 0);
+    assign forward_ex_A = id_rs1_used && (id_rR1 == ex_RFwaddr) && ex_RegWrite && ~(ex_RFwaddr == 0);
+    assign forward_ex_B = id_rs2_used && (id_rR2 == ex_RFwaddr) && ex_RegWrite && ~(ex_RFwaddr == 0);
 
-    assign forward_ls_A = (id_rR1 == ls_RFwaddr) && ls_RegWrite && ~(ls_RFwaddr == 0);
-    assign forward_ls_B = (id_rR2 == ls_RFwaddr) && ls_RegWrite && ~(ls_RFwaddr == 0);
+    assign forward_ls_A = id_rs1_used && (id_rR1 == ls_RFwaddr) && ls_RegWrite && ~(ls_RFwaddr == 0);
+    assign forward_ls_B = id_rs2_used && (id_rR2 == ls_RFwaddr) && ls_RegWrite && ~(ls_RFwaddr == 0);
 
     assign ls_load_use_hazard = ls_load_pending &&
                                 (ls_RFwaddr != 5'b0) &&
-                                ((id_rR1 == ls_RFwaddr) || (id_rR2 == ls_RFwaddr));
+                                ((id_rs1_used && (id_rR1 == ls_RFwaddr)) ||
+                                 (id_rs2_used && (id_rR2 == ls_RFwaddr)));
 
     // A load in EX or a pending (not-yet-returned) load in LS must block ID
     // when ID needs that destination register.
     assign forward_pending = id_in_valid && (
                                 (ex_out_valid && ex_MemRead &&
                                  (ex_RFwaddr != 5'b0) &&
-                                 ((id_rR1 == ex_RFwaddr) || (id_rR2 == ex_RFwaddr))) ||
+                                 ((id_rs1_used && (id_rR1 == ex_RFwaddr)) ||
+                                  (id_rs2_used && (id_rR2 == ex_RFwaddr)))) ||
                                 ls_load_use_hazard
                              );
 

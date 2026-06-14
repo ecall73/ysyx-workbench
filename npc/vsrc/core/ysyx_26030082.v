@@ -141,6 +141,8 @@ module ysyx_26030082 #(
     wire        id_btype;
     wire        id_jtype;
     wire        id_ijtype;
+    wire        id_rs1_used;
+    wire        id_rs2_used;
     wire        id_CSRSrc;
     wire [ 2:0] id_CSRaddr;
     wire [ 2:0] id_CSRControl;
@@ -176,14 +178,14 @@ module ysyx_26030082 #(
     wire        ex_CSRjump;
 
     // LS
-    wire        ls_in_valid;
-    wire        ls_RegWrite;
-    wire        ls_MemRead;
-    wire        ls_MemWrite;
-    wire [31:0] ls_rR2_data;
-    wire [ 2:0] ls_funct3;
-    wire [ 4:0] ls_RFwaddr;
-    wire [31:0] ls_payload;
+    reg         ls_in_valid;
+    reg         ls_RegWrite;
+    reg         ls_MemRead;
+    reg         ls_MemWrite;
+    reg  [31:0] ls_rR2_data;
+    reg  [ 2:0] ls_funct3;
+    reg  [ 4:0] ls_RFwaddr;
+    reg  [31:0] ls_payload;
     wire        ls_in_ready;
     wire        ls_out_valid;
     wire        ls_out_ready;
@@ -327,6 +329,8 @@ module ysyx_26030082 #(
         .id_btype               (id_btype),
         .id_jtype               (id_jtype),
         .id_ijtype              (id_ijtype),
+        .id_rs1_used            (id_rs1_used),
+        .id_rs2_used            (id_rs2_used),
 
         .id_CSRSrc              (id_CSRSrc),
         .id_CSRaddr             (id_CSRaddr),
@@ -355,6 +359,8 @@ module ysyx_26030082 #(
 
     ysyx_26030082_forward forward (
         .id_in_valid            (id_valid),
+        .id_rs1_used            (id_rs1_used),
+        .id_rs2_used            (id_rs2_used),
         .id_rR1                 (id_inst[19:15]),
         .id_rR2                 (id_inst[24:20]),
         .id_rR1_data            (id_rR1_data),
@@ -470,17 +476,44 @@ module ysyx_26030082 #(
         .ex_MemRead             (ex_MemRead)
     );
 
-    // EX/LS are coupled into one in-order backend stage. LSU backpressure
-    // holds the EX registers for memory ops, so younger instructions cannot
-    // retire before an older load/store.
-    assign ls_in_valid = ex_out_valid;
-    assign ls_RegWrite = ex_RegWrite;
-    assign ls_MemRead = ex_MemRead;
-    assign ls_MemWrite = ex_MemWrite;
-    assign ls_rR2_data = ex_rR2_data;
-    assign ls_funct3 = ex_funct3;
-    assign ls_RFwaddr = ex_RFwaddr;
-    assign ls_payload = (ex_MemRead || ex_MemWrite) ? ex_ALUResult : ex_RFwdata;
+    // ================================================================
+    // EX -> LS
+    // ================================================================
+    always @(posedge clock) begin
+        if (reset) begin
+            ls_in_valid <= 1'b0;
+        end else if (ex_out_ready) begin
+            ls_in_valid <= ex_out_valid;
+            ls_RegWrite <= ex_RegWrite;
+            ls_MemWrite <= ex_MemWrite;
+            ls_rR2_data <= ex_rR2_data;
+            ls_funct3   <= ex_funct3;
+            ls_RFwaddr  <= ex_RFwaddr;
+            ls_payload  <= (ex_MemRead || ex_MemWrite) ? ex_ALUResult : ex_RFwdata;
+            ls_MemRead  <= ex_MemRead;
+        end
+    end
+
+    //trace
+    `ifndef SYNTHESIS
+        always @(posedge clock) begin
+            if (reset) begin
+                pc_LS <= 32'b0;
+                inst_LS <= 32'b0;
+                have_inst_LS <= 1'b0;
+            end else if (ex_out_ready) begin
+                if (ex_out_valid) begin
+                    pc_LS <= pc_EX;
+                    inst_LS <= inst_EX;
+                    have_inst_LS <= have_inst_EX;
+                end else begin
+                    pc_LS <= 32'b0;
+                    inst_LS <= 32'b0;
+                    have_inst_LS <= 1'b0;
+                end
+            end
+        end
+    `endif
 
     assign ls_out_ready = 1'b1;
 
@@ -592,8 +625,8 @@ module ysyx_26030082 #(
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
     always @(posedge clock) begin
-        if (!reset && ls_out_valid && have_inst_EX) begin
-            npc_commit(pc_EX, inst_EX);
+        if (!reset && ls_out_valid && have_inst_LS) begin
+            npc_commit(pc_LS, inst_LS);
         end
     end
 `endif
