@@ -40,6 +40,9 @@ module ysyx_26030082_RF(
             5'd15: rR1_data = reg_bank[4'd15];
             default: rR1_data = 32'b0;
         endcase
+        if (wen && (waddr == rR1) && (rR1 != 5'd0) && ~rR1[4]) begin
+            rR1_data = wdata;
+        end
 
         case (rR2)
             5'd1: rR2_data = reg_bank[4'd1];
@@ -59,6 +62,9 @@ module ysyx_26030082_RF(
             5'd15: rR2_data = reg_bank[4'd15];
             default: rR2_data = 32'b0;
         endcase
+        if (wen && (waddr == rR2) && (rR2 != 5'd0) && ~rR2[4]) begin
+            rR2_data = wdata;
+        end
     end
 
 endmodule

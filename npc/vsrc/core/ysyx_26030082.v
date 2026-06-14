@@ -368,7 +368,6 @@ module ysyx_26030082 #(
 
         .ls_RegWrite            (ls_out_valid && ls_RegWrite),
         .ls_RFwaddr             (ls_RFwaddr),
-        .ls_RFwdata             (ls_RFwdata_out),
         .ls_load_pending        (ls_in_valid && ls_MemRead && ~ls_out_valid),
 
         .forward_pending        (forward_pending),
