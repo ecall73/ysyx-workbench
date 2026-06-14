@@ -87,34 +87,61 @@ module ysyx_26030082_CSR (
                         endcase
                     end
 
-                    F3_CSRRW,
+                    F3_CSRRW: begin
+                        case (CSRaddr)
+                            CSR_mstatus: mstatus <= rR1_data;
+                            CSR_mtvec:   mtvec   <= rR1_data;
+                            CSR_mepc:    mepc    <= rR1_data;
+                            default: begin
+                            end
+                        endcase
+                    end
+
                     F3_CSRRWI: begin
                         case (CSRaddr)
-                            CSR_mstatus: mstatus <= funct3[2] ? imm : rR1_data;
-                            CSR_mtvec:   mtvec   <= funct3[2] ? imm : rR1_data;
-                            CSR_mepc:    mepc    <= funct3[2] ? imm : rR1_data;
+                            CSR_mstatus: mstatus <= imm;
+                            CSR_mtvec:   mtvec   <= imm;
+                            CSR_mepc:    mepc    <= imm;
                             default: begin
                             end
                         endcase
                     end
 
-                    F3_CSRRS,
+                    F3_CSRRS: begin
+                        case (CSRaddr)
+                            CSR_mstatus: mstatus <= mstatus | rR1_data;
+                            CSR_mtvec:   mtvec   <= mtvec | rR1_data;
+                            CSR_mepc:    mepc    <= mepc | rR1_data;
+                            default: begin
+                            end
+                        endcase
+                    end
+
                     F3_CSRRSI: begin
                         case (CSRaddr)
-                            CSR_mstatus: mstatus <= mstatus | (funct3[2] ? imm : rR1_data);
-                            CSR_mtvec:   mtvec   <= mtvec | (funct3[2] ? imm : rR1_data);
-                            CSR_mepc:    mepc    <= mepc | (funct3[2] ? imm : rR1_data);
+                            CSR_mstatus: mstatus <= mstatus | imm;
+                            CSR_mtvec:   mtvec   <= mtvec | imm;
+                            CSR_mepc:    mepc    <= mepc | imm;
                             default: begin
                             end
                         endcase
                     end
 
-                    F3_CSRRC,
+                    F3_CSRRC: begin
+                        case (CSRaddr)
+                            CSR_mstatus: mstatus <= mstatus & ~rR1_data;
+                            CSR_mtvec:   mtvec   <= mtvec & ~rR1_data;
+                            CSR_mepc:    mepc    <= mepc & ~rR1_data;
+                            default: begin
+                            end
+                        endcase
+                    end
+
                     F3_CSRRCI: begin
                         case (CSRaddr)
-                            CSR_mstatus: mstatus <= mstatus & ~(funct3[2] ? imm : rR1_data);
-                            CSR_mtvec:   mtvec   <= mtvec & ~(funct3[2] ? imm : rR1_data);
-                            CSR_mepc:    mepc    <= mepc & ~(funct3[2] ? imm : rR1_data);
+                            CSR_mstatus: mstatus <= mstatus & ~imm;
+                            CSR_mtvec:   mtvec   <= mtvec & ~imm;
+                            CSR_mepc:    mepc    <= mepc & ~imm;
                             default: begin
                             end
                         endcase
