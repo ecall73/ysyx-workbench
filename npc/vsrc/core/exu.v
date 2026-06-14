@@ -24,11 +24,14 @@ module ysyx_26030082_exu (
     output wire [ 2:0] ex_funct3,
     output wire [ 4:0] ex_RFwaddr,
     output wire [31:0] ex_ALUResult,
-    output wire        ex_flush,
-    output wire        ex_invalidate,
-    output wire [31:0] ex_flush_target,
+    output wire [31:0] ex_pc4,
+    output wire        ex_Redirect,
+    output wire [31:0] ex_RedirectTarget,
+    output wire        ex_CSRjump,
+    output wire [31:0] ex_CSRnpc,
     output wire [31:0] ex_WBAltData,
     output wire        ex_WBUseAlt,
+    output wire        ex_FenceI,
     output wire        ex_have_inst
 );
 
@@ -107,11 +110,6 @@ module ysyx_26030082_exu (
 
     wire [31:0] CSRrdata;
     wire        BRUResult;
-    wire [31:0] ex_pc4;
-    wire        ex_Redirect;
-    wire [31:0] ex_RedirectTarget;
-    wire        ex_CSRjump;
-    wire [31:0] ex_CSRnpc;
     wire [31:0] redirect_base;
     wire [31:0] redirect_target_sum;
     wire        ex_fire;
@@ -168,14 +166,14 @@ module ysyx_26030082_exu (
                         op_sltu ? SLTU :
                                   ERR;
 
-    assign ex_RegWrite = fetch_valid && ~(op_branch | op_store | op_misc_mem);
+    assign ex_RegWrite = ~(op_branch | op_store | op_misc_mem);
     assign MemToReg = ({3{op_rtype}} & MEM_TO_REG_ALU) |
                       ({3{op_itype}} & MEM_TO_REG_ALU) |
                       ({3{op_auipc}} & MEM_TO_REG_ALU) |
                       ({3{op_load}} & MEM_TO_REG_DRAM) |
                       ({3{op_lui}} & MEM_TO_REG_IMM) |
                       ({3{op_csr}} & MEM_TO_REG_CSR);
-    assign ex_MemWrite = fetch_valid && op_store;
+    assign ex_MemWrite = op_store;
     assign ex_MemRead = MemToReg[2];
     assign ALUSrcA = op_auipc | op_branch | op_jal;
     assign ALUSrcB = ~(op_rtype | op_misc_mem);
@@ -211,11 +209,7 @@ module ysyx_26030082_exu (
     assign ex_Redirect = op_jal || op_jalr || (op_branch && BRUResult);
     assign ex_RedirectTarget = op_jalr ? {redirect_target_sum[31:1], 1'b0}
                                        : redirect_target_sum;
-    assign ex_flush = ex_fire && (ex_CSRjump || ex_Redirect || op_fencei);
-    assign ex_invalidate = ex_fire && op_fencei;
-    assign ex_flush_target = ex_CSRjump ? ex_CSRnpc :
-                             ex_Redirect ? ex_RedirectTarget :
-                             ex_pc4;
+    assign ex_FenceI = op_fencei;
 
     assign ex_WBAltData = MemToReg[1] ?
                               (MemToReg[0] ? imm : CSRrdata) :

@@ -139,11 +139,14 @@ module ysyx_26030082 #(
     wire [ 2:0] ex_funct3;
     wire [ 4:0] ex_RFwaddr;
     wire [31:0] ex_ALUResult;
-    wire        ex_flush;
-    wire        ex_invalidate;
-    wire [31:0] ex_flush_target;
+    wire [31:0] ex_pc4;
+    wire        ex_Redirect;
+    wire [31:0] ex_RedirectTarget;
     wire [31:0] ex_WBAltData;
     wire        ex_WBUseAlt;
+    wire        ex_FenceI;
+    wire [31:0] ex_CSRnpc;
+    wire        ex_CSRjump;
     wire        ex_have_inst;
     wire        ex_out_valid;
     wire        ex_out_ready;
@@ -229,12 +232,19 @@ module ysyx_26030082 #(
         .clock                  (clock),
         .reset                  (reset),
         .if_ready               (if_ready),
-        .flush                  (flush),
-        .invalidate             (invalidate),
-        .flush_target           (ex_flush_target),
+        .ex_out_valid           (ex_out_valid),
+        .ex_out_ready           (ex_out_ready),
+        .ex_pc4                 (ex_pc4),
+        .ex_Redirect            (ex_Redirect),
+        .ex_RedirectTarget      (ex_RedirectTarget),
+        .ex_CSRjump             (ex_CSRjump),
+        .ex_CSRnpc              (ex_CSRnpc),
+        .ex_FenceI              (ex_FenceI),
 
         .if_valid               (if_valid),
-        .if_pc                  (if_pc)
+        .if_pc                  (if_pc),
+        .flush                  (flush),
+        .invalidate             (invalidate)
     );
 
 
@@ -310,16 +320,16 @@ module ysyx_26030082 #(
         .ex_funct3              (ex_funct3),
         .ex_RFwaddr             (ex_RFwaddr),
         .ex_ALUResult           (ex_ALUResult),
-        .ex_flush               (ex_flush),
-        .ex_invalidate          (ex_invalidate),
-        .ex_flush_target        (ex_flush_target),
+        .ex_pc4                 (ex_pc4),
+        .ex_Redirect            (ex_Redirect),
+        .ex_RedirectTarget      (ex_RedirectTarget),
+        .ex_CSRjump             (ex_CSRjump),
+        .ex_CSRnpc              (ex_CSRnpc),
         .ex_WBAltData           (ex_WBAltData),
         .ex_WBUseAlt            (ex_WBUseAlt),
+        .ex_FenceI              (ex_FenceI),
         .ex_have_inst           (ex_have_inst)
     );
-
-    assign flush = ex_flush;
-    assign invalidate = ex_invalidate;
 
     // ================================================================
     // EX -> LS
