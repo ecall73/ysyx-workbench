@@ -134,10 +134,6 @@ module ysyx_26030082 #(
     wire        id_ALUSrcA;
     wire        id_ALUSrcB;
     wire [31:0] id_imm;
-    wire [ 2:0] id_funct3;
-    wire [ 4:0] id_RFwaddr;
-    wire        id_rs1_used;
-    wire        id_rs2_used;
     wire [31:0] id_rR1_data;
     wire [31:0] id_rR2_data;
     wire [31:0] id_rR1_data_forward;
@@ -150,33 +146,32 @@ module ysyx_26030082 #(
     wire        id_FenceI;
 
     // EX
-    wire        ex_in_valid;
-    wire [31:0] ex_pc;
-    wire [ 3:0] ex_ALUControl;
-    wire        ex_RegWrite;
-    wire [ 2:0] ex_MemToReg;
+    reg         ex_in_valid;
+    reg  [31:0] ex_pc;
+    reg  [ 3:0] ex_ALUControl;
+    reg         ex_RegWrite;
+    reg  [ 2:0] ex_MemToReg;
     wire        ex_MemRead;
-    wire        ex_MemWrite;
-    wire        ex_ALUSrcA;
-    wire        ex_ALUSrcB;
-    wire [31:0] ex_imm;
-    wire [31:0] ex_rR1_data;
-    wire [31:0] ex_rR2_data;
-    wire [ 2:0] ex_funct3;
-    wire [ 4:0] ex_RFwaddr;
+    reg         ex_MemWrite;
+    reg         ex_ALUSrcA;
+    reg         ex_ALUSrcB;
+    reg  [31:0] ex_imm;
+    reg  [31:0] ex_rR1_data;
+    reg  [31:0] ex_rR2_data;
+    reg  [ 2:0] ex_funct3;
+    reg  [ 4:0] ex_RFwaddr;
     wire [31:0] ex_ALUResult;
     wire        ex_BRUResult;
     wire [31:0] ex_pc4;
     wire [31:0] ex_RFwdata;
-    wire        ex_btype;
-    wire        ex_jtype;
-    wire        ex_ijtype;
-    wire        ex_is_system;
-    wire [11:0] ex_CSRaddr;
-    wire        ex_FenceI;
+    reg         ex_btype;
+    reg         ex_jtype;
+    reg         ex_ijtype;
+    reg         ex_is_system;
+    reg  [11:0] ex_CSRaddr;
+    reg         ex_FenceI;
     wire [31:0] ex_CSRnpc;
     wire        ex_CSRjump;
-    wire        ex_fire;
 
     // LS
     reg         ls_in_valid;
@@ -199,33 +194,6 @@ module ysyx_26030082 #(
     wire        ex_in_ready;
     wire        id_issue_valid; // From IDU handshake output
     wire        ex_out_valid;   // From EXU handshake output
-
-    assign ex_in_valid   = id_issue_valid;
-    assign ex_pc         = id_pc;
-    assign ex_ALUControl = id_ALUControl;
-    assign ex_RegWrite   = id_RegWrite;
-    assign ex_MemToReg   = id_MemToReg;
-    assign ex_MemWrite   = id_MemWrite;
-    assign ex_ALUSrcA    = id_ALUSrcA;
-    assign ex_ALUSrcB    = id_ALUSrcB;
-    assign ex_imm        = id_imm;
-    assign ex_rR1_data   = id_rR1_data_forward;
-    assign ex_rR2_data   = id_rR2_data_forward;
-    assign ex_funct3     = id_funct3;
-    assign ex_RFwaddr    = id_RFwaddr;
-    assign ex_btype      = id_btype;
-    assign ex_jtype      = id_jtype;
-    assign ex_ijtype     = id_ijtype;
-    assign ex_is_system  = id_is_system;
-    assign ex_CSRaddr    = id_CSRaddr;
-    assign ex_FenceI     = id_FenceI;
-    assign ex_fire       = ex_out_valid && ex_out_ready;
-
-`ifndef SYNTHESIS
-    assign pc_EX = id_pc;
-    assign inst_EX = id_inst;
-    assign have_inst_EX = have_inst_ID;
-`endif
 
     // IFU AXI4 (read-only in practice)
     wire [31:0] ifu_axi_araddr;
@@ -263,14 +231,11 @@ module ysyx_26030082 #(
 
     // Debug Interface
     `ifndef SYNTHESIS
-        wire [31:0] pc_EX;
-        reg  [31:0] pc_LS;
-        wire [31:0] inst_EX;
-        reg  [31:0] inst_LS;
+        reg [31:0] pc_EX, pc_LS;
+        reg [31:0] inst_EX, inst_LS;
         wire        have_inst_ID_decode;
         wire        have_inst_ID;
-        wire        have_inst_EX;
-        reg         have_inst_LS;
+        reg         have_inst_EX, have_inst_LS;
         assign have_inst_ID = id_valid && have_inst_ID_decode;
     `endif
 
@@ -311,7 +276,7 @@ module ysyx_26030082 #(
 
     ysyx_26030082_icache #(
         .LINE_WORDS             (4),
-        .LINE_COUNT             (8)
+        .LINE_COUNT             (4)
     ) icache (
         .clock                  (clock),
         .reset                  (reset),
@@ -356,10 +321,6 @@ module ysyx_26030082 #(
         .id_ALUSrcA             (id_ALUSrcA),
         .id_ALUSrcB             (id_ALUSrcB),
         .id_imm                 (id_imm),
-        .id_funct3              (id_funct3),
-        .id_RFwaddr             (id_RFwaddr),
-        .id_rs1_used            (id_rs1_used),
-        .id_rs2_used            (id_rs2_used),
 
         .id_btype               (id_btype),
         .id_jtype               (id_jtype),
@@ -393,16 +354,14 @@ module ysyx_26030082 #(
         .id_in_valid            (id_valid),
         .id_rR1                 (id_inst[19:15]),
         .id_rR2                 (id_inst[24:20]),
-        .id_rs1_used            (id_rs1_used),
-        .id_rs2_used            (id_rs2_used),
         .id_rR1_data            (id_rR1_data),
         .id_rR2_data            (id_rR2_data),
 
-        .ex_out_valid           (1'b0),
-        .ex_MemRead             (1'b0),
-        .ex_RegWrite            (1'b0),
-        .ex_RFwaddr             (5'b0),
-        .ex_RFwdata             (32'b0),
+        .ex_out_valid           (ex_out_valid),
+        .ex_MemRead             (ex_MemRead),
+        .ex_RegWrite            (ex_in_valid && ex_RegWrite),
+        .ex_RFwaddr             (ex_RFwaddr),
+        .ex_RFwdata             (ex_RFwdata),
 
         .ls_RegWrite            (ls_out_valid && ls_RegWrite),
         .ls_RFwaddr             (ls_RFwaddr),
@@ -414,6 +373,62 @@ module ysyx_26030082 #(
         .id_rR2_data_forward    (id_rR2_data_forward)
     );
 
+    // ================================================================
+    // ID -> EX
+    // ================================================================
+    always @(posedge clock) begin
+        if (reset) begin
+            ex_in_valid        <= 1'b0;
+        end else if (flush) begin
+            ex_in_valid        <= 1'b0;
+        end else if (ex_in_ready) begin
+            ex_in_valid <= id_issue_valid;
+            ex_ALUControl   <= id_ALUControl;
+            ex_RegWrite     <= id_RegWrite;
+            ex_MemWrite     <= id_MemWrite;
+            ex_MemToReg     <= id_MemToReg;
+            ex_funct3       <= id_inst[14:12];
+            ex_imm          <= id_imm;
+            ex_pc           <= id_pc;
+            ex_RFwaddr      <= id_inst[11:7];
+            ex_ALUSrcA      <= id_ALUSrcA;
+            ex_ALUSrcB      <= id_ALUSrcB;
+            ex_rR1_data     <= id_rR1_data_forward;
+            ex_rR2_data     <= id_rR2_data_forward;
+            ex_is_system    <= id_is_system;
+            ex_CSRaddr      <= id_CSRaddr;
+            ex_FenceI       <= id_FenceI;
+            ex_btype        <= id_btype;
+            ex_jtype        <= id_jtype;
+            ex_ijtype       <= id_ijtype;
+        end
+    end
+
+    //trace
+    `ifndef SYNTHESIS
+        always @(posedge clock) begin
+            if (reset) begin
+                pc_EX <= 32'b0;
+                inst_EX <= 32'b0;
+                have_inst_EX <= 1'b0;
+            end else if (flush) begin
+                pc_EX <= 32'b0;
+                inst_EX <= 32'b0;
+                have_inst_EX <= 1'b0;
+            end else if (ex_in_ready) begin
+                if (id_issue_valid) begin
+                    pc_EX <= id_pc;
+                    inst_EX <= id_inst;
+                    have_inst_EX <= have_inst_ID;
+                end else begin
+                    pc_EX <= 32'b0;
+                    inst_EX <= 32'b0;
+                    have_inst_EX <= 1'b0;
+                end
+            end
+        end
+    `endif
+
     // EX -> LS handshake coupling
     assign ex_out_ready = ls_in_ready;
 
@@ -424,7 +439,6 @@ module ysyx_26030082 #(
         .ex_in_ready            (ex_in_ready),
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
-        .ex_fire                (ex_fire),
 
         .ex_ALUSrcA             (ex_ALUSrcA),
         .ex_ALUSrcB             (ex_ALUSrcB),
