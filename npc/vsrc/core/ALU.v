@@ -21,17 +21,10 @@ module ysyx_26030082_ALU(
     localparam [3:0] ALU_AND  = 4'b0111;
 
     wire [31:0] add_sub_result, and_result, or_result, xor_result;
-    wire [31:0] shift_result;
-    wire [31:0] shift_src;
-    wire [31:0] shift_stage0;
-    wire [31:0] shift_stage1;
-    wire [31:0] shift_stage2;
-    wire [31:0] shift_stage3;
-    wire [31:0] shift_stage4;
-    wire [31:0] shift_right_result;
-    wire        is_left_shift;
-    wire        is_arith_shift;
-    wire        shift_fill;
+    wire [31:0] sll_result;
+    wire [31:0] srl_result;
+    wire [31:0] sra_result;
+    wire [ 4:0] shamt;
     wire        is_sub_family;
     wire        cmp_lt;
     wire        cmp_ltu;
@@ -42,6 +35,7 @@ module ysyx_26030082_ALU(
     reg  [31:0] result_r;
 
     wire [31:0] adder_a, adder_b;
+    wire signed [31:0] signed_a;
     wire cin, carry;
 
     assign adder_a = A;
@@ -56,35 +50,11 @@ module ysyx_26030082_ALU(
     assign and_result   = A & B;
     assign or_result    = A | B;
     assign xor_result   = A ^ B;
-    assign is_left_shift = (ALUControl == ALU_SLL);
-    assign is_arith_shift = (ALUControl == ALU_SRA);
-    assign shift_fill = is_arith_shift && A[31];
-    assign shift_src = is_left_shift ? {A[0],  A[1],  A[2],  A[3],  A[4],  A[5],  A[6],  A[7],
-                                        A[8],  A[9],  A[10], A[11], A[12], A[13], A[14], A[15],
-                                        A[16], A[17], A[18], A[19], A[20], A[21], A[22], A[23],
-                                        A[24], A[25], A[26], A[27], A[28], A[29], A[30], A[31]} : A;
-    assign shift_stage0 = B[0] ? {shift_fill, shift_src[31:1]} : shift_src;
-    assign shift_stage1 = B[1] ? {{2{shift_fill}}, shift_stage0[31:2]} : shift_stage0;
-    assign shift_stage2 = B[2] ? {{4{shift_fill}}, shift_stage1[31:4]} : shift_stage1;
-    assign shift_stage3 = B[3] ? {{8{shift_fill}}, shift_stage2[31:8]} : shift_stage2;
-    assign shift_stage4 = B[4] ? {{16{shift_fill}}, shift_stage3[31:16]} : shift_stage3;
-    assign shift_right_result = shift_stage4;
-    assign shift_result = is_left_shift ? {shift_right_result[0],  shift_right_result[1],
-                                           shift_right_result[2],  shift_right_result[3],
-                                           shift_right_result[4],  shift_right_result[5],
-                                           shift_right_result[6],  shift_right_result[7],
-                                           shift_right_result[8],  shift_right_result[9],
-                                           shift_right_result[10], shift_right_result[11],
-                                           shift_right_result[12], shift_right_result[13],
-                                           shift_right_result[14], shift_right_result[15],
-                                           shift_right_result[16], shift_right_result[17],
-                                           shift_right_result[18], shift_right_result[19],
-                                           shift_right_result[20], shift_right_result[21],
-                                           shift_right_result[22], shift_right_result[23],
-                                           shift_right_result[24], shift_right_result[25],
-                                           shift_right_result[26], shift_right_result[27],
-                                           shift_right_result[28], shift_right_result[29],
-                                           shift_right_result[30], shift_right_result[31]} : shift_right_result;
+    assign shamt = B[4:0];
+    assign signed_a = A;
+    assign sll_result = A << shamt;
+    assign srl_result = A >> shamt;
+    assign sra_result = signed_a >>> shamt;
     assign cmp_lt = (A[31] & ~B[31]) | ((~A[31] ^ B[31]) & add_sub_result[31]);
     assign cmp_ltu = ~carry;
     assign bru_cmp_eq = (BRU_A == BRU_B);
@@ -100,9 +70,9 @@ module ysyx_26030082_ALU(
             ALU_AND:  result_r = and_result;
             ALU_OR:   result_r = or_result;
             ALU_XOR:  result_r = xor_result;
-            ALU_SLL:  result_r = shift_result;
-            ALU_SRL:  result_r = shift_result;
-            ALU_SRA:  result_r = shift_result;
+            ALU_SLL:  result_r = sll_result;
+            ALU_SRL:  result_r = srl_result;
+            ALU_SRA:  result_r = sra_result;
             ALU_SLT:  result_r = {31'b0, cmp_lt};
             ALU_SLTU: result_r = {31'b0, cmp_ltu};
             default:  result_r = 32'b0;
