@@ -44,14 +44,14 @@ module ysyx_26030082_icache #(
     localparam integer DATA_ADDR_W = INDEX_W + LINE_WORD_OFF_W;
     localparam integer DATA_DEPTH = LINE_COUNT * LINE_WORDS;
     reg [31:0] data_array [0:DATA_DEPTH-1];
-    reg [TAG_W:0] tagv_array [0:LINE_COUNT-1];
+    reg [TAG_W-1:0] tag_array [0:LINE_COUNT-1];
+    reg [LINE_COUNT-1:0] valid_array;
 
     reg [INDEX_W-1:0] miss_index;
     reg [TAG_W-1:0]   miss_tag;
     reg [LINE_WORD_OFF_W-1:0] refill_word_idx;
     reg         need_flush;
     reg         drop_fill;
-    integer     valid_i;
 
     wire [LINE_WORD_OFF_W-1:0] lookup_word_offset;
     wire [INDEX_W-1:0]         lookup_index;
@@ -81,8 +81,8 @@ module ysyx_26030082_icache #(
 
     assign refill_data_addr = {miss_index, refill_word_idx};
 
-    assign lookup_rd_tag = tagv_array[lookup_index][TAG_W-1:0];
-    assign lookup_rd_valid = tagv_array[lookup_index][TAG_W];
+    assign lookup_rd_tag = tag_array[lookup_index];
+    assign lookup_rd_valid = valid_array[lookup_index];
     assign cache_hit = lookup_rd_valid && (lookup_rd_tag == lookup_tag);
     assign cache_miss = (state == S_LOOKUP) && !pipe_flush && if_valid && !cache_hit;
     assign lookup_resp_valid = (state == S_LOOKUP) && !pipe_flush && if_valid && cache_hit;
@@ -114,14 +114,10 @@ module ysyx_26030082_icache #(
             refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
             need_flush <= 1'b0;
             drop_fill <= 1'b0;
-            for (valid_i = 0; valid_i < LINE_COUNT; valid_i = valid_i + 1) begin
-                tagv_array[valid_i][TAG_W] <= 1'b0;
-            end
+            valid_array <= {LINE_COUNT{1'b0}};
         end else begin
             if (invalidate) begin
-                for (valid_i = 0; valid_i < LINE_COUNT; valid_i = valid_i + 1) begin
-                    tagv_array[valid_i][TAG_W] <= 1'b0;
-                end
+                valid_array <= {LINE_COUNT{1'b0}};
             end
 
             case (state)
@@ -167,10 +163,11 @@ module ysyx_26030082_icache #(
                     end
 
                     if (r_fire) begin
-                            data_array[refill_data_addr] <= ifu_axi_rdata;
+                        data_array[refill_data_addr] <= ifu_axi_rdata;
                         if (ifu_axi_rlast) begin
                             if (!drop_fill && !invalidate) begin
-                                tagv_array[miss_index] <= {1'b1, miss_tag};
+                                tag_array[miss_index] <= miss_tag;
+                                valid_array[miss_index] <= 1'b1;
                             end
                             if (discard_resp || drop_fill || invalidate) begin
                                 need_flush <= 1'b0;

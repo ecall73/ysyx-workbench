@@ -69,12 +69,16 @@ module ysyx_26030082_lsu (
     wire        w_fire;
     wire        b_fire;
     wire [1:0]  ls_offset;
+    wire [1:0]  ls_axi_size_low;
     wire [31:0] ls_local_rdata;
     wire [31:0] ls_load_raw_data;
+    wire [ 7:0] ls_load_byte;
+    wire [15:0] ls_load_half;
+    wire        ls_load_sign;
     reg  [3:0]  ls_wmask_calc;
     reg  [31:0] ls_wdata_aligned;
     reg  [31:0] ls_rdata_decoded;
-    reg  [2:0]  ls_axi_size;
+    wire [2:0]  ls_axi_size;
 
     assign ls_is_mem = ls_MemRead || ls_MemWrite;
     assign ls_is_load = ls_MemRead && ~ls_MemWrite;
@@ -88,10 +92,21 @@ module ysyx_26030082_lsu (
     assign w_fire = lsu_axi_wvalid && lsu_axi_wready;
     assign b_fire = lsu_axi_bvalid && lsu_axi_bready;
     assign ls_offset = ls_payload[1:0];
+    assign ls_axi_size_low = (ls_funct3[1:0] == 2'b00) ? 2'b00 :
+                             (ls_funct3[1:0] == 2'b01) ? 2'b01 :
+                                                          2'b10;
+    assign ls_axi_size = {1'b0, ls_axi_size_low};
     assign ls_local_rdata = (ls_payload == MTIME_ADDR)  ? ls_mtime[31:0]  :
                             (ls_payload == MTIMEH_ADDR) ? ls_mtime[63:32] :
                             32'b0;
     assign ls_load_raw_data = ls_is_local_load ? ls_local_rdata : lsu_axi_rdata;
+    assign ls_load_byte = (ls_offset == 2'b00) ? ls_load_raw_data[ 7: 0] :
+                          (ls_offset == 2'b01) ? ls_load_raw_data[15: 8] :
+                          (ls_offset == 2'b10) ? ls_load_raw_data[23:16] :
+                                                 ls_load_raw_data[31:24];
+    assign ls_load_half = ls_offset[1] ? ls_load_raw_data[31:16] :
+                                         ls_load_raw_data[15:0];
+    assign ls_load_sign = ~ls_funct3[2];
 
     // Non-memory ops pass through in IDLE with zero extra delay.
     // For memory ops, ls_in_ready is only released when R/B handshakes.
@@ -123,47 +138,14 @@ module ysyx_26030082_lsu (
     always @(*) begin
         ls_wmask_calc = 4'b0000;
         ls_wdata_aligned = ls_rR2_data;
-        ls_axi_size = 3'b010;
-        case (ls_funct3)
-            3'b000: begin // sb
-                ls_axi_size = 3'b000;
-                case (ls_offset)
-                    2'b00: begin
-                        ls_wmask_calc = 4'b0001;
-                        ls_wdata_aligned = {24'b0, ls_rR2_data[7:0]};
-                    end
-                    2'b01: begin
-                        ls_wmask_calc = 4'b0010;
-                        ls_wdata_aligned = {16'b0, ls_rR2_data[7:0], 8'b0};
-                    end
-                    2'b10: begin
-                        ls_wmask_calc = 4'b0100;
-                        ls_wdata_aligned = {8'b0, ls_rR2_data[7:0], 16'b0};
-                    end
-                    2'b11: begin
-                        ls_wmask_calc = 4'b1000;
-                        ls_wdata_aligned = {ls_rR2_data[7:0], 24'b0};
-                    end
-                endcase
+        case (ls_funct3[1:0])
+            2'b00: begin // sb
+                ls_wmask_calc = 4'b0001 << ls_offset;
+                ls_wdata_aligned = {4{ls_rR2_data[7:0]}};
             end
-            3'b001: begin // sh
-                ls_axi_size = 3'b001;
-                case (ls_offset[1])
-                    1'b0: begin
-                        ls_wmask_calc = 4'b0011;
-                        ls_wdata_aligned = {16'b0, ls_rR2_data[15:0]};
-                    end
-                    1'b1: begin
-                        ls_wmask_calc = 4'b1100;
-                        ls_wdata_aligned = {ls_rR2_data[15:0], 16'b0};
-                    end
-                endcase
-            end
-            3'b100: begin // lbu
-                ls_axi_size = 3'b000;
-            end
-            3'b101: begin // lhu
-                ls_axi_size = 3'b001;
+            2'b01: begin // sh
+                ls_wmask_calc = ls_offset[1] ? 4'b1100 : 4'b0011;
+                ls_wdata_aligned = {2{ls_rR2_data[15:0]}};
             end
             default: begin // sw
                 ls_wmask_calc = 4'b1111;
@@ -175,38 +157,12 @@ module ysyx_26030082_lsu (
     // Load sign/zero extension
     always @(*) begin
         ls_rdata_decoded = ls_load_raw_data; // lw
-        case (ls_funct3)
-            3'b000: begin // lb
-                case (ls_offset)
-                    2'b00: ls_rdata_decoded = {{24{ls_load_raw_data[7]}}, ls_load_raw_data[7:0]};
-                    2'b01: ls_rdata_decoded = {{24{ls_load_raw_data[15]}}, ls_load_raw_data[15:8]};
-                    2'b10: ls_rdata_decoded = {{24{ls_load_raw_data[23]}}, ls_load_raw_data[23:16]};
-                    2'b11: ls_rdata_decoded = {{24{ls_load_raw_data[31]}}, ls_load_raw_data[31:24]};
-                    default: ls_rdata_decoded = 32'b0;
-                endcase
+        case (ls_funct3[1:0])
+            2'b00: begin // lb/lbu
+                ls_rdata_decoded = {{24{ls_load_sign && ls_load_byte[7]}}, ls_load_byte};
             end
-            3'b001: begin // lh
-                case (ls_offset[1])
-                    1'b0: ls_rdata_decoded = {{16{ls_load_raw_data[15]}}, ls_load_raw_data[15:0]};
-                    1'b1: ls_rdata_decoded = {{16{ls_load_raw_data[31]}}, ls_load_raw_data[31:16]};
-                    default: ls_rdata_decoded = 32'b0;
-                endcase
-            end
-            3'b100: begin // lbu
-                case (ls_offset)
-                    2'b00: ls_rdata_decoded = {24'b0, ls_load_raw_data[7:0]};
-                    2'b01: ls_rdata_decoded = {24'b0, ls_load_raw_data[15:8]};
-                    2'b10: ls_rdata_decoded = {24'b0, ls_load_raw_data[23:16]};
-                    2'b11: ls_rdata_decoded = {24'b0, ls_load_raw_data[31:24]};
-                    default: ls_rdata_decoded = 32'b0;
-                endcase
-            end
-            3'b101: begin // lhu
-                case (ls_offset[1])
-                    1'b0: ls_rdata_decoded = {16'b0, ls_load_raw_data[15:0]};
-                    1'b1: ls_rdata_decoded = {16'b0, ls_load_raw_data[31:16]};
-                    default: ls_rdata_decoded = 32'b0;
-                endcase
+            2'b01: begin // lh/lhu
+                ls_rdata_decoded = {{16{ls_load_sign && ls_load_half[15]}}, ls_load_half};
             end
             default: ls_rdata_decoded = ls_load_raw_data;
         endcase
