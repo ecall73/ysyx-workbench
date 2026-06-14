@@ -4,7 +4,6 @@ module ysyx_26030082_ALU(
     input  wire [31:0] BRU_A,
     input  wire [31:0] BRU_B,
     input  wire [ 3:0] ALUControl,
-    input  wire [ 2:0] BRUFunct3,
     output wire [31:0] Result,
     output wire        BRUResult
 );
@@ -19,6 +18,12 @@ module ysyx_26030082_ALU(
     localparam [3:0] ALU_SRA  = 4'b1101;
     localparam [3:0] ALU_OR   = 4'b0110;
     localparam [3:0] ALU_AND  = 4'b0111;
+    localparam [3:0] ALU_BEQ  = 4'b1001;
+    localparam [3:0] ALU_BNE  = 4'b1010;
+    localparam [3:0] ALU_BLT  = 4'b1011;
+    localparam [3:0] ALU_BGE  = 4'b1100;
+    localparam [3:0] ALU_BLTU = 4'b1110;
+    localparam [3:0] ALU_BGEU = 4'b1111;
 
     wire [31:0] add_sub_result, and_result, or_result, xor_result;
     wire [31:0] shift_result;
@@ -105,17 +110,23 @@ module ysyx_26030082_ALU(
             ALU_SRA:  result_r = shift_result;
             ALU_SLT:  result_r = {31'b0, cmp_lt};
             ALU_SLTU: result_r = {31'b0, cmp_ltu};
+            ALU_BEQ:  result_r = add_sub_result;
+            ALU_BNE:  result_r = add_sub_result;
+            ALU_BLT:  result_r = add_sub_result;
+            ALU_BGE:  result_r = add_sub_result;
+            ALU_BLTU: result_r = add_sub_result;
+            ALU_BGEU: result_r = add_sub_result;
             default:  result_r = 32'b0;
         endcase
     end
 
     assign Result = result_r;
-    assign BRUResult = (BRUFunct3 == 3'b000) ? bru_cmp_eq   :
-                       (BRUFunct3 == 3'b001) ? ~bru_cmp_eq  :
-                       (BRUFunct3 == 3'b100) ? bru_cmp_lt   :
-                       (BRUFunct3 == 3'b101) ? ~bru_cmp_lt  :
-                       (BRUFunct3 == 3'b110) ? bru_cmp_ltu  :
-                       (BRUFunct3 == 3'b111) ? ~bru_cmp_ltu :
-                                                1'b0;
+    assign BRUResult = (ALUControl == ALU_BEQ)  ? bru_cmp_eq   :
+                       (ALUControl == ALU_BNE)  ? ~bru_cmp_eq  :
+                       (ALUControl == ALU_BLT)  ? bru_cmp_lt   :
+                       (ALUControl == ALU_BGE)  ? ~bru_cmp_lt  :
+                       (ALUControl == ALU_BLTU) ? bru_cmp_ltu  :
+                       (ALUControl == ALU_BGEU) ? ~bru_cmp_ltu :
+                                                  1'b0;
 
 endmodule
