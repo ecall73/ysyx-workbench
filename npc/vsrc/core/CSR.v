@@ -67,61 +67,75 @@ module ysyx_26030082_CSR (
             mstatus_mie  <= 1'b0;
             mstatus_mpie <= 1'b0;
             mstatus_mpp  <= 2'b11;
-            mtvec        <= 32'h0000_0001;
-            mepc         <= 32'h0;
-            mcause       <= 32'h0;
         end else if (trap_taken) begin
             mstatus_mie  <= 1'b0;
             mstatus_mpie <= mstatus_mie;
             mstatus_mpp  <= 2'b11;
-            mepc         <= pc;
-            mcause       <= {trap_is_interrupt, trap_cause_code[30:0]};
         end else if (mret_taken) begin
             mstatus_mie <= mstatus_mpie;
-        end else begin
+        end else if (CSRaddr == CSR_mstatus) begin
             case (CSRControl)
                 CCTL_CSRRW: begin
-                    case (CSRaddr)
-                        CSR_mstatus: begin
-                            mstatus_mie  <= CSRwdata[3];
-                            mstatus_mpie <= CSRwdata[7];
-                            mstatus_mpp  <= CSRwdata[12:11];
-                        end
-                        CSR_mtvec:  mtvec  <= CSRwdata;
-                        CSR_mepc:   mepc   <= CSRwdata;
-                        CSR_mcause: mcause <= CSRwdata;
-                        default: begin
-                        end
-                    endcase
+                    mstatus_mie  <= CSRwdata[3];
+                    mstatus_mpie <= CSRwdata[7];
+                    mstatus_mpp  <= CSRwdata[12:11];
                 end
                 CCTL_CSRRS: begin
-                    case (CSRaddr)
-                        CSR_mstatus: begin
-                            mstatus_mie  <= mstatus_mie | CSRwdata[3];
-                            mstatus_mpie <= mstatus_mpie | CSRwdata[7];
-                            mstatus_mpp  <= mstatus_mpp | CSRwdata[12:11];
-                        end
-                        CSR_mtvec:  mtvec  <= mtvec | CSRwdata;
-                        CSR_mepc:   mepc   <= mepc | CSRwdata;
-                        CSR_mcause: mcause <= mcause | CSRwdata;
-                        default: begin
-                        end
-                    endcase
+                    mstatus_mie  <= mstatus_mie | CSRwdata[3];
+                    mstatus_mpie <= mstatus_mpie | CSRwdata[7];
+                    mstatus_mpp  <= mstatus_mpp | CSRwdata[12:11];
                 end
                 CCTL_CSRRC: begin
-                    case (CSRaddr)
-                        CSR_mstatus: begin
-                            mstatus_mie  <= mstatus_mie & ~CSRwdata[3];
-                            mstatus_mpie <= mstatus_mpie & ~CSRwdata[7];
-                            mstatus_mpp  <= mstatus_mpp & ~CSRwdata[12:11];
-                        end
-                        CSR_mtvec:  mtvec  <= mtvec & ~CSRwdata;
-                        CSR_mepc:   mepc   <= mepc & ~CSRwdata;
-                        CSR_mcause: mcause <= mcause & ~CSRwdata;
-                        default: begin
-                        end
-                    endcase
+                    mstatus_mie  <= mstatus_mie & ~CSRwdata[3];
+                    mstatus_mpie <= mstatus_mpie & ~CSRwdata[7];
+                    mstatus_mpp  <= mstatus_mpp & ~CSRwdata[12:11];
                 end
+                default: begin
+                end
+            endcase
+        end
+    end
+
+    always @(posedge clock) begin
+        if (reset) begin
+            mcause <= 32'h0;
+        end else if (trap_taken) begin
+            mcause <= {trap_is_interrupt, trap_cause_code[30:0]};
+        end else if (CSRaddr == CSR_mcause) begin
+            case (CSRControl)
+                CCTL_CSRRW: mcause <= CSRwdata;
+                CCTL_CSRRS: mcause <= mcause | CSRwdata;
+                CCTL_CSRRC: mcause <= mcause & ~CSRwdata;
+                default: begin
+                end
+            endcase
+        end
+    end
+
+    always @(posedge clock) begin
+        if (reset) begin
+            mepc <= 32'h0;
+        end else if (trap_taken) begin
+            mepc <= pc;
+        end else if (CSRaddr == CSR_mepc) begin
+            case (CSRControl)
+                CCTL_CSRRW: mepc <= CSRwdata;
+                CCTL_CSRRS: mepc <= mepc | CSRwdata;
+                CCTL_CSRRC: mepc <= mepc & ~CSRwdata;
+                default: begin
+                end
+            endcase
+        end
+    end
+
+    always @(posedge clock) begin
+        if (reset) begin
+            mtvec <= 32'h0000_0001;
+        end else if (CSRaddr == CSR_mtvec) begin
+            case (CSRControl)
+                CCTL_CSRRW: mtvec <= CSRwdata;
+                CCTL_CSRRS: mtvec <= mtvec | CSRwdata;
+                CCTL_CSRRC: mtvec <= mtvec & ~CSRwdata;
                 default: begin
                 end
             endcase
