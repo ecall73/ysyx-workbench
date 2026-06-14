@@ -41,7 +41,7 @@ module ysyx_26030082_CSR (
     wire [31:0] trap_vector = {mtvec[31:2], 2'b0};
     wire        csr_priv = is_system && (funct3 == 3'b000);
     wire        csr_ecall = csr_priv && (CSRaddr == INST_ECALL);
-    wire        csr_mret  = csr_priv && (CSRaddr == INST_MRET);
+    // wire        csr_mret  = csr_priv && (CSRaddr == INST_MRET);
 
     // CSR read
     always @(*) begin
@@ -56,7 +56,7 @@ module ysyx_26030082_CSR (
         endcase
     end
 
-    assign CSRjump = csr_ecall || csr_mret;
+    assign CSRjump = csr_priv;
 
     // SYSTEM instructions alone are allowed to update CSR state.
     always @(posedge clock) begin
@@ -132,9 +132,7 @@ module ysyx_26030082_CSR (
 
     // CSRnpc
     always @(*) begin
-        if (reset)                                    CSRnpc = 0;
-        else if (csr_ecall)                         CSRnpc = {mtvec[31:2], 2'b0};
-        else if (csr_mret)                          CSRnpc = mepc;
+        if (csr_ecall)                              CSRnpc = {mtvec[31:2], 2'b0};
         else                                        CSRnpc = mepc;
     end
     
