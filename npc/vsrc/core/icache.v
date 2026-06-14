@@ -106,7 +106,7 @@ module ysyx_26030082_icache #(
     assign ifu_axi_araddr = miss_line_base;
     assign ifu_axi_arlen = LINE_WORDS[7:0] - 8'd1;
     assign ifu_axi_arburst = 2'b01;
-    assign ifu_axi_arvalid = (state == S_MISS_AR);
+    assign ifu_axi_arvalid = (state == S_MISS_AR) && ~need_flush;
     assign ifu_axi_rready = (state == S_MISS_R);
     assign ar_fire = ifu_axi_arvalid && ifu_axi_arready;
     assign r_fire = ifu_axi_rvalid && ifu_axi_rready;
@@ -136,25 +136,28 @@ module ysyx_26030082_icache #(
 
             case (state)
                 S_LOOKUP: begin
-                    if (cache_miss && !flush) begin
+                    if (cache_miss) begin
                         miss_index <= lookup_index;
                         miss_tag <= lookup_tag;
                         refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
-                        need_flush <= 1'b0;
-                        drop_fill <= 1'b0;
+                        need_flush <= flush;
+                        drop_fill <= invalidate;
                         state <= S_MISS_AR;
                     end
                 end
 
                 S_MISS_AR: begin
-                    if (ar_fire) begin
+                    if (need_flush) begin
+                        need_flush <= 1'b0;
+                        drop_fill <= 1'b0;
+                        state <= S_LOOKUP;
+                    end else if (ar_fire) begin
                         need_flush <= flush;
                         drop_fill <= invalidate;
                         state <= S_MISS_R;
                     end else if (flush) begin
-                        need_flush <= 1'b0;
-                        drop_fill <= 1'b0;
-                        state <= S_LOOKUP;
+                        need_flush <= 1'b1;
+                        drop_fill <= invalidate;
                     end
                 end
 
