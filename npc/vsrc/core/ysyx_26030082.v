@@ -167,6 +167,8 @@ module ysyx_26030082 #(
     wire [31:0] ex_ALUResult;
     wire        ex_BRUResult;
     wire [31:0] ex_pc4;
+    wire        ex_Redirect;
+    wire [31:0] ex_RedirectTarget;
     wire [31:0] ex_WBAltData;
     wire        ex_WBUseAlt;
     wire        ex_btype;
@@ -295,11 +297,8 @@ module ysyx_26030082 #(
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
         .ex_pc4                 (ex_pc4),
-        .ex_btype               (ex_btype),
-        .ex_jtype               (ex_jtype),
-        .ex_ijtype              (ex_ijtype),
-        .ex_BRUResult           (ex_BRUResult),
-        .ex_ALUResult           (ex_ALUResult),
+        .ex_Redirect            (ex_Redirect),
+        .ex_RedirectTarget      (ex_RedirectTarget),
         .ex_CSRjump             (ex_CSRjump),
         .ex_CSRnpc              (ex_CSRnpc),
         .ex_FenceI              (ex_FenceI),
@@ -436,6 +435,9 @@ module ysyx_26030082 #(
         .ex_funct3              (ex_funct3),
         .ex_imm                 (ex_imm),
         .ex_ALUControl          (ex_ALUControl),
+        .ex_btype               (ex_btype),
+        .ex_jtype               (ex_jtype),
+        .ex_ijtype              (ex_ijtype),
 
         .ex_is_system           (ex_is_system),
         .ex_CSRaddr             (ex_CSRaddr),
@@ -445,6 +447,8 @@ module ysyx_26030082 #(
         .ex_ALUResult           (ex_ALUResult),
         .ex_BRUResult           (ex_BRUResult),
         .ex_pc4                 (ex_pc4),
+        .ex_Redirect            (ex_Redirect),
+        .ex_RedirectTarget      (ex_RedirectTarget),
 
         .ex_CSRjump             (ex_CSRjump),
         .ex_CSRnpc              (ex_CSRnpc),
