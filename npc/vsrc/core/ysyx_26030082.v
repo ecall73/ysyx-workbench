@@ -187,7 +187,6 @@ module ysyx_26030082 #(
     reg  [31:0] ls_RFwdata;
     wire        ls_in_ready;
     wire        ls_out_valid;
-    wire        ls_out_ready;
     wire [31:0] ls_RFwdata_out;
 
     // Local handshake control
@@ -387,27 +386,25 @@ module ysyx_26030082 #(
             ex_in_valid        <= 1'b0;
         end else if (ex_in_ready) begin
             ex_in_valid <= id_issue_valid;
-            if (id_issue_valid) begin
-                ex_ALUControl   <= id_ALUControl;
-                ex_RegWrite     <= id_RegWrite;
-                ex_MemWrite     <= id_MemWrite;
-                ex_MemToReg     <= id_MemToReg;
-                ex_funct3       <= id_inst[14:12];
-                ex_imm          <= id_imm;
-                ex_pc           <= id_pc;
-                ex_RFwaddr      <= id_inst[11:7];
-                ex_ALUSrcA      <= id_ALUSrcA;
-                ex_ALUSrcB      <= id_ALUSrcB;
-                ex_rR1_data     <= id_rR1_data_forward;
-                ex_rR2_data     <= id_rR2_data_forward;
-                ex_CSRSrc       <= id_CSRSrc;
-                ex_CSRaddr      <= id_CSRaddr;
-                ex_CSRControl   <= id_CSRControl;
-                ex_FenceI       <= id_FenceI;
-                ex_btype        <= id_btype;
-                ex_jtype        <= id_jtype;
-                ex_ijtype       <= id_ijtype;
-            end
+            ex_ALUControl   <= id_ALUControl;
+            ex_RegWrite     <= id_RegWrite;
+            ex_MemWrite     <= id_MemWrite;
+            ex_MemToReg     <= id_MemToReg;
+            ex_funct3       <= id_inst[14:12];
+            ex_imm          <= id_imm;
+            ex_pc           <= id_pc;
+            ex_RFwaddr      <= id_inst[11:7];
+            ex_ALUSrcA      <= id_ALUSrcA;
+            ex_ALUSrcB      <= id_ALUSrcB;
+            ex_rR1_data     <= id_rR1_data_forward;
+            ex_rR2_data     <= id_rR2_data_forward;
+            ex_CSRSrc       <= id_CSRSrc;
+            ex_CSRaddr      <= id_CSRaddr;
+            ex_CSRControl   <= id_CSRControl;
+            ex_FenceI       <= id_FenceI;
+            ex_btype        <= id_btype;
+            ex_jtype        <= id_jtype;
+            ex_ijtype       <= id_ijtype;
         end
     end
 
@@ -478,19 +475,17 @@ module ysyx_26030082 #(
     // ================================================================
     always @(posedge clock) begin
         if (reset) begin
-            ls_in_valid   <= 1'b0;
+            ls_in_valid <= 1'b0;
         end else if (ex_out_ready) begin
             ls_in_valid <= ex_out_valid;
-            if (ex_out_valid) begin
-                ls_RegWrite   <= ex_RegWrite;
-                ls_MemWrite   <= ex_MemWrite;
-                ls_ALUResult  <= ex_ALUResult;
-                ls_rR2_data   <= ex_rR2_data;
-                ls_funct3     <= ex_funct3;
-                ls_RFwaddr    <= ex_RFwaddr;
-                ls_RFwdata    <= ex_RFwdata;
-                ls_MemRead    <= ex_MemRead;
-            end
+            ls_RegWrite <= ex_RegWrite;
+            ls_MemWrite <= ex_MemWrite;
+            ls_ALUResult <= ex_ALUResult;
+            ls_rR2_data <= ex_rR2_data;
+            ls_funct3   <= ex_funct3;
+            ls_RFwaddr  <= ex_RFwaddr;
+            ls_RFwdata  <= ex_RFwdata;
+            ls_MemRead  <= ex_MemRead;
         end
     end
 
@@ -515,24 +510,20 @@ module ysyx_26030082 #(
         end
     `endif
 
-    // LSU output is written back directly, so LS is the final pipeline stage.
-    assign ls_out_ready = 1'b1;
-
     ysyx_26030082_lsu lsu (
         .clock                  (clock),
         .reset                  (reset),
         .ls_in_valid            (ls_in_valid),
         .ls_in_ready            (ls_in_ready),
         .ls_out_valid           (ls_out_valid),
-        .ls_out_ready           (ls_out_ready),
 
         .ls_ALUResult           (ls_ALUResult),
         .ls_funct3              (ls_funct3),
         .ls_MemWrite            (ls_MemWrite),
         .ls_MemRead             (ls_MemRead),
         .ls_rR2_data            (ls_rR2_data),
-
         .ls_RFwdata             (ls_RFwdata),
+
         .ls_mtime               (mtime),
 
         .lsu_axi_araddr         (lsu_axi_araddr),

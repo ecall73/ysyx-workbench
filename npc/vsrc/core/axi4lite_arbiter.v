@@ -6,62 +6,62 @@ module ysyx_26030082_axi4lite_arbiter (
     input  wire [ 7:0] ifu_axi_arlen,
     input  wire [ 1:0] ifu_axi_arburst,
     input  wire        ifu_axi_arvalid,
-    output reg         ifu_axi_arready,
-    output reg  [31:0] ifu_axi_rdata,
-    output reg  [ 1:0] ifu_axi_rresp,
-    output reg         ifu_axi_rlast,
-    output reg         ifu_axi_rvalid,
+    output wire        ifu_axi_arready,
+    output wire [31:0] ifu_axi_rdata,
+    output wire [ 1:0] ifu_axi_rresp,
+    output wire        ifu_axi_rlast,
+    output wire        ifu_axi_rvalid,
     input  wire        ifu_axi_rready,
     // LSU master interface
     input  wire [31:0] lsu_axi_araddr,
     input  wire [ 2:0] lsu_axi_arsize,
     input  wire        lsu_axi_arvalid,
-    output reg         lsu_axi_arready,
-    output reg  [31:0] lsu_axi_rdata,
-    output reg  [ 1:0] lsu_axi_rresp,
-    output reg         lsu_axi_rvalid,
+    output wire        lsu_axi_arready,
+    output wire [31:0] lsu_axi_rdata,
+    output wire [ 1:0] lsu_axi_rresp,
+    output wire        lsu_axi_rvalid,
     input  wire        lsu_axi_rready,
     input  wire [31:0] lsu_axi_awaddr,
     input  wire [ 2:0] lsu_axi_awsize,
     input  wire        lsu_axi_awvalid,
-    output reg         lsu_axi_awready,
+    output wire        lsu_axi_awready,
     input  wire [31:0] lsu_axi_wdata,
     input  wire [ 3:0] lsu_axi_wstrb,
     input  wire        lsu_axi_wvalid,
-    output reg         lsu_axi_wready,
-    output reg  [ 1:0] lsu_axi_bresp,
-    output reg         lsu_axi_bvalid,
+    output wire        lsu_axi_wready,
+    output wire [ 1:0] lsu_axi_bresp,
+    output wire        lsu_axi_bvalid,
     input  wire        lsu_axi_bready,
     // Shared MEM slave interface
-    output reg  [31:0] mem_axi_araddr,
-    output reg  [ 3:0] mem_axi_arid,
-    output reg  [ 7:0] mem_axi_arlen,
-    output reg  [ 2:0] mem_axi_arsize,
-    output reg  [ 1:0] mem_axi_arburst,
-    output reg         mem_axi_arvalid,
+    output wire [31:0] mem_axi_araddr,
+    output wire [ 3:0] mem_axi_arid,
+    output wire [ 7:0] mem_axi_arlen,
+    output wire [ 2:0] mem_axi_arsize,
+    output wire [ 1:0] mem_axi_arburst,
+    output wire        mem_axi_arvalid,
     input  wire        mem_axi_arready,
     input  wire [31:0] mem_axi_rdata,
     input  wire [ 3:0] mem_axi_rid,
     input  wire [ 1:0] mem_axi_rresp,
     input  wire        mem_axi_rlast,
     input  wire        mem_axi_rvalid,
-    output reg         mem_axi_rready,
-    output reg  [31:0] mem_axi_awaddr,
-    output reg  [ 3:0] mem_axi_awid,
-    output reg  [ 7:0] mem_axi_awlen,
-    output reg  [ 2:0] mem_axi_awsize,
-    output reg  [ 1:0] mem_axi_awburst,
-    output reg         mem_axi_awvalid,
+    output wire        mem_axi_rready,
+    output wire [31:0] mem_axi_awaddr,
+    output wire [ 3:0] mem_axi_awid,
+    output wire [ 7:0] mem_axi_awlen,
+    output wire [ 2:0] mem_axi_awsize,
+    output wire [ 1:0] mem_axi_awburst,
+    output wire        mem_axi_awvalid,
     input  wire        mem_axi_awready,
-    output reg  [31:0] mem_axi_wdata,
-    output reg  [ 3:0] mem_axi_wstrb,
-    output reg         mem_axi_wlast,
-    output reg         mem_axi_wvalid,
+    output wire [31:0] mem_axi_wdata,
+    output wire [ 3:0] mem_axi_wstrb,
+    output wire        mem_axi_wlast,
+    output wire        mem_axi_wvalid,
     input  wire        mem_axi_wready,
     input  wire [ 3:0] mem_axi_bid,
     input  wire [ 1:0] mem_axi_bresp,
     input  wire        mem_axi_bvalid,
-    output reg         mem_axi_bready
+    output wire        mem_axi_bready
 );
 
     localparam R_IDLE = 2'd0;
@@ -88,8 +88,10 @@ module ysyx_26030082_axi4lite_arbiter (
 
     assign req_lsu_rd = lsu_axi_arvalid;
     assign req_ifu_rd = ifu_axi_arvalid;
-    assign rd_sel_lsu = (rd_state == R_AR) && (rd_owner == R_OWNER_LSU);
-    assign rd_sel_ifu = (rd_state == R_AR) && (rd_owner == R_OWNER_IFU);
+    assign rd_sel_lsu = ((rd_state == R_IDLE) && req_lsu_rd) ||
+                        ((rd_state == R_AR) && (rd_owner == R_OWNER_LSU));
+    assign rd_sel_ifu = ((rd_state == R_IDLE) && ~req_lsu_rd && req_ifu_rd) ||
+                        ((rd_state == R_AR) && (rd_owner == R_OWNER_IFU));
     assign rd_data_lsu = (rd_state == R_DATA) && (rd_owner == R_OWNER_LSU);
     assign rd_data_ifu = (rd_state == R_DATA) && (rd_owner == R_OWNER_IFU);
 
@@ -98,88 +100,44 @@ module ysyx_26030082_axi4lite_arbiter (
     assign lsu_r_fire = rd_data_lsu && mem_axi_rvalid && lsu_axi_rready;
     assign ifu_r_fire = rd_data_ifu && mem_axi_rvalid && ifu_axi_rready;
 
-    always @(*) begin
-        // IFU side defaults (blocked)
-        ifu_axi_arready = 1'b0;
-        ifu_axi_rdata = 32'b0;
-        ifu_axi_rresp = 2'b00;
-        ifu_axi_rlast = 1'b0;
-        ifu_axi_rvalid = 1'b0;
+    assign ifu_axi_arready = rd_sel_ifu && mem_axi_arready;
+    assign ifu_axi_rdata = mem_axi_rdata;
+    assign ifu_axi_rresp = mem_axi_rresp;
+    assign ifu_axi_rlast = mem_axi_rlast;
+    assign ifu_axi_rvalid = rd_data_ifu && mem_axi_rvalid;
 
-        // LSU read side defaults (blocked)
-        lsu_axi_arready = 1'b0;
-        lsu_axi_rdata = 32'b0;
-        lsu_axi_rresp = 2'b00;
-        lsu_axi_rvalid = 1'b0;
+    assign lsu_axi_arready = rd_sel_lsu && mem_axi_arready;
+    assign lsu_axi_rdata = mem_axi_rdata;
+    assign lsu_axi_rresp = mem_axi_rresp;
+    assign lsu_axi_rvalid = rd_data_lsu && mem_axi_rvalid;
 
-        // LSU write side bypasses the read arbiter.
-        lsu_axi_awready = mem_axi_awready;
-        lsu_axi_wready = mem_axi_wready;
-        lsu_axi_bresp = mem_axi_bresp;
-        lsu_axi_bvalid = mem_axi_bvalid;
+    assign lsu_axi_awready = mem_axi_awready;
+    assign lsu_axi_wready = mem_axi_wready;
+    assign lsu_axi_bresp = mem_axi_bresp;
+    assign lsu_axi_bvalid = mem_axi_bvalid;
 
-        // MEM read side defaults
-        mem_axi_araddr = 32'b0;
-        mem_axi_arid = 4'b0;
-        mem_axi_arlen = 8'b0;
-        mem_axi_arsize = 3'b010;
-        mem_axi_arburst = 2'b00;
-        mem_axi_arvalid = 1'b0;
-        mem_axi_rready = 1'b0;
+    assign mem_axi_araddr = rd_sel_ifu ? ifu_axi_araddr : lsu_axi_araddr;
+    assign mem_axi_arid = rd_sel_ifu ? 4'h1 : 4'h0;
+    assign mem_axi_arlen = rd_sel_ifu ? ifu_axi_arlen : 8'h00;
+    assign mem_axi_arsize = rd_sel_ifu ? 3'b010 : lsu_axi_arsize;
+    assign mem_axi_arburst = rd_sel_ifu ? ifu_axi_arburst : 2'b00;
+    assign mem_axi_arvalid = (rd_sel_ifu && ifu_axi_arvalid) ||
+                             (rd_sel_lsu && lsu_axi_arvalid);
+    assign mem_axi_rready = (rd_owner == R_OWNER_IFU) ?
+                            (rd_data_ifu && ifu_axi_rready) :
+                            (rd_data_lsu && lsu_axi_rready);
 
-        // MEM write side is LSU-only.
-        mem_axi_awaddr = lsu_axi_awaddr;
-        mem_axi_awid = 4'h0;
-        mem_axi_awlen = 8'h00;
-        mem_axi_awsize = lsu_axi_awsize;
-        mem_axi_awburst = 2'b00;
-        mem_axi_awvalid = lsu_axi_awvalid;
-        mem_axi_wdata = lsu_axi_wdata;
-        mem_axi_wstrb = lsu_axi_wstrb;
-        mem_axi_wlast = 1'b1;
-        mem_axi_wvalid = lsu_axi_wvalid;
-        mem_axi_bready = lsu_axi_bready;
-
-        case (rd_state)
-            R_AR: begin
-                if (rd_owner == R_OWNER_LSU) begin
-                    mem_axi_araddr = lsu_axi_araddr;
-                    mem_axi_arid = 4'h0;
-                    mem_axi_arlen = 8'h00;
-                    mem_axi_arsize = lsu_axi_arsize;
-                    mem_axi_arburst = 2'b00;
-                    mem_axi_arvalid = lsu_axi_arvalid;
-                    lsu_axi_arready = mem_axi_arready;
-                end else begin
-                    mem_axi_araddr = ifu_axi_araddr;
-                    mem_axi_arid = 4'h1;
-                    mem_axi_arlen = ifu_axi_arlen;
-                    mem_axi_arsize = 3'b010;
-                    mem_axi_arburst = ifu_axi_arburst;
-                    mem_axi_arvalid = ifu_axi_arvalid;
-                    ifu_axi_arready = mem_axi_arready;
-                end
-            end
-
-            R_DATA: begin
-                if (rd_owner == R_OWNER_LSU) begin
-                    lsu_axi_rdata = mem_axi_rdata;
-                    lsu_axi_rresp = mem_axi_rresp;
-                    lsu_axi_rvalid = mem_axi_rvalid;
-                    mem_axi_rready = lsu_axi_rready;
-                end else begin
-                    ifu_axi_rdata = mem_axi_rdata;
-                    ifu_axi_rresp = mem_axi_rresp;
-                    ifu_axi_rlast = mem_axi_rlast;
-                    ifu_axi_rvalid = mem_axi_rvalid;
-                    mem_axi_rready = ifu_axi_rready;
-                end
-            end
-
-            default: begin
-            end
-        endcase
-    end
+    assign mem_axi_awaddr = lsu_axi_awaddr;
+    assign mem_axi_awid = 4'h0;
+    assign mem_axi_awlen = 8'h00;
+    assign mem_axi_awsize = lsu_axi_awsize;
+    assign mem_axi_awburst = 2'b00;
+    assign mem_axi_awvalid = lsu_axi_awvalid;
+    assign mem_axi_wdata = lsu_axi_wdata;
+    assign mem_axi_wstrb = lsu_axi_wstrb;
+    assign mem_axi_wlast = 1'b1;
+    assign mem_axi_wvalid = lsu_axi_wvalid;
+    assign mem_axi_bready = lsu_axi_bready;
 
     always @(posedge clock) begin
         if (reset) begin
@@ -189,11 +147,13 @@ module ysyx_26030082_axi4lite_arbiter (
             case (rd_state)
                 R_IDLE: begin
                     if (req_lsu_rd) begin
-                        rd_state <= R_AR;
                         rd_owner <= R_OWNER_LSU;
+                        rd_state <= lsu_ar_fire ? R_DATA : R_AR;
                     end else if (req_ifu_rd) begin
-                        rd_state <= R_AR;
                         rd_owner <= R_OWNER_IFU;
+                        rd_state <= ifu_ar_fire ? R_DATA : R_AR;
+                    end else begin
+                        rd_owner <= R_OWNER_NONE;
                     end
                 end
 
@@ -205,16 +165,8 @@ module ysyx_26030082_axi4lite_arbiter (
 
                 R_DATA: begin
                     if ((lsu_r_fire || ifu_r_fire) && mem_axi_rlast) begin
-                        if (req_lsu_rd) begin
-                            rd_state <= R_AR;
-                            rd_owner <= R_OWNER_LSU;
-                        end else if (req_ifu_rd) begin
-                            rd_state <= R_AR;
-                            rd_owner <= R_OWNER_IFU;
-                        end else begin
-                            rd_state <= R_IDLE;
-                            rd_owner <= R_OWNER_NONE;
-                        end
+                        rd_state <= R_IDLE;
+                        rd_owner <= R_OWNER_NONE;
                     end
                 end
 

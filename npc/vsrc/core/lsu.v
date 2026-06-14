@@ -5,7 +5,6 @@ module ysyx_26030082_lsu (
     input  wire        ls_in_valid,
     output wire        ls_in_ready,
     output wire        ls_out_valid,
-    input  wire        ls_out_ready,
 
     // LS payload inputs
     input  wire [31:0] ls_ALUResult,
@@ -52,7 +51,6 @@ module ysyx_26030082_lsu (
     localparam L_WR_AW_W   = 3'd3;
     localparam L_WR_WAIT_B = 3'd4;
     localparam [31:0] CLINT_BASE_ADDR = 32'h0200_0000;
-    localparam [31:0] CLINT_END_ADDR  = 32'h0200_ffff;
     localparam [31:0] MTIME_ADDR      = 32'h0200_bff8;
     localparam [31:0] MTIMEH_ADDR     = 32'h0200_bffc;
 
@@ -80,7 +78,7 @@ module ysyx_26030082_lsu (
 
     assign ls_is_mem = ls_MemRead || ls_MemWrite;
     assign ls_is_load = ls_MemRead && ~ls_MemWrite;
-    assign ls_is_clint = (ls_ALUResult >= CLINT_BASE_ADDR) && (ls_ALUResult <= CLINT_END_ADDR);
+    assign ls_is_clint = (ls_ALUResult[31:16] == CLINT_BASE_ADDR[31:16]);
     assign ls_is_local = ls_is_mem && ls_is_clint;
     assign ls_is_local_load = ls_is_load && ls_is_clint;
 
@@ -97,9 +95,9 @@ module ysyx_26030082_lsu (
 
     // Non-memory ops pass through in IDLE with zero extra delay.
     // For memory ops, ls_in_ready is only released when R/B handshakes.
-    assign ls_in_ready = (state == L_IDLE) ? ((ls_in_valid && ls_is_mem && ~ls_is_local) ? 1'b0 : ls_out_ready) :
-                         (state == L_RD_WAIT_R) ? (lsu_axi_rvalid && ls_out_ready) :
-                         (state == L_WR_WAIT_B) ? (lsu_axi_bvalid && ls_out_ready) : 1'b0;
+    assign ls_in_ready = (state == L_IDLE) ? ~(ls_in_valid && ls_is_mem && ~ls_is_local) :
+                         (state == L_RD_WAIT_R) ? lsu_axi_rvalid :
+                         (state == L_WR_WAIT_B) ? lsu_axi_bvalid : 1'b0;
     assign ls_out_valid = (state == L_IDLE) ? (ls_in_valid && (~ls_is_mem || ls_is_local)) :
                           (state == L_RD_WAIT_R) ? lsu_axi_rvalid :
                           (state == L_WR_WAIT_B) ? lsu_axi_bvalid : 1'b0;
@@ -107,7 +105,7 @@ module ysyx_26030082_lsu (
     assign lsu_axi_araddr = ls_ALUResult;
     assign lsu_axi_arsize = ls_axi_size;
     assign lsu_axi_arvalid = (state == L_RD_AR);
-    assign lsu_axi_rready = (state == L_RD_WAIT_R) && ls_out_ready;
+    assign lsu_axi_rready = (state == L_RD_WAIT_R);
 
     assign lsu_axi_awaddr = ls_ALUResult;
     assign lsu_axi_awsize = ls_axi_size;
@@ -115,7 +113,7 @@ module ysyx_26030082_lsu (
     assign lsu_axi_wdata = ls_wdata_aligned;
     assign lsu_axi_wstrb = ls_wmask_calc;
     assign lsu_axi_wvalid = (state == L_WR_AW_W) && ~wr_w_done;
-    assign lsu_axi_bready = (state == L_WR_WAIT_B) && ls_out_ready;
+    assign lsu_axi_bready = (state == L_WR_WAIT_B);
 
     assign ls_RFwdata_out =
         (((state == L_RD_WAIT_R) && lsu_axi_rvalid && ls_MemRead) ||

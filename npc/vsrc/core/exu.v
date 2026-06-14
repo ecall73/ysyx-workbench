@@ -50,16 +50,13 @@ module ysyx_26030082_exu (
     ysyx_26030082_ALU ALU (
         .A                      (ex_A),
         .B                      (ex_B),
+        .BRU_A                  (ex_rR1_data),
+        .BRU_B                  (ex_rR2_data),
         .ALUControl             (ex_ALUControl),
+        .BRUFunct3              (ex_funct3),
 
-        .Result                 (ex_ALUResult)
-    );
-
-    ysyx_26030082_BRU BRU (
-        .A                      (ex_rR1_data),
-        .B                      (ex_rR2_data),
-        .funct3                 (ex_funct3),
-        .Result                 (ex_BRUResult)
+        .Result                 (ex_ALUResult),
+        .BRUResult              (ex_BRUResult)
     );
 
     ysyx_26030082_CSR CSR (
