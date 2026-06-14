@@ -67,12 +67,7 @@ module ysyx_26030082_idu (
     localparam [3:0] SRA      = 4'b1101;
     localparam [3:0] OR       = 4'b0110;
     localparam [3:0] AND      = 4'b0111;
-    localparam [3:0] BEQ      = 4'b1001;
-    localparam [3:0] BNE      = 4'b1010;
-    localparam [3:0] BLT      = 4'b1011;
-    localparam [3:0] BGE      = 4'b1100;
-    localparam [3:0] BLTU     = 4'b1110;
-    localparam [3:0] BGEU     = 4'b1111;
+    localparam [3:0] ERR      = 4'b1111;
 
     wire [6:0] opcode = id_inst[6:0];
     wire [2:0] funct3 = id_inst[14:12];
@@ -86,7 +81,6 @@ module ysyx_26030082_idu (
 
     wire op_add, op_sub, op_and, op_or, op_xor, op_sll, op_srl;
     wire op_sra, op_slt, op_sltu;
-    wire op_beq, op_bne, op_blt, op_bge, op_bltu, op_bgeu;
 
     assign op_branch    = opcode == OP_B_TYPE;
     assign op_store     = opcode == OP_S_TYPE;
@@ -102,13 +96,7 @@ module ysyx_26030082_idu (
     assign op_system    = opcode == OP_CSR_TYPE;
     assign op_csr       = op_system && (funct3 != 3'b000);
 
-    assign id_ALUControl = op_beq  ? BEQ  :
-                           op_bne  ? BNE  :
-                           op_blt  ? BLT  :
-                           op_bge  ? BGE  :
-                           op_bltu ? BLTU :
-                           op_bgeu ? BGEU :
-                           op_add  ? ADD  :
+    assign id_ALUControl = op_add  ? ADD  :
                            op_sub  ? SUB  :
                            op_and  ? AND  :
                            op_or   ? OR   :
@@ -118,7 +106,7 @@ module ysyx_26030082_idu (
                            op_sra  ? SRA  :
                            op_slt  ? SLT  :
                            op_sltu ? SLTU :
-                                     ADD;
+                                     ERR;
 
     assign id_btype = op_branch;
     assign id_jtype = op_jal;
@@ -128,15 +116,10 @@ module ysyx_26030082_idu (
                     (op_itype && funct3 == 3'b000) ||
                     op_load ||
                     op_store ||
+                    op_branch ||
                     op_jal ||
                     op_auipc ||
                     (op_jalr && funct3 == 3'b000);
-    assign op_beq = op_branch && (funct3 == 3'b000);
-    assign op_bne = op_branch && (funct3 == 3'b001);
-    assign op_blt = op_branch && (funct3 == 3'b100);
-    assign op_bge = op_branch && (funct3 == 3'b101);
-    assign op_bltu = op_branch && (funct3 == 3'b110);
-    assign op_bgeu = op_branch && (funct3 == 3'b111);
     assign op_sub = op_rtype && funct == 4'b1000;
     assign op_and = (op_rtype && funct == 4'b0111) || (op_itype && funct3 == 3'b111);
     assign op_or = (op_rtype && funct == 4'b0110) || (op_itype && funct3 == 3'b110);
