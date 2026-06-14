@@ -183,8 +183,7 @@ module ysyx_26030082 #(
     reg  [31:0] ls_rR2_data;
     reg  [ 2:0] ls_funct3;
     reg  [ 4:0] ls_RFwaddr;
-    reg  [31:0] ls_ALUResult;
-    reg  [31:0] ls_RFwdata;
+    reg  [31:0] ls_payload;
     wire        ls_in_ready;
     wire        ls_out_valid;
     wire        ls_out_ready;
@@ -484,11 +483,10 @@ module ysyx_26030082 #(
             if (ex_out_valid) begin
                 ls_RegWrite   <= ex_RegWrite;
                 ls_MemWrite   <= ex_MemWrite;
-                ls_ALUResult  <= ex_ALUResult;
                 ls_rR2_data   <= ex_rR2_data;
                 ls_funct3     <= ex_funct3;
                 ls_RFwaddr    <= ex_RFwaddr;
-                ls_RFwdata    <= ex_RFwdata;
+                ls_payload    <= (ex_MemRead || ex_MemWrite) ? ex_ALUResult : ex_RFwdata;
                 ls_MemRead    <= ex_MemRead;
             end
         end
@@ -526,13 +524,12 @@ module ysyx_26030082 #(
         .ls_out_valid           (ls_out_valid),
         .ls_out_ready           (ls_out_ready),
 
-        .ls_ALUResult           (ls_ALUResult),
+        .ls_payload             (ls_payload),
         .ls_funct3              (ls_funct3),
         .ls_MemWrite            (ls_MemWrite),
         .ls_MemRead             (ls_MemRead),
         .ls_rR2_data            (ls_rR2_data),
 
-        .ls_RFwdata             (ls_RFwdata),
         .ls_mtime               (mtime),
 
         .lsu_axi_araddr         (lsu_axi_araddr),
