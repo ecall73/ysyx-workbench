@@ -8,8 +8,7 @@ module ysyx_26030082_ifu #(
     input  wire        ex_out_ready,
     input  wire [31:0] ex_pc4,
     input  wire        ex_btype,
-    input  wire        ex_jtype,
-    input  wire        ex_ijtype,
+    input  wire        ex_jump,
     input  wire        ex_BRUResult,
     input  wire [31:0] ex_ALUResult,
     input  wire        ex_CSRjump,
@@ -30,7 +29,7 @@ module ysyx_26030082_ifu #(
 
     assign ex_btype_taken = ex_btype && ex_BRUResult;
     assign ex_commit_fire = ex_out_valid && ex_out_ready;
-    assign ex_redirect = ex_CSRjump || ex_jtype || ex_ijtype || ex_btype_taken;
+    assign ex_redirect = ex_CSRjump || ex_jump || ex_btype_taken;
     assign invalidate = ex_commit_fire && ex_FenceI;
     assign flush = ex_commit_fire && (ex_redirect || ex_FenceI);
 

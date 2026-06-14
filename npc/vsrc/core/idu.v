@@ -21,8 +21,7 @@ module ysyx_26030082_idu (
 
     // Branch/jump type decode
     output wire        id_btype,
-    output wire        id_jtype,
-    output wire        id_ijtype,
+    output wire        id_jump,
 
     // CSR
     output wire        id_CSRSrc,
@@ -124,8 +123,7 @@ module ysyx_26030082_idu (
                                      ERR;
 
     assign id_btype = op_branch;
-    assign id_jtype = op_jal;
-    assign id_ijtype = op_jalr;
+    assign id_jump = op_jal | op_jalr;
 
     assign op_add = (op_rtype && funct == 4'b0000) ||
                     (op_itype && funct3 == 3'b000) ||

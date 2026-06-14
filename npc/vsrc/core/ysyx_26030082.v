@@ -139,8 +139,7 @@ module ysyx_26030082 #(
     wire [31:0] id_rR1_data_forward;
     wire [31:0] id_rR2_data_forward;
     wire        id_btype;
-    wire        id_jtype;
-    wire        id_ijtype;
+    wire        id_jump;
     wire        id_CSRSrc;
     wire [ 2:0] id_CSRaddr;
     wire [ 2:0] id_CSRControl;
@@ -166,8 +165,7 @@ module ysyx_26030082 #(
     wire [31:0] ex_pc4;
     wire [31:0] ex_RFwdata;
     reg         ex_btype;
-    reg         ex_jtype;
-    reg         ex_ijtype;
+    reg         ex_jump;
     reg         ex_CSRSrc;
     reg  [ 2:0] ex_CSRaddr;
     reg  [ 2:0] ex_CSRControl;
@@ -261,8 +259,7 @@ module ysyx_26030082 #(
         .ex_out_ready           (ex_out_ready),
         .ex_pc4                 (ex_pc4),
         .ex_btype               (ex_btype),
-        .ex_jtype               (ex_jtype),
-        .ex_ijtype              (ex_ijtype),
+        .ex_jump                (ex_jump),
         .ex_BRUResult           (ex_BRUResult),
         .ex_ALUResult           (ex_ALUResult),
         .ex_CSRjump             (ex_CSRjump),
@@ -325,8 +322,7 @@ module ysyx_26030082 #(
         .id_imm                 (id_imm),
 
         .id_btype               (id_btype),
-        .id_jtype               (id_jtype),
-        .id_ijtype              (id_ijtype),
+        .id_jump                (id_jump),
 
         .id_CSRSrc              (id_CSRSrc),
         .id_CSRaddr             (id_CSRaddr),
@@ -403,8 +399,7 @@ module ysyx_26030082 #(
             ex_CSRControl   <= id_CSRControl;
             ex_FenceI       <= id_FenceI;
             ex_btype        <= id_btype;
-            ex_jtype        <= id_jtype;
-            ex_ijtype       <= id_ijtype;
+            ex_jump         <= id_jump;
         end
     end
 
