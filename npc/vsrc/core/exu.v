@@ -109,7 +109,12 @@ module ysyx_26030082_exu (
     wire [31:0] rR2_data_forward;
 
     wire [31:0] CSRrdata;
-    wire        BRUResult;
+    wire        bru_cmp_eq;
+    wire        bru_cmp_lt;
+    wire        bru_cmp_ltu;
+    wire        branch_cmp_base;
+    wire        branch_taken;
+    wire        jump_taken;
     wire [31:0] redirect_base;
     wire [31:0] redirect_target_sum;
     wire        ex_fire;
@@ -202,9 +207,16 @@ module ysyx_26030082_exu (
 
     assign ex_pc4 = fetch_pc + 32'd4;
 
+    assign bru_cmp_eq = (rR1_data_forward == rR2_data_forward);
+    assign bru_cmp_lt = ($signed(rR1_data_forward) < $signed(rR2_data_forward));
+    assign bru_cmp_ltu = (rR1_data_forward < rR2_data_forward);
+    assign branch_cmp_base = funct3[2] ? (funct3[1] ? bru_cmp_ltu : bru_cmp_lt)
+                                       : bru_cmp_eq;
+    assign branch_taken = op_branch && (branch_cmp_base ^ funct3[0]);
+    assign jump_taken = op_jal || op_jalr;
     assign redirect_base = op_jalr ? rR1_data_forward : fetch_pc;
     assign redirect_target_sum = redirect_base + imm;
-    assign ex_Redirect = fetch_valid && (op_jal || op_jalr || (op_branch && BRUResult));
+    assign ex_Redirect = fetch_valid && (jump_taken || branch_taken);
     assign ex_RedirectTarget = op_jalr ? {redirect_target_sum[31:1], 1'b0}
                                        : redirect_target_sum;
     assign ex_FenceI = fetch_valid && op_fencei;
@@ -242,9 +254,7 @@ module ysyx_26030082_exu (
         .pc         (fetch_pc),
         .imm        (imm),
         .ALUControl (ALUControl),
-        .BRUFunct3  (funct3),
-        .Result     (ex_ALUResult),
-        .BRUResult  (BRUResult)
+        .Result     (ex_ALUResult)
     );
 
     ysyx_26030082_CSR CSR (
