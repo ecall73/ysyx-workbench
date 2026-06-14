@@ -56,9 +56,9 @@ module ysyx_26030082_ALU(
     assign sra_result   = ($signed(A)) >>> B[4:0];
     assign cmp_lt = (A[31] & ~B[31]) | ((~A[31] ^ B[31]) & add_sub_result[31]);
     assign cmp_ltu = ~carry;
-    assign bru_cmp_eq = (add_sub_result == 32'b0);
-    assign bru_cmp_lt = cmp_lt;
-    assign bru_cmp_ltu = cmp_ltu;
+    assign bru_cmp_eq = (rR1_data == rR2_data);
+    assign bru_cmp_lt = ($signed(rR1_data) < $signed(rR2_data));
+    assign bru_cmp_ltu = (rR1_data < rR2_data);
 
     always @(*) begin
         case (ALUControl)
