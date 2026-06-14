@@ -17,7 +17,6 @@ module ysyx_26030082_idu (
     output wire        id_MemWrite,
     output wire        id_ALUSrcA,
     output wire        id_ALUSrcB,
-    output wire        id_ALUAdd4,
     output reg  [31:0] id_imm,
 
     // Branch/jump type decode
@@ -132,11 +131,11 @@ module ysyx_26030082_idu (
                     (op_itype && funct3 == 3'b000) ||
                     op_load ||
                     op_store ||
+                    op_branch ||
                     op_jal ||
                     op_auipc ||
-                    (op_jalr && funct3 == 3'b000) ||
-                    op_fencei;
-    assign op_sub = (op_rtype && funct == 4'b1000) || op_branch;
+                    (op_jalr && funct3 == 3'b000);
+    assign op_sub = op_rtype && funct == 4'b1000;
     assign op_and = (op_rtype && funct == 4'b0111) || (op_itype && funct3 == 3'b111);
     assign op_or = (op_rtype && funct == 4'b0110) || (op_itype && funct3 == 3'b110);
     assign op_xor = (op_rtype && funct == 4'b0100) || (op_itype && funct3 == 3'b100);
@@ -157,9 +156,8 @@ module ysyx_26030082_idu (
 
     assign id_MemWrite = op_store;
 
-    assign id_ALUSrcA = op_auipc | op_jal | op_jalr | op_fencei;
-    assign id_ALUSrcB = ~(op_rtype | op_branch | op_misc_mem);
-    assign id_ALUAdd4 = op_jal | op_jalr | op_fencei;
+    assign id_ALUSrcA = op_auipc | op_branch | op_jal;
+    assign id_ALUSrcB = ~(op_rtype | op_misc_mem);
     assign id_FenceI = op_fencei;
 
     `ifndef SYNTHESIS

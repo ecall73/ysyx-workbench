@@ -6,12 +6,12 @@ module ysyx_26030082_ifu #(
     input  wire        if_ready,
     input  wire        ex_out_valid,
     input  wire        ex_out_ready,
-    input  wire [31:0] ex_nextpc,
-    input  wire [31:0] ex_redirect_pc,
+    input  wire [31:0] ex_pc4,
     input  wire        ex_btype,
     input  wire        ex_jtype,
     input  wire        ex_ijtype,
     input  wire        ex_BRUResult,
+    input  wire [31:0] ex_ALUResult,
     input  wire        ex_CSRjump,
     input  wire [31:0] ex_CSRnpc,
     input  wire        ex_FenceI,
@@ -43,8 +43,8 @@ module ysyx_26030082_ifu #(
             if_pc <= RESET_PC;
         end else if (flush) begin
             if_pc <= ex_CSRjump ? ex_CSRnpc :
-                     ex_redirect ? ex_redirect_pc :
-                     ex_nextpc;
+                     ex_redirect ? ex_ALUResult :
+                     ex_pc4;
         end else if (req_fire) begin
             if_pc <= if_pc + 32'd4;
         end
