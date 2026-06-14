@@ -38,10 +38,6 @@ module ysyx_26030082_CSR (
     localparam [1:0]  CSR_OP_RW   = 2'b01;
     localparam [1:0]  CSR_OP_RS   = 2'b10;
     localparam [1:0]  CSR_OP_RC   = 2'b11;
-    localparam [1:0]  CSR_DST_NONE    = 2'b00;
-    localparam [1:0]  CSR_DST_MSTATUS = 2'b01;
-    localparam [1:0]  CSR_DST_MTVEC   = 2'b10;
-    localparam [1:0]  CSR_DST_MEPC    = 2'b11;
 
     wire        csr_is_imm = funct3[2];
     wire [31:0] CSRwdata = csr_is_imm ? imm : rR1_data;  // csrrxi: imm, csrrx: rR1
@@ -49,7 +45,6 @@ module ysyx_26030082_CSR (
     reg         trap_ecall;
     reg         trap_mret;
     reg  [1:0] csr_write_op;
-    reg  [1:0] csr_write_dst;
 
     wire        trap_is_interrupt = 1'b0;
     wire [31:0] trap_cause_code = CAUSE_ECALL_M;
@@ -59,7 +54,6 @@ module ysyx_26030082_CSR (
         trap_ecall   = 1'b0;
         trap_mret    = 1'b0;
         csr_write_op = CSR_OP_NONE;
-        csr_write_dst = CSR_DST_NONE;
 
         if (is_system) begin
             case (funct3)
@@ -75,37 +69,16 @@ module ysyx_26030082_CSR (
                 F3_CSRRW,
                 F3_CSRRWI: begin
                     csr_write_op = CSR_OP_RW;
-                    case (CSRaddr)
-                        CSR_mstatus: csr_write_dst = CSR_DST_MSTATUS;
-                        CSR_mtvec:   csr_write_dst = CSR_DST_MTVEC;
-                        CSR_mepc:    csr_write_dst = CSR_DST_MEPC;
-                        default: begin
-                        end
-                    endcase
                 end
 
                 F3_CSRRS,
                 F3_CSRRSI: begin
                     csr_write_op = CSR_OP_RS;
-                    case (CSRaddr)
-                        CSR_mstatus: csr_write_dst = CSR_DST_MSTATUS;
-                        CSR_mtvec:   csr_write_dst = CSR_DST_MTVEC;
-                        CSR_mepc:    csr_write_dst = CSR_DST_MEPC;
-                        default: begin
-                        end
-                    endcase
                 end
 
                 F3_CSRRC,
                 F3_CSRRCI: begin
                     csr_write_op = CSR_OP_RC;
-                    case (CSRaddr)
-                        CSR_mstatus: csr_write_dst = CSR_DST_MSTATUS;
-                        CSR_mtvec:   csr_write_dst = CSR_DST_MTVEC;
-                        CSR_mepc:    csr_write_dst = CSR_DST_MEPC;
-                        default: begin
-                        end
-                    endcase
                 end
 
                 default: begin
@@ -153,30 +126,30 @@ module ysyx_26030082_CSR (
             end else begin
                 case (csr_write_op)
                     CSR_OP_RW: begin
-                        case (csr_write_dst)
-                            CSR_DST_MSTATUS: mstatus <= CSRwdata;
-                            CSR_DST_MTVEC:   mtvec   <= CSRwdata;
-                            CSR_DST_MEPC:    mepc    <= CSRwdata;
+                        case (CSRaddr)
+                            CSR_mstatus: mstatus <= CSRwdata;
+                            CSR_mtvec:   mtvec   <= CSRwdata;
+                            CSR_mepc:    mepc    <= CSRwdata;
                             default: begin
                             end
                         endcase
                     end
 
                     CSR_OP_RS: begin
-                        case (csr_write_dst)
-                            CSR_DST_MSTATUS: mstatus <= mstatus | CSRwdata;
-                            CSR_DST_MTVEC:   mtvec   <= mtvec | CSRwdata;
-                            CSR_DST_MEPC:    mepc    <= mepc | CSRwdata;
+                        case (CSRaddr)
+                            CSR_mstatus: mstatus <= mstatus | CSRwdata;
+                            CSR_mtvec:   mtvec   <= mtvec | CSRwdata;
+                            CSR_mepc:    mepc    <= mepc | CSRwdata;
                             default: begin
                             end
                         endcase
                     end
 
                     CSR_OP_RC: begin
-                        case (csr_write_dst)
-                            CSR_DST_MSTATUS: mstatus <= mstatus & ~CSRwdata;
-                            CSR_DST_MTVEC:   mtvec   <= mtvec & ~CSRwdata;
-                            CSR_DST_MEPC:    mepc    <= mepc & ~CSRwdata;
+                        case (CSRaddr)
+                            CSR_mstatus: mstatus <= mstatus & ~CSRwdata;
+                            CSR_mtvec:   mtvec   <= mtvec & ~CSRwdata;
+                            CSR_mepc:    mepc    <= mepc & ~CSRwdata;
                             default: begin
                             end
                         endcase
