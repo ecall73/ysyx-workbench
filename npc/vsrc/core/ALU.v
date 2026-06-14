@@ -27,6 +27,7 @@ module ysyx_26030082_ALU(
     wire        is_sub_family;
     wire        cmp_lt;
     wire        cmp_ltu;
+    wire [32:0] bru_sub_result;
     wire        bru_cmp_eq;
     wire        bru_cmp_lt;
     wire        bru_cmp_ltu;
@@ -56,9 +57,11 @@ module ysyx_26030082_ALU(
     assign sra_result   = ($signed(A)) >>> B[4:0];
     assign cmp_lt = (A[31] & ~B[31]) | ((~A[31] ^ B[31]) & add_sub_result[31]);
     assign cmp_ltu = ~carry;
-    assign bru_cmp_eq = (rR1_data == rR2_data);
-    assign bru_cmp_lt = ($signed(rR1_data) < $signed(rR2_data));
-    assign bru_cmp_ltu = (rR1_data < rR2_data);
+    assign bru_sub_result = {1'b0, rR1_data} + {1'b0, ~rR2_data} + 33'd1;
+    assign bru_cmp_eq = ~|bru_sub_result[31:0];
+    assign bru_cmp_lt = (rR1_data[31] & ~rR2_data[31]) |
+                        ((rR1_data[31] ~^ rR2_data[31]) & bru_sub_result[31]);
+    assign bru_cmp_ltu = ~bru_sub_result[32];
 
     always @(*) begin
         case (ALUControl)
