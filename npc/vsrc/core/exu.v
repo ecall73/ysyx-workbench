@@ -5,6 +5,7 @@ module ysyx_26030082_exu (
     output wire        ex_in_ready,
     output wire        ex_out_valid,
     input  wire        ex_out_ready,
+    input  wire        ex_fire,
 
     // ALU inputs
     input  wire        ex_ALUSrcA,
@@ -61,6 +62,7 @@ module ysyx_26030082_exu (
     ysyx_26030082_CSR CSR (
         .clock                    (clock),
         .reset                    (reset),
+        .csr_fire                 (ex_fire),
 
         .is_system              (ex_is_system),
         .CSRaddr                (ex_CSRaddr),
