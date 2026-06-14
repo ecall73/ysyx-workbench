@@ -25,9 +25,8 @@ module ysyx_26030082_idu (
     output wire        id_ijtype,
 
     // CSR
-    output wire        id_CSRSrc,
+    output wire        id_is_system,
     output wire [11:0] id_CSRaddr,
-    output wire [ 4:0] id_CSRControl,
     output wire        id_FenceI
 
     `ifndef SYNTHESIS
@@ -168,13 +167,8 @@ module ysyx_26030082_idu (
         endcase
     end
 
-    // Expanded CCTL module logic
-    assign id_CSRSrc = funct3[2];
+    // Keep only SYSTEM opcode and CSR address in ID; CSR.v performs the detailed SYSTEM decode.
+    assign id_is_system = op_system;
     assign id_CSRaddr = id_inst[31:20];
-    assign id_CSRControl[0] = op_system && (id_inst[13:12] == 2'b01); // csrrw, csrrwi
-    assign id_CSRControl[1] = op_system && (id_inst[13:12] == 2'b10); // csrrs, csrrsi
-    assign id_CSRControl[2] = op_system && (id_inst[13:12] == 2'b11); // csrrc, csrrci
-    assign id_CSRControl[3] = id_inst == 32'h00000073; // ecall
-    assign id_CSRControl[4] = id_inst == 32'h30200073; // mret
 
 endmodule

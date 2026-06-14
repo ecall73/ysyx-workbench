@@ -141,9 +141,8 @@ module ysyx_26030082 #(
     wire        id_btype;
     wire        id_jtype;
     wire        id_ijtype;
-    wire        id_CSRSrc;
+    wire        id_is_system;
     wire [11:0] id_CSRaddr;
-    wire [ 4:0] id_CSRControl;
     wire        id_FenceI;
 
     // EX
@@ -168,9 +167,8 @@ module ysyx_26030082 #(
     reg         ex_btype;
     reg         ex_jtype;
     reg         ex_ijtype;
-    reg         ex_CSRSrc;
+    reg         ex_is_system;
     reg  [11:0] ex_CSRaddr;
-    reg  [ 4:0] ex_CSRControl;
     reg         ex_FenceI;
     wire [31:0] ex_CSRnpc;
     wire        ex_CSRjump;
@@ -328,9 +326,8 @@ module ysyx_26030082 #(
         .id_jtype               (id_jtype),
         .id_ijtype              (id_ijtype),
 
-        .id_CSRSrc              (id_CSRSrc),
+        .id_is_system           (id_is_system),
         .id_CSRaddr             (id_CSRaddr),
-        .id_CSRControl          (id_CSRControl),
         .id_FenceI              (id_FenceI)
 
         `ifndef SYNTHESIS
@@ -398,9 +395,8 @@ module ysyx_26030082 #(
             ex_ALUSrcB      <= id_ALUSrcB;
             ex_rR1_data     <= id_rR1_data_forward;
             ex_rR2_data     <= id_rR2_data_forward;
-            ex_CSRSrc       <= id_CSRSrc;
+            ex_is_system    <= id_is_system;
             ex_CSRaddr      <= id_CSRaddr;
-            ex_CSRControl   <= id_CSRControl;
             ex_FenceI       <= id_FenceI;
             ex_btype        <= id_btype;
             ex_jtype        <= id_jtype;
@@ -453,9 +449,8 @@ module ysyx_26030082 #(
         .ex_imm                 (ex_imm),
         .ex_ALUControl          (ex_ALUControl),
 
-        .ex_CSRSrc              (ex_CSRSrc),
+        .ex_is_system           (ex_is_system),
         .ex_CSRaddr             (ex_CSRaddr),
-        .ex_CSRControl          (ex_CSRControl),
 
         .ex_MemToReg            (ex_MemToReg),
 

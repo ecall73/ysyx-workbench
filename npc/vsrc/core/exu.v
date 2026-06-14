@@ -17,9 +17,8 @@ module ysyx_26030082_exu (
     input  wire [ 3:0] ex_ALUControl,
 
     // CSR inputs
-    input  wire        ex_CSRSrc,
+    input  wire        ex_is_system,
     input  wire [11:0] ex_CSRaddr,
-    input  wire [ 4:0] ex_CSRControl,
 
     // Control for WB data selection
     input  wire [ 2:0] ex_MemToReg,
@@ -63,9 +62,9 @@ module ysyx_26030082_exu (
         .clock                    (clock),
         .reset                    (reset),
 
-        .CSRControl             (ex_CSRControl),
+        .is_system              (ex_is_system),
         .CSRaddr                (ex_CSRaddr),
-        .CSRSrc                 (ex_CSRSrc),
+        .funct3                 (ex_funct3),
         .rR1_data               (ex_rR1_data),
         .imm                    (ex_imm),
 
