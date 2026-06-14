@@ -56,7 +56,6 @@ module ysyx_26030082_icache #(
     wire [INDEX_W-1:0]         lookup_index;
     wire [TAG_W-1:0]           lookup_tag;
     wire [LINE_DATA_W-1:0]     lookup_line;
-    reg  [31:0]                lookup_word_data;
 
     wire               cache_hit;
     wire               cache_miss;
@@ -87,7 +86,7 @@ module ysyx_26030082_icache #(
     assign discard_resp = need_flush || pipe_flush;
     assign id_valid = lookup_resp_valid;
     assign id_pc = if_pc;
-    assign id_inst = lookup_word_data;
+    assign id_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
 
     assign req_space = lookup_resp_valid && id_ready;
     assign if_ready = req_space;
@@ -101,19 +100,6 @@ module ysyx_26030082_icache #(
     assign ifu_axi_rready = (state == S_MISS_R);
     assign ar_fire = ifu_axi_arvalid && ifu_axi_arready;
     assign r_fire = ifu_axi_rvalid && ifu_axi_rready;
-
-    always @(*) begin
-        if (LINE_WORDS == 4) begin
-            case (lookup_word_offset[1:0])
-                2'd0: lookup_word_data = lookup_line[31:0];
-                2'd1: lookup_word_data = lookup_line[63:32];
-                2'd2: lookup_word_data = lookup_line[95:64];
-                default: lookup_word_data = lookup_line[127:96];
-            endcase
-        end else begin
-            lookup_word_data = lookup_line[{lookup_word_offset, 5'b0} +: 32];
-        end
-    end
 
     always @(posedge clock) begin
         if (reset) begin
@@ -172,16 +158,7 @@ module ysyx_26030082_icache #(
                     end
 
                     if (r_fire) begin
-                        if (LINE_WORDS == 4) begin
-                            case (refill_word_idx[1:0])
-                                2'd0: data_array[miss_index][31:0] <= ifu_axi_rdata;
-                                2'd1: data_array[miss_index][63:32] <= ifu_axi_rdata;
-                                2'd2: data_array[miss_index][95:64] <= ifu_axi_rdata;
-                                default: data_array[miss_index][127:96] <= ifu_axi_rdata;
-                            endcase
-                        end else begin
-                            data_array[miss_index][{refill_word_idx, 5'b0} +: 32] <= ifu_axi_rdata;
-                        end
+                        data_array[miss_index][{refill_word_idx, 5'b0} +: 32] <= ifu_axi_rdata;
                         if (ifu_axi_rlast) begin
                             if (!drop_fill && !invalidate) begin
                                 tag_array[miss_index] <= miss_tag;
