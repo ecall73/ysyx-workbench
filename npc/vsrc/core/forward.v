@@ -29,6 +29,7 @@ module ysyx_26030082_forward(
 
     assign forward_ex_A = (id_rR1 == ex_RFwaddr) && ex_RegWrite && ~(ex_RFwaddr == 0);
     assign forward_ex_B = (id_rR2 == ex_RFwaddr) && ex_RegWrite && ~(ex_RFwaddr == 0);
+
     assign forward_ls_A = (id_rR1 == ls_RFwaddr) && ls_RegWrite && ~(ls_RFwaddr == 0);
     assign forward_ls_B = (id_rR2 == ls_RFwaddr) && ls_RegWrite && ~(ls_RFwaddr == 0);
 

@@ -8,11 +8,12 @@ module ysyx_26030082_lsu (
     input  wire        ls_out_ready,
 
     // LS payload inputs
-    input  wire [31:0] ls_payload,
+    input  wire [31:0] ls_ALUResult,
     input  wire [ 2:0] ls_funct3,
     input  wire        ls_MemWrite,
     input  wire        ls_MemRead,
     input  wire [31:0] ls_rR2_data,
+    input  wire [31:0] ls_RFwdata,
     input  wire [63:0] ls_mtime,
 
     // LSU AXI4-Lite interface
@@ -68,8 +69,6 @@ module ysyx_26030082_lsu (
     wire        aw_fire;
     wire        w_fire;
     wire        b_fire;
-    wire        fast_rd_req;
-    wire        fast_wr_req;
     wire [1:0]  ls_offset;
     wire [31:0] ls_local_rdata;
     wire [31:0] ls_load_raw_data;
@@ -80,7 +79,7 @@ module ysyx_26030082_lsu (
 
     assign ls_is_mem = ls_MemRead || ls_MemWrite;
     assign ls_is_load = ls_MemRead && ~ls_MemWrite;
-    assign ls_is_clint = (ls_payload[31:16] == CLINT_BASE_ADDR[31:16]);
+    assign ls_is_clint = (ls_ALUResult[31:16] == CLINT_BASE_ADDR[31:16]);
     assign ls_is_local = ls_is_mem && ls_is_clint;
     assign ls_is_local_load = ls_is_load && ls_is_clint;
 
@@ -89,11 +88,9 @@ module ysyx_26030082_lsu (
     assign aw_fire = lsu_axi_awvalid && lsu_axi_awready;
     assign w_fire = lsu_axi_wvalid && lsu_axi_wready;
     assign b_fire = lsu_axi_bvalid && lsu_axi_bready;
-    assign fast_rd_req = (state == L_IDLE) && ls_in_valid && ls_is_load && ~ls_is_local;
-    assign fast_wr_req = (state == L_IDLE) && ls_in_valid && ls_MemWrite && ~ls_is_local;
-    assign ls_offset = ls_payload[1:0];
-    assign ls_local_rdata = (ls_payload == MTIME_ADDR)  ? ls_mtime[31:0]  :
-                            (ls_payload == MTIMEH_ADDR) ? ls_mtime[63:32] :
+    assign ls_offset = ls_ALUResult[1:0];
+    assign ls_local_rdata = (ls_ALUResult == MTIME_ADDR)  ? ls_mtime[31:0]  :
+                            (ls_ALUResult == MTIMEH_ADDR) ? ls_mtime[63:32] :
                             32'b0;
     assign ls_load_raw_data = ls_is_local_load ? ls_local_rdata : lsu_axi_rdata;
 
@@ -106,22 +103,22 @@ module ysyx_26030082_lsu (
                           (state == L_RD_WAIT_R) ? lsu_axi_rvalid :
                           (state == L_WR_WAIT_B) ? lsu_axi_bvalid : 1'b0;
 
-    assign lsu_axi_araddr = ls_payload;
+    assign lsu_axi_araddr = ls_ALUResult;
     assign lsu_axi_arsize = ls_axi_size;
-    assign lsu_axi_arvalid = (state == L_RD_AR) || fast_rd_req;
+    assign lsu_axi_arvalid = (state == L_RD_AR);
     assign lsu_axi_rready = (state == L_RD_WAIT_R) && ls_out_ready;
 
-    assign lsu_axi_awaddr = ls_payload;
+    assign lsu_axi_awaddr = ls_ALUResult;
     assign lsu_axi_awsize = ls_axi_size;
-    assign lsu_axi_awvalid = ((state == L_WR_AW_W) && ~wr_aw_done) || fast_wr_req;
+    assign lsu_axi_awvalid = (state == L_WR_AW_W) && ~wr_aw_done;
     assign lsu_axi_wdata = ls_wdata_aligned;
     assign lsu_axi_wstrb = ls_wmask_calc;
-    assign lsu_axi_wvalid = ((state == L_WR_AW_W) && ~wr_w_done) || fast_wr_req;
+    assign lsu_axi_wvalid = (state == L_WR_AW_W) && ~wr_w_done;
     assign lsu_axi_bready = (state == L_WR_WAIT_B) && ls_out_ready;
 
     assign ls_RFwdata_out =
         (((state == L_RD_WAIT_R) && lsu_axi_rvalid && ls_MemRead) ||
-         ((state == L_IDLE) && ls_in_valid && ls_is_local_load)) ? ls_rdata_decoded : ls_payload;
+         ((state == L_IDLE) && ls_in_valid && ls_is_local_load)) ? ls_rdata_decoded : ls_RFwdata;
 
     // Store alignment
     always @(*) begin
@@ -228,15 +225,9 @@ module ysyx_26030082_lsu (
                     wr_w_done <= 1'b0;
                     if (ls_in_valid && ls_is_mem && ~ls_is_local) begin
                         if (ls_is_load) begin
-                            state <= ar_fire ? L_RD_WAIT_R : L_RD_AR;
+                            state <= L_RD_AR;
                         end else begin
-                            wr_aw_done <= aw_fire;
-                            wr_w_done <= w_fire;
-                            if (aw_fire && w_fire) begin
-                                state <= L_WR_WAIT_B;
-                            end else begin
-                                state <= L_WR_AW_W;
-                            end
+                            state <= L_WR_AW_W;
                         end
                     end
                 end

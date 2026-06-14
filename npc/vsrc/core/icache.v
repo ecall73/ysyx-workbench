@@ -1,6 +1,6 @@
 module ysyx_26030082_icache #(
     parameter integer LINE_WORDS = 4,
-    parameter integer LINE_COUNT = 8
+    parameter integer LINE_COUNT = 4
 ) (
     input  wire        clock,
     input  wire        reset,
