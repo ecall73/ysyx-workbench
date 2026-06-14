@@ -12,7 +12,6 @@ module ysyx_26030082_exu (
     input  wire [31:0] ex_pc,
     input  wire [31:0] ex_rR1_data,
     input  wire [31:0] ex_rR2_data,
-    input  wire [ 2:0] ex_funct3,
     input  wire [31:0] ex_imm,
     input  wire [ 3:0] ex_ALUControl,
 
@@ -53,7 +52,6 @@ module ysyx_26030082_exu (
         .BRU_A                  (ex_rR1_data),
         .BRU_B                  (ex_rR2_data),
         .ALUControl             (ex_ALUControl),
-        .BRUFunct3              (ex_funct3),
 
         .Result                 (ex_ALUResult),
         .BRUResult              (ex_BRUResult)
