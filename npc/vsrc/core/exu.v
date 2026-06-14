@@ -24,14 +24,11 @@ module ysyx_26030082_exu (
     output wire [ 2:0] ex_funct3,
     output wire [ 4:0] ex_RFwaddr,
     output wire [31:0] ex_ALUResult,
-    output wire [31:0] ex_pc4,
-    output wire        ex_Redirect,
-    output wire [31:0] ex_RedirectTarget,
-    output wire        ex_CSRjump,
-    output wire [31:0] ex_CSRnpc,
+    output wire        ex_flush,
+    output wire        ex_invalidate,
+    output wire [31:0] ex_flush_target,
     output wire [31:0] ex_WBAltData,
     output wire        ex_WBUseAlt,
-    output wire        ex_FenceI,
     output wire        ex_have_inst
 );
 
@@ -110,6 +107,11 @@ module ysyx_26030082_exu (
 
     wire [31:0] CSRrdata;
     wire        BRUResult;
+    wire [31:0] ex_pc4;
+    wire        ex_Redirect;
+    wire [31:0] ex_RedirectTarget;
+    wire        ex_CSRjump;
+    wire [31:0] ex_CSRnpc;
     wire [31:0] redirect_base;
     wire [31:0] redirect_target_sum;
     wire        ex_fire;
@@ -206,10 +208,14 @@ module ysyx_26030082_exu (
 
     assign redirect_base = op_jalr ? rR1_data_forward : fetch_pc;
     assign redirect_target_sum = redirect_base + imm;
-    assign ex_Redirect = fetch_valid && (op_jal || op_jalr || (op_branch && BRUResult));
+    assign ex_Redirect = op_jal || op_jalr || (op_branch && BRUResult);
     assign ex_RedirectTarget = op_jalr ? {redirect_target_sum[31:1], 1'b0}
                                        : redirect_target_sum;
-    assign ex_FenceI = fetch_valid && op_fencei;
+    assign ex_flush = ex_fire && (ex_CSRjump || ex_Redirect || op_fencei);
+    assign ex_invalidate = ex_fire && op_fencei;
+    assign ex_flush_target = ex_CSRjump ? ex_CSRnpc :
+                             ex_Redirect ? ex_RedirectTarget :
+                             ex_pc4;
 
     assign ex_WBAltData = MemToReg[1] ?
                               (MemToReg[0] ? imm : CSRrdata) :
