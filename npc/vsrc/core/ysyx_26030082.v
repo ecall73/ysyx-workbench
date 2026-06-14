@@ -138,6 +138,7 @@ module ysyx_26030082 #(
     wire [31:0] id_rR2_data;
     wire [31:0] id_rR1_data_forward;
     wire [31:0] id_rR2_data_forward;
+    wire        id_btype;
     wire        id_jtype;
     wire        id_ijtype;
     wire        id_CSRSrc;
@@ -164,6 +165,7 @@ module ysyx_26030082 #(
     wire        ex_BRUResult;
     wire [31:0] ex_pc4;
     wire [31:0] ex_RFwdata;
+    reg         ex_btype;
     reg         ex_jtype;
     reg         ex_ijtype;
     reg         ex_CSRSrc;
@@ -258,6 +260,7 @@ module ysyx_26030082 #(
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
         .ex_pc4                 (ex_pc4),
+        .ex_btype               (ex_btype),
         .ex_jtype               (ex_jtype),
         .ex_ijtype              (ex_ijtype),
         .ex_BRUResult           (ex_BRUResult),
@@ -321,6 +324,7 @@ module ysyx_26030082 #(
         .id_ALUSrcB             (id_ALUSrcB),
         .id_imm                 (id_imm),
 
+        .id_btype               (id_btype),
         .id_jtype               (id_jtype),
         .id_ijtype              (id_ijtype),
 
@@ -397,6 +401,7 @@ module ysyx_26030082 #(
             ex_CSRaddr      <= id_CSRaddr;
             ex_CSRControl   <= id_CSRControl;
             ex_FenceI       <= id_FenceI;
+            ex_btype        <= id_btype;
             ex_jtype        <= id_jtype;
             ex_ijtype       <= id_ijtype;
         end
@@ -443,6 +448,7 @@ module ysyx_26030082 #(
         .ex_pc                  (ex_pc),
         .ex_rR1_data            (ex_rR1_data),
         .ex_rR2_data            (ex_rR2_data),
+        .ex_funct3              (ex_funct3),
         .ex_imm                 (ex_imm),
         .ex_ALUControl          (ex_ALUControl),
 

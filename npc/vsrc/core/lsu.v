@@ -68,6 +68,8 @@ module ysyx_26030082_lsu (
     wire        aw_fire;
     wire        w_fire;
     wire        b_fire;
+    wire        fast_rd_req;
+    wire        fast_wr_req;
     wire [1:0]  ls_offset;
     wire [31:0] ls_local_rdata;
     wire [31:0] ls_load_raw_data;
@@ -87,6 +89,8 @@ module ysyx_26030082_lsu (
     assign aw_fire = lsu_axi_awvalid && lsu_axi_awready;
     assign w_fire = lsu_axi_wvalid && lsu_axi_wready;
     assign b_fire = lsu_axi_bvalid && lsu_axi_bready;
+    assign fast_rd_req = (state == L_IDLE) && ls_in_valid && ls_is_load && ~ls_is_local;
+    assign fast_wr_req = (state == L_IDLE) && ls_in_valid && ls_MemWrite && ~ls_is_local;
     assign ls_offset = ls_payload[1:0];
     assign ls_local_rdata = (ls_payload == MTIME_ADDR)  ? ls_mtime[31:0]  :
                             (ls_payload == MTIMEH_ADDR) ? ls_mtime[63:32] :
@@ -104,15 +108,15 @@ module ysyx_26030082_lsu (
 
     assign lsu_axi_araddr = ls_payload;
     assign lsu_axi_arsize = ls_axi_size;
-    assign lsu_axi_arvalid = (state == L_RD_AR);
+    assign lsu_axi_arvalid = (state == L_RD_AR) || fast_rd_req;
     assign lsu_axi_rready = (state == L_RD_WAIT_R) && ls_out_ready;
 
     assign lsu_axi_awaddr = ls_payload;
     assign lsu_axi_awsize = ls_axi_size;
-    assign lsu_axi_awvalid = (state == L_WR_AW_W) && ~wr_aw_done;
+    assign lsu_axi_awvalid = ((state == L_WR_AW_W) && ~wr_aw_done) || fast_wr_req;
     assign lsu_axi_wdata = ls_wdata_aligned;
     assign lsu_axi_wstrb = ls_wmask_calc;
-    assign lsu_axi_wvalid = (state == L_WR_AW_W) && ~wr_w_done;
+    assign lsu_axi_wvalid = ((state == L_WR_AW_W) && ~wr_w_done) || fast_wr_req;
     assign lsu_axi_bready = (state == L_WR_WAIT_B) && ls_out_ready;
 
     assign ls_RFwdata_out =
@@ -224,9 +228,15 @@ module ysyx_26030082_lsu (
                     wr_w_done <= 1'b0;
                     if (ls_in_valid && ls_is_mem && ~ls_is_local) begin
                         if (ls_is_load) begin
-                            state <= L_RD_AR;
+                            state <= ar_fire ? L_RD_WAIT_R : L_RD_AR;
                         end else begin
-                            state <= L_WR_AW_W;
+                            wr_aw_done <= aw_fire;
+                            wr_w_done <= w_fire;
+                            if (aw_fire && w_fire) begin
+                                state <= L_WR_WAIT_B;
+                            end else begin
+                                state <= L_WR_AW_W;
+                            end
                         end
                     end
                 end
