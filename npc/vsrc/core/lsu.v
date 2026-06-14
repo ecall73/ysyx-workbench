@@ -49,14 +49,14 @@ module ysyx_26030082_lsu (
     localparam L_RD_AR     = 3'd1;
     localparam L_RD_WAIT_R = 3'd2;
     localparam L_WR_AW_W   = 3'd3;
-    localparam L_WR_WAIT_B = 3'd4;
+    localparam L_WR_AW     = 3'd4;
+    localparam L_WR_W      = 3'd5;
+    localparam L_WR_WAIT_B = 3'd6;
     localparam [31:0] CLINT_BASE_ADDR = 32'h0200_0000;
     localparam [31:0] MTIME_ADDR      = 32'h0200_bff8;
     localparam [31:0] MTIMEH_ADDR     = 32'h0200_bffc;
 
     reg  [2:0]  state;
-    reg         wr_aw_done;
-    reg         wr_w_done;
 
     wire        ls_is_mem;
     wire        ls_is_load;
@@ -109,10 +109,10 @@ module ysyx_26030082_lsu (
 
     assign lsu_axi_awaddr = ls_payload;
     assign lsu_axi_awsize = ls_axi_size;
-    assign lsu_axi_awvalid = (state == L_WR_AW_W) && ~wr_aw_done;
+    assign lsu_axi_awvalid = (state == L_WR_AW_W) || (state == L_WR_AW);
     assign lsu_axi_wdata = ls_wdata_aligned;
     assign lsu_axi_wstrb = ls_wmask_calc;
-    assign lsu_axi_wvalid = (state == L_WR_AW_W) && ~wr_w_done;
+    assign lsu_axi_wvalid = (state == L_WR_AW_W) || (state == L_WR_W);
     assign lsu_axi_bready = (state == L_WR_WAIT_B) && ls_out_ready;
 
     assign ls_RFwdata_out =
@@ -215,13 +215,9 @@ module ysyx_26030082_lsu (
     always @(posedge clock) begin
         if (reset) begin
             state <= L_IDLE;
-            wr_aw_done <= 1'b0;
-            wr_w_done <= 1'b0;
         end else begin
             case (state)
                 L_IDLE: begin
-                    wr_aw_done <= 1'b0;
-                    wr_w_done <= 1'b0;
                     if (ls_in_valid && ls_is_mem && ~ls_is_local) begin
                         if (ls_is_load) begin
                             state <= L_RD_AR;
@@ -244,15 +240,23 @@ module ysyx_26030082_lsu (
                 end
 
                 L_WR_AW_W: begin
+                    case ({aw_fire, w_fire})
+                        2'b11: state <= L_WR_WAIT_B;
+                        2'b10: state <= L_WR_W;
+                        2'b01: state <= L_WR_AW;
+                        default: begin
+                        end
+                    endcase
+                end
+
+                L_WR_AW: begin
                     if (aw_fire) begin
-                        wr_aw_done <= 1'b1;
+                        state <= L_WR_WAIT_B;
                     end
+                end
+
+                L_WR_W: begin
                     if (w_fire) begin
-                        wr_w_done <= 1'b1;
-                    end
-                    if ((wr_aw_done || aw_fire) && (wr_w_done || w_fire)) begin
-                        wr_aw_done <= 1'b0;
-                        wr_w_done <= 1'b0;
                         state <= L_WR_WAIT_B;
                     end
                 end
@@ -265,8 +269,6 @@ module ysyx_26030082_lsu (
 
                 default: begin
                     state <= L_IDLE;
-                    wr_aw_done <= 1'b0;
-                    wr_w_done <= 1'b0;
                 end
             endcase
         end

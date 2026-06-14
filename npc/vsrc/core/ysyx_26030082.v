@@ -150,6 +150,7 @@ module ysyx_26030082 #(
     reg         ex_in_valid;
     reg  [31:0] ex_pc;
     reg  [ 3:0] ex_ALUControl;
+    reg         ex_RegWrite;
     reg  [ 2:0] ex_MemToReg;
     wire        ex_MemRead;
     reg         ex_MemWrite;
@@ -176,6 +177,7 @@ module ysyx_26030082 #(
 
     // LS
     reg         ls_in_valid;
+    reg         ls_RegWrite;
     reg         ls_MemRead;
     reg         ls_MemWrite;
     reg  [31:0] ls_rR2_data;
@@ -340,7 +342,7 @@ module ysyx_26030082 #(
         .clock                  (clock),
         .reset                  (reset),
 
-        .wen                    (ls_out_valid && (ls_RFwaddr != 5'd0)),
+        .wen                    (ls_out_valid && ls_RegWrite),
         .waddr                  (ls_RFwaddr),
         .wdata                  (ls_RFwdata_out),
 
@@ -360,11 +362,11 @@ module ysyx_26030082 #(
 
         .ex_out_valid           (ex_out_valid),
         .ex_MemRead             (ex_MemRead),
-        .ex_RegWrite            (ex_in_valid && (ex_RFwaddr != 5'd0)),
+        .ex_RegWrite            (ex_in_valid && ex_RegWrite),
         .ex_RFwaddr             (ex_RFwaddr),
         .ex_RFwdata             (ex_RFwdata),
 
-        .ls_RegWrite            (ls_out_valid && (ls_RFwaddr != 5'd0)),
+        .ls_RegWrite            (ls_out_valid && ls_RegWrite),
         .ls_RFwaddr             (ls_RFwaddr),
         .ls_RFwdata             (ls_RFwdata_out),
         .ls_load_pending        (ls_in_valid && ls_MemRead && ~ls_out_valid),
@@ -385,12 +387,13 @@ module ysyx_26030082 #(
         end else if (ex_in_ready) begin
             ex_in_valid <= id_issue_valid;
             ex_ALUControl   <= id_ALUControl;
+            ex_RegWrite     <= id_RegWrite;
             ex_MemWrite     <= id_MemWrite;
             ex_MemToReg     <= id_MemToReg;
             ex_funct3       <= id_inst[14:12];
             ex_imm          <= id_imm;
             ex_pc           <= id_pc;
-            ex_RFwaddr      <= id_RegWrite ? id_inst[11:7] : 5'd0;
+            ex_RFwaddr      <= id_inst[11:7];
             ex_ALUSrcA      <= id_ALUSrcA;
             ex_ALUSrcB      <= id_ALUSrcB;
             ex_rR1_data     <= id_rR1_data_forward;
@@ -475,6 +478,7 @@ module ysyx_26030082 #(
             ls_in_valid   <= 1'b0;
         end else if (ex_out_ready) begin
             ls_in_valid <= ex_out_valid;
+            ls_RegWrite   <= ex_RegWrite;
             ls_MemWrite   <= ex_MemWrite;
             ls_rR2_data   <= ex_rR2_data;
             ls_funct3     <= ex_funct3;
