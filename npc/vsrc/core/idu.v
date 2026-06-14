@@ -18,6 +18,10 @@ module ysyx_26030082_idu (
     output wire        id_ALUSrcA,
     output wire        id_ALUSrcB,
     output reg  [31:0] id_imm,
+    output wire [ 2:0] id_funct3,
+    output wire [ 4:0] id_RFwaddr,
+    output wire        id_rs1_used,
+    output wire        id_rs2_used,
 
     // Branch/jump type decode
     output wire        id_btype,
@@ -143,6 +147,11 @@ module ysyx_26030082_idu (
     assign id_ALUSrcA = op_auipc | op_branch | op_jal;
     assign id_ALUSrcB = ~(op_rtype | op_misc_mem);
     assign id_FenceI = op_fencei;
+    assign id_funct3 = funct3;
+    assign id_RFwaddr = id_inst[11:7];
+    assign id_rs1_used = op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
+                         (op_csr && ~funct3[2]);
+    assign id_rs2_used = op_rtype | op_store | op_branch;
 
     `ifndef SYNTHESIS
         // Keep retire trace aligned with NEMU: treat SYSTEM opcode (CSR/ecall/ebreak/mret) as real instructions.
