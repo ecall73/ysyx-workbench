@@ -74,7 +74,7 @@ module ysyx_26030082_lsu (
     reg  [3:0]  ls_wmask_calc;
     reg  [31:0] ls_wdata_aligned;
     reg  [31:0] ls_rdata_decoded;
-    wire [2:0]  ls_axi_size;
+    reg  [2:0]  ls_axi_size;
 
     assign ls_is_mem = ls_MemRead || ls_MemWrite;
     assign ls_is_load = ls_MemRead && ~ls_MemWrite;
@@ -92,9 +92,6 @@ module ysyx_26030082_lsu (
                             (ls_payload == MTIMEH_ADDR) ? ls_mtime[63:32] :
                             32'b0;
     assign ls_load_raw_data = ls_is_local_load ? ls_local_rdata : lsu_axi_rdata;
-    assign ls_axi_size = (ls_funct3[1:0] == 2'b00) ? 3'b000 :
-                         (ls_funct3[1:0] == 2'b01) ? 3'b001 :
-                                                      3'b010;
 
     // Non-memory ops pass through in IDLE with zero extra delay.
     // For memory ops, ls_in_ready is only released when R/B handshakes.
@@ -126,8 +123,10 @@ module ysyx_26030082_lsu (
     always @(*) begin
         ls_wmask_calc = 4'b0000;
         ls_wdata_aligned = ls_rR2_data;
+        ls_axi_size = 3'b010;
         case (ls_funct3)
             3'b000: begin // sb
+                ls_axi_size = 3'b000;
                 case (ls_offset)
                     2'b00: begin
                         ls_wmask_calc = 4'b0001;
@@ -148,6 +147,7 @@ module ysyx_26030082_lsu (
                 endcase
             end
             3'b001: begin // sh
+                ls_axi_size = 3'b001;
                 case (ls_offset[1])
                     1'b0: begin
                         ls_wmask_calc = 4'b0011;
@@ -160,8 +160,10 @@ module ysyx_26030082_lsu (
                 endcase
             end
             3'b100: begin // lbu
+                ls_axi_size = 3'b000;
             end
             3'b101: begin // lhu
+                ls_axi_size = 3'b001;
             end
             default: begin // sw
                 ls_wmask_calc = 4'b1111;

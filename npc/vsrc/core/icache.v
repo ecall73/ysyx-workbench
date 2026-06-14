@@ -50,8 +50,10 @@ module ysyx_26030082_icache #(
     reg [INDEX_W-1:0] miss_index;
     reg [TAG_W-1:0]   miss_tag;
     reg [LINE_WORD_OFF_W-1:0] refill_word_idx;
+    reg [31:0] refill_buffer [0:LINE_WORDS-1];
     reg         need_flush;
     reg         drop_fill;
+    integer     refill_i;
 
     wire [LINE_WORD_OFF_W-1:0] lookup_word_offset;
     wire [INDEX_W-1:0]         lookup_index;
@@ -163,8 +165,13 @@ module ysyx_26030082_icache #(
                     end
 
                     if (r_fire) begin
-                        data_array[refill_data_addr] <= ifu_axi_rdata;
+                        refill_buffer[refill_word_idx] <= ifu_axi_rdata;
                         if (ifu_axi_rlast) begin
+                            for (refill_i = 0; refill_i < LINE_WORDS; refill_i = refill_i + 1) begin
+                                data_array[{miss_index, refill_i[LINE_WORD_OFF_W-1:0]}] <=
+                                    (refill_i[LINE_WORD_OFF_W-1:0] == refill_word_idx) ?
+                                    ifu_axi_rdata : refill_buffer[refill_i];
+                            end
                             if (!drop_fill && !invalidate) begin
                                 tag_array[miss_index] <= miss_tag;
                                 valid_array[miss_index] <= 1'b1;
