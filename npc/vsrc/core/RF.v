@@ -14,16 +14,25 @@ module ysyx_26030082_RF(
 );
 
     reg [31:0] reg_bank [1:15];
+    wire       write_valid;
+    wire       bypass_r1;
+    wire       bypass_r2;
+
+    assign write_valid = wen & (waddr != 5'd0) & ~waddr[4];
+    assign bypass_r1 = write_valid && (rR1 == waddr);
+    assign bypass_r2 = write_valid && (rR2 == waddr);
 
     always @(posedge clock) begin
-        if (wen & (waddr != 5'd0) & ~waddr[4]) begin
+        if (write_valid) begin
             reg_bank[waddr[3:0]] <= wdata;
         end
     end
 
     always @(*) begin
-        rR1_data = (rR1 == 5'd0 || rR1[4]) ? 32'b0 : reg_bank[rR1[3:0]];
-        rR2_data = (rR2 == 5'd0 || rR2[4]) ? 32'b0 : reg_bank[rR2[3:0]];
+        rR1_data = bypass_r1 ? wdata :
+                   (rR1 == 5'd0 || rR1[4]) ? 32'b0 : reg_bank[rR1[3:0]];
+        rR2_data = bypass_r2 ? wdata :
+                   (rR2 == 5'd0 || rR2[4]) ? 32'b0 : reg_bank[rR2[3:0]];
     end
 
 endmodule
