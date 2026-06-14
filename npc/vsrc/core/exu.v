@@ -8,8 +8,9 @@ module ysyx_26030082_exu (
     input  wire        ex_fire,
 
     // ALU inputs
-    input  wire        ex_ALUSrcA,
-    input  wire        ex_ALUSrcB,
+    input  wire        ex_ALUUseImm,
+    input  wire        ex_BaseImmSrcPC,
+    input  wire        ex_ALUResultFromBaseImm,
     input  wire [31:0] ex_pc,
     input  wire [31:0] ex_rR1_data,
     input  wire [31:0] ex_rR2_data,
@@ -42,33 +43,35 @@ module ysyx_26030082_exu (
     output wire        ex_MemRead
 );
 
+    wire [31:0] alu_a;
+    wire [31:0] alu_b;
+    wire [31:0] alu_result;
     wire [31:0] CSRrdata;
-    wire [31:0] redirect_base;
-    wire [31:0] redirect_target_sum;
+    wire [31:0] base_imm_base;
+    wire [31:0] base_imm_result;
 
     assign ex_in_ready = ~ex_in_valid || ex_out_ready;
     assign ex_out_valid = ex_in_valid;
 
     assign ex_pc4 = ex_pc + 32'd4;
-    assign redirect_base = ex_ijtype ? ex_rR1_data : ex_pc;
-    assign redirect_target_sum = redirect_base + ex_imm;
+    assign alu_a = ex_rR1_data;
+    assign alu_b = ex_ALUUseImm ? ex_imm : ex_rR2_data;
+    assign base_imm_base = ex_BaseImmSrcPC ? ex_pc : ex_rR1_data;
+    assign base_imm_result = base_imm_base + ex_imm;
+    assign ex_ALUResult = ex_ALUResultFromBaseImm ? base_imm_result : alu_result;
     assign ex_Redirect = ex_jtype || ex_ijtype || (ex_btype && ex_BRUResult);
-    assign ex_RedirectTarget = ex_ijtype ? {redirect_target_sum[31:1], 1'b0}
-                                         : redirect_target_sum;
+    assign ex_RedirectTarget = ex_ijtype ? {base_imm_result[31:1], 1'b0}
+                                         : base_imm_result;
 
     ysyx_26030082_ALU ALU (
-        .ALUSrcA                (ex_ALUSrcA),
-        .ALUSrcB                (ex_ALUSrcB),
-        .pc                     (ex_pc),
-        .imm                    (ex_imm),
-        .rR1_data               (ex_rR1_data),
-        .rR2_data               (ex_rR2_data),
+        .A                      (alu_a),
+        .B                      (alu_b),
         .BRU_A                  (ex_rR1_data),
         .BRU_B                  (ex_rR2_data),
         .ALUControl             (ex_ALUControl),
         .BRUFunct3              (ex_funct3),
 
-        .Result                 (ex_ALUResult),
+        .Result                 (alu_result),
         .BRUResult              (ex_BRUResult)
     );
 

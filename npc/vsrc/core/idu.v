@@ -15,8 +15,9 @@ module ysyx_26030082_idu (
     output wire        id_RegWrite,
     output wire [ 2:0] id_MemToReg,
     output wire        id_MemWrite,
-    output wire        id_ALUSrcA,
-    output wire        id_ALUSrcB,
+    output wire        id_ALUUseImm,
+    output wire        id_BaseImmSrcPC,
+    output wire        id_ALUResultFromBaseImm,
     output reg  [31:0] id_imm,
     output wire [ 2:0] id_funct3,
     output wire [ 4:0] id_RFwaddr,
@@ -116,13 +117,7 @@ module ysyx_26030082_idu (
     assign id_ijtype = op_jalr;
 
     assign op_add = (op_rtype && funct == 4'b0000) ||
-                    (op_itype && funct3 == 3'b000) ||
-                    op_load ||
-                    op_store ||
-                    op_branch ||
-                    op_jal ||
-                    op_auipc ||
-                    (op_jalr && funct3 == 3'b000);
+                    (op_itype && funct3 == 3'b000);
     assign op_sub = op_rtype && funct == 4'b1000;
     assign op_and = (op_rtype && funct == 4'b0111) || (op_itype && funct3 == 3'b111);
     assign op_or = (op_rtype && funct == 4'b0110) || (op_itype && funct3 == 3'b110);
@@ -144,8 +139,9 @@ module ysyx_26030082_idu (
 
     assign id_MemWrite = op_store;
 
-    assign id_ALUSrcA = op_auipc | op_branch | op_jal;
-    assign id_ALUSrcB = ~(op_rtype | op_misc_mem);
+    assign id_ALUUseImm = op_itype;
+    assign id_BaseImmSrcPC = op_auipc | op_branch | op_jal;
+    assign id_ALUResultFromBaseImm = op_load | op_store | op_auipc;
     assign id_FenceI = op_fencei;
     assign id_funct3 = funct3;
     assign id_RFwaddr = id_inst[11:7];

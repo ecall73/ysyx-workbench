@@ -1,10 +1,6 @@
 module ysyx_26030082_ALU(
-    input  wire        ALUSrcA,
-    input  wire        ALUSrcB,
-    input  wire [31:0] pc,
-    input  wire [31:0] imm,
-    input  wire [31:0] rR1_data,
-    input  wire [31:0] rR2_data,
+    input  wire [31:0] A,
+    input  wire [31:0] B,
     input  wire [31:0] BRU_A,
     input  wire [31:0] BRU_B,
     input  wire [ 3:0] ALUControl,
@@ -24,7 +20,6 @@ module ysyx_26030082_ALU(
     localparam [3:0] ALU_OR   = 4'b0110;
     localparam [3:0] ALU_AND  = 4'b0111;
 
-    wire [31:0] A, B;
     wire [31:0] add_sub_result, and_result, or_result, xor_result;
     wire [31:0] sll_result, srl_result, sra_result;
     wire        is_sub_family;
@@ -38,8 +33,6 @@ module ysyx_26030082_ALU(
     wire [31:0] adder_a, adder_b;
     wire cin, carry;
 
-    assign A = ALUSrcA ? pc : rR1_data;
-    assign B = ALUSrcB ? imm : rR2_data;
     assign adder_a = A;
     assign is_sub_family = (ALUControl == ALU_SUB) ||
                            (ALUControl == ALU_SLT) ||

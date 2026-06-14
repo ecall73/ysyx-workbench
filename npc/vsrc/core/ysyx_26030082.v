@@ -131,8 +131,9 @@ module ysyx_26030082 #(
     wire        id_RegWrite;
     wire [ 2:0] id_MemToReg;
     wire        id_MemWrite;
-    wire        id_ALUSrcA;
-    wire        id_ALUSrcB;
+    wire        id_ALUUseImm;
+    wire        id_BaseImmSrcPC;
+    wire        id_ALUResultFromBaseImm;
     wire [31:0] id_imm;
     wire [ 2:0] id_funct3;
     wire [ 4:0] id_RFwaddr;
@@ -157,8 +158,9 @@ module ysyx_26030082 #(
     wire [ 2:0] ex_MemToReg;
     wire        ex_MemRead;
     wire        ex_MemWrite;
-    wire        ex_ALUSrcA;
-    wire        ex_ALUSrcB;
+    wire        ex_ALUUseImm;
+    wire        ex_BaseImmSrcPC;
+    wire        ex_ALUResultFromBaseImm;
     wire [31:0] ex_imm;
     wire [31:0] ex_rR1_data;
     wire [31:0] ex_rR2_data;
@@ -210,8 +212,9 @@ module ysyx_26030082 #(
     assign ex_RegWrite   = id_RegWrite;
     assign ex_MemToReg   = id_MemToReg;
     assign ex_MemWrite   = id_MemWrite;
-    assign ex_ALUSrcA    = id_ALUSrcA;
-    assign ex_ALUSrcB    = id_ALUSrcB;
+    assign ex_ALUUseImm  = id_ALUUseImm;
+    assign ex_BaseImmSrcPC = id_BaseImmSrcPC;
+    assign ex_ALUResultFromBaseImm = id_ALUResultFromBaseImm;
     assign ex_imm        = id_imm;
     assign ex_rR1_data   = id_rR1_data_forward;
     assign ex_rR2_data   = id_rR2_data_forward;
@@ -354,8 +357,9 @@ module ysyx_26030082 #(
         .id_RegWrite            (id_RegWrite),
         .id_MemToReg            (id_MemToReg),
         .id_MemWrite            (id_MemWrite),
-        .id_ALUSrcA             (id_ALUSrcA),
-        .id_ALUSrcB             (id_ALUSrcB),
+        .id_ALUUseImm           (id_ALUUseImm),
+        .id_BaseImmSrcPC        (id_BaseImmSrcPC),
+        .id_ALUResultFromBaseImm(id_ALUResultFromBaseImm),
         .id_imm                 (id_imm),
         .id_funct3              (id_funct3),
         .id_RFwaddr             (id_RFwaddr),
@@ -427,8 +431,9 @@ module ysyx_26030082 #(
         .ex_out_ready           (ex_out_ready),
         .ex_fire                (ex_fire),
 
-        .ex_ALUSrcA             (ex_ALUSrcA),
-        .ex_ALUSrcB             (ex_ALUSrcB),
+        .ex_ALUUseImm           (ex_ALUUseImm),
+        .ex_BaseImmSrcPC        (ex_BaseImmSrcPC),
+        .ex_ALUResultFromBaseImm(ex_ALUResultFromBaseImm),
         .ex_pc                  (ex_pc),
         .ex_rR1_data            (ex_rR1_data),
         .ex_rR2_data            (ex_rR2_data),
