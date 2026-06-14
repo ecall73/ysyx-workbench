@@ -1,20 +1,26 @@
 module ysyx_26030082_icache #(
+    parameter [31:0] RESET_PC = 32'h3000_0000,
     parameter integer LINE_WORDS = 4,
     parameter integer LINE_COUNT = 4
 ) (
     input  wire        clock,
     input  wire        reset,
 
-    // IFU request/response interface
-    input  wire        if_valid,
-    output wire        if_ready,
-    input  wire [31:0] if_pc,
+    // EX retire feedback
+    input  wire        ex_out_valid,
+    input  wire        ex_out_ready,
+    input  wire [31:0] ex_pc4,
+    input  wire        ex_Redirect,
+    input  wire [31:0] ex_RedirectTarget,
+    input  wire        ex_CSRjump,
+    input  wire [31:0] ex_CSRnpc,
+    input  wire        ex_FenceI,
+
+    // Frontend response interface
     output wire        fetch_valid,
     input  wire        fetch_ready,
     output wire [31:0] fetch_pc,
     output wire [31:0] fetch_inst,
-    input  wire        flush,
-    input  wire        invalidate,
 
     // AXI4 read master interface
     output wire [31:0] ifu_axi_araddr,
@@ -40,6 +46,7 @@ module ysyx_26030082_icache #(
     localparam [1:0] S_MISS_R  = 2'd2;
 
     reg [1:0] state;
+    reg [31:0] pc_r;
 
     localparam integer LINE_DATA_W = LINE_WORDS * 32;
     reg [LINE_DATA_W-1:0] data_array [0:LINE_COUNT-1];
@@ -67,30 +74,35 @@ module ysyx_26030082_icache #(
     wire               ar_fire;
     wire               r_fire;
     wire               discard_resp;
+    wire               commit_fire;
+    wire               flush;
+    wire               invalidate;
     wire               pipe_flush;
     wire [31:0] miss_line_base;
 
     assign lookup_word_offset =
-        if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
-    assign lookup_index = if_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
-    assign lookup_tag = if_pc[31 : OFFSET_W + INDEX_W];
+        pc_r[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
+    assign lookup_index = pc_r[OFFSET_W + INDEX_W - 1 : OFFSET_W];
+    assign lookup_tag = pc_r[31 : OFFSET_W + INDEX_W];
     assign lookup_line = data_array[lookup_index];
 
     assign lookup_rd_tag = tag_array[lookup_index];
     assign lookup_rd_valid = valid_array[lookup_index];
     assign cache_hit = lookup_rd_valid && (lookup_rd_tag == lookup_tag);
-    assign cache_miss = (state == S_LOOKUP) && if_valid && !cache_hit;
-    assign lookup_resp_valid = (state == S_LOOKUP) && if_valid && cache_hit;
+    assign cache_miss = (state == S_LOOKUP) && !cache_hit;
+    assign lookup_resp_valid = (state == S_LOOKUP) && cache_hit;
 
+    assign commit_fire = ex_out_valid && ex_out_ready;
+    assign invalidate = commit_fire && ex_FenceI;
+    assign flush = commit_fire && (ex_CSRjump || ex_Redirect || ex_FenceI);
     assign pipe_flush = flush || invalidate;
     assign discard_resp = need_flush || pipe_flush;
     assign fetch_valid = lookup_resp_valid;
-    assign fetch_pc = if_pc;
+    assign fetch_pc = pc_r;
     assign fetch_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
 
     assign req_space = lookup_resp_valid && fetch_ready;
-    assign if_ready = req_space;
-    assign req_fire = if_valid && if_ready;
+    assign req_fire = req_space;
 
     assign miss_line_base = {miss_tag, miss_index, {OFFSET_W{1'b0}}};
     assign ifu_axi_araddr = miss_line_base;
@@ -104,6 +116,7 @@ module ysyx_26030082_icache #(
     always @(posedge clock) begin
         if (reset) begin
             state <= S_LOOKUP;
+            pc_r <= RESET_PC;
             miss_index <= {INDEX_W{1'b0}};
             miss_tag <= {TAG_W{1'b0}};
             refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
@@ -111,6 +124,14 @@ module ysyx_26030082_icache #(
             drop_fill <= 1'b0;
             valid_array <= {LINE_COUNT{1'b0}};
         end else begin
+            if (flush) begin
+                pc_r <= ex_CSRjump ? ex_CSRnpc :
+                        ex_Redirect ? ex_RedirectTarget :
+                        ex_pc4;
+            end else if (req_fire) begin
+                pc_r <= pc_r + 32'd4;
+            end
+
             if (invalidate) begin
                 valid_array <= {LINE_COUNT{1'b0}};
             end
@@ -207,8 +228,8 @@ module ysyx_26030082_icache #(
     end
 
     always @(posedge clock) begin
-        if (!reset && req_fire && (if_pc[1:0] != 2'b00)) begin
-            $fatal(1, "unaligned icache fetch pc=%08x", if_pc);
+        if (!reset && req_fire && (pc_r[1:0] != 2'b00)) begin
+            $fatal(1, "unaligned icache fetch pc=%08x", pc_r);
         end
         if (!reset && (state == S_MISS_R) && r_fire) begin
             if ((refill_word_idx == (LINE_WORDS - 1)) && !ifu_axi_rlast) begin

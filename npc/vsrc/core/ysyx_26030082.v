@@ -116,13 +116,6 @@ module ysyx_26030082 #(
 `endif
 `endif
 
-    // IF
-    wire        if_valid;
-    wire        if_ready;
-    wire [31:0] if_pc;
-    wire        flush;
-    wire        invalidate;
-
     // FETCH -> EX
     wire        fetch_valid;
     wire        fetch_ready;
@@ -225,13 +218,14 @@ module ysyx_26030082 #(
             mtime <= mtime + 64'd1;
         end
     end
-
-    ysyx_26030082_ifu #(
-        .RESET_PC               (RESET_PC)
-    ) ifu (
+    ysyx_26030082_icache #(
+        .RESET_PC               (RESET_PC),
+        .LINE_WORDS             (4),
+        .LINE_COUNT             (4)
+    ) icache (
         .clock                  (clock),
         .reset                  (reset),
-        .if_ready               (if_ready),
+
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
         .ex_pc4                 (ex_pc4),
@@ -241,29 +235,10 @@ module ysyx_26030082 #(
         .ex_CSRnpc              (ex_CSRnpc),
         .ex_FenceI              (ex_FenceI),
 
-        .if_valid               (if_valid),
-        .if_pc                  (if_pc),
-        .flush                  (flush),
-        .invalidate             (invalidate)
-    );
-
-
-    ysyx_26030082_icache #(
-        .LINE_WORDS             (4),
-        .LINE_COUNT             (4)
-    ) icache (
-        .clock                  (clock),
-        .reset                  (reset),
-
-        .if_valid               (if_valid),
-        .if_ready               (if_ready),
-        .if_pc                  (if_pc),
         .fetch_valid            (fetch_valid),
         .fetch_ready            (fetch_ready),
         .fetch_pc               (fetch_pc),
         .fetch_inst             (fetch_inst),
-        .flush                  (flush),
-        .invalidate             (invalidate),
 
         .ifu_axi_araddr         (ifu_axi_araddr),
         .ifu_axi_arlen          (ifu_axi_arlen),
@@ -533,7 +508,7 @@ module ysyx_26030082 #(
     assign pmu_lsu_load_req = (lsu.state == PMU_LSU_IDLE) && ls_in_valid && lsu.ls_is_load;
     assign pmu_lsu_load_pending = (lsu.state == PMU_LSU_RD_AR) || (lsu.state == PMU_LSU_RD_WAIT_R);
     assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
-    assign pmu_dec_total = !flush && ex_out_valid && ex_out_ready && ex_have_inst;
+    assign pmu_dec_total = !icache.flush && ex_out_valid && ex_out_ready && ex_have_inst;
     assign pmu_icache_miss_refill_busy =
         (icache.state == PMU_ICACHE_MISS_AR) ||
         (icache.state == PMU_ICACHE_MISS_R);
@@ -547,7 +522,7 @@ module ysyx_26030082 #(
             end
             if (pmu_ifu_nosupply) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
-                if (flush || icache.need_flush) begin
+                if (icache.flush || icache.need_flush) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
                 end else if (fetch_valid && !fetch_ready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;
