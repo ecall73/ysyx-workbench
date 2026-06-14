@@ -108,8 +108,6 @@ module ysyx_26030082_exu (
     wire [31:0] rR1_data_forward;
     wire [31:0] rR2_data_forward;
 
-    wire [31:0] alu_a;
-    wire [31:0] alu_b;
     wire [31:0] CSRrdata;
     wire        BRUResult;
     wire [31:0] redirect_base;
@@ -204,8 +202,6 @@ module ysyx_26030082_exu (
     assign ex_RFwaddr = fetch_inst[11:7];
     assign ex_rR2_data = rR2_data_forward;
 
-    assign alu_a = ALUSrcA ? fetch_pc : rR1_data_forward;
-    assign alu_b = ALUSrcB ? imm : rR2_data_forward;
     assign ex_pc4 = fetch_pc + 32'd4;
 
     assign redirect_base = op_jalr ? rR1_data_forward : fetch_pc;
@@ -241,10 +237,12 @@ module ysyx_26030082_exu (
     assign imm = imm_r;
 
     ysyx_26030082_ALU ALU (
-        .A          (alu_a),
-        .B          (alu_b),
-        .BRU_A      (rR1_data_forward),
-        .BRU_B      (rR2_data_forward),
+        .ALUSrcA    (ALUSrcA),
+        .ALUSrcB    (ALUSrcB),
+        .rR1_data   (rR1_data_forward),
+        .rR2_data   (rR2_data_forward),
+        .pc         (fetch_pc),
+        .imm        (imm),
         .ALUControl (ALUControl),
         .BRUFunct3  (funct3),
         .Result     (ex_ALUResult),
