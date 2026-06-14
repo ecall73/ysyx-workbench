@@ -73,11 +73,10 @@ module ysyx_26030082_icache #(
     wire               req_fire;
     wire               ar_fire;
     wire               r_fire;
-    wire               discard_resp;
     wire               commit_fire;
     wire               flush;
     wire               invalidate;
-    wire               pipe_flush;
+    wire               redirect;
     wire [31:0] miss_line_base;
 
     assign lookup_word_offset =
@@ -93,15 +92,14 @@ module ysyx_26030082_icache #(
     assign lookup_resp_valid = (state == S_LOOKUP) && cache_hit;
 
     assign commit_fire = ex_out_valid && ex_out_ready;
+    assign redirect = commit_fire && (ex_CSRjump || ex_Redirect);
     assign invalidate = commit_fire && ex_FenceI;
-    assign flush = commit_fire && (ex_CSRjump || ex_Redirect || ex_FenceI);
-    assign pipe_flush = flush || invalidate;
-    assign discard_resp = need_flush || pipe_flush;
+    assign flush = redirect || invalidate;
     assign fetch_valid = lookup_resp_valid;
     assign fetch_pc = pc_r;
     assign fetch_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
 
-    assign req_space = lookup_resp_valid && fetch_ready;
+    assign req_space = fetch_valid && fetch_ready;
     assign req_fire = req_space;
 
     assign miss_line_base = {miss_tag, miss_index, {OFFSET_W{1'b0}}};
@@ -138,7 +136,7 @@ module ysyx_26030082_icache #(
 
             case (state)
                 S_LOOKUP: begin
-                    if (cache_miss) begin
+                    if (cache_miss && !flush) begin
                         miss_index <= lookup_index;
                         miss_tag <= lookup_tag;
                         refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
@@ -149,24 +147,14 @@ module ysyx_26030082_icache #(
                 end
 
                 S_MISS_AR: begin
-                    if (invalidate) begin
-                        if (ar_fire) begin
-                            need_flush <= 1'b1;
-                            drop_fill <= 1'b1;
-                            state <= S_MISS_R;
-                        end else begin
-                            need_flush <= 1'b0;
-                            drop_fill <= 1'b0;
-                            state <= S_LOOKUP;
-                        end
-                    end else begin
-                        if (flush) begin
-                            need_flush <= 1'b1;
-                        end
-
-                        if (ar_fire) begin
-                            state <= S_MISS_R;
-                        end
+                    if (ar_fire) begin
+                        need_flush <= flush;
+                        drop_fill <= invalidate;
+                        state <= S_MISS_R;
+                    end else if (flush) begin
+                        need_flush <= 1'b0;
+                        drop_fill <= 1'b0;
+                        state <= S_LOOKUP;
                     end
                 end
 
@@ -185,9 +173,7 @@ module ysyx_26030082_icache #(
                                 tag_array[miss_index] <= miss_tag;
                                 valid_array[miss_index] <= 1'b1;
                             end
-                            if (discard_resp || drop_fill || invalidate) begin
-                                need_flush <= 1'b0;
-                            end
+                            need_flush <= 1'b0;
                             drop_fill <= 1'b0;
                             state <= S_LOOKUP;
                         end else begin
