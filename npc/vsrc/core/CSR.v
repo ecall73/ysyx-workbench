@@ -24,7 +24,7 @@ module ysyx_26030082_CSR (
 
     reg  [31:0] mstatus, mtvec, mepc, mcause;
 
-    localparam [31:0] CAUSE_ECALL_M = 32'd11;
+    localparam [31:0] CAUSE_ECALL = 32'd11;
 
     localparam [11:0] INST_ECALL = 12'h000;
     localparam [11:0] INST_MRET  = 12'h302;
@@ -38,8 +38,6 @@ module ysyx_26030082_CSR (
     wire        csr_is_imm = funct3[2];
     wire [31:0] CSRwdata = csr_is_imm ? imm : rR1_data;  // csrrxi: imm, csrrx: rR1
 
-    wire        trap_is_interrupt = 1'b0;
-    wire [31:0] trap_cause_code = CAUSE_ECALL_M;
     wire [31:0] trap_vector = {mtvec[31:2], 2'b0};
     wire        csr_priv = is_system && (funct3 == 3'b000);
     wire        csr_ecall = csr_priv && (CSRaddr == INST_ECALL);
@@ -60,7 +58,7 @@ module ysyx_26030082_CSR (
 
     assign CSRjump = csr_ecall || csr_mret;
 
-    // Write-side decode is shared across all CSRs so synthesis can reuse the SYSTEM/CSR address checks.
+    // SYSTEM instructions alone are allowed to update CSR state.
     always @(posedge clock) begin
         if (reset) begin
             mstatus <= 32'h1800;
@@ -73,16 +71,25 @@ module ysyx_26030082_CSR (
             mepc    <= mepc;
             mcause  <= mcause;
 
-            if (csr_ecall) begin
-                mstatus[3] <= 1'b0;
-                mstatus[7] <= mstatus[3];
-                mstatus[12:11] <= 2'b11;
-                mepc <= pc;
-                mcause <= {trap_is_interrupt, trap_cause_code[30:0]};
-            end else if (csr_mret) begin
-                mstatus[3] <= mstatus[7];
-            end else begin
+            if (is_system) begin
                 case (funct3)
+                    3'b000: begin
+                        case (CSRaddr)
+                            INST_ECALL: begin
+                                mstatus[3] <= 1'b0;
+                                mstatus[7] <= mstatus[3];
+                                mstatus[12:11] <= 2'b11;
+                                mepc <= pc;
+                                mcause <= CAUSE_ECALL;
+                            end
+                            INST_MRET: begin
+                                mstatus[3] <= mstatus[7];
+                            end
+                            default: begin
+                            end
+                        endcase
+                    end
+
                     F3_CSRRW,
                     F3_CSRRWI: begin
                         case (CSRaddr)
@@ -126,7 +133,7 @@ module ysyx_26030082_CSR (
     // CSRnpc
     always @(*) begin
         if (reset)                                    CSRnpc = 0;
-        else if (csr_ecall)                         CSRnpc = trap_vector;
+        else if (csr_ecall)                         CSRnpc = {mtvec[31:2], 2'b0};
         else if (csr_mret)                          CSRnpc = mepc;
         else                                        CSRnpc = mepc;
     end
