@@ -138,6 +138,9 @@ module ysyx_26030082 #(
     wire [31:0] id_rR2_data;
     wire [31:0] id_rR1_data_forward;
     wire [31:0] id_rR2_data_forward;
+    wire [ 3:0] id_rR1_addr;
+    wire [ 3:0] id_rR2_addr;
+    wire [ 3:0] id_RFwaddr;
     wire        id_btype;
     wire        id_jtype;
     wire        id_ijtype;
@@ -160,7 +163,7 @@ module ysyx_26030082 #(
     reg  [31:0] ex_rR1_data;
     reg  [31:0] ex_rR2_data;
     reg  [ 2:0] ex_funct3;
-    reg  [ 4:0] ex_RFwaddr;
+    reg  [ 3:0] ex_RFwaddr;
     wire [31:0] ex_ALUResult;
     wire        ex_BRUResult;
     wire [31:0] ex_pc4;
@@ -182,7 +185,7 @@ module ysyx_26030082 #(
     reg         ls_MemWrite;
     reg  [31:0] ls_rR2_data;
     reg  [ 2:0] ls_funct3;
-    reg  [ 4:0] ls_RFwaddr;
+    reg  [ 3:0] ls_RFwaddr;
     reg  [31:0] ls_payload;
     wire        ls_in_ready;
     wire        ls_out_valid;
@@ -242,6 +245,10 @@ module ysyx_26030082 #(
     `endif
 
 ////////////////////////////////////////////////////////////////
+
+    assign id_rR1_addr = id_inst[19] ? 4'd0 : id_inst[18:15];
+    assign id_rR2_addr = id_inst[24] ? 4'd0 : id_inst[23:20];
+    assign id_RFwaddr = id_inst[11] ? 4'd0 : id_inst[10:7];
 
     always @(posedge clock) begin
         if (reset) begin
@@ -346,8 +353,8 @@ module ysyx_26030082 #(
         .waddr                  (ls_RFwaddr),
         .wdata                  (ls_RFwdata_out),
 
-        .rR1                    (id_inst[19:15]),
-        .rR2                    (id_inst[24:20]),
+        .rR1                    (id_rR1_addr),
+        .rR2                    (id_rR2_addr),
 
         .rR1_data               (id_rR1_data),
         .rR2_data               (id_rR2_data)
@@ -355,8 +362,8 @@ module ysyx_26030082 #(
 
     ysyx_26030082_forward forward (
         .id_in_valid            (id_valid),
-        .id_rR1                 (id_inst[19:15]),
-        .id_rR2                 (id_inst[24:20]),
+        .id_rR1                 (id_rR1_addr),
+        .id_rR2                 (id_rR2_addr),
         .id_rR1_data            (id_rR1_data),
         .id_rR2_data            (id_rR2_data),
 
@@ -392,7 +399,7 @@ module ysyx_26030082 #(
             ex_funct3       <= id_inst[14:12];
             ex_imm          <= id_imm;
             ex_pc           <= id_pc;
-            ex_RFwaddr      <= id_inst[11:7];
+            ex_RFwaddr      <= id_RFwaddr;
             ex_ALUSrcA      <= id_ALUSrcA;
             ex_ALUSrcB      <= id_ALUSrcB;
             ex_rR1_data     <= id_rR1_data_forward;
