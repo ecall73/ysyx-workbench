@@ -93,12 +93,13 @@ module ysyx_26030082_exu (
     wire       op_sra;
     wire       op_slt;
     wire       op_sltu;
+    wire       op_branch_eq;
+    wire       op_branch_lt;
+    wire       op_branch_ltu;
     wire [3:0] ALUControl;
     wire [2:0] MemToReg;
     wire       ALUSrcA;
     wire       ALUSrcB;
-    wire       BRUSrcA;
-    wire       BRUSrcB;
     wire       rs1_used;
     wire       rs2_used;
     wire       is_system;
@@ -137,24 +138,26 @@ module ysyx_26030082_exu (
     assign op_fencei    = fetch_inst == 32'h0000_100f;
     assign op_system    = opcode == OP_CSR_TYPE;
     assign op_csr       = op_system && (funct3 != 3'b000);
+    assign op_branch_eq = op_branch && ~funct3[2] && ~funct3[1];
+    assign op_branch_lt = op_branch &&  funct3[2] && ~funct3[1];
+    assign op_branch_ltu = op_branch && funct3[2] && funct3[1];
 
     assign op_add = (op_rtype && funct == 4'b0000) ||
                     (op_itype && funct3 == 3'b000) ||
                     op_load ||
                     op_store ||
-                    op_branch ||
                     op_jal ||
                     op_auipc ||
                     (op_jalr && funct3 == 3'b000);
-    assign op_sub = op_rtype && funct == 4'b1000;
+    assign op_sub = (op_rtype && funct == 4'b1000) || op_branch_eq;
     assign op_and = (op_rtype && funct == 4'b0111) || (op_itype && funct3 == 3'b111);
     assign op_or = (op_rtype && funct == 4'b0110) || (op_itype && funct3 == 3'b110);
     assign op_xor = (op_rtype && funct == 4'b0100) || (op_itype && funct3 == 3'b100);
     assign op_sll = (op_rtype || op_itype) && (funct == 4'b0001);
     assign op_srl = (op_rtype || op_itype) && (funct == 4'b0101);
     assign op_sra = (op_rtype || op_itype) && (funct == 4'b1101);
-    assign op_sltu = (op_rtype && funct == 4'b0011) || (op_itype && funct3 == 3'b011);
-    assign op_slt = (op_rtype && funct == 4'b0010) || (op_itype && funct3 == 3'b010);
+    assign op_sltu = (op_rtype && funct == 4'b0011) || (op_itype && funct3 == 3'b011) || op_branch_ltu;
+    assign op_slt = (op_rtype && funct == 4'b0010) || (op_itype && funct3 == 3'b010) || op_branch_lt;
 
     assign ALUControl = op_add  ? ADD  :
                         op_sub  ? SUB  :
@@ -178,9 +181,7 @@ module ysyx_26030082_exu (
     assign ex_MemWrite = fetch_valid && op_store;
     assign ex_MemRead = MemToReg[2];
     assign ALUSrcA = op_auipc | op_jal;
-    assign ALUSrcB = ~(op_rtype | op_misc_mem);
-    assign BRUSrcA = op_branch;
-    assign BRUSrcB = op_branch;
+    assign ALUSrcB = ~(op_rtype | op_misc_mem | op_branch);
     assign rs1_used = op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
                       (op_csr && ~funct3[2]);
     assign rs2_used = op_rtype | op_store | op_branch;
@@ -243,8 +244,6 @@ module ysyx_26030082_exu (
     ysyx_26030082_ALU ALU (
         .ALUSrcA    (ALUSrcA),
         .ALUSrcB    (ALUSrcB),
-        .BRUSrcA    (BRUSrcA),
-        .BRUSrcB    (BRUSrcB),
         .rR1_data   (rR1_data_forward),
         .rR2_data   (rR2_data_forward),
         .pc         (fetch_pc),
