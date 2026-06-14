@@ -3,13 +3,11 @@ module ysyx_26030082_RF(
     input  wire        reset,
     // Write rd
     input  wire        wen,
-    input  wire [ 3:0] waddr,
+    input  wire [ 4:0] waddr,
     input  wire [31:0] wdata,
     // Read rs1 rs2
-    input  wire        rR1_valid,
-    input  wire [ 3:0] rR1_idx,
-    input  wire        rR2_valid,
-    input  wire [ 3:0] rR2_idx,
+    input  wire [ 4:0] rR1,
+    input  wire [ 4:0] rR2,
 
     output reg  [31:0] rR1_data,
     output reg  [31:0] rR2_data
@@ -18,16 +16,16 @@ module ysyx_26030082_RF(
     reg [31:0] reg_bank [1:15];
 
     always @(posedge clock) begin
-        if (wen && (waddr != 4'd0)) begin
-            reg_bank[waddr] <= wdata;
+        if (wen & (waddr != 5'd0) & ~waddr[4]) begin
+            reg_bank[waddr[3:0]] <= wdata;
         end
     end
 
     always @(*) begin
-        if (!rR1_valid) begin
+        if ((rR1 == 5'd0) || rR1[4]) begin
             rR1_data = 32'b0;
         end else begin
-            case (rR1_idx)
+            case (rR1[3:0])
                 4'd1: rR1_data = reg_bank[4'd1];
                 4'd2: rR1_data = reg_bank[4'd2];
                 4'd3: rR1_data = reg_bank[4'd3];
@@ -46,14 +44,14 @@ module ysyx_26030082_RF(
                 default: rR1_data = 32'b0;
             endcase
         end
-        if (wen && rR1_valid && (waddr == rR1_idx)) begin
+        if (wen && ~waddr[4] && (waddr == rR1) && (rR1 != 5'd0)) begin
             rR1_data = wdata;
         end
 
-        if (!rR2_valid) begin
+        if ((rR2 == 5'd0) || rR2[4]) begin
             rR2_data = 32'b0;
         end else begin
-            case (rR2_idx)
+            case (rR2[3:0])
                 4'd1: rR2_data = reg_bank[4'd1];
                 4'd2: rR2_data = reg_bank[4'd2];
                 4'd3: rR2_data = reg_bank[4'd3];
@@ -72,7 +70,7 @@ module ysyx_26030082_RF(
                 default: rR2_data = 32'b0;
             endcase
         end
-        if (wen && rR2_valid && (waddr == rR2_idx)) begin
+        if (wen && ~waddr[4] && (waddr == rR2) && (rR2 != 5'd0)) begin
             rR2_data = wdata;
         end
     end

@@ -134,12 +134,6 @@ module ysyx_26030082 #(
     wire        id_ALUSrcA;
     wire        id_ALUSrcB;
     wire [31:0] id_imm;
-    wire        id_rs1_valid;
-    wire [ 3:0] id_rs1_idx;
-    wire        id_rs2_valid;
-    wire [ 3:0] id_rs2_idx;
-    wire        id_rd_valid;
-    wire [ 3:0] id_rd_idx;
     wire [31:0] id_rR1_data;
     wire [31:0] id_rR2_data;
     wire [31:0] id_rR1_data_forward;
@@ -166,7 +160,7 @@ module ysyx_26030082 #(
     reg  [31:0] ex_rR1_data;
     reg  [31:0] ex_rR2_data;
     reg  [ 2:0] ex_funct3;
-    reg  [ 3:0] ex_RFwaddr;
+    reg  [ 4:0] ex_RFwaddr;
     wire [31:0] ex_ALUResult;
     wire        ex_BRUResult;
     wire [31:0] ex_pc4;
@@ -188,7 +182,7 @@ module ysyx_26030082 #(
     reg         ls_MemWrite;
     reg  [31:0] ls_rR2_data;
     reg  [ 2:0] ls_funct3;
-    reg  [ 3:0] ls_RFwaddr;
+    reg  [ 4:0] ls_RFwaddr;
     reg  [31:0] ls_payload;
     wire        ls_in_ready;
     wire        ls_out_valid;
@@ -246,13 +240,6 @@ module ysyx_26030082 #(
         reg         have_inst_EX, have_inst_LS;
         assign have_inst_ID = id_valid && have_inst_ID_decode;
     `endif
-
-    assign id_rs1_valid = (id_inst[19:15] != 5'd0) && ~id_inst[19];
-    assign id_rs1_idx = id_inst[18:15];
-    assign id_rs2_valid = (id_inst[24:20] != 5'd0) && ~id_inst[24];
-    assign id_rs2_idx = id_inst[23:20];
-    assign id_rd_valid = (id_inst[11:7] != 5'd0) && ~id_inst[11];
-    assign id_rd_idx = id_inst[10:7];
 
     always @(posedge clock) begin
         if (reset) begin
@@ -357,10 +344,8 @@ module ysyx_26030082 #(
         .waddr                  (ls_RFwaddr),
         .wdata                  (ls_RFwdata_out),
 
-        .rR1_valid              (id_rs1_valid),
-        .rR1_idx                (id_rs1_idx),
-        .rR2_valid              (id_rs2_valid),
-        .rR2_idx                (id_rs2_idx),
+        .rR1                    (id_inst[19:15]),
+        .rR2                    (id_inst[24:20]),
 
         .rR1_data               (id_rR1_data),
         .rR2_data               (id_rR2_data)
@@ -368,10 +353,8 @@ module ysyx_26030082 #(
 
     ysyx_26030082_forward forward (
         .id_in_valid            (id_valid),
-        .id_rR1_valid           (id_rs1_valid),
-        .id_rR1_idx             (id_rs1_idx),
-        .id_rR2_valid           (id_rs2_valid),
-        .id_rR2_idx             (id_rs2_idx),
+        .id_rR1                 (id_inst[19:15]),
+        .id_rR2                 (id_inst[24:20]),
         .id_rR1_data            (id_rR1_data),
         .id_rR2_data            (id_rR2_data),
 
@@ -407,7 +390,7 @@ module ysyx_26030082 #(
             ex_funct3       <= id_inst[14:12];
             ex_imm          <= id_imm;
             ex_pc           <= id_pc;
-            ex_RFwaddr      <= id_rd_idx;
+            ex_RFwaddr      <= id_inst[11:7];
             ex_ALUSrcA      <= id_ALUSrcA;
             ex_ALUSrcB      <= id_ALUSrcB;
             ex_rR1_data     <= id_rR1_data_forward;
