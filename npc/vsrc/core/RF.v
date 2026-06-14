@@ -44,9 +44,6 @@ module ysyx_26030082_RF(
                 default: rR1_data = 32'b0;
             endcase
         end
-        if (wen && ~waddr[4] && (waddr == rR1) && (rR1 != 5'd0)) begin
-            rR1_data = wdata;
-        end
 
         if ((rR2 == 5'd0) || rR2[4]) begin
             rR2_data = 32'b0;
@@ -69,9 +66,6 @@ module ysyx_26030082_RF(
                 4'd15: rR2_data = reg_bank[4'd15];
                 default: rR2_data = 32'b0;
             endcase
-        end
-        if (wen && ~waddr[4] && (waddr == rR2) && (rR2 != 5'd0)) begin
-            rR2_data = wdata;
         end
     end
 
