@@ -1,7 +1,6 @@
 module ysyx_26030082_CSR (
     input  wire        clock,
     input  wire        reset,
-    input  wire        csr_fire,
 
     input  wire        is_system,
     input  wire [11:0] CSRaddr,
@@ -72,7 +71,7 @@ module ysyx_26030082_CSR (
             mepc    <= mepc;
             mcause  <= mcause;
 
-            if (csr_fire && is_system) begin
+            if (is_system) begin
                 case (funct3)
                     3'b000: begin
                         case (CSRaddr)
