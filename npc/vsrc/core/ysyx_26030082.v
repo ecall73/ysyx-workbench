@@ -187,7 +187,6 @@ module ysyx_26030082 #(
     reg  [31:0] ls_RFwdata;
     wire        ls_in_ready;
     wire        ls_out_valid;
-    wire        ls_out_ready;
     wire [31:0] ls_RFwdata_out;
 
     // Local handshake control
@@ -511,15 +510,12 @@ module ysyx_26030082 #(
         end
     `endif
 
-    assign ls_out_ready = 1'b1;
-
     ysyx_26030082_lsu lsu (
         .clock                  (clock),
         .reset                  (reset),
         .ls_in_valid            (ls_in_valid),
         .ls_in_ready            (ls_in_ready),
         .ls_out_valid           (ls_out_valid),
-        .ls_out_ready           (ls_out_ready),
 
         .ls_ALUResult           (ls_ALUResult),
         .ls_funct3              (ls_funct3),
