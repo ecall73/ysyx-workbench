@@ -88,10 +88,8 @@ module ysyx_26030082_axi4lite_arbiter (
 
     assign req_lsu_rd = lsu_axi_arvalid;
     assign req_ifu_rd = ifu_axi_arvalid;
-    assign rd_sel_lsu = ((rd_state == R_IDLE) && req_lsu_rd) ||
-                        ((rd_state == R_AR) && (rd_owner == R_OWNER_LSU));
-    assign rd_sel_ifu = ((rd_state == R_IDLE) && ~req_lsu_rd && req_ifu_rd) ||
-                        ((rd_state == R_AR) && (rd_owner == R_OWNER_IFU));
+    assign rd_sel_lsu = (rd_state == R_AR) && (rd_owner == R_OWNER_LSU);
+    assign rd_sel_ifu = (rd_state == R_AR) && (rd_owner == R_OWNER_IFU);
     assign rd_data_lsu = (rd_state == R_DATA) && (rd_owner == R_OWNER_LSU);
     assign rd_data_ifu = (rd_state == R_DATA) && (rd_owner == R_OWNER_IFU);
 
@@ -116,12 +114,13 @@ module ysyx_26030082_axi4lite_arbiter (
     assign lsu_axi_bresp = mem_axi_bresp;
     assign lsu_axi_bvalid = mem_axi_bvalid;
 
-    assign mem_axi_araddr = rd_sel_ifu ? ifu_axi_araddr : lsu_axi_araddr;
-    assign mem_axi_arid = rd_sel_ifu ? 4'h1 : 4'h0;
-    assign mem_axi_arlen = rd_sel_ifu ? ifu_axi_arlen : 8'h00;
-    assign mem_axi_arsize = rd_sel_ifu ? 3'b010 : lsu_axi_arsize;
-    assign mem_axi_arburst = rd_sel_ifu ? ifu_axi_arburst : 2'b00;
-    assign mem_axi_arvalid = (rd_sel_ifu && ifu_axi_arvalid) ||
+    assign mem_axi_araddr = (rd_owner == R_OWNER_IFU) ? ifu_axi_araddr : lsu_axi_araddr;
+    assign mem_axi_arid = (rd_owner == R_OWNER_IFU) ? 4'h1 : 4'h0;
+    assign mem_axi_arlen = (rd_owner == R_OWNER_IFU) ? ifu_axi_arlen : 8'h00;
+    assign mem_axi_arsize = (rd_owner == R_OWNER_IFU) ? 3'b010 : lsu_axi_arsize;
+    assign mem_axi_arburst = (rd_owner == R_OWNER_IFU) ? ifu_axi_arburst : 2'b00;
+    assign mem_axi_arvalid = (rd_owner == R_OWNER_IFU) ?
+                             (rd_sel_ifu && ifu_axi_arvalid) :
                              (rd_sel_lsu && lsu_axi_arvalid);
     assign mem_axi_rready = (rd_owner == R_OWNER_IFU) ?
                             (rd_data_ifu && ifu_axi_rready) :
@@ -147,13 +146,11 @@ module ysyx_26030082_axi4lite_arbiter (
             case (rd_state)
                 R_IDLE: begin
                     if (req_lsu_rd) begin
+                        rd_state <= R_AR;
                         rd_owner <= R_OWNER_LSU;
-                        rd_state <= lsu_ar_fire ? R_DATA : R_AR;
                     end else if (req_ifu_rd) begin
+                        rd_state <= R_AR;
                         rd_owner <= R_OWNER_IFU;
-                        rd_state <= ifu_ar_fire ? R_DATA : R_AR;
-                    end else begin
-                        rd_owner <= R_OWNER_NONE;
                     end
                 end
 
@@ -165,8 +162,16 @@ module ysyx_26030082_axi4lite_arbiter (
 
                 R_DATA: begin
                     if ((lsu_r_fire || ifu_r_fire) && mem_axi_rlast) begin
-                        rd_state <= R_IDLE;
-                        rd_owner <= R_OWNER_NONE;
+                        if (req_lsu_rd) begin
+                            rd_state <= R_AR;
+                            rd_owner <= R_OWNER_LSU;
+                        end else if (req_ifu_rd) begin
+                            rd_state <= R_AR;
+                            rd_owner <= R_OWNER_IFU;
+                        end else begin
+                            rd_state <= R_IDLE;
+                            rd_owner <= R_OWNER_NONE;
+                        end
                     end
                 end
 
