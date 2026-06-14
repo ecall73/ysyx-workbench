@@ -51,7 +51,6 @@ module ysyx_26030082_lsu (
     localparam L_WR_AW_W   = 3'd3;
     localparam L_WR_WAIT_B = 3'd4;
     localparam [31:0] CLINT_BASE_ADDR = 32'h0200_0000;
-    localparam [31:0] CLINT_END_ADDR  = 32'h0200_ffff;
     localparam [31:0] MTIME_ADDR      = 32'h0200_bff8;
     localparam [31:0] MTIMEH_ADDR     = 32'h0200_bffc;
 
@@ -79,7 +78,7 @@ module ysyx_26030082_lsu (
 
     assign ls_is_mem = ls_MemRead || ls_MemWrite;
     assign ls_is_load = ls_MemRead && ~ls_MemWrite;
-    assign ls_is_clint = (ls_payload >= CLINT_BASE_ADDR) && (ls_payload <= CLINT_END_ADDR);
+    assign ls_is_clint = (ls_payload[31:16] == CLINT_BASE_ADDR[31:16]);
     assign ls_is_local = ls_is_mem && ls_is_clint;
     assign ls_is_local_load = ls_is_load && ls_is_clint;
 
