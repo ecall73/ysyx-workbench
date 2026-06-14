@@ -138,7 +138,6 @@ module ysyx_26030082 #(
     wire [31:0] id_rR2_data;
     wire [31:0] id_rR1_data_forward;
     wire [31:0] id_rR2_data_forward;
-    wire [ 3:0] id_RFwaddr;
     wire        id_btype;
     wire        id_jtype;
     wire        id_ijtype;
@@ -161,7 +160,7 @@ module ysyx_26030082 #(
     reg  [31:0] ex_rR1_data;
     reg  [31:0] ex_rR2_data;
     reg  [ 2:0] ex_funct3;
-    reg  [ 3:0] ex_RFwaddr;
+    reg  [ 4:0] ex_RFwaddr;
     wire [31:0] ex_ALUResult;
     wire        ex_BRUResult;
     wire [31:0] ex_pc4;
@@ -183,7 +182,7 @@ module ysyx_26030082 #(
     reg         ls_MemWrite;
     reg  [31:0] ls_rR2_data;
     reg  [ 2:0] ls_funct3;
-    reg  [ 3:0] ls_RFwaddr;
+    reg  [ 4:0] ls_RFwaddr;
     reg  [31:0] ls_payload;
     wire        ls_in_ready;
     wire        ls_out_valid;
@@ -241,9 +240,6 @@ module ysyx_26030082 #(
         reg         have_inst_EX, have_inst_LS;
         assign have_inst_ID = id_valid && have_inst_ID_decode;
     `endif
-
-////////////////////////////////////////////////////////////////
-    assign id_RFwaddr = id_inst[10:7];
 
     always @(posedge clock) begin
         if (reset) begin
@@ -388,13 +384,13 @@ module ysyx_26030082 #(
         end else if (ex_in_ready) begin
             ex_in_valid <= id_issue_valid;
             ex_ALUControl   <= id_ALUControl;
-            ex_RegWrite     <= id_RegWrite & ~id_inst[11];
+            ex_RegWrite     <= id_RegWrite;
             ex_MemWrite     <= id_MemWrite;
             ex_MemToReg     <= id_MemToReg;
             ex_funct3       <= id_inst[14:12];
             ex_imm          <= id_imm;
             ex_pc           <= id_pc;
-            ex_RFwaddr      <= id_RFwaddr;
+            ex_RFwaddr      <= id_inst[11:7];
             ex_ALUSrcA      <= id_ALUSrcA;
             ex_ALUSrcB      <= id_ALUSrcB;
             ex_rR1_data     <= id_rR1_data_forward;
