@@ -29,11 +29,11 @@ module ysyx_26030082_forward(
     wire forward_ls_B;
     wire ls_load_use_hazard;
 
-    assign forward_ex_A = id_rs1_used && (id_rR1 == ex_RFwaddr) && ex_RegWrite && ~(ex_RFwaddr == 0);
-    assign forward_ex_B = id_rs2_used && (id_rR2 == ex_RFwaddr) && ex_RegWrite && ~(ex_RFwaddr == 0);
+    assign forward_ex_A = (id_rR1 == ex_RFwaddr) && ex_RegWrite && ~(ex_RFwaddr == 0);
+    assign forward_ex_B = (id_rR2 == ex_RFwaddr) && ex_RegWrite && ~(ex_RFwaddr == 0);
 
-    assign forward_ls_A = id_rs1_used && (id_rR1 == ls_RFwaddr) && ls_RegWrite && ~(ls_RFwaddr == 0);
-    assign forward_ls_B = id_rs2_used && (id_rR2 == ls_RFwaddr) && ls_RegWrite && ~(ls_RFwaddr == 0);
+    assign forward_ls_A = (id_rR1 == ls_RFwaddr) && ls_RegWrite && ~(ls_RFwaddr == 0);
+    assign forward_ls_B = (id_rR2 == ls_RFwaddr) && ls_RegWrite && ~(ls_RFwaddr == 0);
 
     assign ls_load_use_hazard = ls_load_pending &&
                                 (ls_RFwaddr != 5'b0) &&
@@ -41,7 +41,7 @@ module ysyx_26030082_forward(
                                  (id_rs2_used && (id_rR2 == ls_RFwaddr)));
 
     // A load in EX or a pending (not-yet-returned) load in LS must block ID
-    // when ID needs that destination register.
+    // only when the decoded instruction will actually consume that source.
     assign forward_pending = id_in_valid && (
                                 (ex_out_valid && ex_MemRead &&
                                  (ex_RFwaddr != 5'b0) &&
