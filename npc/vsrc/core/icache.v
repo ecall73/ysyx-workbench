@@ -9,10 +9,10 @@ module ysyx_26030082_icache #(
     input  wire        if_valid,
     output wire        if_ready,
     input  wire [31:0] if_pc,
-    output wire        id_valid,
-    input  wire        id_ready,
-    output wire [31:0] id_pc,
-    output wire [31:0] id_inst,
+    output wire        fetch_valid,
+    input  wire        fetch_ready,
+    output wire [31:0] fetch_pc,
+    output wire [31:0] fetch_inst,
     input  wire        flush,
     input  wire        invalidate,
 
@@ -84,11 +84,11 @@ module ysyx_26030082_icache #(
 
     assign pipe_flush = flush || invalidate;
     assign discard_resp = need_flush || pipe_flush;
-    assign id_valid = lookup_resp_valid;
-    assign id_pc = if_pc;
-    assign id_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
+    assign fetch_valid = lookup_resp_valid;
+    assign fetch_pc = if_pc;
+    assign fetch_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
 
-    assign req_space = lookup_resp_valid && id_ready;
+    assign req_space = lookup_resp_valid && fetch_ready;
     assign if_ready = req_space;
     assign req_fire = if_valid && if_ready;
 
