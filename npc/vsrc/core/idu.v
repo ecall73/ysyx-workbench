@@ -26,8 +26,8 @@ module ysyx_26030082_idu (
 
     // CSR
     output wire        id_CSRSrc,
-    output wire [ 2:0] id_CSRaddr,
-    output wire [ 2:0] id_CSRControl,
+    output wire [11:0] id_CSRaddr,
+    output wire [ 4:0] id_CSRControl,
     output wire        id_FenceI
 
     `ifndef SYNTHESIS
@@ -45,21 +45,6 @@ module ysyx_26030082_idu (
     localparam [6:0] OP_UA_TYPE  = 7'b001_0111;
     localparam [6:0] OP_J_TYPE   = 7'b110_1111;
     localparam [6:0] OP_CSR_TYPE = 7'b111_0011;
-
-    localparam [2:0] CSR_SEL_MSTATUS   = 3'd0;
-    localparam [2:0] CSR_SEL_MTVEC     = 3'd1;
-    localparam [2:0] CSR_SEL_MEPC      = 3'd2;
-    localparam [2:0] CSR_SEL_MCAUSE    = 3'd3;
-    localparam [2:0] CSR_SEL_MVENDORID = 3'd4;
-    localparam [2:0] CSR_SEL_MARCHID   = 3'd5;
-    localparam [2:0] CSR_SEL_NONE      = 3'd7;
-
-    localparam [2:0] CCTL_NONE  = 3'd0;
-    localparam [2:0] CCTL_CSRRW = 3'd1;
-    localparam [2:0] CCTL_CSRRS = 3'd2;
-    localparam [2:0] CCTL_CSRRC = 3'd3;
-    localparam [2:0] CCTL_ECALL = 3'd4;
-    localparam [2:0] CCTL_MRET  = 3'd5;
 
     localparam [2:0] MEM_TO_REG_ALU  = 3'b001;
     localparam [2:0] MEM_TO_REG_DRAM = 3'b100;
@@ -185,18 +170,11 @@ module ysyx_26030082_idu (
 
     // Expanded CCTL module logic
     assign id_CSRSrc = funct3[2];
-    assign id_CSRaddr = (id_inst[31:20] == 12'h300) ? CSR_SEL_MSTATUS   :
-                        (id_inst[31:20] == 12'h305) ? CSR_SEL_MTVEC     :
-                        (id_inst[31:20] == 12'h341) ? CSR_SEL_MEPC      :
-                        (id_inst[31:20] == 12'h342) ? CSR_SEL_MCAUSE    :
-                        (id_inst[31:20] == 12'hF11) ? CSR_SEL_MVENDORID :
-                        (id_inst[31:20] == 12'hF12) ? CSR_SEL_MARCHID   :
-                                                       CSR_SEL_NONE;
-    assign id_CSRControl = (id_inst == 32'h00000073) ? CCTL_ECALL :
-                           (id_inst == 32'h30200073) ? CCTL_MRET  :
-                           (op_system && (id_inst[13:12] == 2'b01)) ? CCTL_CSRRW :
-                           (op_system && (id_inst[13:12] == 2'b10)) ? CCTL_CSRRS :
-                           (op_system && (id_inst[13:12] == 2'b11)) ? CCTL_CSRRC :
-                                                                      CCTL_NONE;
+    assign id_CSRaddr = id_inst[31:20];
+    assign id_CSRControl[0] = op_system && (id_inst[13:12] == 2'b01); // csrrw, csrrwi
+    assign id_CSRControl[1] = op_system && (id_inst[13:12] == 2'b10); // csrrs, csrrsi
+    assign id_CSRControl[2] = op_system && (id_inst[13:12] == 2'b11); // csrrc, csrrci
+    assign id_CSRControl[3] = id_inst == 32'h00000073; // ecall
+    assign id_CSRControl[4] = id_inst == 32'h30200073; // mret
 
 endmodule

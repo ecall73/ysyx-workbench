@@ -18,8 +18,8 @@ module ysyx_26030082_exu (
 
     // CSR inputs
     input  wire        ex_CSRSrc,
-    input  wire [ 2:0] ex_CSRaddr,
-    input  wire [ 2:0] ex_CSRControl,
+    input  wire [11:0] ex_CSRaddr,
+    input  wire [ 4:0] ex_CSRControl,
 
     // Control for WB data selection
     input  wire [ 2:0] ex_MemToReg,
