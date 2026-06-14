@@ -34,58 +34,16 @@ module ysyx_26030082_CSR (
     localparam [2:0]  F3_CSRRWI  = 3'b101;
     localparam [2:0]  F3_CSRRSI  = 3'b110;
     localparam [2:0]  F3_CSRRCI  = 3'b111;
-    localparam [1:0]  CSR_OP_NONE = 2'b00;
-    localparam [1:0]  CSR_OP_RW   = 2'b01;
-    localparam [1:0]  CSR_OP_RS   = 2'b10;
-    localparam [1:0]  CSR_OP_RC   = 2'b11;
 
     wire        csr_is_imm = funct3[2];
     wire [31:0] CSRwdata = csr_is_imm ? imm : rR1_data;  // csrrxi: imm, csrrx: rR1
 
-    reg         trap_ecall;
-    reg         trap_mret;
-    reg  [1:0] csr_write_op;
-
     wire        trap_is_interrupt = 1'b0;
     wire [31:0] trap_cause_code = CAUSE_ECALL_M;
     wire [31:0] trap_vector = {mtvec[31:2], 2'b0};
-
-    always @(*) begin
-        trap_ecall   = 1'b0;
-        trap_mret    = 1'b0;
-        csr_write_op = CSR_OP_NONE;
-
-        if (is_system) begin
-            case (funct3)
-                3'b000: begin
-                    case (CSRaddr)
-                        INST_ECALL: trap_ecall = 1'b1;
-                        INST_MRET:  trap_mret = 1'b1;
-                        default: begin
-                        end
-                    endcase
-                end
-
-                F3_CSRRW,
-                F3_CSRRWI: begin
-                    csr_write_op = CSR_OP_RW;
-                end
-
-                F3_CSRRS,
-                F3_CSRRSI: begin
-                    csr_write_op = CSR_OP_RS;
-                end
-
-                F3_CSRRC,
-                F3_CSRRCI: begin
-                    csr_write_op = CSR_OP_RC;
-                end
-
-                default: begin
-                end
-            endcase
-        end
-    end
+    wire        csr_priv = is_system && (funct3 == 3'b000);
+    wire        csr_ecall = csr_priv && (CSRaddr == INST_ECALL);
+    wire        csr_mret  = csr_priv && (CSRaddr == INST_MRET);
 
     // CSR read
     always @(*) begin
@@ -100,7 +58,7 @@ module ysyx_26030082_CSR (
         endcase
     end
 
-    assign CSRjump = trap_ecall || trap_mret;
+    assign CSRjump = csr_ecall || csr_mret;
 
     // Write-side decode is shared across all CSRs so synthesis can reuse the SYSTEM/CSR address checks.
     always @(posedge clock) begin
@@ -115,17 +73,18 @@ module ysyx_26030082_CSR (
             mepc    <= mepc;
             mcause  <= mcause;
 
-            if (trap_ecall) begin
+            if (csr_ecall) begin
                 mstatus[3] <= 1'b0;
                 mstatus[7] <= mstatus[3];
                 mstatus[12:11] <= 2'b11;
                 mepc <= pc;
                 mcause <= {trap_is_interrupt, trap_cause_code[30:0]};
-            end else if (trap_mret) begin
+            end else if (csr_mret) begin
                 mstatus[3] <= mstatus[7];
             end else begin
-                case (csr_write_op)
-                    CSR_OP_RW: begin
+                case (funct3)
+                    F3_CSRRW,
+                    F3_CSRRWI: begin
                         case (CSRaddr)
                             CSR_mstatus: mstatus <= CSRwdata;
                             CSR_mtvec:   mtvec   <= CSRwdata;
@@ -135,7 +94,8 @@ module ysyx_26030082_CSR (
                         endcase
                     end
 
-                    CSR_OP_RS: begin
+                    F3_CSRRS,
+                    F3_CSRRSI: begin
                         case (CSRaddr)
                             CSR_mstatus: mstatus <= mstatus | CSRwdata;
                             CSR_mtvec:   mtvec   <= mtvec | CSRwdata;
@@ -145,7 +105,8 @@ module ysyx_26030082_CSR (
                         endcase
                     end
 
-                    CSR_OP_RC: begin
+                    F3_CSRRC,
+                    F3_CSRRCI: begin
                         case (CSRaddr)
                             CSR_mstatus: mstatus <= mstatus & ~CSRwdata;
                             CSR_mtvec:   mtvec   <= mtvec & ~CSRwdata;
@@ -165,8 +126,8 @@ module ysyx_26030082_CSR (
     // CSRnpc
     always @(*) begin
         if (reset)                                    CSRnpc = 0;
-        else if (trap_ecall)                        CSRnpc = trap_vector;
-        else if (trap_mret)                         CSRnpc = mepc;
+        else if (csr_ecall)                         CSRnpc = trap_vector;
+        else if (csr_mret)                          CSRnpc = mepc;
         else                                        CSRnpc = mepc;
     end
     
