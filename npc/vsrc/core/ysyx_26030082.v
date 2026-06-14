@@ -167,7 +167,8 @@ module ysyx_26030082 #(
     wire [31:0] ex_ALUResult;
     wire        ex_BRUResult;
     wire [31:0] ex_pc4;
-    wire [31:0] ex_RFwdata;
+    wire [31:0] ex_WBAltData;
+    wire        ex_WBUseAlt;
     wire        ex_btype;
     wire        ex_jtype;
     wire        ex_ijtype;
@@ -187,7 +188,8 @@ module ysyx_26030082 #(
     reg  [ 2:0] ls_funct3;
     reg  [ 4:0] ls_RFwaddr;
     reg  [31:0] ls_ALUResult;
-    reg  [31:0] ls_RFwdata;
+    reg  [31:0] ls_WBAltData;
+    reg         ls_WBUseAlt;
     wire        ls_in_ready;
     wire        ls_out_valid;
     wire [31:0] ls_RFwdata_out;
@@ -447,7 +449,8 @@ module ysyx_26030082 #(
         .ex_CSRjump             (ex_CSRjump),
         .ex_CSRnpc              (ex_CSRnpc),
 
-        .ex_RFwdata             (ex_RFwdata),
+        .ex_WBAltData           (ex_WBAltData),
+        .ex_WBUseAlt            (ex_WBUseAlt),
         .ex_MemRead             (ex_MemRead)
     );
 
@@ -465,7 +468,8 @@ module ysyx_26030082 #(
             ls_rR2_data <= ex_rR2_data;
             ls_funct3   <= ex_funct3;
             ls_RFwaddr  <= ex_RFwaddr;
-            ls_RFwdata  <= ex_RFwdata;
+            ls_WBAltData <= ex_WBAltData;
+            ls_WBUseAlt <= ex_WBUseAlt;
             ls_MemRead  <= ex_MemRead;
         end
     end
@@ -503,7 +507,8 @@ module ysyx_26030082 #(
         .ls_MemWrite            (ls_MemWrite),
         .ls_MemRead             (ls_MemRead),
         .ls_rR2_data            (ls_rR2_data),
-        .ls_RFwdata             (ls_RFwdata),
+        .ls_WBAltData           (ls_WBAltData),
+        .ls_WBUseAlt            (ls_WBUseAlt),
 
         .ls_mtime               (mtime),
 

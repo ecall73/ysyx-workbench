@@ -32,7 +32,8 @@ module ysyx_26030082_exu (
     output wire        ex_CSRjump,
     output wire [31:0] ex_CSRnpc,
 
-    output wire [31:0] ex_RFwdata,
+    output wire [31:0] ex_WBAltData,
+    output wire        ex_WBUseAlt,
     output wire        ex_MemRead
 );
 
@@ -77,9 +78,10 @@ module ysyx_26030082_exu (
         .CSRnpc                 (ex_CSRnpc)
     );
 
-    assign ex_RFwdata = ex_MemToReg[1] ?
-                            (ex_MemToReg[0] ? ex_imm : CSRrdata) :
-                            (ex_MemToReg[0] ? ex_ALUResult : ex_pc4);
+    assign ex_WBAltData = ex_MemToReg[1] ?
+                              (ex_MemToReg[0] ? ex_imm : CSRrdata) :
+                              ex_pc4;
+    assign ex_WBUseAlt = ~ex_MemToReg[2] && (ex_MemToReg[1] || ~ex_MemToReg[0]);
 
     assign ex_MemRead = ex_MemToReg[2];
 
