@@ -133,13 +133,15 @@ module ysyx_26030082 #(
     wire        id_MemWrite;
     wire        id_ALUSrcA;
     wire        id_ALUSrcB;
+    wire        id_ALUAdd4;
     wire [31:0] id_imm;
     wire [31:0] id_rR1_data;
     wire [31:0] id_rR2_data;
     wire [31:0] id_rR1_data_forward;
     wire [31:0] id_rR2_data_forward;
     wire        id_btype;
-    wire        id_jump;
+    wire        id_jtype;
+    wire        id_ijtype;
     wire        id_CSRSrc;
     wire [ 2:0] id_CSRaddr;
     wire [ 2:0] id_CSRControl;
@@ -155,6 +157,7 @@ module ysyx_26030082 #(
     reg         ex_MemWrite;
     reg         ex_ALUSrcA;
     reg         ex_ALUSrcB;
+    reg         ex_ALUAdd4;
     reg  [31:0] ex_imm;
     reg  [31:0] ex_rR1_data;
     reg  [31:0] ex_rR2_data;
@@ -162,10 +165,12 @@ module ysyx_26030082 #(
     reg  [ 4:0] ex_RFwaddr;
     wire [31:0] ex_ALUResult;
     wire        ex_BRUResult;
-    wire [31:0] ex_pc4;
+    wire [31:0] ex_nextpc;
+    wire [31:0] ex_redirect_pc;
     wire [31:0] ex_RFwdata;
     reg         ex_btype;
-    reg         ex_jump;
+    reg         ex_jtype;
+    reg         ex_ijtype;
     reg         ex_CSRSrc;
     reg  [ 2:0] ex_CSRaddr;
     reg  [ 2:0] ex_CSRControl;
@@ -257,11 +262,12 @@ module ysyx_26030082 #(
         .if_ready               (if_ready),
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
-        .ex_pc4                 (ex_pc4),
+        .ex_nextpc              (ex_nextpc),
+        .ex_redirect_pc         (ex_redirect_pc),
         .ex_btype               (ex_btype),
-        .ex_jump                (ex_jump),
+        .ex_jtype               (ex_jtype),
+        .ex_ijtype              (ex_ijtype),
         .ex_BRUResult           (ex_BRUResult),
-        .ex_ALUResult           (ex_ALUResult),
         .ex_CSRjump             (ex_CSRjump),
         .ex_CSRnpc              (ex_CSRnpc),
         .ex_FenceI              (ex_FenceI),
@@ -319,10 +325,12 @@ module ysyx_26030082 #(
         .id_MemWrite            (id_MemWrite),
         .id_ALUSrcA             (id_ALUSrcA),
         .id_ALUSrcB             (id_ALUSrcB),
+        .id_ALUAdd4             (id_ALUAdd4),
         .id_imm                 (id_imm),
 
         .id_btype               (id_btype),
-        .id_jump                (id_jump),
+        .id_jtype               (id_jtype),
+        .id_ijtype              (id_ijtype),
 
         .id_CSRSrc              (id_CSRSrc),
         .id_CSRaddr             (id_CSRaddr),
@@ -392,6 +400,7 @@ module ysyx_26030082 #(
             ex_RFwaddr      <= id_inst[11:7];
             ex_ALUSrcA      <= id_ALUSrcA;
             ex_ALUSrcB      <= id_ALUSrcB;
+            ex_ALUAdd4      <= id_ALUAdd4;
             ex_rR1_data     <= id_rR1_data_forward;
             ex_rR2_data     <= id_rR2_data_forward;
             ex_CSRSrc       <= id_CSRSrc;
@@ -399,7 +408,8 @@ module ysyx_26030082 #(
             ex_CSRControl   <= id_CSRControl;
             ex_FenceI       <= id_FenceI;
             ex_btype        <= id_btype;
-            ex_jump         <= id_jump;
+            ex_jtype        <= id_jtype;
+            ex_ijtype       <= id_ijtype;
         end
     end
 
@@ -447,6 +457,8 @@ module ysyx_26030082 #(
         .ex_funct3              (ex_funct3),
         .ex_imm                 (ex_imm),
         .ex_ALUControl          (ex_ALUControl),
+        .ex_ALUAdd4             (ex_ALUAdd4),
+        .ex_ijtype              (ex_ijtype),
 
         .ex_CSRSrc              (ex_CSRSrc),
         .ex_CSRaddr             (ex_CSRaddr),
@@ -456,7 +468,8 @@ module ysyx_26030082 #(
 
         .ex_ALUResult           (ex_ALUResult),
         .ex_BRUResult           (ex_BRUResult),
-        .ex_pc4                 (ex_pc4),
+        .ex_nextpc              (ex_nextpc),
+        .ex_redirect_pc         (ex_redirect_pc),
 
         .ex_CSRjump             (ex_CSRjump),
         .ex_CSRnpc              (ex_CSRnpc),

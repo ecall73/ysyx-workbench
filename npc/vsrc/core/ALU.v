@@ -1,8 +1,6 @@
 module ysyx_26030082_ALU(
     input  wire [31:0] A,
     input  wire [31:0] B,
-    input  wire [31:0] BRU_A,
-    input  wire [31:0] BRU_B,
     input  wire [ 3:0] ALUControl,
     input  wire [ 2:0] BRUFunct3,
     output wire [31:0] Result,
@@ -36,9 +34,6 @@ module ysyx_26030082_ALU(
     wire        cmp_lt;
     wire        cmp_ltu;
     wire        bru_cmp_eq;
-    wire        bru_cmp_lt;
-    wire        bru_cmp_ltu;
-    wire [32:0] bru_sub_result;
     reg  [31:0] result_r;
 
     wire [31:0] adder_a, adder_b;
@@ -87,11 +82,7 @@ module ysyx_26030082_ALU(
                                            shift_right_result[30], shift_right_result[31]} : shift_right_result;
     assign cmp_lt = (A[31] & ~B[31]) | ((~A[31] ^ B[31]) & add_sub_result[31]);
     assign cmp_ltu = ~carry;
-    assign bru_cmp_eq = (BRU_A == BRU_B);
-    assign bru_sub_result = {1'b0, BRU_A} - {1'b0, BRU_B};
-    assign bru_cmp_lt = (BRU_A[31] & ~BRU_B[31]) |
-                        ((BRU_A[31] ~^ BRU_B[31]) & bru_sub_result[31]);
-    assign bru_cmp_ltu = bru_sub_result[32];
+    assign bru_cmp_eq = (add_sub_result == 32'b0);
 
     always @(*) begin
         case (ALUControl)
@@ -112,10 +103,10 @@ module ysyx_26030082_ALU(
     assign Result = result_r;
     assign BRUResult = (BRUFunct3 == 3'b000) ? bru_cmp_eq   :
                        (BRUFunct3 == 3'b001) ? ~bru_cmp_eq  :
-                       (BRUFunct3 == 3'b100) ? bru_cmp_lt   :
-                       (BRUFunct3 == 3'b101) ? ~bru_cmp_lt  :
-                       (BRUFunct3 == 3'b110) ? bru_cmp_ltu  :
-                       (BRUFunct3 == 3'b111) ? ~bru_cmp_ltu :
+                       (BRUFunct3 == 3'b100) ? cmp_lt       :
+                       (BRUFunct3 == 3'b101) ? ~cmp_lt      :
+                       (BRUFunct3 == 3'b110) ? cmp_ltu      :
+                       (BRUFunct3 == 3'b111) ? ~cmp_ltu     :
                                                   1'b0;
 
 endmodule
