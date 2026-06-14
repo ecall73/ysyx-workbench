@@ -28,7 +28,7 @@ module ysyx_26030082_ALU(
     wire        bru_cmp_eq;
     wire        bru_cmp_lt;
     wire        bru_cmp_ltu;
-    wire [32:0] bru_sub_result;
+    wire        bru_sign_diff;
     reg  [31:0] result_r;
 
     wire [31:0] adder_a, adder_b;
@@ -52,10 +52,9 @@ module ysyx_26030082_ALU(
     assign cmp_lt = (A[31] & ~B[31]) | ((~A[31] ^ B[31]) & add_sub_result[31]);
     assign cmp_ltu = ~carry;
     assign bru_cmp_eq = (BRU_A == BRU_B);
-    assign bru_sub_result = {1'b0, BRU_A} - {1'b0, BRU_B};
-    assign bru_cmp_lt = (BRU_A[31] & ~BRU_B[31]) |
-                        ((BRU_A[31] ~^ BRU_B[31]) & bru_sub_result[31]);
-    assign bru_cmp_ltu = bru_sub_result[32];
+    assign bru_cmp_ltu = (BRU_A < BRU_B);
+    assign bru_sign_diff = BRU_A[31] ^ BRU_B[31];
+    assign bru_cmp_lt = bru_sign_diff ? BRU_A[31] : bru_cmp_ltu;
 
     always @(*) begin
         case (ALUControl)
