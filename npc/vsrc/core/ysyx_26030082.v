@@ -386,27 +386,25 @@ module ysyx_26030082 #(
             ex_in_valid        <= 1'b0;
         end else if (ex_in_ready) begin
             ex_in_valid <= id_issue_valid;
-            if (id_issue_valid) begin
-                ex_ALUControl   <= id_ALUControl;
-                ex_RegWrite     <= id_RegWrite;
-                ex_MemWrite     <= id_MemWrite;
-                ex_MemToReg     <= id_MemToReg;
-                ex_funct3       <= id_inst[14:12];
-                ex_imm          <= id_imm;
-                ex_pc           <= id_pc;
-                ex_RFwaddr      <= id_inst[11:7];
-                ex_ALUSrcA      <= id_ALUSrcA;
-                ex_ALUSrcB      <= id_ALUSrcB;
-                ex_rR1_data     <= id_rR1_data_forward;
-                ex_rR2_data     <= id_rR2_data_forward;
-                ex_CSRSrc       <= id_CSRSrc;
-                ex_CSRaddr      <= id_CSRaddr;
-                ex_CSRControl   <= id_CSRControl;
-                ex_FenceI       <= id_FenceI;
-                ex_btype        <= id_btype;
-                ex_jtype        <= id_jtype;
-                ex_ijtype       <= id_ijtype;
-            end
+            ex_ALUControl   <= id_ALUControl;
+            ex_RegWrite     <= id_RegWrite;
+            ex_MemWrite     <= id_MemWrite;
+            ex_MemToReg     <= id_MemToReg;
+            ex_funct3       <= id_inst[14:12];
+            ex_imm          <= id_imm;
+            ex_pc           <= id_pc;
+            ex_RFwaddr      <= id_inst[11:7];
+            ex_ALUSrcA      <= id_ALUSrcA;
+            ex_ALUSrcB      <= id_ALUSrcB;
+            ex_rR1_data     <= id_rR1_data_forward;
+            ex_rR2_data     <= id_rR2_data_forward;
+            ex_CSRSrc       <= id_CSRSrc;
+            ex_CSRaddr      <= id_CSRaddr;
+            ex_CSRControl   <= id_CSRControl;
+            ex_FenceI       <= id_FenceI;
+            ex_btype        <= id_btype;
+            ex_jtype        <= id_jtype;
+            ex_ijtype       <= id_ijtype;
         end
     end
 
@@ -480,15 +478,13 @@ module ysyx_26030082 #(
             ls_in_valid   <= 1'b0;
         end else if (ex_out_ready) begin
             ls_in_valid <= ex_out_valid;
-            if (ex_out_valid) begin
-                ls_RegWrite   <= ex_RegWrite;
-                ls_MemWrite   <= ex_MemWrite;
-                ls_rR2_data   <= ex_rR2_data;
-                ls_funct3     <= ex_funct3;
-                ls_RFwaddr    <= ex_RFwaddr;
-                ls_payload    <= (ex_MemRead || ex_MemWrite) ? ex_ALUResult : ex_RFwdata;
-                ls_MemRead    <= ex_MemRead;
-            end
+            ls_RegWrite   <= ex_RegWrite;
+            ls_MemWrite   <= ex_MemWrite;
+            ls_rR2_data   <= ex_rR2_data;
+            ls_funct3     <= ex_funct3;
+            ls_RFwaddr    <= ex_RFwaddr;
+            ls_payload    <= (ex_MemRead || ex_MemWrite) ? ex_ALUResult : ex_RFwdata;
+            ls_MemRead    <= ex_MemRead;
         end
     end
 
