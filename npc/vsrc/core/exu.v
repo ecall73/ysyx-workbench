@@ -33,16 +33,16 @@ module ysyx_26030082_exu (
     output wire        ex_have_inst
 );
 
-    localparam [6:0] OP_R_TYPE   = 7'b011_0011;
-    localparam [6:0] OP_I_TYPE   = 7'b001_0011;
-    localparam [6:0] OP_IL_TYPE  = 7'b000_0011;
-    localparam [6:0] OP_IJ_TYPE  = 7'b110_0111;
-    localparam [6:0] OP_S_TYPE   = 7'b010_0011;
-    localparam [6:0] OP_B_TYPE   = 7'b110_0011;
-    localparam [6:0] OP_U_TYPE   = 7'b011_0111;
-    localparam [6:0] OP_UA_TYPE  = 7'b001_0111;
-    localparam [6:0] OP_J_TYPE   = 7'b110_1111;
-    localparam [6:0] OP_CSR_TYPE = 7'b111_0011;
+    localparam [6:0] OPCODE_OP   = 7'b011_0011;
+    localparam [6:0] OPCODE_OP_IMM   = 7'b001_0011;
+    localparam [6:0] OPCODE_LOAD  = 7'b000_0011;
+    localparam [6:0] OPCODE_JALR  = 7'b110_0111;
+    localparam [6:0] OPCODE_STORE   = 7'b010_0011;
+    localparam [6:0] OPCODE_BRANCH   = 7'b110_0011;
+    localparam [6:0] OPCODE_LUI   = 7'b011_0111;
+    localparam [6:0] OPCODE_AUIPC  = 7'b001_0111;
+    localparam [6:0] OPCODE_JAL   = 7'b110_1111;
+    localparam [6:0] OPCODE_SYSTEM = 7'b111_0011;
 
     localparam [2:0] MEM_TO_REG_ALU  = 3'b001;
     localparam [2:0] MEM_TO_REG_DRAM = 3'b100;
@@ -148,16 +148,16 @@ module ysyx_26030082_exu (
     assign rs2_addr = fetch_inst[24:20];
     assign csr_addr = fetch_inst[31:20];
 
-    assign op_rtype    = dec_opcode == OP_R_TYPE;
-    assign op_itype    = dec_opcode == OP_I_TYPE;
-    assign op_load     = dec_opcode == OP_IL_TYPE;
-    assign op_store    = dec_opcode == OP_S_TYPE;
-    assign op_branch   = dec_opcode == OP_B_TYPE;
-    assign op_lui      = dec_opcode == OP_U_TYPE;
-    assign op_auipc    = dec_opcode == OP_UA_TYPE;
-    assign op_jal      = dec_opcode == OP_J_TYPE;
-    assign op_jalr     = dec_opcode == OP_IJ_TYPE;
-    assign op_system   = dec_opcode == OP_CSR_TYPE;
+    assign op_rtype    = dec_opcode == OPCODE_OP;
+    assign op_itype    = dec_opcode == OPCODE_OP_IMM;
+    assign op_load     = dec_opcode == OPCODE_LOAD;
+    assign op_store    = dec_opcode == OPCODE_STORE;
+    assign op_branch   = dec_opcode == OPCODE_BRANCH;
+    assign op_lui      = dec_opcode == OPCODE_LUI;
+    assign op_auipc    = dec_opcode == OPCODE_AUIPC;
+    assign op_jal      = dec_opcode == OPCODE_JAL;
+    assign op_jalr     = dec_opcode == OPCODE_JALR;
+    assign op_system   = dec_opcode == OPCODE_SYSTEM;
     assign op_csr      = op_system && (dec_funct3 != 3'b000);
     assign op_misc_mem = dec_opcode == 7'b000_1111;
     assign op_fencei   = fetch_inst == 32'h0000_100f;
@@ -175,15 +175,15 @@ module ysyx_26030082_exu (
 
     always @(*) begin
         case (dec_opcode)
-            OP_I_TYPE,
-            OP_IL_TYPE,
-            OP_IJ_TYPE:  dec_imm_r = {{20{fetch_inst[31]}}, fetch_inst[31:20]};
-            OP_S_TYPE:   dec_imm_r = {{20{fetch_inst[31]}}, fetch_inst[31:25], fetch_inst[11:7]};
-            OP_B_TYPE:   dec_imm_r = {{20{fetch_inst[31]}}, fetch_inst[7], fetch_inst[30:25], fetch_inst[11:8], 1'b0};
-            OP_U_TYPE,
-            OP_UA_TYPE:  dec_imm_r = {fetch_inst[31:12], 12'b0};
-            OP_J_TYPE:   dec_imm_r = {{12{fetch_inst[31]}}, fetch_inst[19:12], fetch_inst[20], fetch_inst[30:21], 1'b0};
-            OP_CSR_TYPE: dec_imm_r = {27'b0, fetch_inst[19:15]};
+            OPCODE_OP_IMM,
+            OPCODE_LOAD,
+            OPCODE_JALR:  dec_imm_r = {{20{fetch_inst[31]}}, fetch_inst[31:20]};
+            OPCODE_STORE:   dec_imm_r = {{20{fetch_inst[31]}}, fetch_inst[31:25], fetch_inst[11:7]};
+            OPCODE_BRANCH:   dec_imm_r = {{20{fetch_inst[31]}}, fetch_inst[7], fetch_inst[30:25], fetch_inst[11:8], 1'b0};
+            OPCODE_LUI,
+            OPCODE_AUIPC:  dec_imm_r = {fetch_inst[31:12], 12'b0};
+            OPCODE_JAL:   dec_imm_r = {{12{fetch_inst[31]}}, fetch_inst[19:12], fetch_inst[20], fetch_inst[30:21], 1'b0};
+            OPCODE_SYSTEM: dec_imm_r = {27'b0, fetch_inst[19:15]};
             default:     dec_imm_r = 32'b0;
         endcase
     end
@@ -236,7 +236,7 @@ module ysyx_26030082_exu (
 
     always @(*) begin
         case (dec_opcode)
-            OP_R_TYPE: begin
+            OPCODE_OP: begin
                 case (dec_funct3)
                     3'b000:  alu_result_r = alu_addsub_result;
                     3'b001:  alu_result_r = alu_sll_result;
@@ -250,7 +250,7 @@ module ysyx_26030082_exu (
                 endcase
             end
 
-            OP_I_TYPE: begin
+            OPCODE_OP_IMM: begin
                 case (dec_funct3)
                     3'b000:  alu_result_r = alu_addsub_result;
                     3'b001:  alu_result_r = alu_sll_result;
@@ -264,11 +264,11 @@ module ysyx_26030082_exu (
                 endcase
             end
 
-            OP_IL_TYPE,
-            OP_IJ_TYPE,
-            OP_S_TYPE,
-            OP_UA_TYPE,
-            OP_J_TYPE: begin
+            OPCODE_LOAD,
+            OPCODE_JALR,
+            OPCODE_STORE,
+            OPCODE_AUIPC,
+            OPCODE_JAL: begin
                 alu_result_r = alu_addsub_result;
             end
 
@@ -293,20 +293,20 @@ module ysyx_26030082_exu (
         redirect_target_r = alu_result_r;
 
         case (dec_opcode)
-            OP_B_TYPE: begin
+            OPCODE_BRANCH: begin
                 redirect_valid_r = branch_taken;
             end
 
-            OP_J_TYPE: begin
+            OPCODE_JAL: begin
                 redirect_valid_r = 1'b1;
             end
 
-            OP_IJ_TYPE: begin
+            OPCODE_JALR: begin
                 redirect_valid_r = 1'b1;
                 redirect_target_r = {alu_result_r[31:1], 1'b0};
             end
 
-            OP_CSR_TYPE: begin
+            OPCODE_SYSTEM: begin
                 if (dec_funct3 == 3'b000) begin
                     redirect_valid_r = 1'b1;
                     redirect_target_r = (csr_addr == INST_ECALL) ? {csr_mtvec[31:2], 2'b0} : csr_mepc;
