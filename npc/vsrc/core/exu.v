@@ -6,21 +6,21 @@ module ysyx_26030082_exu (
     output wire        fetch_ready,
     input  wire [31:0] fetch_pc,
     input  wire [31:0] fetch_inst,
-    input  wire [31:0] fetch_rs1_data,
-    input  wire [31:0] fetch_rs2_data,
+    input  wire [31:0] fetch_rf_rdata1,
+    input  wire [31:0] fetch_rf_rdata2,
 
     input  wire        ex_out_ready,
     output wire        ex_out_valid,
 
-    input  wire        ls_rf_write,
+    input  wire        ls_rf_wen,
     input  wire [ 4:0] ls_rf_waddr,
     input  wire [31:0] ls_rf_wdata,
     input  wire        ls_load_pending,
 
-    output wire        ex_rf_write,
-    output wire        ex_mem_read,
-    output wire        ex_mem_write,
-    output wire [31:0] ex_rs2_data,
+    output wire        ex_rf_wen,
+    output wire        ex_mem_ren,
+    output wire        ex_mem_wen,
+    output wire [31:0] ex_rf_rdata2,
     output wire [ 2:0] ex_funct3,
     output wire [ 4:0] ex_rf_waddr,
     output reg  [31:0] ex_alu_result,
@@ -67,8 +67,8 @@ module ysyx_26030082_exu (
     // Decode / former IDU logic.
     wire [6:0] opcode;
     wire       funct7_5;
-    wire [4:0] rs1_addr;
-    wire [4:0] rs2_addr;
+    wire [4:0] rf_raddr1;
+    wire [4:0] rf_raddr2;
     wire [11:0] csr_addr;
     reg  [31:0] imm;
 
@@ -131,8 +131,8 @@ module ysyx_26030082_exu (
     assign opcode = fetch_inst[6:0];
     assign ex_funct3 = fetch_inst[14:12];
     assign funct7_5 = fetch_inst[30];
-    assign rs1_addr = fetch_inst[19:15];
-    assign rs2_addr = fetch_inst[24:20];
+    assign rf_raddr1 = fetch_inst[19:15];
+    assign rf_raddr2 = fetch_inst[24:20];
     assign csr_addr = fetch_inst[31:20];
 
     assign op_rtype    = opcode == OPCODE_OP;
@@ -167,33 +167,33 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    assign forward_ls_rs1 = (rs1_addr == ls_rf_waddr) && ls_rf_write && (ls_rf_waddr != 5'b0);
-    assign forward_ls_rs2 = (rs2_addr == ls_rf_waddr) && ls_rf_write && (ls_rf_waddr != 5'b0);
+    assign forward_ls_rs1 = (rf_raddr1 == ls_rf_waddr) && ls_rf_wen && (ls_rf_waddr != 5'b0);
+    assign forward_ls_rs2 = (rf_raddr2 == ls_rf_waddr) && ls_rf_wen && (ls_rf_waddr != 5'b0);
 
-    assign rs1_data = forward_ls_rs1 ? ls_rf_wdata : fetch_rs1_data;
-    assign ex_rs2_data = forward_ls_rs2 ? ls_rf_wdata : fetch_rs2_data;
+    assign rs1_data = forward_ls_rs1 ? ls_rf_wdata : fetch_rf_rdata1;
+    assign ex_rf_rdata2 = forward_ls_rs2 ? ls_rf_wdata : fetch_rf_rdata2;
 
     assign load_use_hazard = ls_load_pending &&
                              (ls_rf_waddr != 5'b0) &&
-                             ((rs1_used && (rs1_addr == ls_rf_waddr)) ||
-                              (rs2_used && (rs2_addr == ls_rf_waddr)));
+                             ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
+                              (rs2_used && (rf_raddr2 == ls_rf_waddr)));
 
     assign fetch_ready = ~fetch_valid || (~load_use_hazard && ex_out_ready);
     assign ex_out_valid = fetch_valid && ~load_use_hazard;
     assign ex_fire = ex_out_valid && ex_out_ready;
 
-    assign ex_rf_write = ~(op_branch | op_store | op_misc_mem);
-    assign ex_mem_write = op_store;
-    assign ex_mem_read = op_load;
+    assign ex_rf_wen = ~(op_branch | op_store | op_misc_mem);
+    assign ex_mem_wen = op_store;
+    assign ex_mem_ren = op_load;
     assign ex_rf_waddr = fetch_inst[11:7];
     assign ex_have_inst = op_rtype | op_itype | op_load | op_jalr | op_store |
                           op_branch | op_lui | op_auipc | op_jal | op_system | op_misc_mem;
 
     // ALU.
     assign ex_pc4 = fetch_pc + 32'd4;
-    assign alu_logic_rhs = op_rtype ? ex_rs2_data : imm;
+    assign alu_logic_rhs = op_rtype ? ex_rf_rdata2 : imm;
     assign alu_add_lhs = (op_auipc | op_jal | op_branch) ? fetch_pc : rs1_data;
-    assign alu_add_rhs = op_rtype ? ex_rs2_data : imm;
+    assign alu_add_rhs = op_rtype ? ex_rf_rdata2 : imm;
     assign alu_sub_family = (op_rtype && ex_funct3 == 3'b000 && funct7_5) ||
                             ((op_rtype || op_itype) && (ex_funct3 == 3'b010 || ex_funct3 == 3'b011));
     assign alu_adder_rhs = alu_sub_family ? ~alu_add_rhs : alu_add_rhs;
@@ -254,9 +254,9 @@ module ysyx_26030082_exu (
     end
 
     // BRU / redirect.
-    assign bru_cmp_eq = (rs1_data == ex_rs2_data);
-    assign bru_cmp_lt = ($signed(rs1_data) < $signed(ex_rs2_data));
-    assign bru_cmp_ltu = (rs1_data < ex_rs2_data);
+    assign bru_cmp_eq = (rs1_data == ex_rf_rdata2);
+    assign bru_cmp_lt = ($signed(rs1_data) < $signed(ex_rf_rdata2));
+    assign bru_cmp_ltu = (rs1_data < ex_rf_rdata2);
     assign branch_cmp_result = ex_funct3[2] ? (ex_funct3[1] ? bru_cmp_ltu : bru_cmp_lt)
                                              : bru_cmp_eq;
     assign branch_taken = op_branch && (branch_cmp_result ^ ex_funct3[0]);
