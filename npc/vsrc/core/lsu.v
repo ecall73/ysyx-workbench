@@ -50,9 +50,9 @@ module ysyx_26030082_lsu (
     localparam L_RD_WAIT_R = 3'd2;
     localparam L_WR_AW_W   = 3'd3;
     localparam L_WR_WAIT_B = 3'd4;
-    localparam [15:0] CLINT_BASE_HI = 16'h0200;
-    localparam [15:0] MTIME_OFFSET  = 16'hbff8;
-    localparam [15:0] MTIMEH_OFFSET = 16'hbffc;
+    localparam [15:0] CLINT_BASE_HI     = 16'h0200;
+    localparam [13:0] MTIME_WORD_OFFSET = 14'h2ffe;
+    localparam [13:0] MTIMEH_WORD_OFFSET = 14'h2fff;
 
     reg  [2:0]  state;
     reg         wr_aw_done;
@@ -91,10 +91,10 @@ module ysyx_26030082_lsu (
     assign ls_load_raw_data = ls_is_local_load ? ls_local_rdata : lsu_axi_rdata;
 
     always @(*) begin
-        case (ls_ALUResult[15:0])
-            MTIME_OFFSET:  ls_local_rdata = ls_mtime[31:0];
-            MTIMEH_OFFSET: ls_local_rdata = ls_mtime[63:32];
-            default:       ls_local_rdata = 32'b0;
+        case (ls_ALUResult[15:2])
+            MTIME_WORD_OFFSET:  ls_local_rdata = ls_mtime[31:0];
+            MTIMEH_WORD_OFFSET: ls_local_rdata = ls_mtime[63:32];
+            default:            ls_local_rdata = 32'b0;
         endcase
     end
 
