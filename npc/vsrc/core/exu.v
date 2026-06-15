@@ -58,6 +58,13 @@ module ysyx_26030082_exu (
     localparam [2:0] F3_CSRRSI = 3'b110;
     localparam [2:0] F3_CSRRCI = 3'b111;
 
+    localparam [2:0] F3_BRANCH_BEQ  = 3'b000;
+    localparam [2:0] F3_BRANCH_BNE  = 3'b001;
+    localparam [2:0] F3_BRANCH_BLT  = 3'b100;
+    localparam [2:0] F3_BRANCH_BGE  = 3'b101;
+    localparam [2:0] F3_BRANCH_BLTU = 3'b110;
+    localparam [2:0] F3_BRANCH_BGEU = 3'b111;
+
     localparam [31:0] CAUSE_ECALL = 32'd11;
 
     // Common decode fields.
@@ -260,8 +267,16 @@ module ysyx_26030082_exu (
 
         case (opcode)
             OPCODE_BRANCH: begin
-                ex_redirect = (ex_funct3[2] ? (ex_funct3[1] ? bru_cmp_ltu : bru_cmp_lt)
-                                             : bru_cmp_eq) ^ ex_funct3[0];
+                case (ex_funct3)
+                    F3_BRANCH_BEQ:  ex_redirect = bru_cmp_eq;
+                    F3_BRANCH_BNE:  ex_redirect = ~bru_cmp_eq;
+                    F3_BRANCH_BLT:  ex_redirect = bru_cmp_lt;
+                    F3_BRANCH_BGE:  ex_redirect = ~bru_cmp_lt;
+                    F3_BRANCH_BLTU: ex_redirect = bru_cmp_ltu;
+                    F3_BRANCH_BGEU: ex_redirect = ~bru_cmp_ltu;
+                    default: begin
+                    end
+                endcase
             end
 
             OPCODE_JAL: begin
