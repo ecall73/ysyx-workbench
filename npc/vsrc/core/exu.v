@@ -209,7 +209,7 @@ module ysyx_26030082_exu (
 
     assign ex_RegWrite = fetch_valid && ~(op_branch | op_store | op_misc_mem);
     assign ex_MemWrite = fetch_valid && op_store;
-    assign ex_MemRead = mem_to_reg[2];
+    assign ex_MemRead = fetch_ready && op_load;
     assign ex_funct3 = funct3;
     assign ex_RFwaddr = fetch_inst[11:7];
     assign ex_rR2_data = rs2_data;
