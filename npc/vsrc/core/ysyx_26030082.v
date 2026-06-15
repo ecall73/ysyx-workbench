@@ -133,7 +133,6 @@ module ysyx_26030082 #(
     wire [31:0] ex_redirect_pc;
     wire [31:0] ex_wdata;
     wire        ex_fence_i;
-    wire        ex_have_inst;
     wire        ex_out_valid;
     wire        ex_out_ready;
 
@@ -156,7 +155,6 @@ module ysyx_26030082 #(
 `ifndef SYNTHESIS
     assign pc_ex = fetch_pc;
     assign inst_ex = fetch_inst;
-    assign have_inst_ex = ex_have_inst;
 `endif
 
     // IFU AXI4 (read-only in practice)
@@ -199,8 +197,6 @@ module ysyx_26030082 #(
         reg  [31:0] pc_ls;
         wire [31:0] inst_ex;
         reg  [31:0] inst_ls;
-        wire        have_inst_ex;
-        reg         have_inst_ls;
     `endif
 
 ////////////////////////////////////////////////////////////////
@@ -275,8 +271,7 @@ module ysyx_26030082 #(
         .ex_redirect            (ex_redirect),
         .ex_redirect_pc         (ex_redirect_pc),
         .ex_wdata               (ex_wdata),
-        .ex_fence_i             (ex_fence_i),
-        .ex_have_inst           (ex_have_inst)
+        .ex_fence_i             (ex_fence_i)
     );
 
     // ================================================================
@@ -303,16 +298,13 @@ module ysyx_26030082 #(
             if (reset) begin
                 pc_ls <= 32'b0;
                 inst_ls <= 32'b0;
-                have_inst_ls <= 1'b0;
             end else if (ex_out_ready) begin
                 if (ex_out_valid) begin
                     pc_ls <= pc_ex;
                     inst_ls <= inst_ex;
-                    have_inst_ls <= have_inst_ex;
                 end else begin
                     pc_ls <= 32'b0;
                     inst_ls <= 32'b0;
-                    have_inst_ls <= 1'b0;
                 end
             end
         end
@@ -425,7 +417,7 @@ module ysyx_26030082 #(
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
     always @(posedge clock) begin
-        if (!reset && ls_out_valid && have_inst_ls) begin
+        if (!reset && ls_out_valid) begin
             npc_commit(pc_ls, inst_ls);
         end
     end
@@ -477,7 +469,7 @@ module ysyx_26030082 #(
     assign pmu_lsu_load_req = (lsu.state == PMU_LSU_IDLE) && ls_in_valid && lsu.ls_is_load;
     assign pmu_lsu_load_pending = (lsu.state == PMU_LSU_RD_AR) || (lsu.state == PMU_LSU_RD_WAIT_R);
     assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
-    assign pmu_dec_total = !ifu.flush && ex_out_valid && ex_out_ready && ex_have_inst;
+    assign pmu_dec_total = !ifu.flush && ex_out_valid && ex_out_ready;
     assign pmu_icache_miss_refill_busy =
         (ifu.state == PMU_ICACHE_MISS_AR) ||
         (ifu.state == PMU_ICACHE_MISS_R);

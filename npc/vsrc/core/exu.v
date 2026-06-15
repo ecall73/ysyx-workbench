@@ -24,8 +24,7 @@ module ysyx_26030082_exu (
     output reg         ex_redirect,
     output reg  [31:0] ex_redirect_pc,
     output reg  [31:0] ex_wdata,
-    output reg         ex_fence_i,
-    output wire        ex_have_inst
+    output reg         ex_fence_i
 );
 
     localparam [6:0] OPCODE_OP   = 7'b011_0011;
@@ -173,8 +172,6 @@ module ysyx_26030082_exu (
     assign ex_mem_wen = op_store;
     assign ex_mem_ren = op_load;
     assign ex_rf_waddr = fetch_inst[11:7];
-    assign ex_have_inst = op_rtype | op_itype | op_load | op_jalr | op_store |
-                          op_branch | (opcode == OPCODE_LUI) | op_auipc | op_jal | op_system | op_misc_mem;
 
     // Immediate.
     always @(*) begin
