@@ -98,16 +98,18 @@ module ysyx_26030082_exu (
     wire [31:0] alu_b;
     wire [31:0] add_lhs;
     wire [31:0] add_rhs;
-    wire [31:0] add_result;
-    wire [31:0] sub_result;
+    wire        alu_sub_family;
+    wire [31:0] adder_b;
+    wire [31:0] add_sub_result;
+    wire        add_sub_carry;
     wire [31:0] and_result;
     wire [31:0] or_result;
     wire [31:0] xor_result;
     wire [31:0] sll_result;
     wire [31:0] srl_result;
     wire [31:0] sra_result;
-    wire [31:0] slt_result;
-    wire [31:0] sltu_result;
+    wire        cmp_lt;
+    wire        cmp_ltu;
 
     assign opcode = fetch_inst[6:0];
     assign funct3 = fetch_inst[14:12];
@@ -168,44 +170,48 @@ module ysyx_26030082_exu (
     assign alu_b = op_rtype ? rR2_data_forward : imm;
     assign add_lhs = (op_auipc | op_jal) ? fetch_pc : rR1_data_forward;
     assign add_rhs = op_rtype ? rR2_data_forward : imm;
-    assign add_result = add_lhs + add_rhs;
-    assign sub_result = rR1_data_forward - rR2_data_forward;
+    assign alu_sub_family = (op_rtype && funct3 == 3'b000 && funct7_5) ||
+                            ((op_rtype || op_itype) && (funct3 == 3'b010 || funct3 == 3'b011));
+    assign adder_b = alu_sub_family ? ~add_rhs : add_rhs;
+    assign {add_sub_carry, add_sub_result} = {1'b0, add_lhs} + {1'b0, adder_b} +
+                                             {32'b0, alu_sub_family};
     assign and_result = rR1_data_forward & alu_b;
     assign or_result = rR1_data_forward | alu_b;
     assign xor_result = rR1_data_forward ^ alu_b;
     assign sll_result = rR1_data_forward << alu_b[4:0];
     assign srl_result = rR1_data_forward >> alu_b[4:0];
     assign sra_result = ($signed(rR1_data_forward)) >>> alu_b[4:0];
-    assign slt_result = {31'b0, ($signed(rR1_data_forward) < $signed(alu_b))};
-    assign sltu_result = {31'b0, (rR1_data_forward < alu_b)};
+    assign cmp_lt = (add_lhs[31] & ~add_rhs[31]) |
+                    ((add_lhs[31] ~^ add_rhs[31]) & add_sub_result[31]);
+    assign cmp_ltu = ~add_sub_carry;
 
     always @(*) begin
         case (opcode)
             OP_R_TYPE: begin
                 case (funct3)
-                    3'b000:  alu_result_r = funct7_5 ? sub_result : add_result;
+                    3'b000:  alu_result_r = add_sub_result;
                     3'b001:  alu_result_r = sll_result;
-                    3'b010:  alu_result_r = slt_result;
-                    3'b011:  alu_result_r = sltu_result;
+                    3'b010:  alu_result_r = {31'b0, cmp_lt};
+                    3'b011:  alu_result_r = {31'b0, cmp_ltu};
                     3'b100:  alu_result_r = xor_result;
                     3'b101:  alu_result_r = funct7_5 ? sra_result : srl_result;
                     3'b110:  alu_result_r = or_result;
                     3'b111:  alu_result_r = and_result;
-                    default: alu_result_r = 32'b0;
+                    default: alu_result_r = add_sub_result;
                 endcase
             end
 
             OP_I_TYPE: begin
                 case (funct3)
-                    3'b000:  alu_result_r = add_result;
+                    3'b000:  alu_result_r = add_sub_result;
                     3'b001:  alu_result_r = sll_result;
-                    3'b010:  alu_result_r = slt_result;
-                    3'b011:  alu_result_r = sltu_result;
+                    3'b010:  alu_result_r = {31'b0, cmp_lt};
+                    3'b011:  alu_result_r = {31'b0, cmp_ltu};
                     3'b100:  alu_result_r = xor_result;
                     3'b101:  alu_result_r = funct7_5 ? sra_result : srl_result;
                     3'b110:  alu_result_r = or_result;
                     3'b111:  alu_result_r = and_result;
-                    default: alu_result_r = 32'b0;
+                    default: alu_result_r = add_sub_result;
                 endcase
             end
 
@@ -214,11 +220,11 @@ module ysyx_26030082_exu (
             OP_S_TYPE,
             OP_UA_TYPE,
             OP_J_TYPE: begin
-                alu_result_r = add_result;
+                alu_result_r = add_sub_result;
             end
 
             default: begin
-                alu_result_r = 32'b0;
+                alu_result_r = add_sub_result;
             end
         endcase
     end
