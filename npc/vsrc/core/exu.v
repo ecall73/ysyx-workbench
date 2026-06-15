@@ -79,14 +79,11 @@ module ysyx_26030082_exu (
     wire       op_misc_mem;
     wire       rs1_used;
     wire       rs2_used;
-    wire       ex_fire;
 
     // RF + forward.
     reg  [31:0] reg_bank [1:15];
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
-    wire        forward_ls_rs1;
-    wire        forward_ls_rs2;
     wire        load_use_hazard;
     wire [31:0] rf_rdata1_forward;
     wire [31:0] rf_rdata2_forward;
@@ -116,8 +113,6 @@ module ysyx_26030082_exu (
     wire        bru_cmp_eq;
     wire        bru_cmp_lt;
     wire        bru_cmp_ltu;
-    wire        branch_cmp_result;
-    wire        branch_taken;
 
     // CSR.
     reg  [31:0] csr_mstatus;
@@ -156,11 +151,8 @@ module ysyx_26030082_exu (
     assign rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
     assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
 
-    assign forward_ls_rs1 = (rf_raddr1 == rf_waddr) && rf_wen && (rf_waddr != 5'b0);
-    assign forward_ls_rs2 = (rf_raddr2 == rf_waddr) && rf_wen && (rf_waddr != 5'b0);
-
-    assign rf_rdata1_forward = forward_ls_rs1 ? rf_wdata : rf_rdata1;
-    assign rf_rdata2_forward = forward_ls_rs2 ? rf_wdata : rf_rdata2;
+    assign rf_rdata1_forward = ((rf_raddr1 == rf_waddr) && rf_wen && (rf_waddr != 5'b0)) ? rf_wdata : rf_rdata1;
+    assign rf_rdata2_forward = ((rf_raddr2 == rf_waddr) && rf_wen && (rf_waddr != 5'b0)) ? rf_wdata : rf_rdata2;
 
     assign rs1_used = op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
                       (op_system && (ex_funct3 != F3_PRIV) && ~ex_funct3[2]);
@@ -173,7 +165,6 @@ module ysyx_26030082_exu (
 
     assign fetch_ready = ~fetch_valid || (~load_use_hazard && ex_out_ready);
     assign ex_out_valid = fetch_valid && ~load_use_hazard;
-    assign ex_fire = ex_out_valid && ex_out_ready;
 
     assign ex_rf_wen = ~(op_branch | op_store | op_misc_mem);
     assign ex_mem_wen = op_store;
@@ -266,9 +257,6 @@ module ysyx_26030082_exu (
     assign bru_cmp_eq = (rf_rdata1_forward == rf_rdata2_forward);
     assign bru_cmp_lt = ($signed(rf_rdata1_forward) < $signed(rf_rdata2_forward));
     assign bru_cmp_ltu = (rf_rdata1_forward < rf_rdata2_forward);
-    assign branch_cmp_result = ex_funct3[2] ? (ex_funct3[1] ? bru_cmp_ltu : bru_cmp_lt)
-                                             : bru_cmp_eq;
-    assign branch_taken = op_branch && (branch_cmp_result ^ ex_funct3[0]);
 
     always @(*) begin
         ex_redirect = 1'b0;
@@ -277,7 +265,8 @@ module ysyx_26030082_exu (
 
         case (opcode)
             OPCODE_BRANCH: begin
-                ex_redirect = branch_taken;
+                ex_redirect = (ex_funct3[2] ? (ex_funct3[1] ? bru_cmp_ltu : bru_cmp_lt)
+                                             : bru_cmp_eq) ^ ex_funct3[0];
             end
 
             OPCODE_JAL: begin
@@ -355,7 +344,7 @@ module ysyx_26030082_exu (
             csr_mtvec   <= 32'h1;
             csr_mepc    <= 32'h0;
             csr_mcause  <= 32'h0;
-        end else if (ex_fire && op_system) begin
+        end else if (ex_out_valid && ex_out_ready && op_system) begin
             case (ex_funct3)
                 3'b000: begin
                     case (csr_addr)
