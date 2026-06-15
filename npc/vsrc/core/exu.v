@@ -91,8 +91,8 @@ module ysyx_26030082_exu (
     wire        forward_ls_rs1;
     wire        forward_ls_rs2;
     wire        load_use_hazard;
-    wire [31:0] rs1_data;
-    wire [31:0] rs2_data;
+    wire [31:0] rf_rdata1_forward;
+    wire [31:0] rf_rdata2_forward;
 
     // Execute common control.
     wire        ex_fire;
@@ -180,8 +180,8 @@ module ysyx_26030082_exu (
     assign forward_ls_rs1 = (rf_raddr1 == rf_waddr) && rf_wen && (rf_waddr != 5'b0);
     assign forward_ls_rs2 = (rf_raddr2 == rf_waddr) && rf_wen && (rf_waddr != 5'b0);
 
-    assign rs1_data = forward_ls_rs1 ? rf_wdata : rf_rdata1;
-    assign rs2_data = forward_ls_rs2 ? rf_wdata : rf_rdata2;
+    assign rf_rdata1_forward = forward_ls_rs1 ? rf_wdata : rf_rdata1;
+    assign rf_rdata2_forward = forward_ls_rs2 ? rf_wdata : rf_rdata2;
 
     assign load_use_hazard = ls_load_pending &&
                              (rf_waddr != 5'b0) &&
@@ -201,20 +201,20 @@ module ysyx_26030082_exu (
 
     // ALU.
     assign ex_pc4 = fetch_pc + 32'd4;
-    assign alu_logic_rhs = op_rtype ? rs2_data : imm;
-    assign alu_add_lhs = (op_auipc | op_jal | op_branch) ? fetch_pc : rs1_data;
-    assign alu_add_rhs = op_rtype ? rs2_data : imm;
+    assign alu_logic_rhs = op_rtype ? rf_rdata2_forward : imm;
+    assign alu_add_lhs = (op_auipc | op_jal | op_branch) ? fetch_pc : rf_rdata1_forward;
+    assign alu_add_rhs = op_rtype ? rf_rdata2_forward : imm;
     assign alu_sub_family = (op_rtype && ex_funct3 == 3'b000 && funct7_5) ||
                             ((op_rtype || op_itype) && (ex_funct3 == 3'b010 || ex_funct3 == 3'b011));
     assign alu_adder_rhs = alu_sub_family ? ~alu_add_rhs : alu_add_rhs;
     assign {alu_addsub_carry, alu_addsub_result} = {1'b0, alu_add_lhs} + {1'b0, alu_adder_rhs} +
                                                    {32'b0, alu_sub_family};
-    assign alu_and_result = rs1_data & alu_logic_rhs;
-    assign alu_or_result = rs1_data | alu_logic_rhs;
-    assign alu_xor_result = rs1_data ^ alu_logic_rhs;
-    assign alu_sll_result = rs1_data << alu_logic_rhs[4:0];
-    assign alu_srl_result = rs1_data >> alu_logic_rhs[4:0];
-    assign alu_sra_result = ($signed(rs1_data)) >>> alu_logic_rhs[4:0];
+    assign alu_and_result = rf_rdata1_forward & alu_logic_rhs;
+    assign alu_or_result = rf_rdata1_forward | alu_logic_rhs;
+    assign alu_xor_result = rf_rdata1_forward ^ alu_logic_rhs;
+    assign alu_sll_result = rf_rdata1_forward << alu_logic_rhs[4:0];
+    assign alu_srl_result = rf_rdata1_forward >> alu_logic_rhs[4:0];
+    assign alu_sra_result = ($signed(rf_rdata1_forward)) >>> alu_logic_rhs[4:0];
     assign alu_cmp_lt = (alu_add_lhs[31] & ~alu_add_rhs[31]) |
                         ((alu_add_lhs[31] ~^ alu_add_rhs[31]) & alu_addsub_result[31]);
     assign alu_cmp_ltu = ~alu_addsub_carry;
@@ -264,9 +264,9 @@ module ysyx_26030082_exu (
     end
 
     // BRU / redirect.
-    assign bru_cmp_eq = (rs1_data == rs2_data);
-    assign bru_cmp_lt = ($signed(rs1_data) < $signed(rs2_data));
-    assign bru_cmp_ltu = (rs1_data < rs2_data);
+    assign bru_cmp_eq = (rf_rdata1_forward == rf_rdata2_forward);
+    assign bru_cmp_lt = ($signed(rf_rdata1_forward) < $signed(rf_rdata2_forward));
+    assign bru_cmp_ltu = (rf_rdata1_forward < rf_rdata2_forward);
     assign branch_cmp_result = ex_funct3[2] ? (ex_funct3[1] ? bru_cmp_ltu : bru_cmp_lt)
                                              : bru_cmp_eq;
     assign branch_taken = op_branch && (branch_cmp_result ^ ex_funct3[0]);
@@ -311,7 +311,7 @@ module ysyx_26030082_exu (
     end
 
     // CSR and writeback side data.
-    assign csr_wdata = ex_funct3[2] ? imm : rs1_data;
+    assign csr_wdata = ex_funct3[2] ? imm : rf_rdata1_forward;
 
     always @(*) begin
         case (csr_addr)
@@ -341,7 +341,7 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_STORE: begin
-                ex_wdata = rs2_data;
+                ex_wdata = rf_rdata2_forward;
             end
 
             default: begin
