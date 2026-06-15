@@ -95,7 +95,6 @@ module ysyx_26030082_exu (
     reg  [31:0] imm_r;
     reg  [31:0] alu_result_r;
 
-    wire [31:0] alu_b;
     wire [31:0] add_lhs;
     wire [31:0] add_rhs;
     wire        alu_sub_family;
@@ -167,7 +166,6 @@ module ysyx_26030082_exu (
 
     assign ex_pc4 = fetch_pc + 32'd4;
 
-    assign alu_b = op_rtype ? rR2_data_forward : imm;
     assign add_lhs = (op_auipc | op_jal) ? fetch_pc : rR1_data_forward;
     assign add_rhs = op_rtype ? rR2_data_forward : imm;
     assign alu_sub_family = (op_rtype && funct3 == 3'b000 && funct7_5) ||
@@ -175,12 +173,12 @@ module ysyx_26030082_exu (
     assign adder_b = alu_sub_family ? ~add_rhs : add_rhs;
     assign {add_sub_carry, add_sub_result} = {1'b0, add_lhs} + {1'b0, adder_b} +
                                              {32'b0, alu_sub_family};
-    assign and_result = rR1_data_forward & alu_b;
-    assign or_result = rR1_data_forward | alu_b;
-    assign xor_result = rR1_data_forward ^ alu_b;
-    assign sll_result = rR1_data_forward << alu_b[4:0];
-    assign srl_result = rR1_data_forward >> alu_b[4:0];
-    assign sra_result = ($signed(rR1_data_forward)) >>> alu_b[4:0];
+    assign and_result = rR1_data_forward & add_rhs;
+    assign or_result = rR1_data_forward | add_rhs;
+    assign xor_result = rR1_data_forward ^ add_rhs;
+    assign sll_result = rR1_data_forward << add_rhs[4:0];
+    assign srl_result = rR1_data_forward >> add_rhs[4:0];
+    assign sra_result = ($signed(rR1_data_forward)) >>> add_rhs[4:0];
     assign cmp_lt = (add_lhs[31] & ~add_rhs[31]) |
                     ((add_lhs[31] ~^ add_rhs[31]) & add_sub_result[31]);
     assign cmp_ltu = ~add_sub_carry;
@@ -197,7 +195,7 @@ module ysyx_26030082_exu (
                     3'b101:  alu_result_r = funct7_5 ? sra_result : srl_result;
                     3'b110:  alu_result_r = or_result;
                     3'b111:  alu_result_r = and_result;
-                    default: alu_result_r = add_sub_result;
+                    default: alu_result_r = 32'b0;
                 endcase
             end
 
@@ -211,7 +209,7 @@ module ysyx_26030082_exu (
                     3'b101:  alu_result_r = funct7_5 ? sra_result : srl_result;
                     3'b110:  alu_result_r = or_result;
                     3'b111:  alu_result_r = and_result;
-                    default: alu_result_r = add_sub_result;
+                    default: alu_result_r = 32'b0;
                 endcase
             end
 
@@ -224,7 +222,7 @@ module ysyx_26030082_exu (
             end
 
             default: begin
-                alu_result_r = add_sub_result;
+                alu_result_r = 32'b0;
             end
         endcase
     end
