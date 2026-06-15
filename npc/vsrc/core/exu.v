@@ -23,10 +23,10 @@ module ysyx_26030082_exu (
     output wire [31:0] ex_rR2_data,
     output wire [ 2:0] ex_funct3,
     output wire [ 4:0] ex_RFwaddr,
-    output wire [31:0] ex_ALUResult,
+    output reg  [31:0] ex_ALUResult,
     output wire [31:0] ex_pc4,
-    output wire        ex_Redirect,
-    output wire [31:0] ex_RedirectTarget,
+    output reg         ex_Redirect,
+    output reg  [31:0] ex_RedirectTarget,
     output reg  [31:0] ex_RFwdata,
     output wire        ex_FenceI,
     output wire        ex_have_inst
@@ -66,12 +66,10 @@ module ysyx_26030082_exu (
 
     // Decode / former IDU logic.
     wire [6:0] opcode;
-    wire [2:0] funct3;
     wire       funct7_5;
     wire [4:0] rs1_addr;
     wire [4:0] rs2_addr;
     wire [11:0] csr_addr;
-    wire [31:0] dec_imm;
     reg  [31:0] imm;
 
     wire       op_rtype;
@@ -95,13 +93,11 @@ module ysyx_26030082_exu (
     wire        forward_ls_rs2;
     wire        load_use_hazard;
     wire [31:0] rs1_data;
-    wire [31:0] rs2_data;
 
     // Execute common control.
     wire        ex_fire;
 
     // ALU.
-    reg  [31:0] alu_result;
     wire [31:0] alu_logic_rhs;
     wire [31:0] alu_add_lhs;
     wire [31:0] alu_add_rhs;
@@ -124,8 +120,6 @@ module ysyx_26030082_exu (
     wire        bru_cmp_ltu;
     wire        branch_cmp_result;
     wire        branch_taken;
-    reg         redirect_valid_r;
-    reg  [31:0] redirect_target_r;
 
     // CSR.
     reg  [31:0] csr_mstatus;
@@ -134,10 +128,9 @@ module ysyx_26030082_exu (
     reg  [31:0] csr_mcause;
     reg  [31:0] csr_rdata;
     wire [31:0] csr_wdata;
-    wire        csr_priv;
 
     assign opcode = fetch_inst[6:0];
-    assign funct3 = fetch_inst[14:12];
+    assign ex_funct3 = fetch_inst[14:12];
     assign funct7_5 = fetch_inst[30];
     assign rs1_addr = fetch_inst[19:15];
     assign rs2_addr = fetch_inst[24:20];
@@ -153,12 +146,12 @@ module ysyx_26030082_exu (
     assign op_jal      = opcode == OPCODE_JAL;
     assign op_jalr     = opcode == OPCODE_JALR;
     assign op_system   = opcode == OPCODE_SYSTEM;
-    assign op_csr      = op_system && (funct3 != 3'b000);
+    assign op_csr      = op_system && (ex_funct3 != 3'b000);
     assign op_misc_mem = opcode == OPCODE_MISC_MEM;
     assign op_fencei   = fetch_inst == 32'h0000_100f;
 
     assign rs1_used = op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
-                      (op_csr && ~funct3[2]);
+                      (op_csr && ~ex_funct3[2]);
     assign rs2_used = op_rtype | op_store | op_branch;
 
     always @(*) begin
@@ -176,13 +169,11 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    assign dec_imm = imm;
-
     assign forward_ls_rs1 = (rs1_addr == ls_RFwaddr) && ls_RegWrite && (ls_RFwaddr != 5'b0);
     assign forward_ls_rs2 = (rs2_addr == ls_RFwaddr) && ls_RegWrite && (ls_RFwaddr != 5'b0);
 
     assign rs1_data = forward_ls_rs1 ? ls_RFwdata : fetch_rR1_data;
-    assign rs2_data = forward_ls_rs2 ? ls_RFwdata : fetch_rR2_data;
+    assign ex_rR2_data = forward_ls_rs2 ? ls_RFwdata : fetch_rR2_data;
 
     assign load_use_hazard = ls_load_pending &&
                              (ls_RFwaddr != 5'b0) &&
@@ -196,19 +187,17 @@ module ysyx_26030082_exu (
     assign ex_RegWrite = fetch_valid && ~(op_branch | op_store | op_misc_mem);
     assign ex_MemWrite = fetch_valid && op_store;
     assign ex_MemRead = fetch_ready && op_load;
-    assign ex_funct3 = funct3;
     assign ex_RFwaddr = fetch_inst[11:7];
-    assign ex_rR2_data = rs2_data;
     assign ex_have_inst = op_rtype | op_itype | op_load | op_jalr | op_store |
                           op_branch | op_lui | op_auipc | op_jal | op_system | op_misc_mem;
 
     // ALU.
     assign ex_pc4 = fetch_pc + 32'd4;
-    assign alu_logic_rhs = op_rtype ? rs2_data : dec_imm;
+    assign alu_logic_rhs = op_rtype ? ex_rR2_data : imm;
     assign alu_add_lhs = (op_auipc | op_jal | op_branch) ? fetch_pc : rs1_data;
-    assign alu_add_rhs = op_rtype ? rs2_data : dec_imm;
-    assign alu_sub_family = (op_rtype && funct3 == 3'b000 && funct7_5) ||
-                            ((op_rtype || op_itype) && (funct3 == 3'b010 || funct3 == 3'b011));
+    assign alu_add_rhs = op_rtype ? ex_rR2_data : imm;
+    assign alu_sub_family = (op_rtype && ex_funct3 == 3'b000 && funct7_5) ||
+                            ((op_rtype || op_itype) && (ex_funct3 == 3'b010 || ex_funct3 == 3'b011));
     assign alu_adder_rhs = alu_sub_family ? ~alu_add_rhs : alu_add_rhs;
     assign {alu_addsub_carry, alu_addsub_result} = {1'b0, alu_add_lhs} + {1'b0, alu_adder_rhs} +
                                                    {32'b0, alu_sub_family};
@@ -225,30 +214,30 @@ module ysyx_26030082_exu (
     always @(*) begin
         case (opcode)
             OPCODE_OP: begin
-                case (funct3)
-                    3'b000:  alu_result = alu_addsub_result;
-                    3'b001:  alu_result = alu_sll_result;
-                    3'b010:  alu_result = {31'b0, alu_cmp_lt};
-                    3'b011:  alu_result = {31'b0, alu_cmp_ltu};
-                    3'b100:  alu_result = alu_xor_result;
-                    3'b101:  alu_result = funct7_5 ? alu_sra_result : alu_srl_result;
-                    3'b110:  alu_result = alu_or_result;
-                    3'b111:  alu_result = alu_and_result;
-                    default: alu_result = alu_addsub_result;
+                case (ex_funct3)
+                    3'b000:  ex_ALUResult = alu_addsub_result;
+                    3'b001:  ex_ALUResult = alu_sll_result;
+                    3'b010:  ex_ALUResult = {31'b0, alu_cmp_lt};
+                    3'b011:  ex_ALUResult = {31'b0, alu_cmp_ltu};
+                    3'b100:  ex_ALUResult = alu_xor_result;
+                    3'b101:  ex_ALUResult = funct7_5 ? alu_sra_result : alu_srl_result;
+                    3'b110:  ex_ALUResult = alu_or_result;
+                    3'b111:  ex_ALUResult = alu_and_result;
+                    default: ex_ALUResult = alu_addsub_result;
                 endcase
             end
 
             OPCODE_OP_IMM: begin
-                case (funct3)
-                    3'b000:  alu_result = alu_addsub_result;
-                    3'b001:  alu_result = alu_sll_result;
-                    3'b010:  alu_result = {31'b0, alu_cmp_lt};
-                    3'b011:  alu_result = {31'b0, alu_cmp_ltu};
-                    3'b100:  alu_result = alu_xor_result;
-                    3'b101:  alu_result = funct7_5 ? alu_sra_result : alu_srl_result;
-                    3'b110:  alu_result = alu_or_result;
-                    3'b111:  alu_result = alu_and_result;
-                    default: alu_result = alu_addsub_result;
+                case (ex_funct3)
+                    3'b000:  ex_ALUResult = alu_addsub_result;
+                    3'b001:  ex_ALUResult = alu_sll_result;
+                    3'b010:  ex_ALUResult = {31'b0, alu_cmp_lt};
+                    3'b011:  ex_ALUResult = {31'b0, alu_cmp_ltu};
+                    3'b100:  ex_ALUResult = alu_xor_result;
+                    3'b101:  ex_ALUResult = funct7_5 ? alu_sra_result : alu_srl_result;
+                    3'b110:  ex_ALUResult = alu_or_result;
+                    3'b111:  ex_ALUResult = alu_and_result;
+                    default: ex_ALUResult = alu_addsub_result;
                 endcase
             end
 
@@ -257,54 +246,52 @@ module ysyx_26030082_exu (
             OPCODE_STORE,
             OPCODE_AUIPC,
             OPCODE_JAL: begin
-                alu_result = alu_addsub_result;
+                ex_ALUResult = alu_addsub_result;
             end
 
             default: begin
-                alu_result = alu_addsub_result;
+                ex_ALUResult = alu_addsub_result;
             end
         endcase
     end
 
-    assign ex_ALUResult = alu_result;
-
     // BRU / redirect.
-    assign bru_cmp_eq = (rs1_data == rs2_data);
-    assign bru_cmp_lt = ($signed(rs1_data) < $signed(rs2_data));
-    assign bru_cmp_ltu = (rs1_data < rs2_data);
-    assign branch_cmp_result = funct3[2] ? (funct3[1] ? bru_cmp_ltu : bru_cmp_lt)
+    assign bru_cmp_eq = (rs1_data == ex_rR2_data);
+    assign bru_cmp_lt = ($signed(rs1_data) < $signed(ex_rR2_data));
+    assign bru_cmp_ltu = (rs1_data < ex_rR2_data);
+    assign branch_cmp_result = ex_funct3[2] ? (ex_funct3[1] ? bru_cmp_ltu : bru_cmp_lt)
                                              : bru_cmp_eq;
-    assign branch_taken = op_branch && (branch_cmp_result ^ funct3[0]);
+    assign branch_taken = op_branch && (branch_cmp_result ^ ex_funct3[0]);
 
     always @(*) begin
-        redirect_valid_r = 1'b0;
-        redirect_target_r = alu_result;
+        ex_Redirect = 1'b0;
+        ex_RedirectTarget = ex_ALUResult;
 
         case (opcode)
             OPCODE_BRANCH: begin
-                redirect_valid_r = branch_taken;
+                ex_Redirect = fetch_valid && branch_taken;
             end
 
             OPCODE_JAL: begin
-                redirect_valid_r = 1'b1;
+                ex_Redirect = fetch_valid;
             end
 
             OPCODE_JALR: begin
-                redirect_valid_r = 1'b1;
-                redirect_target_r = {alu_result[31:1], 1'b0};
+                ex_Redirect = fetch_valid;
+                ex_RedirectTarget = {ex_ALUResult[31:1], 1'b0};
             end
 
             OPCODE_SYSTEM: begin
-                if (funct3 == F3_PRIV) begin
-                    redirect_valid_r = 1'b1;
-                    redirect_target_r = (csr_addr == F12_ECALL) ? {csr_mtvec[31:2], 2'b0} : csr_mepc;
+                if (ex_funct3 == F3_PRIV) begin
+                    ex_Redirect = fetch_valid;
+                    ex_RedirectTarget = (csr_addr == F12_ECALL) ? {csr_mtvec[31:2], 2'b0} : csr_mepc;
                 end
             end
 
             OPCODE_MISC_MEM: begin
                 if (op_fencei) begin
-                    redirect_valid_r = 1'b1;
-                    redirect_target_r = ex_pc4;
+                    ex_Redirect = fetch_valid;
+                    ex_RedirectTarget = ex_pc4;
                 end
             end
 
@@ -313,13 +300,10 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    assign ex_Redirect = fetch_valid && redirect_valid_r;
-    assign ex_RedirectTarget = redirect_target_r;
     assign ex_FenceI = fetch_valid && op_fencei;
 
     // CSR and writeback side data.
-    assign csr_wdata = funct3[2] ? dec_imm : rs1_data;
-    assign csr_priv = op_system && (funct3 == 3'b000);
+    assign csr_wdata = ex_funct3[2] ? imm : rs1_data;
 
     always @(*) begin
         case (csr_addr)
@@ -336,7 +320,7 @@ module ysyx_26030082_exu (
     always @(*) begin
         case (opcode)
             OPCODE_LUI: begin
-                ex_RFwdata = dec_imm;
+                ex_RFwdata = imm;
             end
 
             OPCODE_SYSTEM: begin
@@ -349,7 +333,7 @@ module ysyx_26030082_exu (
             end
 
             default: begin
-                ex_RFwdata = alu_result;
+                ex_RFwdata = ex_ALUResult;
             end
         endcase
     end
@@ -361,7 +345,7 @@ module ysyx_26030082_exu (
             csr_mepc    <= 32'h0;
             csr_mcause  <= 32'h0;
         end else if (ex_fire && op_system) begin
-            case (funct3)
+            case (ex_funct3)
                 3'b000: begin
                     case (csr_addr)
                         F12_ECALL: begin
