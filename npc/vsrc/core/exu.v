@@ -184,9 +184,9 @@ module ysyx_26030082_exu (
     assign ex_out_valid = fetch_valid && ~load_use_hazard;
     assign ex_fire = ex_out_valid && ex_out_ready;
 
-    assign ex_RegWrite = fetch_valid && ~(op_branch | op_store | op_misc_mem);
-    assign ex_MemWrite = fetch_valid && op_store;
-    assign ex_MemRead = fetch_ready && op_load;
+    assign ex_RegWrite = ~(op_branch | op_store | op_misc_mem);
+    assign ex_MemWrite = op_store;
+    assign ex_MemRead = op_load;
     assign ex_RFwaddr = fetch_inst[11:7];
     assign ex_have_inst = op_rtype | op_itype | op_load | op_jalr | op_store |
                           op_branch | op_lui | op_auipc | op_jal | op_system | op_misc_mem;
