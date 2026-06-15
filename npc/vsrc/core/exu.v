@@ -129,6 +129,8 @@ module ysyx_26030082_exu (
     wire        bru_cmp_eq;
     wire        bru_cmp_lt;
     wire        bru_cmp_ltu;
+    wire        branch_cmp_result;
+    wire        branch_taken;
     reg         redirect_valid_r;
     reg  [31:0] redirect_target_r;
 
@@ -285,6 +287,9 @@ module ysyx_26030082_exu (
     assign bru_cmp_eq = (rs1_data == rs2_data);
     assign bru_cmp_lt = ($signed(rs1_data) < $signed(rs2_data));
     assign bru_cmp_ltu = (rs1_data < rs2_data);
+    assign branch_cmp_result = dec_funct3[2] ? (dec_funct3[1] ? bru_cmp_ltu : bru_cmp_lt)
+                                             : bru_cmp_eq;
+    assign branch_taken = op_branch && (branch_cmp_result ^ dec_funct3[0]);
 
     always @(*) begin
         redirect_valid_r = 1'b0;
@@ -292,15 +297,7 @@ module ysyx_26030082_exu (
 
         case (dec_opcode)
             OP_B_TYPE: begin
-                case (dec_funct3)
-                    3'b000:  redirect_valid_r = bru_cmp_eq;
-                    3'b001:  redirect_valid_r = ~bru_cmp_eq;
-                    3'b100:  redirect_valid_r = bru_cmp_lt;
-                    3'b101:  redirect_valid_r = ~bru_cmp_lt;
-                    3'b110:  redirect_valid_r = bru_cmp_ltu;
-                    3'b111:  redirect_valid_r = ~bru_cmp_ltu;
-                    default: redirect_valid_r = 1'b0;
-                endcase
+                redirect_valid_r = branch_taken;
             end
 
             OP_J_TYPE: begin
