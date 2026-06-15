@@ -51,6 +51,25 @@ module ysyx_26030082_exu (
     localparam [2:0] MEM_TO_REG_IMM  = 3'b011;
     localparam [2:0] MEM_TO_REG_CSR  = 3'b010;
 
+    localparam [11:0] CSR_MSTATUS   = 12'h300;
+    localparam [11:0] CSR_MTVEC     = 12'h305;
+    localparam [11:0] CSR_MEPC      = 12'h341;
+    localparam [11:0] CSR_MCAUSE    = 12'h342;
+    localparam [11:0] CSR_MVENDORID = 12'hF11;
+    localparam [11:0] CSR_MARCHID   = 12'hF12;
+
+    localparam [11:0] INST_ECALL = 12'h000;
+    localparam [11:0] INST_MRET  = 12'h302;
+
+    localparam [2:0] F3_CSRRW  = 3'b001;
+    localparam [2:0] F3_CSRRS  = 3'b010;
+    localparam [2:0] F3_CSRRC  = 3'b011;
+    localparam [2:0] F3_CSRRWI = 3'b101;
+    localparam [2:0] F3_CSRRSI = 3'b110;
+    localparam [2:0] F3_CSRRCI = 3'b111;
+
+    localparam [31:0] CAUSE_ECALL = 32'd11;
+
     // Decode / former IDU logic.
     wire [6:0] dec_opcode;
     wire [2:0] dec_funct3;
@@ -117,7 +136,14 @@ module ysyx_26030082_exu (
     wire [31:0] redirect_target_sum;
 
     // CSR.
-    wire [31:0] csr_rdata;
+    reg  [31:0] csr_mstatus;
+    reg  [31:0] csr_mtvec;
+    reg  [31:0] csr_mepc;
+    reg  [31:0] csr_mcause;
+    reg  [31:0] csr_rdata;
+    wire [31:0] csr_wdata;
+    wire        csr_priv;
+    wire        csr_ecall;
 
     assign dec_opcode = fetch_inst[6:0];
     assign dec_funct3 = fetch_inst[14:12];
@@ -274,24 +300,92 @@ module ysyx_26030082_exu (
     assign ex_FenceI = fetch_valid && op_fencei;
 
     // CSR and writeback side data.
+    assign csr_wdata = dec_funct3[2] ? dec_imm : rs1_data;
+    assign csr_priv = op_system && (dec_funct3 == 3'b000);
+    assign csr_ecall = csr_priv && (csr_addr == INST_ECALL);
+
+    assign ex_CSRjump = csr_priv;
+    assign ex_CSRnpc = csr_ecall ? {csr_mtvec[31:2], 2'b0} : csr_mepc;
+
+    always @(*) begin
+        case (csr_addr)
+            CSR_MSTATUS:   csr_rdata = csr_mstatus;
+            CSR_MTVEC:     csr_rdata = csr_mtvec;
+            CSR_MEPC:      csr_rdata = csr_mepc;
+            CSR_MCAUSE:    csr_rdata = csr_mcause;
+            CSR_MVENDORID: csr_rdata = 32'h7973_7978;
+            CSR_MARCHID:   csr_rdata = 32'd26030082;
+            default:       csr_rdata = 32'b0;
+        endcase
+    end
+
     assign ex_WBAltData = mem_to_reg[1] ?
                               (mem_to_reg[0] ? dec_imm : csr_rdata) :
                               ex_pc4;
     assign ex_WBUseAlt = ~mem_to_reg[2] && (mem_to_reg[1] || ~mem_to_reg[0]);
 
-    ysyx_26030082_CSR CSR (
-        .clock      (clock),
-        .reset      (reset),
-        .csr_fire   (ex_fire),
-        .is_system  (op_system),
-        .CSRaddr    (csr_addr),
-        .funct3     (dec_funct3),
-        .rR1_data   (rs1_data),
-        .imm        (dec_imm),
-        .pc         (fetch_pc),
-        .CSRrdata   (csr_rdata),
-        .CSRjump    (ex_CSRjump),
-        .CSRnpc     (ex_CSRnpc)
-    );
+    always @(posedge clock) begin
+        if (reset) begin
+            csr_mstatus <= 32'h1800;
+            csr_mtvec   <= 32'h1;
+            csr_mepc    <= 32'h0;
+            csr_mcause  <= 32'h0;
+        end else if (ex_fire && op_system) begin
+            case (dec_funct3)
+                3'b000: begin
+                    case (csr_addr)
+                        INST_ECALL: begin
+                            csr_mstatus[3] <= 1'b0;
+                            csr_mstatus[7] <= csr_mstatus[3];
+                            csr_mstatus[12:11] <= 2'b11;
+                            csr_mepc <= fetch_pc;
+                            csr_mcause <= CAUSE_ECALL;
+                        end
+                        INST_MRET: begin
+                            csr_mstatus[3] <= csr_mstatus[7];
+                        end
+                        default: begin
+                        end
+                    endcase
+                end
+
+                F3_CSRRW,
+                F3_CSRRWI: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_mstatus <= csr_wdata;
+                        CSR_MTVEC:   csr_mtvec   <= csr_wdata;
+                        CSR_MEPC:    csr_mepc    <= csr_wdata;
+                        default: begin
+                        end
+                    endcase
+                end
+
+                F3_CSRRS,
+                F3_CSRRSI: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_mstatus <= csr_mstatus | csr_wdata;
+                        CSR_MTVEC:   csr_mtvec   <= csr_mtvec | csr_wdata;
+                        CSR_MEPC:    csr_mepc    <= csr_mepc | csr_wdata;
+                        default: begin
+                        end
+                    endcase
+                end
+
+                F3_CSRRC,
+                F3_CSRRCI: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_mstatus <= csr_mstatus & ~csr_wdata;
+                        CSR_MTVEC:   csr_mtvec   <= csr_mtvec & ~csr_wdata;
+                        CSR_MEPC:    csr_mepc    <= csr_mepc & ~csr_wdata;
+                        default: begin
+                        end
+                    endcase
+                end
+
+                default: begin
+                end
+            endcase
+        end
+    end
 
 endmodule
