@@ -24,6 +24,10 @@ RELEASE_TAG_RE = re.compile(r"OSS_CAD_SUITE_RELEASE_TAG:\s*([0-9-]+)")
 YOSYS_STA_BRANCH_RE = re.compile(r"git clone -b ([^\s]+) https://github\.com/OSCPU/yosys-sta")
 YOSYS_STA_REVERT_RE = re.compile(r"git revert --no-edit ([0-9a-f]{40})")
 AREA_RE = re.compile(r"Chip area for module '.*?': ([0-9.]+)")
+TIMING_ROW_RE = re.compile(
+    r"^\|.*?\|\s*[^|]+\s*\|\s*max\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*([0-9.]+)\s*\|\s*([0-9.]+)\s*\|$",
+    re.MULTILINE,
+)
 MODULE_RE = re.compile(r"Generating RTLIL representation for module `\\([^']+)'\.")
 
 
@@ -37,6 +41,8 @@ class CiSpec:
 @dataclass
 class FlowResult:
     area: float
+    worst_slack_ns: float
+    fmax_mhz: float
     result_dir: str
     netlist: str
 
@@ -48,6 +54,10 @@ class Summary:
     output_netlist: str
     area_fixed: float
     area_old: float
+    new_worst_slack_ns: float
+    new_fmax_mhz: float
+    old_worst_slack_ns: float
+    old_fmax_mhz: float
     new_flow_result_dir: str
     old_flow_result_dir: str
     run_dir: str | None
@@ -263,10 +273,14 @@ def run_sta(
     )
     result_dir = run_dir / "result" / f"{design}-500MHz"
     log_path = result_dir / "yosys-fixed.log"
+    rpt_path = result_dir / f"{design}.rpt"
     verify_module_name(result_dir / "yosys.log", design)
     verify_no_latch(result_dir / "synth_stat.txt")
+    worst_slack_ns, fmax_mhz = parse_timing(rpt_path)
     return FlowResult(
         area=parse_area(log_path),
+        worst_slack_ns=worst_slack_ns,
+        fmax_mhz=fmax_mhz,
         result_dir=str(result_dir),
         netlist=str(result_dir / f"{design}.netlist.fixed.v"),
     )
@@ -278,6 +292,16 @@ def parse_area(log_path: pathlib.Path) -> float:
     if not matches:
         raise RuntimeError(f"can not obtain area from {log_path}")
     return float(matches[-1])
+
+
+def parse_timing(rpt_path: pathlib.Path) -> tuple[float, float]:
+    text = require_file(rpt_path, "STA report").read_text(encoding="utf-8")
+    matches = TIMING_ROW_RE.findall(text)
+    if not matches:
+        raise RuntimeError(f"can not obtain timing summary from {rpt_path}")
+    slacks = [float(slack) for slack, _ in matches]
+    freqs = [float(freq) for _, freq in matches]
+    return min(slacks), min(freqs)
 
 
 def verify_module_name(log_path: pathlib.Path, design: str) -> None:
@@ -303,6 +327,23 @@ def revert_old_flow(run_dir: pathlib.Path, commit: str) -> None:
     run(["git", "-C", str(run_dir), "config", "user.name", "ysyx-ci"])
     run(["git", "-C", str(run_dir), "revert", "--no-edit", commit])
 
+
+def save_new_flow_result(run_dir: pathlib.Path, design: str, flow: FlowResult) -> FlowResult:
+    src = pathlib.Path(flow.result_dir)
+    dst = run_dir / "saved-result" / f"{design}-500MHz.new-flow"
+    if dst.exists():
+        shutil.rmtree(dst)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(src, dst)
+    return FlowResult(
+        area=flow.area,
+        worst_slack_ns=flow.worst_slack_ns,
+        fmax_mhz=flow.fmax_mhz,
+        result_dir=str(dst),
+        netlist=str(dst / pathlib.Path(flow.netlist).name),
+    )
+
+
 def copy_output(src: pathlib.Path, dst: pathlib.Path) -> pathlib.Path:
     dst = dst.expanduser().resolve()
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -322,7 +363,11 @@ def print_summary(summary: Summary) -> None:
     print(f"vfile          : {summary.vfile}")
     print(f"output netlist : {summary.output_netlist}")
     print(f"new area       : {summary.area_fixed:.6f}")
+    print(f"new slack      : {summary.new_worst_slack_ns:.3f} ns")
+    print(f"new fmax       : {summary.new_fmax_mhz:.3f} MHz")
     print(f"old area       : {summary.area_old:.6f}")
+    print(f"old slack      : {summary.old_worst_slack_ns:.3f} ns")
+    print(f"old fmax       : {summary.old_fmax_mhz:.3f} MHz")
     print(f"new flow dir   : {summary.new_flow_result_dir}")
     print(f"old flow dir   : {summary.old_flow_result_dir}")
     print(f"oss-cad-suite  : {summary.oss_cad_suite}")
@@ -361,6 +406,7 @@ def main() -> int:
     try:
         run_dir = make_temp_clone(cache_dir, spec.yosys_sta_branch)
         new_flow = run_sta(run_dir, env=env, design=design, vfile=vfile)
+        new_flow = save_new_flow_result(run_dir, design, new_flow)
 
         revert_old_flow(run_dir, spec.yosys_sta_revert_commit)
         old_flow = run_sta(run_dir, env=env, design=design, vfile=vfile)
@@ -376,6 +422,10 @@ def main() -> int:
             output_netlist=str(output_netlist),
             area_fixed=new_flow.area,
             area_old=old_flow.area,
+            new_worst_slack_ns=new_flow.worst_slack_ns,
+            new_fmax_mhz=new_flow.fmax_mhz,
+            old_worst_slack_ns=old_flow.worst_slack_ns,
+            old_fmax_mhz=old_flow.fmax_mhz,
             new_flow_result_dir=new_flow.result_dir,
             old_flow_result_dir=old_flow.result_dir,
             run_dir=str(run_dir) if args.keep_run_dir else None,

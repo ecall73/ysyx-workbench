@@ -129,10 +129,9 @@ module ysyx_26030082_exu (
     wire        bru_cmp_eq;
     wire        bru_cmp_lt;
     wire        bru_cmp_ltu;
-    reg         redirect_valid_r;
-    reg  [31:0] redirect_target_r;
-    wire        redirect_jalr;
-    wire [31:0] redirect_target_sum;
+    wire        branch_cmp_result;
+    wire        branch_taken;
+    wire        jump_taken;
 
     // CSR.
     reg  [31:0] csr_mstatus;
@@ -220,7 +219,7 @@ module ysyx_26030082_exu (
     // ALU.
     assign ex_pc4 = fetch_pc + 32'd4;
     assign alu_logic_rhs = op_rtype ? rs2_data : dec_imm;
-    assign alu_add_lhs = (op_auipc | op_jal) ? fetch_pc : rs1_data;
+    assign alu_add_lhs = (op_auipc | op_jal | op_branch) ? fetch_pc : rs1_data;
     assign alu_add_rhs = op_rtype ? rs2_data : dec_imm;
     assign alu_sub_family = (op_rtype && dec_funct3 == 3'b000 && dec_funct7_5) ||
                             ((op_rtype || op_itype) && (dec_funct3 == 3'b010 || dec_funct3 == 3'b011));
@@ -287,42 +286,12 @@ module ysyx_26030082_exu (
     assign bru_cmp_eq = (rs1_data == rs2_data);
     assign bru_cmp_lt = ($signed(rs1_data) < $signed(rs2_data));
     assign bru_cmp_ltu = (rs1_data < rs2_data);
-    assign redirect_jalr = dec_opcode == OP_IJ_TYPE;
-    assign redirect_target_sum = (redirect_jalr ? rs1_data : fetch_pc) + dec_imm;
-
-    always @(*) begin
-        redirect_valid_r = 1'b0;
-        redirect_target_r = redirect_target_sum;
-
-        case (dec_opcode)
-            OP_B_TYPE: begin
-                case (dec_funct3)
-                    3'b000:  redirect_valid_r = bru_cmp_eq;
-                    3'b001:  redirect_valid_r = ~bru_cmp_eq;
-                    3'b100:  redirect_valid_r = bru_cmp_lt;
-                    3'b101:  redirect_valid_r = ~bru_cmp_lt;
-                    3'b110:  redirect_valid_r = bru_cmp_ltu;
-                    3'b111:  redirect_valid_r = ~bru_cmp_ltu;
-                    default: redirect_valid_r = 1'b0;
-                endcase
-            end
-
-            OP_J_TYPE: begin
-                redirect_valid_r = 1'b1;
-            end
-
-            OP_IJ_TYPE: begin
-                redirect_valid_r = 1'b1;
-                redirect_target_r = {redirect_target_sum[31:1], 1'b0};
-            end
-
-            default: begin
-            end
-        endcase
-    end
-
-    assign ex_Redirect = fetch_valid && redirect_valid_r;
-    assign ex_RedirectTarget = redirect_target_r;
+    assign branch_cmp_result = dec_funct3[2] ? (dec_funct3[1] ? bru_cmp_ltu : bru_cmp_lt)
+                                             : bru_cmp_eq;
+    assign branch_taken = op_branch && (branch_cmp_result ^ dec_funct3[0]);
+    assign jump_taken = op_jal || op_jalr;
+    assign ex_Redirect = fetch_valid && (jump_taken || branch_taken);
+    assign ex_RedirectTarget = op_jalr ? {alu_result_r[31:1], 1'b0} : alu_result_r;
     assign ex_FenceI = fetch_valid && op_fencei;
 
     // CSR and writeback side data.
