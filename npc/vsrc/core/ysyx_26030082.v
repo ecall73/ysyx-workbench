@@ -136,7 +136,7 @@ module ysyx_26030082 #(
     wire        ex_Redirect;
     wire [31:0] ex_RedirectTarget;
     wire [31:0] ex_RFwdata;
-    wire        ex_FenceI;
+    wire        ex_fence_i;
     wire        ex_have_inst;
     wire        ex_out_valid;
     wire        ex_out_ready;
@@ -226,7 +226,7 @@ module ysyx_26030082 #(
         .ex_out_ready           (ex_out_ready),
         .ex_Redirect            (ex_Redirect),
         .ex_RedirectTarget      (ex_RedirectTarget),
-        .ex_FenceI              (ex_FenceI),
+        .ex_fence_i             (ex_fence_i),
 
         .fetch_valid            (fetch_valid),
         .fetch_ready            (fetch_ready),
@@ -292,7 +292,7 @@ module ysyx_26030082 #(
         .ex_Redirect            (ex_Redirect),
         .ex_RedirectTarget      (ex_RedirectTarget),
         .ex_RFwdata             (ex_RFwdata),
-        .ex_FenceI              (ex_FenceI),
+        .ex_fence_i             (ex_fence_i),
         .ex_have_inst           (ex_have_inst)
     );
 

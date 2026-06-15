@@ -28,7 +28,7 @@ module ysyx_26030082_exu (
     output reg         ex_Redirect,
     output reg  [31:0] ex_RedirectTarget,
     output reg  [31:0] ex_RFwdata,
-    output wire        ex_FenceI,
+    output reg         ex_fence_i,
     output wire        ex_have_inst
 );
 
@@ -84,7 +84,6 @@ module ysyx_26030082_exu (
     wire       op_system;
     wire       op_csr;
     wire       op_misc_mem;
-    wire       op_fencei;
     wire       rs1_used;
     wire       rs2_used;
 
@@ -148,7 +147,6 @@ module ysyx_26030082_exu (
     assign op_system   = opcode == OPCODE_SYSTEM;
     assign op_csr      = op_system && (ex_funct3 != 3'b000);
     assign op_misc_mem = opcode == OPCODE_MISC_MEM;
-    assign op_fencei   = op_misc_mem && (ex_funct3 == 3'b001);
 
     assign rs1_used = op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
                       (op_csr && ~ex_funct3[2]);
@@ -266,6 +264,7 @@ module ysyx_26030082_exu (
     always @(*) begin
         ex_Redirect = 1'b0;
         ex_RedirectTarget = ex_ALUResult;
+        ex_fence_i = 1'b0;
 
         case (opcode)
             OPCODE_BRANCH: begin
@@ -289,9 +288,10 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_MISC_MEM: begin
-                if (op_fencei) begin
+                if (ex_funct3 == 3'b001) begin
                     ex_Redirect = 1'b1;
                     ex_RedirectTarget = ex_pc4;
+                    ex_fence_i = 1'b1;
                 end
             end
 
@@ -299,8 +299,6 @@ module ysyx_26030082_exu (
             end
         endcase
     end
-
-    assign ex_FenceI = op_fencei;
 
     // CSR and writeback side data.
     assign csr_wdata = ex_funct3[2] ? imm : rs1_data;
