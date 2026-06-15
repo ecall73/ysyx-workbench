@@ -13,6 +13,7 @@ module ysyx_26030082_lsu (
     input  wire        ls_MemRead,
     input  wire [31:0] ls_rR2_data,
     input  wire [31:0] ls_RFwdata,
+    input  wire [63:0] ls_mtime,
 
     // LSU AXI4-Lite interface
     // Read address channel
@@ -49,14 +50,13 @@ module ysyx_26030082_lsu (
     localparam L_RD_WAIT_R = 3'd2;
     localparam L_WR_AW_W   = 3'd3;
     localparam L_WR_WAIT_B = 3'd4;
-    localparam [31:0] CLINT_BASE_ADDR = 32'h0200_0000;
-    localparam [31:0] MTIME_ADDR      = 32'h0200_bff8;
-    localparam [31:0] MTIMEH_ADDR     = 32'h0200_bffc;
+    localparam [15:0] CLINT_BASE_HI = 16'h0200;
+    localparam [15:0] MTIME_OFFSET  = 16'hbff8;
+    localparam [15:0] MTIMEH_OFFSET = 16'hbffc;
 
     reg  [2:0]  state;
     reg         wr_aw_done;
     reg         wr_w_done;
-    reg  [63:0] mtime;
 
     wire        ls_is_mem;
     wire        ls_is_load;
@@ -78,7 +78,7 @@ module ysyx_26030082_lsu (
 
     assign ls_is_mem = ls_MemRead || ls_MemWrite;
     assign ls_is_load = ls_MemRead && ~ls_MemWrite;
-    assign ls_is_clint = (ls_ALUResult[31:16] == CLINT_BASE_ADDR[31:16]);
+    assign ls_is_clint = (ls_ALUResult[31:16] == CLINT_BASE_HI);
     assign ls_is_local = ls_is_mem && ls_is_clint;
     assign ls_is_local_load = ls_is_load && ls_is_clint;
 
@@ -88,8 +88,8 @@ module ysyx_26030082_lsu (
     assign w_fire = lsu_axi_wvalid && lsu_axi_wready;
     assign b_fire = lsu_axi_bvalid && lsu_axi_bready;
     assign ls_offset = ls_ALUResult[1:0];
-    assign ls_local_rdata = (ls_ALUResult == MTIME_ADDR)  ? mtime[31:0]  :
-                            (ls_ALUResult == MTIMEH_ADDR) ? mtime[63:32] :
+    assign ls_local_rdata = (ls_ALUResult[15:0] == MTIME_OFFSET)  ? ls_mtime[31:0]  :
+                            (ls_ALUResult[15:0] == MTIMEH_OFFSET) ? ls_mtime[63:32] :
                             32'b0;
     assign ls_load_raw_data = ls_is_local_load ? ls_local_rdata : lsu_axi_rdata;
 
@@ -215,12 +215,10 @@ module ysyx_26030082_lsu (
 
     always @(posedge clock) begin
         if (reset) begin
-            mtime <= 64'b0;
             state <= L_IDLE;
             wr_aw_done <= 1'b0;
             wr_w_done <= 1'b0;
         end else begin
-            mtime <= mtime + 64'd1;
             case (state)
                 L_IDLE: begin
                     wr_aw_done <= 1'b0;
