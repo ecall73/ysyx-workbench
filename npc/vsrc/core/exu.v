@@ -60,6 +60,7 @@ module ysyx_26030082_exu (
     localparam [11:0] F12_ECALL = 12'h000;
     localparam [11:0] F12_MRET  = 12'h302;
 
+    localparam [2:0] F3_PRIV = 3'b000;
     localparam [2:0] F3_CSRRW  = 3'b001;
     localparam [2:0] F3_CSRRS  = 3'b010;
     localparam [2:0] F3_CSRRC  = 3'b011;
@@ -107,7 +108,7 @@ module ysyx_26030082_exu (
     wire        ex_fire;
 
     // ALU.
-    reg  [31:0] alu_result_r;
+    reg  [31:0] alu_result;
     wire [31:0] alu_logic_rhs;
     wire [31:0] alu_add_lhs;
     wire [31:0] alu_add_rhs;
@@ -239,29 +240,29 @@ module ysyx_26030082_exu (
         case (opcode)
             OPCODE_OP: begin
                 case (funct3)
-                    3'b000:  alu_result_r = alu_addsub_result;
-                    3'b001:  alu_result_r = alu_sll_result;
-                    3'b010:  alu_result_r = {31'b0, alu_cmp_lt};
-                    3'b011:  alu_result_r = {31'b0, alu_cmp_ltu};
-                    3'b100:  alu_result_r = alu_xor_result;
-                    3'b101:  alu_result_r = funct7_5 ? alu_sra_result : alu_srl_result;
-                    3'b110:  alu_result_r = alu_or_result;
-                    3'b111:  alu_result_r = alu_and_result;
-                    default: alu_result_r = alu_addsub_result;
+                    3'b000:  alu_result = alu_addsub_result;
+                    3'b001:  alu_result = alu_sll_result;
+                    3'b010:  alu_result = {31'b0, alu_cmp_lt};
+                    3'b011:  alu_result = {31'b0, alu_cmp_ltu};
+                    3'b100:  alu_result = alu_xor_result;
+                    3'b101:  alu_result = funct7_5 ? alu_sra_result : alu_srl_result;
+                    3'b110:  alu_result = alu_or_result;
+                    3'b111:  alu_result = alu_and_result;
+                    default: alu_result = alu_addsub_result;
                 endcase
             end
 
             OPCODE_OP_IMM: begin
                 case (funct3)
-                    3'b000:  alu_result_r = alu_addsub_result;
-                    3'b001:  alu_result_r = alu_sll_result;
-                    3'b010:  alu_result_r = {31'b0, alu_cmp_lt};
-                    3'b011:  alu_result_r = {31'b0, alu_cmp_ltu};
-                    3'b100:  alu_result_r = alu_xor_result;
-                    3'b101:  alu_result_r = funct7_5 ? alu_sra_result : alu_srl_result;
-                    3'b110:  alu_result_r = alu_or_result;
-                    3'b111:  alu_result_r = alu_and_result;
-                    default: alu_result_r = alu_addsub_result;
+                    3'b000:  alu_result = alu_addsub_result;
+                    3'b001:  alu_result = alu_sll_result;
+                    3'b010:  alu_result = {31'b0, alu_cmp_lt};
+                    3'b011:  alu_result = {31'b0, alu_cmp_ltu};
+                    3'b100:  alu_result = alu_xor_result;
+                    3'b101:  alu_result = funct7_5 ? alu_sra_result : alu_srl_result;
+                    3'b110:  alu_result = alu_or_result;
+                    3'b111:  alu_result = alu_and_result;
+                    default: alu_result = alu_addsub_result;
                 endcase
             end
 
@@ -270,16 +271,16 @@ module ysyx_26030082_exu (
             OPCODE_STORE,
             OPCODE_AUIPC,
             OPCODE_JAL: begin
-                alu_result_r = alu_addsub_result;
+                alu_result = alu_addsub_result;
             end
 
             default: begin
-                alu_result_r = alu_addsub_result;
+                alu_result = alu_addsub_result;
             end
         endcase
     end
 
-    assign ex_ALUResult = alu_result_r;
+    assign ex_ALUResult = alu_result;
 
     // BRU / redirect.
     assign bru_cmp_eq = (rs1_data == rs2_data);
@@ -291,7 +292,7 @@ module ysyx_26030082_exu (
 
     always @(*) begin
         redirect_valid_r = 1'b0;
-        redirect_target_r = alu_result_r;
+        redirect_target_r = alu_result;
 
         case (opcode)
             OPCODE_BRANCH: begin
@@ -304,11 +305,11 @@ module ysyx_26030082_exu (
 
             OPCODE_JALR: begin
                 redirect_valid_r = 1'b1;
-                redirect_target_r = {alu_result_r[31:1], 1'b0};
+                redirect_target_r = {alu_result[31:1], 1'b0};
             end
 
             OPCODE_SYSTEM: begin
-                if (funct3 == 3'b000) begin
+                if (funct3 == F3_PRIV) begin
                     redirect_valid_r = 1'b1;
                     redirect_target_r = (csr_addr == F12_ECALL) ? {csr_mtvec[31:2], 2'b0} : csr_mepc;
                 end
