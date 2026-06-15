@@ -51,12 +51,6 @@ module ysyx_26030082_exu (
     localparam [11:0] F12_MRET  = 12'h302;
 
     localparam [2:0] F3_PRIV = 3'b000;
-    localparam [2:0] F3_CSRRW  = 3'b001;
-    localparam [2:0] F3_CSRRS  = 3'b010;
-    localparam [2:0] F3_CSRRC  = 3'b011;
-    localparam [2:0] F3_CSRRWI = 3'b101;
-    localparam [2:0] F3_CSRRSI = 3'b110;
-    localparam [2:0] F3_CSRRCI = 3'b111;
 
     localparam [2:0] F3_BEQ  = 3'b000;
     localparam [2:0] F3_BNE  = 3'b001;
@@ -365,30 +359,27 @@ module ysyx_26030082_exu (
             csr_mepc    <= 32'h0;
             csr_mcause  <= 32'h0;
         end else if (ex_out_valid && ex_out_ready && op_system) begin
-            case (ex_funct3)
-                3'b000: begin
-                    case (csr_addr)
-                        F12_ECALL: begin
-                            csr_mstatus[3] <= 1'b0;
-                            csr_mstatus[7] <= csr_mstatus[3];
-                            csr_mstatus[12:11] <= 2'b11;
-                            csr_mepc <= fetch_pc;
-                            csr_mcause <= CAUSE_ECALL;
-                        end
-                        F12_MRET: begin
-                            csr_mstatus[3] <= csr_mstatus[7];
-                        end
-                        default: begin
-                        end
-                    endcase
+            case (ex_funct3[1:0])
+                2'b00: begin
+                    if (~ex_funct3[2]) begin
+                        case (csr_addr)
+                            F12_ECALL: begin
+                                csr_mstatus[3] <= 1'b0;
+                                csr_mstatus[7] <= csr_mstatus[3];
+                                csr_mstatus[12:11] <= 2'b11;
+                                csr_mepc <= fetch_pc;
+                                csr_mcause <= CAUSE_ECALL;
+                            end
+                            F12_MRET: begin
+                                csr_mstatus[3] <= csr_mstatus[7];
+                            end
+                            default: begin
+                            end
+                        endcase
+                    end
                 end
 
-                F3_CSRRW,
-                F3_CSRRC,
-                F3_CSRRWI,
-                F3_CSRRS,
-                F3_CSRRSI,
-                F3_CSRRCI: begin
+                default: begin
                     case (csr_addr)
                         CSR_MSTATUS: csr_mstatus <= csr_wdata;
                         CSR_MTVEC:   csr_mtvec   <= csr_wdata;
@@ -396,9 +387,6 @@ module ysyx_26030082_exu (
                         default: begin
                         end
                     endcase
-                end
-
-                default: begin
                 end
             endcase
         end
