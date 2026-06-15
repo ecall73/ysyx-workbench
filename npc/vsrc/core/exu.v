@@ -6,15 +6,13 @@ module ysyx_26030082_exu (
     output wire        fetch_ready,
     input  wire [31:0] fetch_pc,
     input  wire [31:0] fetch_inst,
-    input  wire [31:0] fetch_rf_rdata1,
-    input  wire [31:0] fetch_rf_rdata2,
 
     input  wire        ex_out_ready,
     output wire        ex_out_valid,
 
-    input  wire        ls_rf_wen,
-    input  wire [ 4:0] ls_rf_waddr,
-    input  wire [31:0] ls_rf_wdata,
+    input  wire        rf_wen,
+    input  wire [ 4:0] rf_waddr,
+    input  wire [31:0] rf_wdata,
     input  wire        ls_load_pending,
 
     output wire        ex_rf_wen,
@@ -88,6 +86,8 @@ module ysyx_26030082_exu (
     wire       rs2_used;
 
     // RF read data selection and EX/LS dependency handling.
+    wire [31:0] rf_rdata1;
+    wire [31:0] rf_rdata2;
     wire        forward_ls_rs1;
     wire        forward_ls_rs2;
     wire        load_use_hazard;
@@ -135,6 +135,21 @@ module ysyx_26030082_exu (
     assign rf_raddr2 = fetch_inst[24:20];
     assign csr_addr = fetch_inst[31:20];
 
+    ysyx_26030082_RF RF (
+        .clock                  (clock),
+        .reset                  (reset),
+
+        .rf_wen                 (rf_wen),
+        .rf_waddr               (rf_waddr),
+        .rf_wdata               (rf_wdata),
+
+        .rf_raddr1              (rf_raddr1),
+        .rf_raddr2              (rf_raddr2),
+
+        .rf_rdata1              (rf_rdata1),
+        .rf_rdata2              (rf_rdata2)
+    );
+
     assign op_rtype    = opcode == OPCODE_OP;
     assign op_itype    = opcode == OPCODE_OP_IMM;
     assign op_load     = opcode == OPCODE_LOAD;
@@ -167,16 +182,16 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    assign forward_ls_rs1 = (rf_raddr1 == ls_rf_waddr) && ls_rf_wen && (ls_rf_waddr != 5'b0);
-    assign forward_ls_rs2 = (rf_raddr2 == ls_rf_waddr) && ls_rf_wen && (ls_rf_waddr != 5'b0);
+    assign forward_ls_rs1 = (rf_raddr1 == rf_waddr) && rf_wen && (rf_waddr != 5'b0);
+    assign forward_ls_rs2 = (rf_raddr2 == rf_waddr) && rf_wen && (rf_waddr != 5'b0);
 
-    assign rs1_data = forward_ls_rs1 ? ls_rf_wdata : fetch_rf_rdata1;
-    assign ex_rf_rdata2 = forward_ls_rs2 ? ls_rf_wdata : fetch_rf_rdata2;
+    assign rs1_data = forward_ls_rs1 ? rf_wdata : rf_rdata1;
+    assign ex_rf_rdata2 = forward_ls_rs2 ? rf_wdata : rf_rdata2;
 
     assign load_use_hazard = ls_load_pending &&
-                             (ls_rf_waddr != 5'b0) &&
-                             ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
-                              (rs2_used && (rf_raddr2 == ls_rf_waddr)));
+                             (rf_waddr != 5'b0) &&
+                             ((rs1_used && (rf_raddr1 == rf_waddr)) ||
+                              (rs2_used && (rf_raddr2 == rf_waddr)));
 
     assign fetch_ready = ~fetch_valid || (~load_use_hazard && ex_out_ready);
     assign ex_out_valid = fetch_valid && ~load_use_hazard;

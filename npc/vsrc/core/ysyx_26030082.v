@@ -107,7 +107,7 @@ module ysyx_26030082 #(
             if (idx == 0) begin
                 npc_get_gpr = 0;
             end else if (idx > 0 && idx < 16) begin
-                npc_get_gpr = RF.reg_bank[idx];
+                npc_get_gpr = exu.RF.reg_bank[idx];
             end else begin
                 npc_get_gpr = 0;
             end
@@ -121,8 +121,6 @@ module ysyx_26030082 #(
     wire        fetch_ready;
     wire [31:0] fetch_pc;
     wire [31:0] fetch_inst;
-    wire [31:0] fetch_rf_rdata1;
-    wire [31:0] fetch_rf_rdata2;
 
     // EX
     wire        ex_rf_wen;
@@ -248,21 +246,6 @@ module ysyx_26030082 #(
         .ifu_axi_rready         (ifu_axi_rready)
     );
 
-    ysyx_26030082_RF RF (
-        .clock                  (clock),
-        .reset                  (reset),
-
-        .rf_wen                 (rf_wen),
-        .rf_waddr               (rf_waddr),
-        .rf_wdata               (rf_wdata),
-
-        .rf_raddr1              (fetch_inst[19:15]),
-        .rf_raddr2              (fetch_inst[24:20]),
-
-        .rf_rdata1              (fetch_rf_rdata1),
-        .rf_rdata2              (fetch_rf_rdata2)
-    );
-
     assign rf_wen = ls_out_valid && ls_rf_wen;
     assign rf_waddr = ls_rf_waddr;
     assign rf_wdata = ls_mem_ren ? ls_mem_rdata : ls_rf_wdata;
@@ -277,15 +260,13 @@ module ysyx_26030082 #(
         .fetch_ready            (fetch_ready),
         .fetch_pc               (fetch_pc),
         .fetch_inst             (fetch_inst),
-        .fetch_rf_rdata1        (fetch_rf_rdata1),
-        .fetch_rf_rdata2        (fetch_rf_rdata2),
 
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
 
-        .ls_rf_wen              (rf_wen),
-        .ls_rf_waddr            (ls_rf_waddr),
-        .ls_rf_wdata            (rf_wdata),
+        .rf_wen                 (rf_wen),
+        .rf_waddr               (rf_waddr),
+        .rf_wdata               (rf_wdata),
         .ls_load_pending        (ls_in_valid && ls_mem_ren && ~ls_out_valid),
 
         .ex_rf_wen              (ex_rf_wen),
