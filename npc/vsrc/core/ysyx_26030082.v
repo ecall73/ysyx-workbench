@@ -121,21 +121,21 @@ module ysyx_26030082 #(
     wire        fetch_ready;
     wire [31:0] fetch_pc;
     wire [31:0] fetch_inst;
-    wire [31:0] fetch_rR1_data;
-    wire [31:0] fetch_rR2_data;
+    wire [31:0] fetch_rs1_data;
+    wire [31:0] fetch_rs2_data;
 
     // EX
-    wire        ex_RegWrite;
-    wire        ex_MemRead;
-    wire        ex_MemWrite;
-    wire [31:0] ex_rR2_data;
+    wire        ex_rf_write;
+    wire        ex_mem_read;
+    wire        ex_mem_write;
+    wire [31:0] ex_rs2_data;
     wire [ 2:0] ex_funct3;
-    wire [ 4:0] ex_RFwaddr;
-    wire [31:0] ex_ALUResult;
+    wire [ 4:0] ex_rf_waddr;
+    wire [31:0] ex_alu_result;
     wire [31:0] ex_pc4;
-    wire        ex_Redirect;
-    wire [31:0] ex_RedirectTarget;
-    wire [31:0] ex_RFwdata;
+    wire        ex_redirect;
+    wire [31:0] ex_redirect_pc;
+    wire [31:0] ex_rf_wdata;
     wire        ex_fence_i;
     wire        ex_have_inst;
     wire        ex_out_valid;
@@ -143,22 +143,22 @@ module ysyx_26030082 #(
 
     // LS
     reg         ls_in_valid;
-    reg         ls_RegWrite;
-    reg         ls_MemRead;
-    reg         ls_MemWrite;
-    reg  [31:0] ls_rR2_data;
+    reg         ls_rf_write;
+    reg         ls_mem_read;
+    reg         ls_mem_write;
+    reg  [31:0] ls_rs2_data;
     reg  [ 2:0] ls_funct3;
-    reg  [ 4:0] ls_RFwaddr;
-    reg  [31:0] ls_ALUResult;
-    reg  [31:0] ls_RFwdata;
+    reg  [ 4:0] ls_rf_waddr;
+    reg  [31:0] ls_alu_result;
+    reg  [31:0] ls_rf_wdata;
     wire        ls_in_ready;
     wire        ls_out_valid;
-    wire [31:0] ls_RFwdata_out;
+    wire [31:0] ls_rf_wdata_out;
 
 `ifndef SYNTHESIS
-    assign pc_EX = fetch_pc;
-    assign inst_EX = fetch_inst;
-    assign have_inst_EX = ex_have_inst;
+    assign pc_ex = fetch_pc;
+    assign inst_ex = fetch_inst;
+    assign have_inst_ex = ex_have_inst;
 `endif
 
     // IFU AXI4 (read-only in practice)
@@ -197,12 +197,12 @@ module ysyx_26030082 #(
 
     // Debug Interface
     `ifndef SYNTHESIS
-        wire [31:0] pc_EX;
-        reg  [31:0] pc_LS;
-        wire [31:0] inst_EX;
-        reg  [31:0] inst_LS;
-        wire        have_inst_EX;
-        reg         have_inst_LS;
+        wire [31:0] pc_ex;
+        reg  [31:0] pc_ls;
+        wire [31:0] inst_ex;
+        reg  [31:0] inst_ls;
+        wire        have_inst_ex;
+        reg         have_inst_ls;
     `endif
 
 ////////////////////////////////////////////////////////////////
@@ -224,8 +224,8 @@ module ysyx_26030082 #(
 
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
-        .ex_Redirect            (ex_Redirect),
-        .ex_RedirectTarget      (ex_RedirectTarget),
+        .ex_redirect            (ex_redirect),
+        .ex_redirect_pc         (ex_redirect_pc),
         .ex_fence_i             (ex_fence_i),
 
         .fetch_valid            (fetch_valid),
@@ -249,15 +249,15 @@ module ysyx_26030082 #(
         .clock                  (clock),
         .reset                  (reset),
 
-        .wen                    (ls_out_valid && ls_RegWrite),
-        .waddr                  (ls_RFwaddr),
-        .wdata                  (ls_RFwdata_out),
+        .wen                    (ls_out_valid && ls_rf_write),
+        .waddr                  (ls_rf_waddr),
+        .wdata                  (ls_rf_wdata_out),
 
-        .rR1                    (fetch_inst[19:15]),
-        .rR2                    (fetch_inst[24:20]),
+        .raddr1                 (fetch_inst[19:15]),
+        .raddr2                 (fetch_inst[24:20]),
 
-        .rR1_data               (fetch_rR1_data),
-        .rR2_data               (fetch_rR2_data)
+        .rdata1                 (fetch_rs1_data),
+        .rdata2                 (fetch_rs2_data)
     );
 
     // EX -> LS handshake coupling
@@ -270,28 +270,28 @@ module ysyx_26030082 #(
         .fetch_ready            (fetch_ready),
         .fetch_pc               (fetch_pc),
         .fetch_inst             (fetch_inst),
-        .fetch_rR1_data         (fetch_rR1_data),
-        .fetch_rR2_data         (fetch_rR2_data),
+        .fetch_rs1_data         (fetch_rs1_data),
+        .fetch_rs2_data         (fetch_rs2_data),
 
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
 
-        .ls_RegWrite            (ls_out_valid && ls_RegWrite),
-        .ls_RFwaddr             (ls_RFwaddr),
-        .ls_RFwdata             (ls_RFwdata_out),
-        .ls_load_pending        (ls_in_valid && ls_MemRead && ~ls_out_valid),
+        .ls_rf_write            (ls_out_valid && ls_rf_write),
+        .ls_rf_waddr            (ls_rf_waddr),
+        .ls_rf_wdata            (ls_rf_wdata_out),
+        .ls_load_pending        (ls_in_valid && ls_mem_read && ~ls_out_valid),
 
-        .ex_RegWrite            (ex_RegWrite),
-        .ex_MemRead             (ex_MemRead),
-        .ex_MemWrite            (ex_MemWrite),
-        .ex_rR2_data            (ex_rR2_data),
+        .ex_rf_write            (ex_rf_write),
+        .ex_mem_read            (ex_mem_read),
+        .ex_mem_write           (ex_mem_write),
+        .ex_rs2_data            (ex_rs2_data),
         .ex_funct3              (ex_funct3),
-        .ex_RFwaddr             (ex_RFwaddr),
-        .ex_ALUResult           (ex_ALUResult),
+        .ex_rf_waddr            (ex_rf_waddr),
+        .ex_alu_result          (ex_alu_result),
         .ex_pc4                 (ex_pc4),
-        .ex_Redirect            (ex_Redirect),
-        .ex_RedirectTarget      (ex_RedirectTarget),
-        .ex_RFwdata             (ex_RFwdata),
+        .ex_redirect            (ex_redirect),
+        .ex_redirect_pc         (ex_redirect_pc),
+        .ex_rf_wdata            (ex_rf_wdata),
         .ex_fence_i             (ex_fence_i),
         .ex_have_inst           (ex_have_inst)
     );
@@ -304,14 +304,14 @@ module ysyx_26030082 #(
             ls_in_valid <= 1'b0;
         end else if (ex_out_ready) begin
             ls_in_valid <= ex_out_valid;
-            ls_RegWrite <= ex_RegWrite;
-            ls_MemWrite <= ex_MemWrite;
-            ls_ALUResult <= ex_ALUResult;
-            ls_rR2_data <= ex_rR2_data;
-            ls_funct3   <= ex_funct3;
-            ls_RFwaddr  <= ex_RFwaddr;
-            ls_RFwdata  <= ex_RFwdata;
-            ls_MemRead  <= ex_MemRead;
+            ls_rf_write <= ex_rf_write;
+            ls_mem_write <= ex_mem_write;
+            ls_alu_result <= ex_alu_result;
+            ls_rs2_data <= ex_rs2_data;
+            ls_funct3 <= ex_funct3;
+            ls_rf_waddr <= ex_rf_waddr;
+            ls_rf_wdata <= ex_rf_wdata;
+            ls_mem_read <= ex_mem_read;
         end
     end
 
@@ -319,18 +319,18 @@ module ysyx_26030082 #(
     `ifndef SYNTHESIS
         always @(posedge clock) begin
             if (reset) begin
-                pc_LS <= 32'b0;
-                inst_LS <= 32'b0;
-                have_inst_LS <= 1'b0;
+                pc_ls <= 32'b0;
+                inst_ls <= 32'b0;
+                have_inst_ls <= 1'b0;
             end else if (ex_out_ready) begin
                 if (ex_out_valid) begin
-                    pc_LS <= pc_EX;
-                    inst_LS <= inst_EX;
-                    have_inst_LS <= have_inst_EX;
+                    pc_ls <= pc_ex;
+                    inst_ls <= inst_ex;
+                    have_inst_ls <= have_inst_ex;
                 end else begin
-                    pc_LS <= 32'b0;
-                    inst_LS <= 32'b0;
-                    have_inst_LS <= 1'b0;
+                    pc_ls <= 32'b0;
+                    inst_ls <= 32'b0;
+                    have_inst_ls <= 1'b0;
                 end
             end
         end
@@ -343,12 +343,12 @@ module ysyx_26030082 #(
         .ls_in_ready            (ls_in_ready),
         .ls_out_valid           (ls_out_valid),
 
-        .ls_ALUResult           (ls_ALUResult),
+        .ls_alu_result          (ls_alu_result),
         .ls_funct3              (ls_funct3),
-        .ls_MemWrite            (ls_MemWrite),
-        .ls_MemRead             (ls_MemRead),
-        .ls_rR2_data            (ls_rR2_data),
-        .ls_RFwdata             (ls_RFwdata),
+        .ls_mem_write           (ls_mem_write),
+        .ls_mem_read            (ls_mem_read),
+        .ls_rs2_data            (ls_rs2_data),
+        .ls_rf_wdata            (ls_rf_wdata),
 
         .ls_mtime               (mtime),
 
@@ -372,7 +372,7 @@ module ysyx_26030082 #(
         .lsu_axi_bvalid         (lsu_axi_bvalid),
         .lsu_axi_bready         (lsu_axi_bready),
 
-        .ls_RFwdata_out         (ls_RFwdata_out)
+        .ls_rf_wdata_out        (ls_rf_wdata_out)
     );
 
     ysyx_26030082_axi4lite_arbiter axi4lite_arbiter (
@@ -444,8 +444,8 @@ module ysyx_26030082 #(
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
     always @(posedge clock) begin
-        if (!reset && ls_out_valid && have_inst_LS) begin
-            npc_commit(pc_LS, inst_LS);
+        if (!reset && ls_out_valid && have_inst_ls) begin
+            npc_commit(pc_ls, inst_ls);
         end
     end
 `endif

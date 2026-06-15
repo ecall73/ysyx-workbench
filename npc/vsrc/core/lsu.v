@@ -7,12 +7,12 @@ module ysyx_26030082_lsu (
     output wire        ls_out_valid,
 
     // LS payload inputs
-    input  wire [31:0] ls_ALUResult,
+    input  wire [31:0] ls_alu_result,
     input  wire [ 2:0] ls_funct3,
-    input  wire        ls_MemWrite,
-    input  wire        ls_MemRead,
-    input  wire [31:0] ls_rR2_data,
-    input  wire [31:0] ls_RFwdata,
+    input  wire        ls_mem_write,
+    input  wire        ls_mem_read,
+    input  wire [31:0] ls_rs2_data,
+    input  wire [31:0] ls_rf_wdata,
     input  wire [63:0] ls_mtime,
 
     // LSU AXI4-Lite interface
@@ -42,7 +42,7 @@ module ysyx_26030082_lsu (
     output wire        lsu_axi_bready,
 
     // LS payload outputs
-    output wire [31:0] ls_RFwdata_out
+    output wire [31:0] ls_rf_wdata_out
 );
 
     localparam L_IDLE      = 3'd0;
@@ -76,9 +76,9 @@ module ysyx_26030082_lsu (
     reg  [31:0] ls_rdata_decoded;
     reg  [2:0]  ls_axi_size;
 
-    assign ls_is_mem = ls_MemRead || ls_MemWrite;
-    assign ls_is_load = ls_MemRead && ~ls_MemWrite;
-    assign ls_is_clint = (ls_ALUResult[31:16] == CLINT_BASE_HI);
+    assign ls_is_mem = ls_mem_read || ls_mem_write;
+    assign ls_is_load = ls_mem_read && ~ls_mem_write;
+    assign ls_is_clint = (ls_alu_result[31:16] == CLINT_BASE_HI);
     assign ls_is_local = ls_is_mem && ls_is_clint;
     assign ls_is_local_load = ls_is_load && ls_is_clint;
 
@@ -87,11 +87,11 @@ module ysyx_26030082_lsu (
     assign aw_fire = lsu_axi_awvalid && lsu_axi_awready;
     assign w_fire = lsu_axi_wvalid && lsu_axi_wready;
     assign b_fire = lsu_axi_bvalid && lsu_axi_bready;
-    assign ls_offset = ls_ALUResult[1:0];
+    assign ls_offset = ls_alu_result[1:0];
     assign ls_load_raw_data = ls_is_local_load ? ls_local_rdata : lsu_axi_rdata;
 
     always @(*) begin
-        case (ls_ALUResult[15:2])
+        case (ls_alu_result[15:2])
             MTIME_WORD_OFFSET:  ls_local_rdata = ls_mtime[31:0];
             MTIMEH_WORD_OFFSET: ls_local_rdata = ls_mtime[63:32];
             default:            ls_local_rdata = 32'b0;
@@ -107,12 +107,12 @@ module ysyx_26030082_lsu (
                           (state == L_RD_WAIT_R) ? lsu_axi_rvalid :
                           (state == L_WR_WAIT_B) ? lsu_axi_bvalid : 1'b0;
 
-    assign lsu_axi_araddr = ls_ALUResult;
+    assign lsu_axi_araddr = ls_alu_result;
     assign lsu_axi_arsize = ls_axi_size;
     assign lsu_axi_arvalid = (state == L_RD_AR);
     assign lsu_axi_rready = (state == L_RD_WAIT_R);
 
-    assign lsu_axi_awaddr = ls_ALUResult;
+    assign lsu_axi_awaddr = ls_alu_result;
     assign lsu_axi_awsize = ls_axi_size;
     assign lsu_axi_awvalid = (state == L_WR_AW_W) && ~wr_aw_done;
     assign lsu_axi_wdata = ls_wdata_aligned;
@@ -120,15 +120,15 @@ module ysyx_26030082_lsu (
     assign lsu_axi_wvalid = (state == L_WR_AW_W) && ~wr_w_done;
     assign lsu_axi_bready = (state == L_WR_WAIT_B);
 
-    assign ls_RFwdata_out =
-        (((state == L_RD_WAIT_R) && lsu_axi_rvalid && ls_MemRead) ||
+    assign ls_rf_wdata_out =
+        (((state == L_RD_WAIT_R) && lsu_axi_rvalid && ls_mem_read) ||
          ((state == L_IDLE) && ls_in_valid && ls_is_local_load)) ? ls_rdata_decoded :
-        ls_RFwdata;
+        ls_rf_wdata;
 
     // Store alignment
     always @(*) begin
         ls_wmask_calc = 4'b0000;
-        ls_wdata_aligned = ls_rR2_data;
+        ls_wdata_aligned = ls_rs2_data;
         ls_axi_size = 3'b010;
         case (ls_funct3)
             3'b000: begin // sb
@@ -136,19 +136,19 @@ module ysyx_26030082_lsu (
                 case (ls_offset)
                     2'b00: begin
                         ls_wmask_calc = 4'b0001;
-                        ls_wdata_aligned = {24'b0, ls_rR2_data[7:0]};
+                        ls_wdata_aligned = {24'b0, ls_rs2_data[7:0]};
                     end
                     2'b01: begin
                         ls_wmask_calc = 4'b0010;
-                        ls_wdata_aligned = {16'b0, ls_rR2_data[7:0], 8'b0};
+                        ls_wdata_aligned = {16'b0, ls_rs2_data[7:0], 8'b0};
                     end
                     2'b10: begin
                         ls_wmask_calc = 4'b0100;
-                        ls_wdata_aligned = {8'b0, ls_rR2_data[7:0], 16'b0};
+                        ls_wdata_aligned = {8'b0, ls_rs2_data[7:0], 16'b0};
                     end
                     2'b11: begin
                         ls_wmask_calc = 4'b1000;
-                        ls_wdata_aligned = {ls_rR2_data[7:0], 24'b0};
+                        ls_wdata_aligned = {ls_rs2_data[7:0], 24'b0};
                     end
                 endcase
             end
@@ -157,11 +157,11 @@ module ysyx_26030082_lsu (
                 case (ls_offset[1])
                     1'b0: begin
                         ls_wmask_calc = 4'b0011;
-                        ls_wdata_aligned = {16'b0, ls_rR2_data[15:0]};
+                        ls_wdata_aligned = {16'b0, ls_rs2_data[15:0]};
                     end
                     1'b1: begin
                         ls_wmask_calc = 4'b1100;
-                        ls_wdata_aligned = {ls_rR2_data[15:0], 16'b0};
+                        ls_wdata_aligned = {ls_rs2_data[15:0], 16'b0};
                     end
                 endcase
             end
@@ -173,7 +173,7 @@ module ysyx_26030082_lsu (
             end
             default: begin // sw
                 ls_wmask_calc = 4'b1111;
-                ls_wdata_aligned = ls_rR2_data;
+                ls_wdata_aligned = ls_rs2_data;
             end
         endcase
     end
