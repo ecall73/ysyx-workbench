@@ -171,14 +171,9 @@ module ysyx_26030082_lsu (
             3'b101: begin // lhu
                 ls_axi_size = 3'b001;
             end
-            3'b010: begin // sw
+            default: begin // sw
                 ls_wmask_calc = 4'b1111;
                 ls_wdata_aligned = ls_rR2_data;
-            end
-            default: begin
-                ls_wmask_calc = 4'bx;
-                ls_wdata_aligned = 32'bx;
-                ls_axi_size = 3'bxxx;
             end
         endcase
     end
@@ -193,14 +188,14 @@ module ysyx_26030082_lsu (
                     2'b01: ls_rdata_decoded = {{24{ls_load_raw_data[15]}}, ls_load_raw_data[15:8]};
                     2'b10: ls_rdata_decoded = {{24{ls_load_raw_data[23]}}, ls_load_raw_data[23:16]};
                     2'b11: ls_rdata_decoded = {{24{ls_load_raw_data[31]}}, ls_load_raw_data[31:24]};
-                    default: ls_rdata_decoded = 32'bx;
+                    default: ls_rdata_decoded = 32'b0;
                 endcase
             end
             3'b001: begin // lh
                 case (ls_offset[1])
                     1'b0: ls_rdata_decoded = {{16{ls_load_raw_data[15]}}, ls_load_raw_data[15:0]};
                     1'b1: ls_rdata_decoded = {{16{ls_load_raw_data[31]}}, ls_load_raw_data[31:16]};
-                    default: ls_rdata_decoded = 32'bx;
+                    default: ls_rdata_decoded = 32'b0;
                 endcase
             end
             3'b100: begin // lbu
@@ -209,18 +204,17 @@ module ysyx_26030082_lsu (
                     2'b01: ls_rdata_decoded = {24'b0, ls_load_raw_data[15:8]};
                     2'b10: ls_rdata_decoded = {24'b0, ls_load_raw_data[23:16]};
                     2'b11: ls_rdata_decoded = {24'b0, ls_load_raw_data[31:24]};
-                    default: ls_rdata_decoded = 32'bx;
+                    default: ls_rdata_decoded = 32'b0;
                 endcase
             end
             3'b101: begin // lhu
                 case (ls_offset[1])
                     1'b0: ls_rdata_decoded = {16'b0, ls_load_raw_data[15:0]};
                     1'b1: ls_rdata_decoded = {16'b0, ls_load_raw_data[31:16]};
-                    default: ls_rdata_decoded = 32'bx;
+                    default: ls_rdata_decoded = 32'b0;
                 endcase
             end
-            3'b010: ls_rdata_decoded = ls_load_raw_data; // lw
-            default: ls_rdata_decoded = 32'bx;
+            default: ls_rdata_decoded = ls_load_raw_data;
         endcase
     end
 
