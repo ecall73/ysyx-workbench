@@ -43,6 +43,7 @@ module ysyx_26030082_exu (
     localparam [6:0] OPCODE_AUIPC  = 7'b001_0111;
     localparam [6:0] OPCODE_JAL   = 7'b110_1111;
     localparam [6:0] OPCODE_SYSTEM = 7'b111_0011;
+    localparam [6:0] OPCODE_MISC_MEM = 7'b000_1111;
 
     localparam [2:0] MEM_TO_REG_ALU  = 3'b001;
     localparam [2:0] MEM_TO_REG_DRAM = 3'b100;
@@ -56,8 +57,8 @@ module ysyx_26030082_exu (
     localparam [11:0] CSR_MVENDORID = 12'hF11;
     localparam [11:0] CSR_MARCHID   = 12'hF12;
 
-    localparam [11:0] INST_ECALL = 12'h000;
-    localparam [11:0] INST_MRET  = 12'h302;
+    localparam [11:0] F12_ECALL = 12'h000;
+    localparam [11:0] F12_MRET  = 12'h302;
 
     localparam [2:0] F3_CSRRW  = 3'b001;
     localparam [2:0] F3_CSRRS  = 3'b010;
@@ -69,14 +70,14 @@ module ysyx_26030082_exu (
     localparam [31:0] CAUSE_ECALL = 32'd11;
 
     // Decode / former IDU logic.
-    wire [6:0] dec_opcode;
-    wire [2:0] dec_funct3;
-    wire       dec_funct7_5;
+    wire [6:0] opcode;
+    wire [2:0] funct3;
+    wire       funct7_5;
     wire [4:0] rs1_addr;
     wire [4:0] rs2_addr;
     wire [11:0] csr_addr;
     wire [31:0] dec_imm;
-    reg  [31:0] dec_imm_r;
+    reg  [31:0] imm;
 
     wire       op_rtype;
     wire       op_itype;
@@ -141,25 +142,25 @@ module ysyx_26030082_exu (
     wire [31:0] csr_wdata;
     wire        csr_priv;
 
-    assign dec_opcode = fetch_inst[6:0];
-    assign dec_funct3 = fetch_inst[14:12];
-    assign dec_funct7_5 = fetch_inst[30];
+    assign opcode = fetch_inst[6:0];
+    assign funct3 = fetch_inst[14:12];
+    assign funct7_5 = fetch_inst[30];
     assign rs1_addr = fetch_inst[19:15];
     assign rs2_addr = fetch_inst[24:20];
     assign csr_addr = fetch_inst[31:20];
 
-    assign op_rtype    = dec_opcode == OPCODE_OP;
-    assign op_itype    = dec_opcode == OPCODE_OP_IMM;
-    assign op_load     = dec_opcode == OPCODE_LOAD;
-    assign op_store    = dec_opcode == OPCODE_STORE;
-    assign op_branch   = dec_opcode == OPCODE_BRANCH;
-    assign op_lui      = dec_opcode == OPCODE_LUI;
-    assign op_auipc    = dec_opcode == OPCODE_AUIPC;
-    assign op_jal      = dec_opcode == OPCODE_JAL;
-    assign op_jalr     = dec_opcode == OPCODE_JALR;
-    assign op_system   = dec_opcode == OPCODE_SYSTEM;
-    assign op_csr      = op_system && (dec_funct3 != 3'b000);
-    assign op_misc_mem = dec_opcode == 7'b000_1111;
+    assign op_rtype    = opcode == OPCODE_OP;
+    assign op_itype    = opcode == OPCODE_OP_IMM;
+    assign op_load     = opcode == OPCODE_LOAD;
+    assign op_store    = opcode == OPCODE_STORE;
+    assign op_branch   = opcode == OPCODE_BRANCH;
+    assign op_lui      = opcode == OPCODE_LUI;
+    assign op_auipc    = opcode == OPCODE_AUIPC;
+    assign op_jal      = opcode == OPCODE_JAL;
+    assign op_jalr     = opcode == OPCODE_JALR;
+    assign op_system   = opcode == OPCODE_SYSTEM;
+    assign op_csr      = op_system && (funct3 != 3'b000);
+    assign op_misc_mem = opcode == OPCODE_MISC_MEM;
     assign op_fencei   = fetch_inst == 32'h0000_100f;
 
     assign mem_to_reg = ({3{op_rtype}} & MEM_TO_REG_ALU) |
@@ -170,25 +171,25 @@ module ysyx_26030082_exu (
                         ({3{op_csr}}   & MEM_TO_REG_CSR);
 
     assign rs1_used = op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
-                      (op_csr && ~dec_funct3[2]);
+                      (op_csr && ~funct3[2]);
     assign rs2_used = op_rtype | op_store | op_branch;
 
     always @(*) begin
-        case (dec_opcode)
+        case (opcode)
             OPCODE_OP_IMM,
             OPCODE_LOAD,
-            OPCODE_JALR:  dec_imm_r = {{20{fetch_inst[31]}}, fetch_inst[31:20]};
-            OPCODE_STORE:   dec_imm_r = {{20{fetch_inst[31]}}, fetch_inst[31:25], fetch_inst[11:7]};
-            OPCODE_BRANCH:   dec_imm_r = {{20{fetch_inst[31]}}, fetch_inst[7], fetch_inst[30:25], fetch_inst[11:8], 1'b0};
+            OPCODE_JALR:  imm = {{20{fetch_inst[31]}}, fetch_inst[31:20]};
+            OPCODE_STORE:   imm = {{20{fetch_inst[31]}}, fetch_inst[31:25], fetch_inst[11:7]};
+            OPCODE_BRANCH:   imm = {{20{fetch_inst[31]}}, fetch_inst[7], fetch_inst[30:25], fetch_inst[11:8], 1'b0};
             OPCODE_LUI,
-            OPCODE_AUIPC:  dec_imm_r = {fetch_inst[31:12], 12'b0};
-            OPCODE_JAL:   dec_imm_r = {{12{fetch_inst[31]}}, fetch_inst[19:12], fetch_inst[20], fetch_inst[30:21], 1'b0};
-            OPCODE_SYSTEM: dec_imm_r = {27'b0, fetch_inst[19:15]};
-            default:     dec_imm_r = 32'b0;
+            OPCODE_AUIPC:  imm = {fetch_inst[31:12], 12'b0};
+            OPCODE_JAL:   imm = {{12{fetch_inst[31]}}, fetch_inst[19:12], fetch_inst[20], fetch_inst[30:21], 1'b0};
+            OPCODE_SYSTEM: imm = {27'b0, fetch_inst[19:15]};
+            default:     imm = 32'b0;
         endcase
     end
 
-    assign dec_imm = dec_imm_r;
+    assign dec_imm = imm;
 
     assign forward_ls_rs1 = (rs1_addr == ls_RFwaddr) && ls_RegWrite && (ls_RFwaddr != 5'b0);
     assign forward_ls_rs2 = (rs2_addr == ls_RFwaddr) && ls_RegWrite && (ls_RFwaddr != 5'b0);
@@ -208,7 +209,7 @@ module ysyx_26030082_exu (
     assign ex_RegWrite = fetch_valid && ~(op_branch | op_store | op_misc_mem);
     assign ex_MemWrite = fetch_valid && op_store;
     assign ex_MemRead = mem_to_reg[2];
-    assign ex_funct3 = dec_funct3;
+    assign ex_funct3 = funct3;
     assign ex_RFwaddr = fetch_inst[11:7];
     assign ex_rR2_data = rs2_data;
     assign ex_have_inst = op_rtype | op_itype | op_load | op_jalr | op_store |
@@ -219,8 +220,8 @@ module ysyx_26030082_exu (
     assign alu_logic_rhs = op_rtype ? rs2_data : dec_imm;
     assign alu_add_lhs = (op_auipc | op_jal | op_branch) ? fetch_pc : rs1_data;
     assign alu_add_rhs = op_rtype ? rs2_data : dec_imm;
-    assign alu_sub_family = (op_rtype && dec_funct3 == 3'b000 && dec_funct7_5) ||
-                            ((op_rtype || op_itype) && (dec_funct3 == 3'b010 || dec_funct3 == 3'b011));
+    assign alu_sub_family = (op_rtype && funct3 == 3'b000 && funct7_5) ||
+                            ((op_rtype || op_itype) && (funct3 == 3'b010 || funct3 == 3'b011));
     assign alu_adder_rhs = alu_sub_family ? ~alu_add_rhs : alu_add_rhs;
     assign {alu_addsub_carry, alu_addsub_result} = {1'b0, alu_add_lhs} + {1'b0, alu_adder_rhs} +
                                                    {32'b0, alu_sub_family};
@@ -235,15 +236,15 @@ module ysyx_26030082_exu (
     assign alu_cmp_ltu = ~alu_addsub_carry;
 
     always @(*) begin
-        case (dec_opcode)
+        case (opcode)
             OPCODE_OP: begin
-                case (dec_funct3)
+                case (funct3)
                     3'b000:  alu_result_r = alu_addsub_result;
                     3'b001:  alu_result_r = alu_sll_result;
                     3'b010:  alu_result_r = {31'b0, alu_cmp_lt};
                     3'b011:  alu_result_r = {31'b0, alu_cmp_ltu};
                     3'b100:  alu_result_r = alu_xor_result;
-                    3'b101:  alu_result_r = dec_funct7_5 ? alu_sra_result : alu_srl_result;
+                    3'b101:  alu_result_r = funct7_5 ? alu_sra_result : alu_srl_result;
                     3'b110:  alu_result_r = alu_or_result;
                     3'b111:  alu_result_r = alu_and_result;
                     default: alu_result_r = alu_addsub_result;
@@ -251,13 +252,13 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_OP_IMM: begin
-                case (dec_funct3)
+                case (funct3)
                     3'b000:  alu_result_r = alu_addsub_result;
                     3'b001:  alu_result_r = alu_sll_result;
                     3'b010:  alu_result_r = {31'b0, alu_cmp_lt};
                     3'b011:  alu_result_r = {31'b0, alu_cmp_ltu};
                     3'b100:  alu_result_r = alu_xor_result;
-                    3'b101:  alu_result_r = dec_funct7_5 ? alu_sra_result : alu_srl_result;
+                    3'b101:  alu_result_r = funct7_5 ? alu_sra_result : alu_srl_result;
                     3'b110:  alu_result_r = alu_or_result;
                     3'b111:  alu_result_r = alu_and_result;
                     default: alu_result_r = alu_addsub_result;
@@ -284,15 +285,15 @@ module ysyx_26030082_exu (
     assign bru_cmp_eq = (rs1_data == rs2_data);
     assign bru_cmp_lt = ($signed(rs1_data) < $signed(rs2_data));
     assign bru_cmp_ltu = (rs1_data < rs2_data);
-    assign branch_cmp_result = dec_funct3[2] ? (dec_funct3[1] ? bru_cmp_ltu : bru_cmp_lt)
+    assign branch_cmp_result = funct3[2] ? (funct3[1] ? bru_cmp_ltu : bru_cmp_lt)
                                              : bru_cmp_eq;
-    assign branch_taken = op_branch && (branch_cmp_result ^ dec_funct3[0]);
+    assign branch_taken = op_branch && (branch_cmp_result ^ funct3[0]);
 
     always @(*) begin
         redirect_valid_r = 1'b0;
         redirect_target_r = alu_result_r;
 
-        case (dec_opcode)
+        case (opcode)
             OPCODE_BRANCH: begin
                 redirect_valid_r = branch_taken;
             end
@@ -307,13 +308,13 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_SYSTEM: begin
-                if (dec_funct3 == 3'b000) begin
+                if (funct3 == 3'b000) begin
                     redirect_valid_r = 1'b1;
-                    redirect_target_r = (csr_addr == INST_ECALL) ? {csr_mtvec[31:2], 2'b0} : csr_mepc;
+                    redirect_target_r = (csr_addr == F12_ECALL) ? {csr_mtvec[31:2], 2'b0} : csr_mepc;
                 end
             end
 
-            7'b000_1111: begin
+            OPCODE_MISC_MEM: begin
                 if (op_fencei) begin
                     redirect_valid_r = 1'b1;
                     redirect_target_r = ex_pc4;
@@ -330,8 +331,8 @@ module ysyx_26030082_exu (
     assign ex_FenceI = fetch_valid && op_fencei;
 
     // CSR and writeback side data.
-    assign csr_wdata = dec_funct3[2] ? dec_imm : rs1_data;
-    assign csr_priv = op_system && (dec_funct3 == 3'b000);
+    assign csr_wdata = funct3[2] ? dec_imm : rs1_data;
+    assign csr_priv = op_system && (funct3 == 3'b000);
 
     always @(*) begin
         case (csr_addr)
@@ -357,17 +358,17 @@ module ysyx_26030082_exu (
             csr_mepc    <= 32'h0;
             csr_mcause  <= 32'h0;
         end else if (ex_fire && op_system) begin
-            case (dec_funct3)
+            case (funct3)
                 3'b000: begin
                     case (csr_addr)
-                        INST_ECALL: begin
+                        F12_ECALL: begin
                             csr_mstatus[3] <= 1'b0;
                             csr_mstatus[7] <= csr_mstatus[3];
                             csr_mstatus[12:11] <= 2'b11;
                             csr_mepc <= fetch_pc;
                             csr_mcause <= CAUSE_ECALL;
                         end
-                        INST_MRET: begin
+                        F12_MRET: begin
                             csr_mstatus[3] <= csr_mstatus[7];
                         end
                         default: begin
