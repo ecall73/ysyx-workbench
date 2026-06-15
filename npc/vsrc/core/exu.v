@@ -27,8 +27,7 @@ module ysyx_26030082_exu (
     output wire [31:0] ex_pc4,
     output wire        ex_Redirect,
     output wire [31:0] ex_RedirectTarget,
-    output wire [31:0] ex_WBAltData,
-    output wire        ex_WBUseAlt,
+    output reg  [31:0] ex_RFwdata,
     output wire        ex_FenceI,
     output wire        ex_have_inst
 );
@@ -44,11 +43,6 @@ module ysyx_26030082_exu (
     localparam [6:0] OPCODE_JAL   = 7'b110_1111;
     localparam [6:0] OPCODE_SYSTEM = 7'b111_0011;
     localparam [6:0] OPCODE_MISC_MEM = 7'b000_1111;
-
-    localparam [2:0] MEM_TO_REG_ALU  = 3'b001;
-    localparam [2:0] MEM_TO_REG_DRAM = 3'b100;
-    localparam [2:0] MEM_TO_REG_IMM  = 3'b011;
-    localparam [2:0] MEM_TO_REG_CSR  = 3'b010;
 
     localparam [11:0] CSR_MSTATUS   = 12'h300;
     localparam [11:0] CSR_MTVEC     = 12'h305;
@@ -93,7 +87,6 @@ module ysyx_26030082_exu (
     wire       op_csr;
     wire       op_misc_mem;
     wire       op_fencei;
-    wire [2:0] mem_to_reg;
     wire       rs1_used;
     wire       rs2_used;
 
@@ -163,13 +156,6 @@ module ysyx_26030082_exu (
     assign op_csr      = op_system && (funct3 != 3'b000);
     assign op_misc_mem = opcode == OPCODE_MISC_MEM;
     assign op_fencei   = fetch_inst == 32'h0000_100f;
-
-    assign mem_to_reg = ({3{op_rtype}} & MEM_TO_REG_ALU) |
-                        ({3{op_itype}} & MEM_TO_REG_ALU) |
-                        ({3{op_auipc}} & MEM_TO_REG_ALU) |
-                        ({3{op_load}}  & MEM_TO_REG_DRAM) |
-                        ({3{op_lui}}   & MEM_TO_REG_IMM) |
-                        ({3{op_csr}}   & MEM_TO_REG_CSR);
 
     assign rs1_used = op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
                       (op_csr && ~funct3[2]);
@@ -347,10 +333,26 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    assign ex_WBAltData = mem_to_reg[1] ?
-                              (mem_to_reg[0] ? dec_imm : csr_rdata) :
-                              ex_pc4;
-    assign ex_WBUseAlt = ~mem_to_reg[2] && (mem_to_reg[1] || ~mem_to_reg[0]);
+    always @(*) begin
+        case (opcode)
+            OPCODE_LUI: begin
+                ex_RFwdata = dec_imm;
+            end
+
+            OPCODE_SYSTEM: begin
+                ex_RFwdata = csr_rdata;
+            end
+
+            OPCODE_JAL,
+            OPCODE_JALR: begin
+                ex_RFwdata = ex_pc4;
+            end
+
+            default: begin
+                ex_RFwdata = alu_result;
+            end
+        endcase
+    end
 
     always @(posedge clock) begin
         if (reset) begin

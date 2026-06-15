@@ -12,8 +12,7 @@ module ysyx_26030082_lsu (
     input  wire        ls_MemWrite,
     input  wire        ls_MemRead,
     input  wire [31:0] ls_rR2_data,
-    input  wire [31:0] ls_WBAltData,
-    input  wire        ls_WBUseAlt,
+    input  wire [31:0] ls_RFwdata,
     input  wire [63:0] ls_mtime,
 
     // LSU AXI4-Lite interface
@@ -119,7 +118,7 @@ module ysyx_26030082_lsu (
     assign ls_RFwdata_out =
         (((state == L_RD_WAIT_R) && lsu_axi_rvalid && ls_MemRead) ||
          ((state == L_IDLE) && ls_in_valid && ls_is_local_load)) ? ls_rdata_decoded :
-        ls_WBUseAlt ? ls_WBAltData : ls_ALUResult;
+        ls_RFwdata;
 
     // Store alignment
     always @(*) begin
