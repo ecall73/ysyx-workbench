@@ -223,7 +223,7 @@ module ysyx_26030082_exu (
                     3'b101:  ex_ALUResult = funct7_5 ? alu_sra_result : alu_srl_result;
                     3'b110:  ex_ALUResult = alu_or_result;
                     3'b111:  ex_ALUResult = alu_and_result;
-                    default: ex_ALUResult = alu_addsub_result;
+                    default: ex_ALUResult = 32'bx;
                 endcase
             end
 
@@ -237,7 +237,7 @@ module ysyx_26030082_exu (
                     3'b101:  ex_ALUResult = funct7_5 ? alu_sra_result : alu_srl_result;
                     3'b110:  ex_ALUResult = alu_or_result;
                     3'b111:  ex_ALUResult = alu_and_result;
-                    default: ex_ALUResult = alu_addsub_result;
+                    default: ex_ALUResult = 32'bx;
                 endcase
             end
 
