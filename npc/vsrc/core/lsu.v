@@ -50,9 +50,9 @@ module ysyx_26030082_lsu (
     localparam L_RD_WAIT_R = 3'd2;
     localparam L_WR_AW_W   = 3'd3;
     localparam L_WR_WAIT_B = 3'd4;
-    localparam [31:0] CLINT_BASE_ADDR = 32'h0200_0000;
-    localparam [31:0] MTIME_ADDR      = 32'h0200_bff8;
-    localparam [31:0] MTIMEH_ADDR     = 32'h0200_bffc;
+    localparam [15:0] CLINT_BASE_HI     = 16'h0200;
+    localparam [13:0] MTIME_WORD_OFFSET  = 14'h2ffe;
+    localparam [13:0] MTIMEH_WORD_OFFSET = 14'h2fff;
 
     reg  [2:0]  state;
     reg         wr_aw_done;
@@ -69,7 +69,7 @@ module ysyx_26030082_lsu (
     wire        w_fire;
     wire        b_fire;
     wire [1:0]  ls_offset;
-    wire [31:0] ls_local_rdata;
+    reg  [31:0] ls_local_rdata;
     wire [31:0] ls_load_raw_data;
     reg  [3:0]  ls_wmask_calc;
     reg  [31:0] ls_wdata_aligned;
@@ -78,7 +78,7 @@ module ysyx_26030082_lsu (
 
     assign ls_is_mem = ls_MemRead || ls_MemWrite;
     assign ls_is_load = ls_MemRead && ~ls_MemWrite;
-    assign ls_is_clint = (ls_ALUResult[31:16] == CLINT_BASE_ADDR[31:16]);
+    assign ls_is_clint = (ls_ALUResult[31:16] == CLINT_BASE_HI);
     assign ls_is_local = ls_is_mem && ls_is_clint;
     assign ls_is_local_load = ls_is_load && ls_is_clint;
 
@@ -88,10 +88,15 @@ module ysyx_26030082_lsu (
     assign w_fire = lsu_axi_wvalid && lsu_axi_wready;
     assign b_fire = lsu_axi_bvalid && lsu_axi_bready;
     assign ls_offset = ls_ALUResult[1:0];
-    assign ls_local_rdata = (ls_ALUResult == MTIME_ADDR)  ? ls_mtime[31:0]  :
-                            (ls_ALUResult == MTIMEH_ADDR) ? ls_mtime[63:32] :
-                            32'b0;
     assign ls_load_raw_data = ls_is_local_load ? ls_local_rdata : lsu_axi_rdata;
+
+    always @(*) begin
+        case (ls_ALUResult[15:2])
+            MTIME_WORD_OFFSET:  ls_local_rdata = ls_mtime[31:0];
+            MTIMEH_WORD_OFFSET: ls_local_rdata = ls_mtime[63:32];
+            default:            ls_local_rdata = 32'b0;
+        endcase
+    end
 
     // Non-memory ops pass through in IDLE with zero extra delay.
     // For memory ops, ls_in_ready is only released when R/B handshakes.
@@ -117,7 +122,8 @@ module ysyx_26030082_lsu (
 
     assign ls_RFwdata_out =
         (((state == L_RD_WAIT_R) && lsu_axi_rvalid && ls_MemRead) ||
-         ((state == L_IDLE) && ls_in_valid && ls_is_local_load)) ? ls_rdata_decoded : ls_RFwdata;
+         ((state == L_IDLE) && ls_in_valid && ls_is_local_load)) ? ls_rdata_decoded :
+        ls_RFwdata;
 
     // Store alignment
     always @(*) begin

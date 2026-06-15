@@ -116,62 +116,30 @@ module ysyx_26030082 #(
 `endif
 `endif
 
-    // IF
-    wire        if_valid;
-    wire        if_ready;
-    wire [31:0] if_pc;
-    wire        flush;
-    wire        invalidate;
-
-    // ID
-    wire        id_valid;
-    wire [31:0] id_pc;
-    wire [31:0] id_inst;
-    wire [ 3:0] id_ALUControl;
-    wire        id_RegWrite;
-    wire [ 2:0] id_MemToReg;
-    wire        id_MemWrite;
-    wire        id_ALUSrcA;
-    wire        id_ALUSrcB;
-    wire [31:0] id_imm;
-    wire [31:0] id_rR1_data;
-    wire [31:0] id_rR2_data;
-    wire [31:0] id_rR1_data_forward;
-    wire [31:0] id_rR2_data_forward;
-    wire        id_btype;
-    wire        id_jtype;
-    wire        id_ijtype;
-    wire        id_is_system;
-    wire [11:0] id_CSRaddr;
-    wire        id_FenceI;
+    // FETCH -> EX
+    wire        fetch_valid;
+    wire        fetch_ready;
+    wire [31:0] fetch_pc;
+    wire [31:0] fetch_inst;
+    wire [31:0] fetch_rR1_data;
+    wire [31:0] fetch_rR2_data;
 
     // EX
-    reg         ex_in_valid;
-    reg  [31:0] ex_pc;
-    reg  [ 3:0] ex_ALUControl;
-    reg         ex_RegWrite;
-    reg  [ 2:0] ex_MemToReg;
+    wire        ex_RegWrite;
     wire        ex_MemRead;
-    reg         ex_MemWrite;
-    reg         ex_ALUSrcA;
-    reg         ex_ALUSrcB;
-    reg  [31:0] ex_imm;
-    reg  [31:0] ex_rR1_data;
-    reg  [31:0] ex_rR2_data;
-    reg  [ 2:0] ex_funct3;
-    reg  [ 4:0] ex_RFwaddr;
+    wire        ex_MemWrite;
+    wire [31:0] ex_rR2_data;
+    wire [ 2:0] ex_funct3;
+    wire [ 4:0] ex_RFwaddr;
     wire [31:0] ex_ALUResult;
-    wire        ex_BRUResult;
     wire [31:0] ex_pc4;
+    wire        ex_Redirect;
+    wire [31:0] ex_RedirectTarget;
     wire [31:0] ex_RFwdata;
-    reg         ex_btype;
-    reg         ex_jtype;
-    reg         ex_ijtype;
-    reg         ex_is_system;
-    reg  [11:0] ex_CSRaddr;
-    reg         ex_FenceI;
-    wire [31:0] ex_CSRnpc;
-    wire        ex_CSRjump;
+    wire        ex_FenceI;
+    wire        ex_have_inst;
+    wire        ex_out_valid;
+    wire        ex_out_ready;
 
     // LS
     reg         ls_in_valid;
@@ -187,13 +155,11 @@ module ysyx_26030082 #(
     wire        ls_out_valid;
     wire [31:0] ls_RFwdata_out;
 
-    // Local handshake control
-    wire        forward_pending;
-    wire        ex_out_ready;
-    wire        id_ready;
-    wire        ex_in_ready;
-    wire        id_issue_valid; // From IDU handshake output
-    wire        ex_out_valid;   // From EXU handshake output
+`ifndef SYNTHESIS
+    assign pc_EX = fetch_pc;
+    assign inst_EX = fetch_inst;
+    assign have_inst_EX = ex_have_inst;
+`endif
 
     // IFU AXI4 (read-only in practice)
     wire [31:0] ifu_axi_araddr;
@@ -231,12 +197,12 @@ module ysyx_26030082 #(
 
     // Debug Interface
     `ifndef SYNTHESIS
-        reg [31:0] pc_EX, pc_LS;
-        reg [31:0] inst_EX, inst_LS;
-        wire        have_inst_ID_decode;
-        wire        have_inst_ID;
-        reg         have_inst_EX, have_inst_LS;
-        assign have_inst_ID = id_valid && have_inst_ID_decode;
+        wire [31:0] pc_EX;
+        reg  [31:0] pc_LS;
+        wire [31:0] inst_EX;
+        reg  [31:0] inst_LS;
+        wire        have_inst_EX;
+        reg         have_inst_LS;
     `endif
 
 ////////////////////////////////////////////////////////////////
@@ -248,48 +214,24 @@ module ysyx_26030082 #(
             mtime <= mtime + 64'd1;
         end
     end
-
     ysyx_26030082_ifu #(
-        .RESET_PC               (RESET_PC)
+        .RESET_PC               (RESET_PC),
+        .LINE_WORDS             (4),
+        .LINE_COUNT             (4)
     ) ifu (
         .clock                  (clock),
         .reset                  (reset),
-        .if_ready               (if_ready),
+
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
-        .ex_pc4                 (ex_pc4),
-        .ex_btype               (ex_btype),
-        .ex_jtype               (ex_jtype),
-        .ex_ijtype              (ex_ijtype),
-        .ex_BRUResult           (ex_BRUResult),
-        .ex_ALUResult           (ex_ALUResult),
-        .ex_CSRjump             (ex_CSRjump),
-        .ex_CSRnpc              (ex_CSRnpc),
+        .ex_Redirect            (ex_Redirect),
+        .ex_RedirectTarget      (ex_RedirectTarget),
         .ex_FenceI              (ex_FenceI),
 
-        .if_valid               (if_valid),
-        .if_pc                  (if_pc),
-        .flush                  (flush),
-        .invalidate             (invalidate)
-    );
-
-
-    ysyx_26030082_icache #(
-        .LINE_WORDS             (4),
-        .LINE_COUNT             (4)
-    ) icache (
-        .clock                  (clock),
-        .reset                  (reset),
-
-        .if_valid               (if_valid),
-        .if_ready               (if_ready),
-        .if_pc                  (if_pc),
-        .id_valid               (id_valid),
-        .id_ready               (id_ready),
-        .id_pc                  (id_pc),
-        .id_inst                (id_inst),
-        .flush                  (flush),
-        .invalidate             (invalidate),
+        .fetch_valid            (fetch_valid),
+        .fetch_ready            (fetch_ready),
+        .fetch_pc               (fetch_pc),
+        .fetch_inst             (fetch_inst),
 
         .ifu_axi_araddr         (ifu_axi_araddr),
         .ifu_axi_arlen          (ifu_axi_arlen),
@@ -303,38 +245,6 @@ module ysyx_26030082 #(
         .ifu_axi_rready         (ifu_axi_rready)
     );
 
-    ysyx_26030082_idu idu (
-        .clock                  (clock),
-        .reset                  (reset),
-        .id_valid               (id_valid),
-        .id_ready               (id_ready),
-        .id_issue_valid         (id_issue_valid),
-        .id_issue_ready         (ex_in_ready),
-        .id_block               (forward_pending),
-
-        .id_inst                (id_inst),
-
-        .id_ALUControl          (id_ALUControl),
-        .id_RegWrite            (id_RegWrite),
-        .id_MemToReg            (id_MemToReg),
-        .id_MemWrite            (id_MemWrite),
-        .id_ALUSrcA             (id_ALUSrcA),
-        .id_ALUSrcB             (id_ALUSrcB),
-        .id_imm                 (id_imm),
-
-        .id_btype               (id_btype),
-        .id_jtype               (id_jtype),
-        .id_ijtype              (id_ijtype),
-
-        .id_is_system           (id_is_system),
-        .id_CSRaddr             (id_CSRaddr),
-        .id_FenceI              (id_FenceI)
-
-        `ifndef SYNTHESIS
-        ,   .have_inst_ID       (have_inst_ID_decode)
-        `endif
-    );
-
     ysyx_26030082_RF RF (
         .clock                  (clock),
         .reset                  (reset),
@@ -343,91 +253,12 @@ module ysyx_26030082 #(
         .waddr                  (ls_RFwaddr),
         .wdata                  (ls_RFwdata_out),
 
-        .rR1                    (id_inst[19:15]),
-        .rR2                    (id_inst[24:20]),
+        .rR1                    (fetch_inst[19:15]),
+        .rR2                    (fetch_inst[24:20]),
 
-        .rR1_data               (id_rR1_data),
-        .rR2_data               (id_rR2_data)
+        .rR1_data               (fetch_rR1_data),
+        .rR2_data               (fetch_rR2_data)
     );
-
-    ysyx_26030082_forward forward (
-        .id_in_valid            (id_valid),
-        .id_rR1                 (id_inst[19:15]),
-        .id_rR2                 (id_inst[24:20]),
-        .id_rR1_data            (id_rR1_data),
-        .id_rR2_data            (id_rR2_data),
-
-        .ex_out_valid           (ex_out_valid),
-        .ex_MemRead             (ex_MemRead),
-        .ex_RegWrite            (ex_in_valid && ex_RegWrite),
-        .ex_RFwaddr             (ex_RFwaddr),
-        .ex_RFwdata             (ex_RFwdata),
-
-        .ls_RegWrite            (ls_out_valid && ls_RegWrite),
-        .ls_RFwaddr             (ls_RFwaddr),
-        .ls_RFwdata             (ls_RFwdata_out),
-        .ls_load_pending        (ls_in_valid && ls_MemRead && ~ls_out_valid),
-
-        .forward_pending        (forward_pending),
-        .id_rR1_data_forward    (id_rR1_data_forward),
-        .id_rR2_data_forward    (id_rR2_data_forward)
-    );
-
-    // ================================================================
-    // ID -> EX
-    // ================================================================
-    always @(posedge clock) begin
-        if (reset) begin
-            ex_in_valid        <= 1'b0;
-        end else if (flush) begin
-            ex_in_valid        <= 1'b0;
-        end else if (ex_in_ready) begin
-            ex_in_valid <= id_issue_valid;
-            ex_ALUControl   <= id_ALUControl;
-            ex_RegWrite     <= id_RegWrite;
-            ex_MemWrite     <= id_MemWrite;
-            ex_MemToReg     <= id_MemToReg;
-            ex_funct3       <= id_inst[14:12];
-            ex_imm          <= id_imm;
-            ex_pc           <= id_pc;
-            ex_RFwaddr      <= id_inst[11:7];
-            ex_ALUSrcA      <= id_ALUSrcA;
-            ex_ALUSrcB      <= id_ALUSrcB;
-            ex_rR1_data     <= id_rR1_data_forward;
-            ex_rR2_data     <= id_rR2_data_forward;
-            ex_is_system    <= id_is_system;
-            ex_CSRaddr      <= id_CSRaddr;
-            ex_FenceI       <= id_FenceI;
-            ex_btype        <= id_btype;
-            ex_jtype        <= id_jtype;
-            ex_ijtype       <= id_ijtype;
-        end
-    end
-
-    //trace
-    `ifndef SYNTHESIS
-        always @(posedge clock) begin
-            if (reset) begin
-                pc_EX <= 32'b0;
-                inst_EX <= 32'b0;
-                have_inst_EX <= 1'b0;
-            end else if (flush) begin
-                pc_EX <= 32'b0;
-                inst_EX <= 32'b0;
-                have_inst_EX <= 1'b0;
-            end else if (ex_in_ready) begin
-                if (id_issue_valid) begin
-                    pc_EX <= id_pc;
-                    inst_EX <= id_inst;
-                    have_inst_EX <= have_inst_ID;
-                end else begin
-                    pc_EX <= 32'b0;
-                    inst_EX <= 32'b0;
-                    have_inst_EX <= 1'b0;
-                end
-            end
-        end
-    `endif
 
     // EX -> LS handshake coupling
     assign ex_out_ready = ls_in_ready;
@@ -435,34 +266,34 @@ module ysyx_26030082 #(
     ysyx_26030082_exu exu (
         .clock                  (clock),
         .reset                  (reset),
-        .ex_in_valid            (ex_in_valid),
-        .ex_in_ready            (ex_in_ready),
+        .fetch_valid            (fetch_valid),
+        .fetch_ready            (fetch_ready),
+        .fetch_pc               (fetch_pc),
+        .fetch_inst             (fetch_inst),
+        .fetch_rR1_data         (fetch_rR1_data),
+        .fetch_rR2_data         (fetch_rR2_data),
+
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
 
-        .ex_ALUSrcA             (ex_ALUSrcA),
-        .ex_ALUSrcB             (ex_ALUSrcB),
-        .ex_pc                  (ex_pc),
-        .ex_rR1_data            (ex_rR1_data),
+        .ls_RegWrite            (ls_out_valid && ls_RegWrite),
+        .ls_RFwaddr             (ls_RFwaddr),
+        .ls_RFwdata             (ls_RFwdata_out),
+        .ls_load_pending        (ls_in_valid && ls_MemRead && ~ls_out_valid),
+
+        .ex_RegWrite            (ex_RegWrite),
+        .ex_MemRead             (ex_MemRead),
+        .ex_MemWrite            (ex_MemWrite),
         .ex_rR2_data            (ex_rR2_data),
         .ex_funct3              (ex_funct3),
-        .ex_imm                 (ex_imm),
-        .ex_ALUControl          (ex_ALUControl),
-
-        .ex_is_system           (ex_is_system),
-        .ex_CSRaddr             (ex_CSRaddr),
-
-        .ex_MemToReg            (ex_MemToReg),
-
+        .ex_RFwaddr             (ex_RFwaddr),
         .ex_ALUResult           (ex_ALUResult),
-        .ex_BRUResult           (ex_BRUResult),
         .ex_pc4                 (ex_pc4),
-
-        .ex_CSRjump             (ex_CSRjump),
-        .ex_CSRnpc              (ex_CSRnpc),
-
+        .ex_Redirect            (ex_Redirect),
+        .ex_RedirectTarget      (ex_RedirectTarget),
         .ex_RFwdata             (ex_RFwdata),
-        .ex_MemRead             (ex_MemRead)
+        .ex_FenceI              (ex_FenceI),
+        .ex_have_inst           (ex_have_inst)
     );
 
     // ================================================================
@@ -659,16 +490,16 @@ module ysyx_26030082 #(
     reg  [31:0] pmu_event_mask;
 
     // Direct hierarchical reads: simulation-only, no extra submodule ports.
-    assign pmu_ifu_r_fire = id_valid && id_ready;
+    assign pmu_ifu_r_fire = fetch_valid && fetch_ready;
     assign pmu_ifu_nosupply = !pmu_ifu_r_fire;
     assign pmu_lsu_r_fire = lsu.r_fire;
     assign pmu_lsu_load_req = (lsu.state == PMU_LSU_IDLE) && ls_in_valid && lsu.ls_is_load;
     assign pmu_lsu_load_pending = (lsu.state == PMU_LSU_RD_AR) || (lsu.state == PMU_LSU_RD_WAIT_R);
     assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
-    assign pmu_dec_total = !flush && id_issue_valid && ex_in_ready && have_inst_ID;
+    assign pmu_dec_total = !ifu.flush && ex_out_valid && ex_out_ready && ex_have_inst;
     assign pmu_icache_miss_refill_busy =
-        (icache.state == PMU_ICACHE_MISS_AR) ||
-        (icache.state == PMU_ICACHE_MISS_R);
+        (ifu.state == PMU_ICACHE_MISS_AR) ||
+        (ifu.state == PMU_ICACHE_MISS_R);
 
     always @(*) begin
         pmu_event_mask = 32'b0;
@@ -679,9 +510,9 @@ module ysyx_26030082 #(
             end
             if (pmu_ifu_nosupply) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
-                if (flush || icache.need_flush) begin
+                if (ifu.flush || ifu.need_flush) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
-                end else if (id_valid && !id_ready) begin
+                end else if (fetch_valid && !fetch_ready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;
                 end else if (ifu_axi_arvalid && !ifu_axi_arready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_ARREADY;
@@ -689,10 +520,10 @@ module ysyx_26030082 #(
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
                 end
             end
-            if (icache.lookup_resp_valid) begin
+            if (fetch_valid) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_HIT;
             end
-            if ((icache.state == PMU_ICACHE_LOOKUP) && icache.cache_miss) begin
+            if ((ifu.state == PMU_ICACHE_LOOKUP) && ifu.cache_miss) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_MISS;
             end
             if (pmu_icache_miss_refill_busy) begin

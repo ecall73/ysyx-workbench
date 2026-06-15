@@ -9,8 +9,8 @@ module ysyx_26030082_RF(
     input  wire [ 4:0] rR1,
     input  wire [ 4:0] rR2,
 
-    output reg  [31:0] rR1_data,
-    output reg  [31:0] rR2_data
+    output wire [31:0] rR1_data,
+    output wire [31:0] rR2_data
 );
 
     reg [31:0] reg_bank [1:15];
@@ -21,9 +21,7 @@ module ysyx_26030082_RF(
         end
     end
 
-    always @(*) begin
-        rR1_data = (rR1 == 5'd0 || rR1[4]) ? 32'b0 : reg_bank[rR1[3:0]];
-        rR2_data = (rR2 == 5'd0 || rR2[4]) ? 32'b0 : reg_bank[rR2[3:0]];
-    end
+    assign rR1_data = (rR1 == 5'd0 || rR1[4]) ? 32'b0 : reg_bank[rR1[3:0]];
+    assign rR2_data = (rR2 == 5'd0 || rR2[4]) ? 32'b0 : reg_bank[rR2[3:0]];
 
 endmodule
