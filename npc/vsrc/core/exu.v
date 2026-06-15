@@ -132,6 +132,8 @@ module ysyx_26030082_exu (
     wire        branch_cmp_result;
     wire        branch_taken;
     wire        jump_taken;
+    reg         redirect_valid_r;
+    reg  [31:0] redirect_target_r;
 
     // CSR.
     reg  [31:0] csr_mstatus;
@@ -290,8 +292,32 @@ module ysyx_26030082_exu (
                                              : bru_cmp_eq;
     assign branch_taken = op_branch && (branch_cmp_result ^ dec_funct3[0]);
     assign jump_taken = op_jal || op_jalr;
-    assign ex_Redirect = fetch_valid && (jump_taken || branch_taken);
-    assign ex_RedirectTarget = op_jalr ? {alu_result_r[31:1], 1'b0} : alu_result_r;
+
+    always @(*) begin
+        redirect_valid_r = 1'b0;
+        redirect_target_r = alu_result_r;
+
+        case (dec_opcode)
+            OP_B_TYPE: begin
+                redirect_valid_r = branch_taken;
+            end
+
+            OP_J_TYPE: begin
+                redirect_valid_r = 1'b1;
+            end
+
+            OP_IJ_TYPE: begin
+                redirect_valid_r = 1'b1;
+                redirect_target_r = {alu_result_r[31:1], 1'b0};
+            end
+
+            default: begin
+            end
+        endcase
+    end
+
+    assign ex_Redirect = fetch_valid && redirect_valid_r;
+    assign ex_RedirectTarget = redirect_target_r;
     assign ex_FenceI = fetch_valid && op_fencei;
 
     // CSR and writeback side data.
