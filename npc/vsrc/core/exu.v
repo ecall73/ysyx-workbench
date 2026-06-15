@@ -21,7 +21,6 @@ module ysyx_26030082_exu (
     output wire [ 2:0] ex_funct3,
     output wire [ 4:0] ex_rf_waddr,
     output reg  [31:0] ex_alu_result,
-    output wire [31:0] ex_pc4,
     output reg         ex_redirect,
     output reg  [31:0] ex_redirect_pc,
     output reg  [31:0] ex_wdata,
@@ -61,14 +60,12 @@ module ysyx_26030082_exu (
 
     localparam [31:0] CAUSE_ECALL = 32'd11;
 
-    // Decode / former IDU logic.
+    // Common decode fields.
     wire [6:0] opcode;
     wire       funct7_5;
     wire [4:0] rf_raddr1;
     wire [4:0] rf_raddr2;
     wire [11:0] csr_addr;
-    reg  [31:0] imm;
-
     wire       op_rtype;
     wire       op_itype;
     wire       op_load;
@@ -79,12 +76,12 @@ module ysyx_26030082_exu (
     wire       op_jal;
     wire       op_jalr;
     wire       op_system;
-    wire       op_csr;
     wire       op_misc_mem;
     wire       rs1_used;
     wire       rs2_used;
+    wire       ex_fire;
 
-    // RF read data selection and EX/LS dependency handling.
+    // RF + forward.
     reg  [31:0] reg_bank [1:15];
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
@@ -94,10 +91,11 @@ module ysyx_26030082_exu (
     wire [31:0] rf_rdata1_forward;
     wire [31:0] rf_rdata2_forward;
 
-    // Execute common control.
-    wire        ex_fire;
+    // Immediate.
+    reg  [31:0] imm;
 
     // ALU.
+    wire [31:0] pc4;
     wire [31:0] alu_logic_rhs;
     wire [31:0] alu_add_lhs;
     wire [31:0] alu_add_rhs;
@@ -136,15 +134,6 @@ module ysyx_26030082_exu (
     assign rf_raddr2 = fetch_inst[24:20];
     assign csr_addr = fetch_inst[31:20];
 
-    always @(posedge clock) begin
-        if (rf_wen & (rf_waddr != 5'd0) & ~rf_waddr[4]) begin
-            reg_bank[rf_waddr[3:0]] <= rf_wdata;
-        end
-    end
-
-    assign rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
-    assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
-
     assign op_rtype    = opcode == OPCODE_OP;
     assign op_itype    = opcode == OPCODE_OP_IMM;
     assign op_load     = opcode == OPCODE_LOAD;
@@ -155,33 +144,27 @@ module ysyx_26030082_exu (
     assign op_jal      = opcode == OPCODE_JAL;
     assign op_jalr     = opcode == OPCODE_JALR;
     assign op_system   = opcode == OPCODE_SYSTEM;
-    assign op_csr      = op_system && (ex_funct3 != 3'b000);
     assign op_misc_mem = opcode == OPCODE_MISC_MEM;
 
-    assign rs1_used = op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
-                      (op_csr && ~ex_funct3[2]);
-    assign rs2_used = op_rtype | op_store | op_branch;
-
-    always @(*) begin
-        case (opcode)
-            OPCODE_OP_IMM,
-            OPCODE_LOAD,
-            OPCODE_JALR:  imm = {{20{fetch_inst[31]}}, fetch_inst[31:20]};
-            OPCODE_STORE:   imm = {{20{fetch_inst[31]}}, fetch_inst[31:25], fetch_inst[11:7]};
-            OPCODE_BRANCH:   imm = {{20{fetch_inst[31]}}, fetch_inst[7], fetch_inst[30:25], fetch_inst[11:8], 1'b0};
-            OPCODE_LUI,
-            OPCODE_AUIPC:  imm = {fetch_inst[31:12], 12'b0};
-            OPCODE_JAL:   imm = {{12{fetch_inst[31]}}, fetch_inst[19:12], fetch_inst[20], fetch_inst[30:21], 1'b0};
-            OPCODE_SYSTEM: imm = {27'b0, fetch_inst[19:15]};
-            default:     imm = 32'b0;
-        endcase
+    // RF + forward.
+    always @(posedge clock) begin
+        if (rf_wen & (rf_waddr != 5'd0) & ~rf_waddr[4]) begin
+            reg_bank[rf_waddr[3:0]] <= rf_wdata;
+        end
     end
+
+    assign rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
+    assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
 
     assign forward_ls_rs1 = (rf_raddr1 == rf_waddr) && rf_wen && (rf_waddr != 5'b0);
     assign forward_ls_rs2 = (rf_raddr2 == rf_waddr) && rf_wen && (rf_waddr != 5'b0);
 
     assign rf_rdata1_forward = forward_ls_rs1 ? rf_wdata : rf_rdata1;
     assign rf_rdata2_forward = forward_ls_rs2 ? rf_wdata : rf_rdata2;
+
+    assign rs1_used = op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
+                      (op_system && (ex_funct3 != F3_PRIV) && ~ex_funct3[2]);
+    assign rs2_used = op_rtype | op_store | op_branch;
 
     assign load_use_hazard = ls_load_pending &&
                              (rf_waddr != 5'b0) &&
@@ -199,8 +182,24 @@ module ysyx_26030082_exu (
     assign ex_have_inst = op_rtype | op_itype | op_load | op_jalr | op_store |
                           op_branch | op_lui | op_auipc | op_jal | op_system | op_misc_mem;
 
+    // Immediate.
+    always @(*) begin
+        case (opcode)
+            OPCODE_OP_IMM,
+            OPCODE_LOAD,
+            OPCODE_JALR:  imm = {{20{fetch_inst[31]}}, fetch_inst[31:20]};
+            OPCODE_STORE:   imm = {{20{fetch_inst[31]}}, fetch_inst[31:25], fetch_inst[11:7]};
+            OPCODE_BRANCH:   imm = {{20{fetch_inst[31]}}, fetch_inst[7], fetch_inst[30:25], fetch_inst[11:8], 1'b0};
+            OPCODE_LUI,
+            OPCODE_AUIPC:  imm = {fetch_inst[31:12], 12'b0};
+            OPCODE_JAL:   imm = {{12{fetch_inst[31]}}, fetch_inst[19:12], fetch_inst[20], fetch_inst[30:21], 1'b0};
+            OPCODE_SYSTEM: imm = {27'b0, fetch_inst[19:15]};
+            default:     imm = 32'b0;
+        endcase
+    end
+
     // ALU.
-    assign ex_pc4 = fetch_pc + 32'd4;
+    assign pc4 = fetch_pc + 32'd4;
     assign alu_logic_rhs = op_rtype ? rf_rdata2_forward : imm;
     assign alu_add_lhs = (op_auipc | op_jal | op_branch) ? fetch_pc : rf_rdata1_forward;
     assign alu_add_rhs = op_rtype ? rf_rdata2_forward : imm;
@@ -300,7 +299,7 @@ module ysyx_26030082_exu (
             OPCODE_MISC_MEM: begin
                 if (ex_funct3 == 3'b001) begin
                     ex_redirect = 1'b1;
-                    ex_redirect_pc = ex_pc4;
+                    ex_redirect_pc = pc4;
                     ex_fence_i = 1'b1;
                 end
             end
@@ -337,7 +336,7 @@ module ysyx_26030082_exu (
 
             OPCODE_JAL,
             OPCODE_JALR: begin
-                ex_wdata = ex_pc4;
+                ex_wdata = pc4;
             end
 
             OPCODE_STORE: begin

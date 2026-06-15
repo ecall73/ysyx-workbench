@@ -129,7 +129,6 @@ module ysyx_26030082 #(
     wire [ 2:0] ex_funct3;
     wire [ 4:0] ex_rf_waddr;
     wire [31:0] ex_alu_result;
-    wire [31:0] ex_pc4;
     wire        ex_redirect;
     wire [31:0] ex_redirect_pc;
     wire [31:0] ex_wdata;
@@ -273,7 +272,6 @@ module ysyx_26030082 #(
         .ex_funct3              (ex_funct3),
         .ex_rf_waddr            (ex_rf_waddr),
         .ex_alu_result          (ex_alu_result),
-        .ex_pc4                 (ex_pc4),
         .ex_redirect            (ex_redirect),
         .ex_redirect_pc         (ex_redirect_pc),
         .ex_wdata               (ex_wdata),
