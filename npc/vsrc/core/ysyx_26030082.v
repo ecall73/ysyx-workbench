@@ -107,7 +107,7 @@ module ysyx_26030082 #(
             if (idx == 0) begin
                 npc_get_gpr = 0;
             end else if (idx > 0 && idx < 16) begin
-                npc_get_gpr = exu.RF.reg_bank[idx];
+                npc_get_gpr = exu.reg_bank[idx];
             end else begin
                 npc_get_gpr = 0;
             end

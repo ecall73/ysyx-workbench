@@ -86,6 +86,7 @@ module ysyx_26030082_exu (
     wire       rs2_used;
 
     // RF read data selection and EX/LS dependency handling.
+    reg  [31:0] reg_bank [1:15];
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
     wire        forward_ls_rs1;
@@ -135,20 +136,14 @@ module ysyx_26030082_exu (
     assign rf_raddr2 = fetch_inst[24:20];
     assign csr_addr = fetch_inst[31:20];
 
-    ysyx_26030082_RF RF (
-        .clock                  (clock),
-        .reset                  (reset),
+    always @(posedge clock) begin
+        if (rf_wen & (rf_waddr != 5'd0) & ~rf_waddr[4]) begin
+            reg_bank[rf_waddr[3:0]] <= rf_wdata;
+        end
+    end
 
-        .rf_wen                 (rf_wen),
-        .rf_waddr               (rf_waddr),
-        .rf_wdata               (rf_wdata),
-
-        .rf_raddr1              (rf_raddr1),
-        .rf_raddr2              (rf_raddr2),
-
-        .rf_rdata1              (rf_rdata1),
-        .rf_rdata2              (rf_rdata2)
-    );
+    assign rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
+    assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
 
     assign op_rtype    = opcode == OPCODE_OP;
     assign op_itype    = opcode == OPCODE_OP_IMM;
