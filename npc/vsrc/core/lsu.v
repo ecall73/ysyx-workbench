@@ -13,7 +13,6 @@ module ysyx_26030082_lsu (
     input  wire        ls_MemRead,
     input  wire [31:0] ls_rR2_data,
     input  wire [31:0] ls_RFwdata,
-    input  wire [63:0] ls_mtime,
 
     // LSU AXI4-Lite interface
     // Read address channel
@@ -57,6 +56,7 @@ module ysyx_26030082_lsu (
     reg  [2:0]  state;
     reg         wr_aw_done;
     reg         wr_w_done;
+    reg  [63:0] mtime;
 
     wire        ls_is_mem;
     wire        ls_is_load;
@@ -88,8 +88,8 @@ module ysyx_26030082_lsu (
     assign w_fire = lsu_axi_wvalid && lsu_axi_wready;
     assign b_fire = lsu_axi_bvalid && lsu_axi_bready;
     assign ls_offset = ls_ALUResult[1:0];
-    assign ls_local_rdata = (ls_ALUResult == MTIME_ADDR)  ? ls_mtime[31:0]  :
-                            (ls_ALUResult == MTIMEH_ADDR) ? ls_mtime[63:32] :
+    assign ls_local_rdata = (ls_ALUResult == MTIME_ADDR)  ? mtime[31:0]  :
+                            (ls_ALUResult == MTIMEH_ADDR) ? mtime[63:32] :
                             32'b0;
     assign ls_load_raw_data = ls_is_local_load ? ls_local_rdata : lsu_axi_rdata;
 
@@ -215,10 +215,12 @@ module ysyx_26030082_lsu (
 
     always @(posedge clock) begin
         if (reset) begin
+            mtime <= 64'b0;
             state <= L_IDLE;
             wr_aw_done <= 1'b0;
             wr_w_done <= 1'b0;
         end else begin
+            mtime <= mtime + 64'd1;
             case (state)
                 L_IDLE: begin
                     wr_aw_done <= 1'b0;

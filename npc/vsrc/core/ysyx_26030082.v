@@ -193,7 +193,6 @@ module ysyx_26030082 #(
     wire [ 1:0] lsu_axi_bresp;
     wire        lsu_axi_bvalid;
     wire        lsu_axi_bready;
-    reg  [63:0] mtime;
 
     // Debug Interface
     `ifndef SYNTHESIS
@@ -207,13 +206,6 @@ module ysyx_26030082 #(
 
 ////////////////////////////////////////////////////////////////
 
-    always @(posedge clock) begin
-        if (reset) begin
-            mtime <= 64'b0;
-        end else begin
-            mtime <= mtime + 64'd1;
-        end
-    end
     ysyx_26030082_icache #(
         .RESET_PC               (RESET_PC),
         .LINE_WORDS             (4),
@@ -349,8 +341,6 @@ module ysyx_26030082 #(
         .ls_MemRead             (ls_MemRead),
         .ls_rR2_data            (ls_rR2_data),
         .ls_RFwdata             (ls_RFwdata),
-
-        .ls_mtime               (mtime),
 
         .lsu_axi_araddr         (lsu_axi_araddr),
         .lsu_axi_arsize         (lsu_axi_arsize),
