@@ -148,7 +148,7 @@ module ysyx_26030082_exu (
     assign op_system   = opcode == OPCODE_SYSTEM;
     assign op_csr      = op_system && (ex_funct3 != 3'b000);
     assign op_misc_mem = opcode == OPCODE_MISC_MEM;
-    assign op_fencei   = fetch_inst == 32'h0000_100f;
+    assign op_fencei   = op_misc_mem && (ex_funct3 == 3'b001);
 
     assign rs1_used = op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
                       (op_csr && ~ex_funct3[2]);
