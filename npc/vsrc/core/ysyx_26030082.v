@@ -138,8 +138,6 @@ module ysyx_26030082 #(
     wire [31:0] ex_WBAltData;
     wire        ex_WBUseAlt;
     wire        ex_FenceI;
-    wire [31:0] ex_CSRnpc;
-    wire        ex_CSRjump;
     wire        ex_have_inst;
     wire        ex_out_valid;
     wire        ex_out_ready;
@@ -228,11 +226,8 @@ module ysyx_26030082 #(
 
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
-        .ex_pc4                 (ex_pc4),
         .ex_Redirect            (ex_Redirect),
         .ex_RedirectTarget      (ex_RedirectTarget),
-        .ex_CSRjump             (ex_CSRjump),
-        .ex_CSRnpc              (ex_CSRnpc),
         .ex_FenceI              (ex_FenceI),
 
         .fetch_valid            (fetch_valid),
@@ -298,8 +293,6 @@ module ysyx_26030082 #(
         .ex_pc4                 (ex_pc4),
         .ex_Redirect            (ex_Redirect),
         .ex_RedirectTarget      (ex_RedirectTarget),
-        .ex_CSRjump             (ex_CSRjump),
-        .ex_CSRnpc              (ex_CSRnpc),
         .ex_WBAltData           (ex_WBAltData),
         .ex_WBUseAlt            (ex_WBUseAlt),
         .ex_FenceI              (ex_FenceI),

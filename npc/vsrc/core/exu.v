@@ -27,8 +27,6 @@ module ysyx_26030082_exu (
     output wire [31:0] ex_pc4,
     output wire        ex_Redirect,
     output wire [31:0] ex_RedirectTarget,
-    output wire        ex_CSRjump,
-    output wire [31:0] ex_CSRnpc,
     output wire [31:0] ex_WBAltData,
     output wire        ex_WBUseAlt,
     output wire        ex_FenceI,
@@ -142,7 +140,6 @@ module ysyx_26030082_exu (
     reg  [31:0] csr_rdata;
     wire [31:0] csr_wdata;
     wire        csr_priv;
-    wire        csr_ecall;
 
     assign dec_opcode = fetch_inst[6:0];
     assign dec_funct3 = fetch_inst[14:12];
@@ -309,6 +306,20 @@ module ysyx_26030082_exu (
                 redirect_target_r = {alu_result_r[31:1], 1'b0};
             end
 
+            OP_CSR_TYPE: begin
+                if (dec_funct3 == 3'b000) begin
+                    redirect_valid_r = 1'b1;
+                    redirect_target_r = (csr_addr == INST_ECALL) ? {csr_mtvec[31:2], 2'b0} : csr_mepc;
+                end
+            end
+
+            7'b000_1111: begin
+                if (op_fencei) begin
+                    redirect_valid_r = 1'b1;
+                    redirect_target_r = ex_pc4;
+                end
+            end
+
             default: begin
             end
         endcase
@@ -321,10 +332,6 @@ module ysyx_26030082_exu (
     // CSR and writeback side data.
     assign csr_wdata = dec_funct3[2] ? dec_imm : rs1_data;
     assign csr_priv = op_system && (dec_funct3 == 3'b000);
-    assign csr_ecall = csr_priv && (csr_addr == INST_ECALL);
-
-    assign ex_CSRjump = csr_priv;
-    assign ex_CSRnpc = csr_ecall ? {csr_mtvec[31:2], 2'b0} : csr_mepc;
 
     always @(*) begin
         case (csr_addr)

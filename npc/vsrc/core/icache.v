@@ -9,11 +9,8 @@ module ysyx_26030082_icache #(
     // EX retire feedback
     input  wire        ex_out_valid,
     input  wire        ex_out_ready,
-    input  wire [31:0] ex_pc4,
     input  wire        ex_Redirect,
     input  wire [31:0] ex_RedirectTarget,
-    input  wire        ex_CSRjump,
-    input  wire [31:0] ex_CSRnpc,
     input  wire        ex_FenceI,
 
     // Frontend response interface
@@ -76,7 +73,6 @@ module ysyx_26030082_icache #(
     wire               commit_fire;
     wire               flush;
     wire               invalidate;
-    wire               redirect;
     wire [31:0] miss_line_base;
 
     assign lookup_word_offset =
@@ -92,9 +88,8 @@ module ysyx_26030082_icache #(
     assign lookup_resp_valid = (state == S_LOOKUP) && cache_hit;
 
     assign commit_fire = ex_out_valid && ex_out_ready;
-    assign redirect = commit_fire && (ex_CSRjump || ex_Redirect);
+    assign flush = commit_fire && ex_Redirect;
     assign invalidate = commit_fire && ex_FenceI;
-    assign flush = redirect || invalidate;
     assign fetch_valid = lookup_resp_valid;
     assign fetch_pc = pc_r;
     assign fetch_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
@@ -123,9 +118,7 @@ module ysyx_26030082_icache #(
             valid_array <= {LINE_COUNT{1'b0}};
         end else begin
             if (flush) begin
-                pc_r <= ex_CSRjump ? ex_CSRnpc :
-                        ex_Redirect ? ex_RedirectTarget :
-                        ex_pc4;
+                pc_r <= ex_RedirectTarget;
             end else if (req_fire) begin
                 pc_r <= pc_r + 32'd4;
             end
