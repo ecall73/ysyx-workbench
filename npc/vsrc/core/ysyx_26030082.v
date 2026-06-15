@@ -214,11 +214,11 @@ module ysyx_26030082 #(
             mtime <= mtime + 64'd1;
         end
     end
-    ysyx_26030082_icache #(
+    ysyx_26030082_ifu #(
         .RESET_PC               (RESET_PC),
         .LINE_WORDS             (4),
         .LINE_COUNT             (4)
-    ) icache (
+    ) ifu (
         .clock                  (clock),
         .reset                  (reset),
 
@@ -496,10 +496,10 @@ module ysyx_26030082 #(
     assign pmu_lsu_load_req = (lsu.state == PMU_LSU_IDLE) && ls_in_valid && lsu.ls_is_load;
     assign pmu_lsu_load_pending = (lsu.state == PMU_LSU_RD_AR) || (lsu.state == PMU_LSU_RD_WAIT_R);
     assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
-    assign pmu_dec_total = !icache.flush && ex_out_valid && ex_out_ready && ex_have_inst;
+    assign pmu_dec_total = !ifu.flush && ex_out_valid && ex_out_ready && ex_have_inst;
     assign pmu_icache_miss_refill_busy =
-        (icache.state == PMU_ICACHE_MISS_AR) ||
-        (icache.state == PMU_ICACHE_MISS_R);
+        (ifu.state == PMU_ICACHE_MISS_AR) ||
+        (ifu.state == PMU_ICACHE_MISS_R);
 
     always @(*) begin
         pmu_event_mask = 32'b0;
@@ -510,7 +510,7 @@ module ysyx_26030082 #(
             end
             if (pmu_ifu_nosupply) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
-                if (icache.flush || icache.need_flush) begin
+                if (ifu.flush || ifu.need_flush) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
                 end else if (fetch_valid && !fetch_ready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;
@@ -520,10 +520,10 @@ module ysyx_26030082 #(
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
                 end
             end
-            if (icache.lookup_resp_valid) begin
+            if (ifu.lookup_resp_valid) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_HIT;
             end
-            if ((icache.state == PMU_ICACHE_LOOKUP) && icache.cache_miss) begin
+            if ((ifu.state == PMU_ICACHE_LOOKUP) && ifu.cache_miss) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_MISS;
             end
             if (pmu_icache_miss_refill_busy) begin

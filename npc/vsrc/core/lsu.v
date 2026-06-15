@@ -51,7 +51,7 @@ module ysyx_26030082_lsu (
     localparam L_WR_AW_W   = 3'd3;
     localparam L_WR_WAIT_B = 3'd4;
     localparam [15:0] CLINT_BASE_HI     = 16'h0200;
-    localparam [13:0] MTIME_WORD_OFFSET = 14'h2ffe;
+    localparam [13:0] MTIME_WORD_OFFSET  = 14'h2ffe;
     localparam [13:0] MTIMEH_WORD_OFFSET = 14'h2fff;
 
     reg  [2:0]  state;
