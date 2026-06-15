@@ -69,7 +69,7 @@ module ysyx_26030082_lsu (
     wire        w_fire;
     wire        b_fire;
     wire [1:0]  ls_offset;
-    wire [31:0] ls_local_rdata;
+    reg  [31:0] ls_local_rdata;
     wire [31:0] ls_load_raw_data;
     reg  [3:0]  ls_wmask_calc;
     reg  [31:0] ls_wdata_aligned;
@@ -88,10 +88,15 @@ module ysyx_26030082_lsu (
     assign w_fire = lsu_axi_wvalid && lsu_axi_wready;
     assign b_fire = lsu_axi_bvalid && lsu_axi_bready;
     assign ls_offset = ls_ALUResult[1:0];
-    assign ls_local_rdata = (ls_ALUResult[15:0] == MTIME_OFFSET)  ? ls_mtime[31:0]  :
-                            (ls_ALUResult[15:0] == MTIMEH_OFFSET) ? ls_mtime[63:32] :
-                            32'b0;
     assign ls_load_raw_data = ls_is_local_load ? ls_local_rdata : lsu_axi_rdata;
+
+    always @(*) begin
+        case (ls_ALUResult[15:0])
+            MTIME_OFFSET:  ls_local_rdata = ls_mtime[31:0];
+            MTIMEH_OFFSET: ls_local_rdata = ls_mtime[63:32];
+            default:       ls_local_rdata = 32'b0;
+        endcase
+    end
 
     // Non-memory ops pass through in IDLE with zero extra delay.
     // For memory ops, ls_in_ready is only released when R/B handshakes.
