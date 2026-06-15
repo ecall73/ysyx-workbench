@@ -126,14 +126,13 @@ module ysyx_26030082 #(
     wire        ex_rf_wen;
     wire        ex_mem_ren;
     wire        ex_mem_wen;
-    wire [31:0] ex_rf_rdata2;
     wire [ 2:0] ex_funct3;
     wire [ 4:0] ex_rf_waddr;
     wire [31:0] ex_alu_result;
     wire [31:0] ex_pc4;
     wire        ex_redirect;
     wire [31:0] ex_redirect_pc;
-    wire [31:0] ex_rf_wdata;
+    wire [31:0] ex_wdata;
     wire        ex_fence_i;
     wire        ex_have_inst;
     wire        ex_out_valid;
@@ -144,11 +143,10 @@ module ysyx_26030082 #(
     reg         ls_rf_wen;
     reg         ls_mem_ren;
     reg         ls_mem_wen;
-    reg  [31:0] ls_rf_rdata2;
     reg  [ 2:0] ls_funct3;
     reg  [ 4:0] ls_rf_waddr;
     reg  [31:0] ls_alu_result;
-    reg  [31:0] ls_rf_wdata;
+    reg  [31:0] ls_wdata;
     wire        ls_in_ready;
     wire        ls_out_valid;
     wire        rf_wen;
@@ -248,7 +246,7 @@ module ysyx_26030082 #(
 
     assign rf_wen = ls_out_valid && ls_rf_wen;
     assign rf_waddr = ls_rf_waddr;
-    assign rf_wdata = ls_mem_ren ? ls_mem_rdata : ls_rf_wdata;
+    assign rf_wdata = ls_mem_ren ? ls_mem_rdata : ls_wdata;
 
     // EX -> LS handshake coupling
     assign ex_out_ready = ls_in_ready;
@@ -272,14 +270,13 @@ module ysyx_26030082 #(
         .ex_rf_wen              (ex_rf_wen),
         .ex_mem_ren             (ex_mem_ren),
         .ex_mem_wen             (ex_mem_wen),
-        .ex_rf_rdata2           (ex_rf_rdata2),
         .ex_funct3              (ex_funct3),
         .ex_rf_waddr            (ex_rf_waddr),
         .ex_alu_result          (ex_alu_result),
         .ex_pc4                 (ex_pc4),
         .ex_redirect            (ex_redirect),
         .ex_redirect_pc         (ex_redirect_pc),
-        .ex_rf_wdata            (ex_rf_wdata),
+        .ex_wdata               (ex_wdata),
         .ex_fence_i             (ex_fence_i),
         .ex_have_inst           (ex_have_inst)
     );
@@ -295,10 +292,9 @@ module ysyx_26030082 #(
             ls_rf_wen <= ex_rf_wen;
             ls_mem_wen <= ex_mem_wen;
             ls_alu_result <= ex_alu_result;
-            ls_rf_rdata2 <= ex_rf_rdata2;
             ls_funct3 <= ex_funct3;
             ls_rf_waddr <= ex_rf_waddr;
-            ls_rf_wdata <= ex_rf_wdata;
+            ls_wdata <= ex_wdata;
             ls_mem_ren <= ex_mem_ren;
         end
     end
@@ -335,7 +331,7 @@ module ysyx_26030082 #(
         .ls_funct3              (ls_funct3),
         .ls_mem_wen             (ls_mem_wen),
         .ls_mem_ren             (ls_mem_ren),
-        .ls_rf_rdata2           (ls_rf_rdata2),
+        .ls_wdata               (ls_wdata),
 
         .ls_mtime               (mtime),
 

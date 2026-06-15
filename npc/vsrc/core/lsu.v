@@ -11,7 +11,7 @@ module ysyx_26030082_lsu (
     input  wire [ 2:0] ls_funct3,
     input  wire        ls_mem_wen,
     input  wire        ls_mem_ren,
-    input  wire [31:0] ls_rf_rdata2,
+    input  wire [31:0] ls_wdata,
     input  wire [63:0] ls_mtime,
 
     // LSU AXI4-Lite interface
@@ -124,7 +124,7 @@ module ysyx_26030082_lsu (
     // Store alignment
     always @(*) begin
         ls_wmask_calc = 4'b0000;
-        ls_wdata_aligned = ls_rf_rdata2;
+        ls_wdata_aligned = ls_wdata;
         ls_axi_size = 3'b010;
         case (ls_funct3)
             3'b000: begin // sb
@@ -132,19 +132,19 @@ module ysyx_26030082_lsu (
                 case (ls_offset)
                     2'b00: begin
                         ls_wmask_calc = 4'b0001;
-                        ls_wdata_aligned = {24'b0, ls_rf_rdata2[7:0]};
+                        ls_wdata_aligned = {24'b0, ls_wdata[7:0]};
                     end
                     2'b01: begin
                         ls_wmask_calc = 4'b0010;
-                        ls_wdata_aligned = {16'b0, ls_rf_rdata2[7:0], 8'b0};
+                        ls_wdata_aligned = {16'b0, ls_wdata[7:0], 8'b0};
                     end
                     2'b10: begin
                         ls_wmask_calc = 4'b0100;
-                        ls_wdata_aligned = {8'b0, ls_rf_rdata2[7:0], 16'b0};
+                        ls_wdata_aligned = {8'b0, ls_wdata[7:0], 16'b0};
                     end
                     2'b11: begin
                         ls_wmask_calc = 4'b1000;
-                        ls_wdata_aligned = {ls_rf_rdata2[7:0], 24'b0};
+                        ls_wdata_aligned = {ls_wdata[7:0], 24'b0};
                     end
                 endcase
             end
@@ -153,11 +153,11 @@ module ysyx_26030082_lsu (
                 case (ls_offset[1])
                     1'b0: begin
                         ls_wmask_calc = 4'b0011;
-                        ls_wdata_aligned = {16'b0, ls_rf_rdata2[15:0]};
+                        ls_wdata_aligned = {16'b0, ls_wdata[15:0]};
                     end
                     1'b1: begin
                         ls_wmask_calc = 4'b1100;
-                        ls_wdata_aligned = {ls_rf_rdata2[15:0], 16'b0};
+                        ls_wdata_aligned = {ls_wdata[15:0], 16'b0};
                     end
                 endcase
             end
@@ -169,7 +169,7 @@ module ysyx_26030082_lsu (
             end
             default: begin // sw
                 ls_wmask_calc = 4'b1111;
-                ls_wdata_aligned = ls_rf_rdata2;
+                ls_wdata_aligned = ls_wdata;
             end
         endcase
     end

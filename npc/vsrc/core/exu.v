@@ -18,14 +18,13 @@ module ysyx_26030082_exu (
     output wire        ex_rf_wen,
     output wire        ex_mem_ren,
     output wire        ex_mem_wen,
-    output wire [31:0] ex_rf_rdata2,
     output wire [ 2:0] ex_funct3,
     output wire [ 4:0] ex_rf_waddr,
     output reg  [31:0] ex_alu_result,
     output wire [31:0] ex_pc4,
     output reg         ex_redirect,
     output reg  [31:0] ex_redirect_pc,
-    output reg  [31:0] ex_rf_wdata,
+    output reg  [31:0] ex_wdata,
     output reg         ex_fence_i,
     output wire        ex_have_inst
 );
@@ -93,6 +92,7 @@ module ysyx_26030082_exu (
     wire        forward_ls_rs2;
     wire        load_use_hazard;
     wire [31:0] rs1_data;
+    wire [31:0] rs2_data;
 
     // Execute common control.
     wire        ex_fire;
@@ -181,7 +181,7 @@ module ysyx_26030082_exu (
     assign forward_ls_rs2 = (rf_raddr2 == rf_waddr) && rf_wen && (rf_waddr != 5'b0);
 
     assign rs1_data = forward_ls_rs1 ? rf_wdata : rf_rdata1;
-    assign ex_rf_rdata2 = forward_ls_rs2 ? rf_wdata : rf_rdata2;
+    assign rs2_data = forward_ls_rs2 ? rf_wdata : rf_rdata2;
 
     assign load_use_hazard = ls_load_pending &&
                              (rf_waddr != 5'b0) &&
@@ -201,9 +201,9 @@ module ysyx_26030082_exu (
 
     // ALU.
     assign ex_pc4 = fetch_pc + 32'd4;
-    assign alu_logic_rhs = op_rtype ? ex_rf_rdata2 : imm;
+    assign alu_logic_rhs = op_rtype ? rs2_data : imm;
     assign alu_add_lhs = (op_auipc | op_jal | op_branch) ? fetch_pc : rs1_data;
-    assign alu_add_rhs = op_rtype ? ex_rf_rdata2 : imm;
+    assign alu_add_rhs = op_rtype ? rs2_data : imm;
     assign alu_sub_family = (op_rtype && ex_funct3 == 3'b000 && funct7_5) ||
                             ((op_rtype || op_itype) && (ex_funct3 == 3'b010 || ex_funct3 == 3'b011));
     assign alu_adder_rhs = alu_sub_family ? ~alu_add_rhs : alu_add_rhs;
@@ -264,9 +264,9 @@ module ysyx_26030082_exu (
     end
 
     // BRU / redirect.
-    assign bru_cmp_eq = (rs1_data == ex_rf_rdata2);
-    assign bru_cmp_lt = ($signed(rs1_data) < $signed(ex_rf_rdata2));
-    assign bru_cmp_ltu = (rs1_data < ex_rf_rdata2);
+    assign bru_cmp_eq = (rs1_data == rs2_data);
+    assign bru_cmp_lt = ($signed(rs1_data) < $signed(rs2_data));
+    assign bru_cmp_ltu = (rs1_data < rs2_data);
     assign branch_cmp_result = ex_funct3[2] ? (ex_funct3[1] ? bru_cmp_ltu : bru_cmp_lt)
                                              : bru_cmp_eq;
     assign branch_taken = op_branch && (branch_cmp_result ^ ex_funct3[0]);
@@ -328,20 +328,24 @@ module ysyx_26030082_exu (
     always @(*) begin
         case (opcode)
             OPCODE_LUI: begin
-                ex_rf_wdata = imm;
+                ex_wdata = imm;
             end
 
             OPCODE_SYSTEM: begin
-                ex_rf_wdata = csr_rdata;
+                ex_wdata = csr_rdata;
             end
 
             OPCODE_JAL,
             OPCODE_JALR: begin
-                ex_rf_wdata = ex_pc4;
+                ex_wdata = ex_pc4;
+            end
+
+            OPCODE_STORE: begin
+                ex_wdata = rs2_data;
             end
 
             default: begin
-                ex_rf_wdata = ex_alu_result;
+                ex_wdata = ex_alu_result;
             end
         endcase
     end
