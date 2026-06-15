@@ -51,22 +51,9 @@ module ysyx_26030082_exu (
     localparam [2:0] MEM_TO_REG_IMM  = 3'b011;
     localparam [2:0] MEM_TO_REG_CSR  = 3'b010;
 
-    localparam [3:0] ADD      = 4'b0000;
-    localparam [3:0] SUB      = 4'b1000;
-    localparam [3:0] SLL      = 4'b0001;
-    localparam [3:0] SLT      = 4'b0010;
-    localparam [3:0] SLTU     = 4'b0011;
-    localparam [3:0] XOR      = 4'b0100;
-    localparam [3:0] SRL      = 4'b0101;
-    localparam [3:0] SRA      = 4'b1101;
-    localparam [3:0] OR       = 4'b0110;
-    localparam [3:0] AND      = 4'b0111;
-    localparam [3:0] ERR      = 4'b1111;
-
     wire [6:0] opcode;
     wire [2:0] funct3;
     wire       funct7_5;
-    wire [3:0] funct;
     wire [4:0] rs1;
     wire [4:0] rs2;
     wire [31:0] imm;
@@ -83,20 +70,7 @@ module ysyx_26030082_exu (
     wire       op_jalr;
     wire       op_system;
     wire       op_csr;
-    wire       op_add;
-    wire       op_sub;
-    wire       op_and;
-    wire       op_or;
-    wire       op_xor;
-    wire       op_sll;
-    wire       op_srl;
-    wire       op_sra;
-    wire       op_slt;
-    wire       op_sltu;
-    wire [3:0] ALUControl;
     wire [2:0] MemToReg;
-    wire       ALUSrcA;
-    wire       ALUSrcB;
     wire       rs1_used;
     wire       rs2_used;
     wire       is_system;
@@ -119,11 +93,25 @@ module ysyx_26030082_exu (
     wire [31:0] redirect_target_sum;
     wire        ex_fire;
     reg  [31:0] imm_r;
+    reg  [31:0] alu_result_r;
+
+    wire [31:0] alu_b;
+    wire [31:0] add_lhs;
+    wire [31:0] add_rhs;
+    wire [31:0] add_result;
+    wire [31:0] sub_result;
+    wire [31:0] and_result;
+    wire [31:0] or_result;
+    wire [31:0] xor_result;
+    wire [31:0] sll_result;
+    wire [31:0] srl_result;
+    wire [31:0] sra_result;
+    wire [31:0] slt_result;
+    wire [31:0] sltu_result;
 
     assign opcode = fetch_inst[6:0];
     assign funct3 = fetch_inst[14:12];
     assign funct7_5 = fetch_inst[30];
-    assign funct = {funct7_5, funct3};
     assign rs1 = fetch_inst[19:15];
     assign rs2 = fetch_inst[24:20];
 
@@ -140,34 +128,6 @@ module ysyx_26030082_exu (
     assign op_fencei    = fetch_inst == 32'h0000_100f;
     assign op_system    = opcode == OP_CSR_TYPE;
     assign op_csr       = op_system && (funct3 != 3'b000);
-    assign op_add = (op_rtype && funct == 4'b0000) ||
-                    (op_itype && funct3 == 3'b000) ||
-                    op_load ||
-                    op_store ||
-                    op_jal ||
-                    op_auipc ||
-                    (op_jalr && funct3 == 3'b000);
-    assign op_sub = (op_rtype && funct == 4'b1000);
-    assign op_and = (op_rtype && funct == 4'b0111) || (op_itype && funct3 == 3'b111);
-    assign op_or = (op_rtype && funct == 4'b0110) || (op_itype && funct3 == 3'b110);
-    assign op_xor = (op_rtype && funct == 4'b0100) || (op_itype && funct3 == 3'b100);
-    assign op_sll = (op_rtype || op_itype) && (funct == 4'b0001);
-    assign op_srl = (op_rtype || op_itype) && (funct == 4'b0101);
-    assign op_sra = (op_rtype || op_itype) && (funct == 4'b1101);
-    assign op_sltu = (op_rtype && funct == 4'b0011) || (op_itype && funct3 == 3'b011);
-    assign op_slt = (op_rtype && funct == 4'b0010) || (op_itype && funct3 == 3'b010);
-
-    assign ALUControl = op_add  ? ADD  :
-                        op_sub  ? SUB  :
-                        op_and  ? AND  :
-                        op_or   ? OR   :
-                        op_xor  ? XOR  :
-                        op_sll  ? SLL  :
-                        op_srl  ? SRL  :
-                        op_sra  ? SRA  :
-                        op_slt  ? SLT  :
-                        op_sltu ? SLTU :
-                                  ERR;
 
     assign ex_RegWrite = fetch_valid && ~(op_branch | op_store | op_misc_mem);
     assign MemToReg = ({3{op_rtype}} & MEM_TO_REG_ALU) |
@@ -178,8 +138,6 @@ module ysyx_26030082_exu (
                       ({3{op_csr}} & MEM_TO_REG_CSR);
     assign ex_MemWrite = fetch_valid && op_store;
     assign ex_MemRead = MemToReg[2];
-    assign ALUSrcA = op_auipc | op_jal;
-    assign ALUSrcB = ~(op_rtype | op_misc_mem);
     assign rs1_used = op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
                       (op_csr && ~funct3[2]);
     assign rs2_used = op_rtype | op_store | op_branch;
@@ -206,6 +164,66 @@ module ysyx_26030082_exu (
     assign ex_rR2_data = rR2_data_forward;
 
     assign ex_pc4 = fetch_pc + 32'd4;
+
+    assign alu_b = op_rtype ? rR2_data_forward : imm;
+    assign add_lhs = (op_auipc | op_jal) ? fetch_pc : rR1_data_forward;
+    assign add_rhs = op_rtype ? rR2_data_forward : imm;
+    assign add_result = add_lhs + add_rhs;
+    assign sub_result = rR1_data_forward - rR2_data_forward;
+    assign and_result = rR1_data_forward & alu_b;
+    assign or_result = rR1_data_forward | alu_b;
+    assign xor_result = rR1_data_forward ^ alu_b;
+    assign sll_result = rR1_data_forward << alu_b[4:0];
+    assign srl_result = rR1_data_forward >> alu_b[4:0];
+    assign sra_result = ($signed(rR1_data_forward)) >>> alu_b[4:0];
+    assign slt_result = {31'b0, ($signed(rR1_data_forward) < $signed(alu_b))};
+    assign sltu_result = {31'b0, (rR1_data_forward < alu_b)};
+
+    always @(*) begin
+        case (opcode)
+            OP_R_TYPE: begin
+                case (funct3)
+                    3'b000:  alu_result_r = funct7_5 ? sub_result : add_result;
+                    3'b001:  alu_result_r = sll_result;
+                    3'b010:  alu_result_r = slt_result;
+                    3'b011:  alu_result_r = sltu_result;
+                    3'b100:  alu_result_r = xor_result;
+                    3'b101:  alu_result_r = funct7_5 ? sra_result : srl_result;
+                    3'b110:  alu_result_r = or_result;
+                    3'b111:  alu_result_r = and_result;
+                    default: alu_result_r = 32'b0;
+                endcase
+            end
+
+            OP_I_TYPE: begin
+                case (funct3)
+                    3'b000:  alu_result_r = add_result;
+                    3'b001:  alu_result_r = sll_result;
+                    3'b010:  alu_result_r = slt_result;
+                    3'b011:  alu_result_r = sltu_result;
+                    3'b100:  alu_result_r = xor_result;
+                    3'b101:  alu_result_r = funct7_5 ? sra_result : srl_result;
+                    3'b110:  alu_result_r = or_result;
+                    3'b111:  alu_result_r = and_result;
+                    default: alu_result_r = 32'b0;
+                endcase
+            end
+
+            OP_IL_TYPE,
+            OP_IJ_TYPE,
+            OP_S_TYPE,
+            OP_UA_TYPE,
+            OP_J_TYPE: begin
+                alu_result_r = add_result;
+            end
+
+            default: begin
+                alu_result_r = 32'b0;
+            end
+        endcase
+    end
+
+    assign ex_ALUResult = alu_result_r;
 
     assign bru_cmp_eq = (rR1_data_forward == rR2_data_forward);
     assign bru_cmp_lt = ($signed(rR1_data_forward) < $signed(rR2_data_forward));
@@ -245,17 +263,6 @@ module ysyx_26030082_exu (
     end
 
     assign imm = imm_r;
-
-    ysyx_26030082_ALU ALU (
-        .ALUSrcA    (ALUSrcA),
-        .ALUSrcB    (ALUSrcB),
-        .rR1_data   (rR1_data_forward),
-        .rR2_data   (rR2_data_forward),
-        .pc         (fetch_pc),
-        .imm        (imm),
-        .ALUControl (ALUControl),
-        .Result     (ex_ALUResult)
-    );
 
     ysyx_26030082_CSR CSR (
         .clock      (clock),
