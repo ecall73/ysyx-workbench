@@ -71,14 +71,11 @@ module ysyx_26030082_exu (
     wire       op_load;
     wire       op_store;
     wire       op_branch;
-    wire       op_lui;
     wire       op_auipc;
     wire       op_jal;
     wire       op_jalr;
     wire       op_system;
     wire       op_misc_mem;
-    wire       rs1_used;
-    wire       rs2_used;
 
     // RF + forward.
     reg  [31:0] reg_bank [1:15];
@@ -120,7 +117,6 @@ module ysyx_26030082_exu (
     reg  [31:0] csr_mepc;
     reg  [31:0] csr_mcause;
     reg  [31:0] csr_rdata;
-    wire [31:0] csr_wdata;
 
     assign opcode = fetch_inst[6:0];
     assign ex_funct3 = fetch_inst[14:12];
@@ -134,7 +130,6 @@ module ysyx_26030082_exu (
     assign op_load     = opcode == OPCODE_LOAD;
     assign op_store    = opcode == OPCODE_STORE;
     assign op_branch   = opcode == OPCODE_BRANCH;
-    assign op_lui      = opcode == OPCODE_LUI;
     assign op_auipc    = opcode == OPCODE_AUIPC;
     assign op_jal      = opcode == OPCODE_JAL;
     assign op_jalr     = opcode == OPCODE_JALR;
@@ -154,14 +149,13 @@ module ysyx_26030082_exu (
     assign rf_rdata1_forward = ((rf_raddr1 == rf_waddr) && rf_wen && (rf_waddr != 5'b0)) ? rf_wdata : rf_rdata1;
     assign rf_rdata2_forward = ((rf_raddr2 == rf_waddr) && rf_wen && (rf_waddr != 5'b0)) ? rf_wdata : rf_rdata2;
 
-    assign rs1_used = op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
-                      (op_system && (ex_funct3 != F3_PRIV) && ~ex_funct3[2]);
-    assign rs2_used = op_rtype | op_store | op_branch;
-
     assign load_use_hazard = ls_load_pending &&
                              (rf_waddr != 5'b0) &&
-                             ((rs1_used && (rf_raddr1 == rf_waddr)) ||
-                              (rs2_used && (rf_raddr2 == rf_waddr)));
+                             (((op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
+                                (op_system && (ex_funct3 != F3_PRIV) && ~ex_funct3[2])) &&
+                               (rf_raddr1 == rf_waddr)) ||
+                              ((op_rtype | op_store | op_branch) &&
+                               (rf_raddr2 == rf_waddr)));
 
     assign fetch_ready = ~fetch_valid || (~load_use_hazard && ex_out_ready);
     assign ex_out_valid = fetch_valid && ~load_use_hazard;
@@ -171,7 +165,7 @@ module ysyx_26030082_exu (
     assign ex_mem_ren = op_load;
     assign ex_rf_waddr = fetch_inst[11:7];
     assign ex_have_inst = op_rtype | op_itype | op_load | op_jalr | op_store |
-                          op_branch | op_lui | op_auipc | op_jal | op_system | op_misc_mem;
+                          op_branch | (opcode == OPCODE_LUI) | op_auipc | op_jal | op_system | op_misc_mem;
 
     // Immediate.
     always @(*) begin
@@ -299,8 +293,6 @@ module ysyx_26030082_exu (
     end
 
     // CSR and writeback side data.
-    assign csr_wdata = ex_funct3[2] ? imm : rf_rdata1_forward;
-
     always @(*) begin
         case (csr_addr)
             CSR_MSTATUS:   csr_rdata = csr_mstatus;
@@ -363,34 +355,61 @@ module ysyx_26030082_exu (
                     endcase
                 end
 
-                F3_CSRRW,
+                F3_CSRRW: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_mstatus <= rf_rdata1_forward;
+                        CSR_MTVEC:   csr_mtvec   <= rf_rdata1_forward;
+                        CSR_MEPC:    csr_mepc    <= rf_rdata1_forward;
+                        default: begin
+                        end
+                    endcase
+                end
+
                 F3_CSRRWI: begin
                     case (csr_addr)
-                        CSR_MSTATUS: csr_mstatus <= csr_wdata;
-                        CSR_MTVEC:   csr_mtvec   <= csr_wdata;
-                        CSR_MEPC:    csr_mepc    <= csr_wdata;
+                        CSR_MSTATUS: csr_mstatus <= imm;
+                        CSR_MTVEC:   csr_mtvec   <= imm;
+                        CSR_MEPC:    csr_mepc    <= imm;
                         default: begin
                         end
                     endcase
                 end
 
-                F3_CSRRS,
+                F3_CSRRS: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_mstatus <= csr_mstatus | rf_rdata1_forward;
+                        CSR_MTVEC:   csr_mtvec   <= csr_mtvec | rf_rdata1_forward;
+                        CSR_MEPC:    csr_mepc    <= csr_mepc | rf_rdata1_forward;
+                        default: begin
+                        end
+                    endcase
+                end
+
                 F3_CSRRSI: begin
                     case (csr_addr)
-                        CSR_MSTATUS: csr_mstatus <= csr_mstatus | csr_wdata;
-                        CSR_MTVEC:   csr_mtvec   <= csr_mtvec | csr_wdata;
-                        CSR_MEPC:    csr_mepc    <= csr_mepc | csr_wdata;
+                        CSR_MSTATUS: csr_mstatus <= csr_mstatus | imm;
+                        CSR_MTVEC:   csr_mtvec   <= csr_mtvec | imm;
+                        CSR_MEPC:    csr_mepc    <= csr_mepc | imm;
                         default: begin
                         end
                     endcase
                 end
 
-                F3_CSRRC,
+                F3_CSRRC: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_mstatus <= csr_mstatus & ~rf_rdata1_forward;
+                        CSR_MTVEC:   csr_mtvec   <= csr_mtvec & ~rf_rdata1_forward;
+                        CSR_MEPC:    csr_mepc    <= csr_mepc & ~rf_rdata1_forward;
+                        default: begin
+                        end
+                    endcase
+                end
+
                 F3_CSRRCI: begin
                     case (csr_addr)
-                        CSR_MSTATUS: csr_mstatus <= csr_mstatus & ~csr_wdata;
-                        CSR_MTVEC:   csr_mtvec   <= csr_mtvec & ~csr_wdata;
-                        CSR_MEPC:    csr_mepc    <= csr_mepc & ~csr_wdata;
+                        CSR_MSTATUS: csr_mstatus <= csr_mstatus & ~imm;
+                        CSR_MTVEC:   csr_mtvec   <= csr_mtvec & ~imm;
+                        CSR_MEPC:    csr_mepc    <= csr_mepc & ~imm;
                         default: begin
                         end
                     endcase
