@@ -520,7 +520,7 @@ module ysyx_26030082 #(
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
                 end
             end
-            if (ifu.lookup_resp_valid) begin
+            if (fetch_valid) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_HIT;
             end
             if ((ifu.state == PMU_ICACHE_LOOKUP) && ifu.cache_miss) begin

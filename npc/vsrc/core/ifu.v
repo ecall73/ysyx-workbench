@@ -63,10 +63,6 @@ module ysyx_26030082_ifu #(
 
     wire               cache_hit;
     wire               cache_miss;
-    wire               lookup_resp_valid;
-    wire [TAG_W-1:0]   lookup_rd_tag;
-    wire               lookup_rd_valid;
-    wire               req_space;
     wire               req_fire;
     wire               ar_fire;
     wire               r_fire;
@@ -81,21 +77,17 @@ module ysyx_26030082_ifu #(
     assign lookup_tag = pc_r[31 : OFFSET_W + INDEX_W];
     assign lookup_line = data_array[lookup_index];
 
-    assign lookup_rd_tag = tag_array[lookup_index];
-    assign lookup_rd_valid = valid_array[lookup_index];
-    assign cache_hit = lookup_rd_valid && (lookup_rd_tag == lookup_tag);
+    assign cache_hit = valid_array[lookup_index] && (tag_array[lookup_index] == lookup_tag);
     assign cache_miss = (state == S_LOOKUP) && !cache_hit;
-    assign lookup_resp_valid = (state == S_LOOKUP) && cache_hit;
 
     assign commit_fire = ex_out_valid && ex_out_ready;
     assign flush = commit_fire && ex_Redirect;
     assign invalidate = commit_fire && ex_FenceI;
-    assign fetch_valid = lookup_resp_valid;
+    assign fetch_valid = (state == S_LOOKUP) && cache_hit;
     assign fetch_pc = pc_r;
     assign fetch_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
 
-    assign req_space = fetch_valid && fetch_ready;
-    assign req_fire = req_space;
+    assign req_fire = fetch_valid && fetch_ready;
 
     assign miss_line_base = {miss_tag, miss_index, {OFFSET_W{1'b0}}};
     assign ifu_axi_araddr = miss_line_base;
