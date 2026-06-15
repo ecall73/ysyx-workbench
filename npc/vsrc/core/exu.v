@@ -58,12 +58,12 @@ module ysyx_26030082_exu (
     localparam [2:0] F3_CSRRSI = 3'b110;
     localparam [2:0] F3_CSRRCI = 3'b111;
 
-    localparam [2:0] F3_BRANCH_BEQ  = 3'b000;
-    localparam [2:0] F3_BRANCH_BNE  = 3'b001;
-    localparam [2:0] F3_BRANCH_BLT  = 3'b100;
-    localparam [2:0] F3_BRANCH_BGE  = 3'b101;
-    localparam [2:0] F3_BRANCH_BLTU = 3'b110;
-    localparam [2:0] F3_BRANCH_BGEU = 3'b111;
+    localparam [2:0] F3_BEQ  = 3'b000;
+    localparam [2:0] F3_BNE  = 3'b001;
+    localparam [2:0] F3_BLT  = 3'b100;
+    localparam [2:0] F3_BGE  = 3'b101;
+    localparam [2:0] F3_BLTU = 3'b110;
+    localparam [2:0] F3_BGEU = 3'b111;
 
     localparam [31:0] CAUSE_ECALL = 32'd11;
 
@@ -124,7 +124,8 @@ module ysyx_26030082_exu (
     reg  [31:0] csr_mepc;
     reg  [31:0] csr_mcause;
     reg  [31:0] csr_rdata;
-    wire [31:0] csr_wdata;
+    wire [31:0] csr_src_data;
+    reg  [31:0] csr_wdata;
 
     assign opcode = fetch_inst[6:0];
     assign ex_funct3 = fetch_inst[14:12];
@@ -268,12 +269,12 @@ module ysyx_26030082_exu (
         case (opcode)
             OPCODE_BRANCH: begin
                 case (ex_funct3)
-                    F3_BRANCH_BEQ:  ex_redirect = bru_cmp_eq;
-                    F3_BRANCH_BNE:  ex_redirect = ~bru_cmp_eq;
-                    F3_BRANCH_BLT:  ex_redirect = bru_cmp_lt;
-                    F3_BRANCH_BGE:  ex_redirect = ~bru_cmp_lt;
-                    F3_BRANCH_BLTU: ex_redirect = bru_cmp_ltu;
-                    F3_BRANCH_BGEU: ex_redirect = ~bru_cmp_ltu;
+                    F3_BEQ:  ex_redirect = bru_cmp_eq;
+                    F3_BNE:  ex_redirect = ~bru_cmp_eq;
+                    F3_BLT:  ex_redirect = bru_cmp_lt;
+                    F3_BGE:  ex_redirect = ~bru_cmp_lt;
+                    F3_BLTU: ex_redirect = bru_cmp_ltu;
+                    F3_BGEU: ex_redirect = ~bru_cmp_ltu;
                     default: begin
                     end
                 endcase
@@ -309,7 +310,7 @@ module ysyx_26030082_exu (
     end
 
     // CSR and writeback side data.
-    assign csr_wdata = ex_funct3[2] ? imm : rf_rdata1_forward;
+    assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
 
     always @(*) begin
         case (csr_addr)
@@ -320,6 +321,15 @@ module ysyx_26030082_exu (
             CSR_MVENDORID: csr_rdata = 32'h7973_7978;
             CSR_MARCHID:   csr_rdata = 32'd26030082;
             default:       csr_rdata = 32'b0;
+        endcase
+    end
+
+    always @(*) begin
+        case (ex_funct3[1:0])
+            2'b01:   csr_wdata = csr_src_data;
+            2'b10:   csr_wdata = csr_rdata | csr_src_data;
+            2'b11:   csr_wdata = csr_rdata & ~csr_src_data;
+            default: csr_wdata = csr_rdata;
         endcase
     end
 
@@ -374,33 +384,15 @@ module ysyx_26030082_exu (
                 end
 
                 F3_CSRRW,
-                F3_CSRRWI: begin
+                F3_CSRRC,
+                F3_CSRRWI,
+                F3_CSRRS,
+                F3_CSRRSI,
+                F3_CSRRCI: begin
                     case (csr_addr)
                         CSR_MSTATUS: csr_mstatus <= csr_wdata;
                         CSR_MTVEC:   csr_mtvec   <= csr_wdata;
                         CSR_MEPC:    csr_mepc    <= csr_wdata;
-                        default: begin
-                        end
-                    endcase
-                end
-
-                F3_CSRRS,
-                F3_CSRRSI: begin
-                    case (csr_addr)
-                        CSR_MSTATUS: csr_mstatus <= csr_mstatus | csr_wdata;
-                        CSR_MTVEC:   csr_mtvec   <= csr_mtvec | csr_wdata;
-                        CSR_MEPC:    csr_mepc    <= csr_mepc | csr_wdata;
-                        default: begin
-                        end
-                    endcase
-                end
-
-                F3_CSRRC,
-                F3_CSRRCI: begin
-                    case (csr_addr)
-                        CSR_MSTATUS: csr_mstatus <= csr_mstatus & ~csr_wdata;
-                        CSR_MTVEC:   csr_mtvec   <= csr_mtvec & ~csr_wdata;
-                        CSR_MEPC:    csr_mepc    <= csr_mepc & ~csr_wdata;
                         default: begin
                         end
                     endcase
