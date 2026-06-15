@@ -129,10 +129,9 @@ module ysyx_26030082_exu (
     wire        bru_cmp_eq;
     wire        bru_cmp_lt;
     wire        bru_cmp_ltu;
-    wire        branch_cmp_result;
-    wire        branch_taken;
-    wire        jump_taken;
-    wire [31:0] redirect_base;
+    reg         redirect_valid_r;
+    reg  [31:0] redirect_target_r;
+    wire        redirect_jalr;
     wire [31:0] redirect_target_sum;
 
     // CSR.
@@ -288,15 +287,42 @@ module ysyx_26030082_exu (
     assign bru_cmp_eq = (rs1_data == rs2_data);
     assign bru_cmp_lt = ($signed(rs1_data) < $signed(rs2_data));
     assign bru_cmp_ltu = (rs1_data < rs2_data);
-    assign branch_cmp_result = dec_funct3[2] ? (dec_funct3[1] ? bru_cmp_ltu : bru_cmp_lt)
-                                             : bru_cmp_eq;
-    assign branch_taken = op_branch && (branch_cmp_result ^ dec_funct3[0]);
-    assign jump_taken = op_jal || op_jalr;
-    assign redirect_base = op_jalr ? rs1_data : fetch_pc;
-    assign redirect_target_sum = redirect_base + dec_imm;
-    assign ex_Redirect = fetch_valid && (jump_taken || branch_taken);
-    assign ex_RedirectTarget = op_jalr ? {redirect_target_sum[31:1], 1'b0}
-                                       : redirect_target_sum;
+    assign redirect_jalr = dec_opcode == OP_IJ_TYPE;
+    assign redirect_target_sum = (redirect_jalr ? rs1_data : fetch_pc) + dec_imm;
+
+    always @(*) begin
+        redirect_valid_r = 1'b0;
+        redirect_target_r = redirect_target_sum;
+
+        case (dec_opcode)
+            OP_B_TYPE: begin
+                case (dec_funct3)
+                    3'b000:  redirect_valid_r = bru_cmp_eq;
+                    3'b001:  redirect_valid_r = ~bru_cmp_eq;
+                    3'b100:  redirect_valid_r = bru_cmp_lt;
+                    3'b101:  redirect_valid_r = ~bru_cmp_lt;
+                    3'b110:  redirect_valid_r = bru_cmp_ltu;
+                    3'b111:  redirect_valid_r = ~bru_cmp_ltu;
+                    default: redirect_valid_r = 1'b0;
+                endcase
+            end
+
+            OP_J_TYPE: begin
+                redirect_valid_r = 1'b1;
+            end
+
+            OP_IJ_TYPE: begin
+                redirect_valid_r = 1'b1;
+                redirect_target_r = {redirect_target_sum[31:1], 1'b0};
+            end
+
+            default: begin
+            end
+        endcase
+    end
+
+    assign ex_Redirect = fetch_valid && redirect_valid_r;
+    assign ex_RedirectTarget = redirect_target_r;
     assign ex_FenceI = fetch_valid && op_fencei;
 
     // CSR and writeback side data.
