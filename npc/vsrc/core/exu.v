@@ -232,7 +232,9 @@ module ysyx_26030082_exu (
             OPCODE_OP: begin
                 addsub_lhs = rf_rdata1_forward;
                 addsub_rhs = rf_rdata2_forward;
-                addsub_sub = (ex_funct3 == F3_ADD_SUB) && funct7_5;
+                addsub_sub = ((ex_funct3 == F3_ADD_SUB) && funct7_5) ||
+                             (ex_funct3 == F3_SLT) ||
+                             (ex_funct3 == F3_SLTU);
                 bit_lhs = rf_rdata1_forward;
                 bit_rhs = rf_rdata2_forward;
                 cmp_rhs = rf_rdata2_forward;
@@ -241,7 +243,8 @@ module ysyx_26030082_exu (
             OPCODE_OP_IMM: begin
                 addsub_lhs = rf_rdata1_forward;
                 addsub_rhs = imm;
-                addsub_sub = 1'b0;
+                addsub_sub = (ex_funct3 == F3_SLT) ||
+                             (ex_funct3 == F3_SLTU);
                 bit_lhs = rf_rdata1_forward;
                 bit_rhs = imm;
                 cmp_rhs = imm;
