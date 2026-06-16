@@ -211,7 +211,7 @@ module ysyx_26030082 #(
     ysyx_26030082_ifu #(
         .RESET_PC               (RESET_PC),
         .LINE_WORDS             (4),
-        .LINE_COUNT             (4)
+        .LINE_COUNT             (8)
     ) ifu (
         .clock                  (clock),
         .reset                  (reset),

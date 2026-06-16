@@ -1,7 +1,7 @@
 module ysyx_26030082_ifu #(
     parameter [31:0] RESET_PC = 32'h3000_0000,
     parameter integer LINE_WORDS = 4,
-    parameter integer LINE_COUNT = 4
+    parameter integer LINE_COUNT = 8
 ) (
     input  wire        clock,
     input  wire        reset,
