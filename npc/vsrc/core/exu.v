@@ -249,11 +249,23 @@ module ysyx_26030082_exu (
                 endcase
             end
 
+            OPCODE_OP_IMM,
+            OPCODE_LOAD,
+            OPCODE_STORE,
+            OPCODE_JALR: begin
+                // default FU inputs are rs1/imm.
+            end
+
             OPCODE_AUIPC,
             OPCODE_JAL,
             OPCODE_BRANCH: begin
                 addsub_lhs = fetch_pc;
                 cmp_rhs = rf_rdata2_forward;
+            end
+
+            OPCODE_LUI,
+            OPCODE_MISC_MEM: begin
+                // no FU input override needed.
             end
 
             OPCODE_SYSTEM: begin
@@ -302,6 +314,10 @@ module ysyx_26030082_exu (
             OPCODE_OP,
             OPCODE_OP_IMM: begin
                 case (ex_funct3)
+                    F3_ADD_SUB: begin
+                        ex_wdata = addsub_result;
+                    end
+
                     F3_SLL: begin
                         ex_wdata = sll_result;
                     end
@@ -345,6 +361,10 @@ module ysyx_26030082_exu (
 
             OPCODE_LUI: begin
                 ex_wdata = imm;
+            end
+
+            OPCODE_AUIPC: begin
+                ex_wdata = addsub_result;
             end
 
             OPCODE_STORE: begin
