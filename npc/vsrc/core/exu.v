@@ -119,9 +119,6 @@ module ysyx_26030082_exu (
     reg         addsub_sub;
     wire [31:0] addsub_rhs_xor;
     wire [31:0] addsub_result;
-    wire        addsub_carry;
-    wire        slt_result;
-    wire        sltu_result;
     wire [31:0] and_result;
     wire [31:0] or_result;
     wire [31:0] xor_result;
@@ -232,9 +229,7 @@ module ysyx_26030082_exu (
             OPCODE_OP: begin
                 addsub_lhs = rf_rdata1_forward;
                 addsub_rhs = rf_rdata2_forward;
-                addsub_sub = ((ex_funct3 == F3_ADD_SUB) && funct7_5) ||
-                             (ex_funct3 == F3_SLT) ||
-                             (ex_funct3 == F3_SLTU);
+                addsub_sub = (ex_funct3 == F3_ADD_SUB) && funct7_5;
                 bit_lhs = rf_rdata1_forward;
                 bit_rhs = rf_rdata2_forward;
                 cmp_rhs = rf_rdata2_forward;
@@ -243,8 +238,7 @@ module ysyx_26030082_exu (
             OPCODE_OP_IMM: begin
                 addsub_lhs = rf_rdata1_forward;
                 addsub_rhs = imm;
-                addsub_sub = (ex_funct3 == F3_SLT) ||
-                             (ex_funct3 == F3_SLTU);
+                addsub_sub = 1'b0;
                 bit_lhs = rf_rdata1_forward;
                 bit_rhs = imm;
                 cmp_rhs = imm;
@@ -297,12 +291,7 @@ module ysyx_26030082_exu (
     end
 
     assign addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
-    assign {addsub_carry, addsub_result} = {1'b0, addsub_lhs} +
-                                           {1'b0, addsub_rhs_xor} +
-                                           {32'b0, addsub_sub};
-    assign slt_result = (addsub_lhs[31] & ~addsub_rhs[31]) |
-                        ((addsub_lhs[31] ~^ addsub_rhs[31]) & addsub_result[31]);
-    assign sltu_result = ~addsub_carry;
+    assign addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
     assign and_result = bit_lhs & bit_rhs;
     assign or_result = bit_lhs | bit_rhs;
     assign xor_result = bit_lhs ^ bit_rhs;
@@ -336,14 +325,10 @@ module ysyx_26030082_exu (
                         (ex_funct3 == F3_FENCE_I);
 
     always @(*) begin
-        case (ex_funct3)
-            F3_CSRRW,
-            F3_CSRRWI: csr_write_data = csr_src_data;
-            F3_CSRRS,
-            F3_CSRRSI: csr_write_data = or_result;
-            F3_CSRRC,
-            F3_CSRRCI: csr_write_data = and_result;
-            default:   csr_write_data = csr_src_data;
+        case (ex_funct3[1:0])
+            2'b10:  csr_write_data = or_result;
+            2'b11:  csr_write_data = and_result;
+            default: csr_write_data = csr_src_data;
         endcase
     end
 
@@ -379,11 +364,11 @@ module ysyx_26030082_exu (
                     end
 
                     F3_SLT: begin
-                        ex_wdata = {31'b0, slt_result};
+                        ex_wdata = {31'b0, cmp_lt};
                     end
 
                     F3_SLTU: begin
-                        ex_wdata = {31'b0, sltu_result};
+                        ex_wdata = {31'b0, cmp_ltu};
                     end
 
                     F3_XOR: begin
