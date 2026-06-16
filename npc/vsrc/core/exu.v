@@ -125,9 +125,6 @@ module ysyx_26030082_exu (
     wire [31:0] sll_result;
     wire [31:0] srl_result;
     wire [31:0] sra_result;
-    wire [31:0] right_shift_in;
-    wire [31:0] right_shift_result;
-    wire        sra_fill;
     reg  [31:0] cmp_rhs;
     wire        cmp_eq;
     wire        cmp_lt;
@@ -139,7 +136,7 @@ module ysyx_26030082_exu (
     reg  [31:0] csr_mepc;
     reg  [31:0] csr_mcause;
     reg  [31:0] csr_rdata;
-    wire [31:0] csr_src_data;
+    reg  [31:0] csr_src_data;
     reg  [31:0] csr_write_data;
 
     assign opcode = fetch_inst[6:0];
@@ -219,7 +216,6 @@ module ysyx_26030082_exu (
 
     // ALU.
     assign ex_pc4 = fetch_pc + 32'd4;
-    assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
     always @(*) begin
         addsub_lhs = 32'bx;
         addsub_rhs = 32'bx;
@@ -227,6 +223,7 @@ module ysyx_26030082_exu (
         bit_lhs = 32'bx;
         bit_rhs = 32'bx;
         cmp_rhs = 32'bx;
+        csr_src_data = 32'bx;
 
         case (opcode)
             OPCODE_OP: begin
@@ -270,6 +267,7 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_SYSTEM: begin
+                csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
                 case (ex_funct3)
                     F3_CSRRS,
                     F3_CSRRSI: begin
@@ -299,11 +297,8 @@ module ysyx_26030082_exu (
     assign or_result = bit_lhs | bit_rhs;
     assign xor_result = bit_lhs ^ bit_rhs;
     assign sll_result = rf_rdata1_forward << bit_rhs[4:0];
-    assign sra_fill = funct7_5 && rf_rdata1_forward[31];
-    assign right_shift_in = sra_fill ? ~rf_rdata1_forward : rf_rdata1_forward;
-    assign right_shift_result = right_shift_in >> bit_rhs[4:0];
-    assign srl_result = right_shift_result;
-    assign sra_result = sra_fill ? ~right_shift_result : right_shift_result;
+    assign srl_result = rf_rdata1_forward >> bit_rhs[4:0];
+    assign sra_result = ($signed(rf_rdata1_forward)) >>> bit_rhs[4:0];
     assign cmp_eq = (rf_rdata1_forward == cmp_rhs);
     assign cmp_lt = ($signed(rf_rdata1_forward) < $signed(cmp_rhs));
     assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
