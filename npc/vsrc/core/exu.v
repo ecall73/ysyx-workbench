@@ -21,8 +21,8 @@ module ysyx_26030082_exu (
     output wire [ 2:0] ex_funct3,
     output wire [ 4:0] ex_rf_waddr,
     output reg  [31:0] ex_alu_result,
+    output reg  [31:0] ex_mem_addr,
     output reg         ex_redirect,
-    output reg  [31:0] ex_redirect_pc,
     output reg  [31:0] ex_wdata,
     output reg         ex_fence_i
 );
@@ -265,7 +265,7 @@ module ysyx_26030082_exu (
 
     always @(*) begin
         ex_redirect = 1'b0;
-        ex_redirect_pc = ex_alu_result;
+        ex_mem_addr = ex_alu_result;
         ex_fence_i = 1'b0;
 
         case (opcode)
@@ -288,20 +288,20 @@ module ysyx_26030082_exu (
 
             OPCODE_JALR: begin
                 ex_redirect = 1'b1;
-                ex_redirect_pc = {ex_alu_result[31:1], 1'b0};
+                ex_mem_addr = {ex_alu_result[31:1], 1'b0};
             end
 
             OPCODE_SYSTEM: begin
                 if (ex_funct3 == F3_PRIV) begin
                     ex_redirect = 1'b1;
-                    ex_redirect_pc = (csr_addr == F12_ECALL) ? {csr_mtvec[31:2], 2'b0} : csr_mepc;
+                    ex_mem_addr = (csr_addr == F12_ECALL) ? {csr_mtvec[31:2], 2'b0} : csr_mepc;
                 end
             end
 
             OPCODE_MISC_MEM: begin
                 if (ex_funct3 == 3'b001) begin
                     ex_redirect = 1'b1;
-                    ex_redirect_pc = ex_pc4;
+                    ex_mem_addr = ex_pc4;
                     ex_fence_i = 1'b1;
                 end
             end

@@ -129,8 +129,8 @@ module ysyx_26030082 #(
     wire [ 2:0] ex_funct3;
     wire [ 4:0] ex_rf_waddr;
     wire [31:0] ex_alu_result;
+    wire [31:0] ex_mem_addr;
     wire        ex_redirect;
-    wire [31:0] ex_redirect_pc;
     wire [31:0] ex_wdata;
     wire        ex_fence_i;
     wire        ex_out_valid;
@@ -143,7 +143,7 @@ module ysyx_26030082 #(
     reg         ls_mem_wen;
     reg  [ 2:0] ls_funct3;
     reg  [ 4:0] ls_rf_waddr;
-    reg  [31:0] ls_alu_result;
+    reg  [31:0] ls_mem_addr;
     reg  [31:0] ls_wdata;
     wire        ls_in_ready;
     wire        ls_out_valid;
@@ -219,7 +219,7 @@ module ysyx_26030082 #(
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
         .ex_redirect            (ex_redirect),
-        .ex_redirect_pc         (ex_redirect_pc),
+        .ex_mem_addr            (ex_mem_addr),
         .ex_fence_i             (ex_fence_i),
 
         .fetch_valid            (fetch_valid),
@@ -268,8 +268,8 @@ module ysyx_26030082 #(
         .ex_funct3              (ex_funct3),
         .ex_rf_waddr            (ex_rf_waddr),
         .ex_alu_result          (ex_alu_result),
+        .ex_mem_addr            (ex_mem_addr),
         .ex_redirect            (ex_redirect),
-        .ex_redirect_pc         (ex_redirect_pc),
         .ex_wdata               (ex_wdata),
         .ex_fence_i             (ex_fence_i)
     );
@@ -284,7 +284,7 @@ module ysyx_26030082 #(
             ls_in_valid <= ex_out_valid;
             ls_rf_wen <= ex_rf_wen;
             ls_mem_wen <= ex_mem_wen;
-            ls_alu_result <= ex_alu_result;
+            ls_mem_addr <= ex_mem_addr;
             ls_funct3 <= ex_funct3;
             ls_rf_waddr <= ex_rf_waddr;
             ls_wdata <= ex_wdata;
@@ -317,7 +317,7 @@ module ysyx_26030082 #(
         .ls_in_ready            (ls_in_ready),
         .ls_out_valid           (ls_out_valid),
 
-        .ls_alu_result          (ls_alu_result),
+        .ls_mem_addr            (ls_mem_addr),
         .ls_funct3              (ls_funct3),
         .ls_mem_wen             (ls_mem_wen),
         .ls_mem_ren             (ls_mem_ren),
