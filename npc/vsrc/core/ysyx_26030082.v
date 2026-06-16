@@ -284,9 +284,7 @@ module ysyx_26030082 #(
             ls_in_valid <= ex_out_valid;
             ls_rf_wen <= ex_rf_wen;
             ls_mem_wen <= ex_mem_wen;
-            if (ex_out_valid && (ex_mem_ren || ex_mem_wen)) begin
-                ls_mem_addr <= ex_mem_addr;
-            end
+            ls_mem_addr <= ex_mem_addr;
             ls_funct3 <= ex_funct3;
             ls_rf_waddr <= ex_rf_waddr;
             ls_wdata <= ex_wdata;
@@ -485,7 +483,7 @@ module ysyx_26030082 #(
             end
             if (pmu_ifu_nosupply) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
-                if (ifu.flush || ifu.need_flush) begin
+                if (ifu.flush) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
                 end else if (fetch_valid && !fetch_ready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;

@@ -53,7 +53,6 @@ module ysyx_26030082_ifu #(
     reg [INDEX_W-1:0] miss_index;
     reg [TAG_W-1:0]   miss_tag;
     reg [LINE_WORD_OFF_W-1:0] refill_word_idx;
-    reg         need_flush;
     reg         drop_fill;
 
     wire [LINE_WORD_OFF_W-1:0] lookup_word_offset;
@@ -105,7 +104,6 @@ module ysyx_26030082_ifu #(
             miss_index <= {INDEX_W{1'b0}};
             miss_tag <= {TAG_W{1'b0}};
             refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
-            need_flush <= 1'b0;
             drop_fill <= 1'b0;
             valid_array <= {LINE_COUNT{1'b0}};
         end else begin
@@ -125,7 +123,6 @@ module ysyx_26030082_ifu #(
                         miss_index <= lookup_index;
                         miss_tag <= lookup_tag;
                         refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
-                        need_flush <= 1'b0;
                         drop_fill <= 1'b0;
                         state <= S_MISS_AR;
                     end
@@ -134,19 +131,13 @@ module ysyx_26030082_ifu #(
                 S_MISS_AR: begin
                     if (invalidate) begin
                         if (ar_fire) begin
-                            need_flush <= 1'b1;
                             drop_fill <= 1'b1;
                             state <= S_MISS_R;
                         end else begin
-                            need_flush <= 1'b0;
                             drop_fill <= 1'b0;
                             state <= S_LOOKUP;
                         end
                     end else begin
-                        if (flush) begin
-                            need_flush <= 1'b1;
-                        end
-
                         if (ar_fire) begin
                             state <= S_MISS_R;
                         end
@@ -155,10 +146,7 @@ module ysyx_26030082_ifu #(
 
                 S_MISS_R: begin
                     if (invalidate) begin
-                        need_flush <= 1'b1;
                         drop_fill <= 1'b1;
-                    end else if (flush) begin
-                        need_flush <= 1'b1;
                     end
 
                     if (r_fire) begin
@@ -168,7 +156,6 @@ module ysyx_26030082_ifu #(
                                 tag_array[miss_index] <= miss_tag;
                                 valid_array[miss_index] <= 1'b1;
                             end
-                            need_flush <= 1'b0;
                             drop_fill <= 1'b0;
                             state <= S_LOOKUP;
                         end else begin
@@ -179,7 +166,6 @@ module ysyx_26030082_ifu #(
 
                 default: begin
                     state <= S_LOOKUP;
-                    need_flush <= 1'b0;
                     drop_fill <= 1'b0;
                 end
             endcase
