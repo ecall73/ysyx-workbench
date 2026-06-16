@@ -203,15 +203,19 @@ module ysyx_26030082_exu (
 
     // CSR read.
     always @(*) begin
-        case (csr_addr)
-            CSR_MSTATUS:   csr_rdata = csr_mstatus;
-            CSR_MTVEC:     csr_rdata = csr_mtvec;
-            CSR_MEPC:      csr_rdata = csr_mepc;
-            CSR_MCAUSE:    csr_rdata = csr_mcause;
-            CSR_MVENDORID: csr_rdata = 32'h7973_7978;
-            CSR_MARCHID:   csr_rdata = 32'd26030082;
-            default:       csr_rdata = 32'b0;
-        endcase
+        csr_rdata = 32'bx;
+
+        if (opcode == OPCODE_SYSTEM) begin
+            case (csr_addr)
+                CSR_MSTATUS:   csr_rdata = csr_mstatus;
+                CSR_MTVEC:     csr_rdata = csr_mtvec;
+                CSR_MEPC:      csr_rdata = csr_mepc;
+                CSR_MCAUSE:    csr_rdata = csr_mcause;
+                CSR_MVENDORID: csr_rdata = 32'h7973_7978;
+                CSR_MARCHID:   csr_rdata = 32'd26030082;
+                default:       csr_rdata = 32'b0;
+            endcase
+        end
     end
 
     // ALU.
@@ -353,13 +357,14 @@ module ysyx_26030082_exu (
     // Output mux.
     always @(*) begin
         ex_mem_addr = 32'bx;
-        ex_wdata = addsub_result;
+        ex_wdata = 32'bx;
 
         case (opcode)
             OPCODE_OP,
             OPCODE_OP_IMM: begin
                 case (ex_funct3)
                     F3_ADD_SUB: begin
+                        ex_wdata = addsub_result;
                     end
 
                     F3_SLL: begin
@@ -408,6 +413,7 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_AUIPC: begin
+                ex_wdata = addsub_result;
             end
 
             OPCODE_STORE: begin
