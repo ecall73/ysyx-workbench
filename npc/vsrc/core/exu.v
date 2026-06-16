@@ -98,8 +98,8 @@ module ysyx_26030082_exu (
 
     // ALU.
     wire [31:0] ex_pc4;
-    reg  [31:0] fu_lhs;
-    reg  [31:0] fu_rhs;
+    reg  [31:0] bit_lhs;
+    reg  [31:0] bit_rhs;
     reg  [31:0] addsub_lhs;
     reg  [31:0] addsub_rhs;
     reg         addsub_sub;
@@ -108,6 +108,8 @@ module ysyx_26030082_exu (
     wire [31:0] and_result;
     wire [31:0] or_result;
     wire [31:0] xor_result;
+    reg  [31:0] shift_lhs;
+    reg  [31:0] shift_rhs;
     wire [31:0] sll_result;
     wire [31:0] srl_result;
     wire [31:0] sra_result;
@@ -228,15 +230,18 @@ module ysyx_26030082_exu (
         addsub_lhs = rf_rdata1_forward;
         addsub_rhs = imm;
         addsub_sub = 1'b0;
-        fu_lhs = rf_rdata1_forward;
-        fu_rhs = imm;
+        bit_lhs = rf_rdata1_forward;
+        bit_rhs = imm;
+        shift_lhs = rf_rdata1_forward;
+        shift_rhs = imm;
         cmp_lhs = rf_rdata1_forward;
         cmp_rhs = imm;
 
         case (opcode)
             OPCODE_OP: begin
                 addsub_rhs = rf_rdata2_forward;
-                fu_rhs = rf_rdata2_forward;
+                bit_rhs = rf_rdata2_forward;
+                shift_rhs = rf_rdata2_forward;
                 cmp_rhs = rf_rdata2_forward;
                 case (ex_funct3)
                     F3_ADD_SUB: begin
@@ -256,15 +261,15 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_SYSTEM: begin
-                fu_lhs = csr_rdata;
+                bit_lhs = csr_rdata;
                 case (ex_funct3)
                     F3_CSRRC,
                     F3_CSRRCI: begin
-                        fu_rhs = ~csr_src_data;
+                        bit_rhs = ~csr_src_data;
                     end
 
                     default: begin
-                        fu_rhs = csr_src_data;
+                        bit_rhs = csr_src_data;
                     end
                 endcase
             end
@@ -276,19 +281,19 @@ module ysyx_26030082_exu (
 
     assign addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
     assign addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
-    assign and_result = fu_lhs & fu_rhs;
-    assign or_result = fu_lhs | fu_rhs;
-    assign xor_result = fu_lhs ^ fu_rhs;
-    assign sll_result = fu_lhs << fu_rhs[4:0];
-    assign srl_result = fu_lhs >> fu_rhs[4:0];
-    assign sra_result = ($signed(fu_lhs)) >>> fu_rhs[4:0];
+    assign and_result = bit_lhs & bit_rhs;
+    assign or_result = bit_lhs | bit_rhs;
+    assign xor_result = bit_lhs ^ bit_rhs;
+    assign sll_result = shift_lhs << shift_rhs[4:0];
+    assign srl_result = shift_lhs >> shift_rhs[4:0];
+    assign sra_result = ($signed(shift_lhs)) >>> shift_rhs[4:0];
     assign cmp_eq = (cmp_lhs == cmp_rhs);
     assign cmp_lt = ($signed(cmp_lhs) < $signed(cmp_rhs));
     assign cmp_ltu = (cmp_lhs < cmp_rhs);
 
     // Output mux.
     always @(*) begin
-        ex_mem_addr = addsub_result;
+        ex_mem_addr = 32'b0;
         ex_wdata = addsub_result;
         csr_write_data = csr_src_data;
         ex_rf_wen = 1'b1;
@@ -349,15 +354,18 @@ module ysyx_26030082_exu (
             OPCODE_STORE: begin
                 ex_rf_wen = 1'b0;
                 ex_mem_wen = 1'b1;
+                ex_mem_addr = addsub_result;
                 ex_wdata = rf_rdata2_forward;
             end
 
             OPCODE_LOAD: begin
                 ex_mem_ren = 1'b1;
+                ex_mem_addr = addsub_result;
             end
 
             OPCODE_BRANCH: begin
                 ex_rf_wen = 1'b0;
+                ex_mem_addr = addsub_result;
                 case (ex_funct3)
                     F3_BEQ:  ex_redirect = cmp_eq;
                     F3_BNE:  ex_redirect = ~cmp_eq;
@@ -372,6 +380,7 @@ module ysyx_26030082_exu (
 
             OPCODE_JAL: begin
                 ex_redirect = 1'b1;
+                ex_mem_addr = addsub_result;
                 ex_wdata = ex_pc4;
             end
 
