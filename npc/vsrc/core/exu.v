@@ -112,8 +112,8 @@ module ysyx_26030082_exu (
 
     // ALU.
     wire [31:0] ex_pc4;
-    wire [31:0] bit_lhs;
-    wire [31:0] bit_rhs;
+    reg  [31:0] bit_lhs;
+    reg  [31:0] bit_rhs;
     wire [31:0] addsub_lhs;
     wire [31:0] addsub_rhs;
     wire        addsub_sub;
@@ -122,11 +122,11 @@ module ysyx_26030082_exu (
     wire [31:0] and_result;
     wire [31:0] or_result;
     wire [31:0] xor_result;
-    wire [31:0] shift_rhs;
+    reg  [31:0] shift_rhs;
     wire [31:0] sll_result;
     wire [31:0] srl_result;
     wire [31:0] sra_result;
-    wire [31:0] cmp_rhs;
+    reg  [31:0] cmp_rhs;
     wire        cmp_eq;
     wire        cmp_lt;
     wire        cmp_ltu;
@@ -237,19 +237,55 @@ module ysyx_26030082_exu (
     assign addsub_sub = (opcode == OPCODE_OP) &&
                         (ex_funct3 == F3_ADD_SUB) &&
                         funct7_5;
-    assign bit_lhs = (opcode == OPCODE_SYSTEM) ? csr_rdata :
-                     ((opcode == OPCODE_OP) ||
-                      (opcode == OPCODE_OP_IMM)) ? rf_rdata1_forward : 32'bx;
-    assign bit_rhs = (opcode == OPCODE_SYSTEM) ?
-                     (((ex_funct3 == F3_CSRRC) ||
-                       (ex_funct3 == F3_CSRRCI)) ? ~csr_src_data : csr_src_data) :
-                     (opcode == OPCODE_OP) ? rf_rdata2_forward :
-                     (opcode == OPCODE_OP_IMM) ? imm : 32'bx;
-    assign shift_rhs = (opcode == OPCODE_OP) ? rf_rdata2_forward :
-                       (opcode == OPCODE_OP_IMM) ? imm : 32'bx;
-    assign cmp_rhs = ((opcode == OPCODE_OP) ||
-                      (opcode == OPCODE_BRANCH)) ? rf_rdata2_forward :
-                     (opcode == OPCODE_OP_IMM) ? imm : 32'bx;
+
+    always @(*) begin
+        bit_lhs = 32'bx;
+        bit_rhs = 32'bx;
+        shift_rhs = 32'bx;
+        cmp_rhs = 32'bx;
+
+        case (opcode)
+            OPCODE_OP: begin
+                bit_lhs = rf_rdata1_forward;
+                bit_rhs = rf_rdata2_forward;
+                shift_rhs = rf_rdata2_forward;
+                cmp_rhs = rf_rdata2_forward;
+            end
+
+            OPCODE_OP_IMM: begin
+                bit_lhs = rf_rdata1_forward;
+                bit_rhs = imm;
+                shift_rhs = imm;
+                cmp_rhs = imm;
+            end
+
+            OPCODE_BRANCH: begin
+                cmp_rhs = rf_rdata2_forward;
+            end
+
+            OPCODE_SYSTEM: begin
+                case (ex_funct3)
+                    F3_CSRRS,
+                    F3_CSRRSI: begin
+                        bit_lhs = csr_rdata;
+                        bit_rhs = csr_src_data;
+                    end
+
+                    F3_CSRRC,
+                    F3_CSRRCI: begin
+                        bit_lhs = csr_rdata;
+                        bit_rhs = ~csr_src_data;
+                    end
+
+                    default: begin
+                    end
+                endcase
+            end
+
+            default: begin
+            end
+        endcase
+    end
 
     assign addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
     assign addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
