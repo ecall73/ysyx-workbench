@@ -230,17 +230,19 @@ module ysyx_26030082_exu (
         addsub_lhs = rf_rdata1_forward;
         addsub_rhs = imm;
         addsub_sub = 1'b0;
-        bit_lhs = rf_rdata1_forward;
-        bit_rhs = imm;
-        shift_lhs = rf_rdata1_forward;
-        shift_rhs = imm;
+        bit_lhs = 32'bx;
+        bit_rhs = 32'bx;
+        shift_lhs = 32'bx;
+        shift_rhs = 32'bx;
         cmp_lhs = rf_rdata1_forward;
         cmp_rhs = imm;
 
         case (opcode)
             OPCODE_OP: begin
                 addsub_rhs = rf_rdata2_forward;
+                bit_lhs = rf_rdata1_forward;
                 bit_rhs = rf_rdata2_forward;
+                shift_lhs = rf_rdata1_forward;
                 shift_rhs = rf_rdata2_forward;
                 cmp_rhs = rf_rdata2_forward;
                 case (ex_funct3)
@@ -251,6 +253,13 @@ module ysyx_26030082_exu (
                     default: begin
                     end
                 endcase
+            end
+
+            OPCODE_OP_IMM: begin
+                bit_lhs = rf_rdata1_forward;
+                bit_rhs = imm;
+                shift_lhs = rf_rdata1_forward;
+                shift_rhs = imm;
             end
 
             OPCODE_AUIPC,
