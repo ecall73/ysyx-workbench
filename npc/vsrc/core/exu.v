@@ -16,7 +16,7 @@ module ysyx_26030082_exu (
     input  wire [31:0] ls_rf_wdata,
     input  wire        ls_load_pending,
 
-    output reg         ex_rf_wen,
+    output wire        ex_rf_wen,
     output wire        ex_mem_ren,
     output wire        ex_mem_wen,
     output wire [ 2:0] ex_funct3,
@@ -114,9 +114,9 @@ module ysyx_26030082_exu (
     wire [31:0] ex_pc4;
     wire [31:0] bit_lhs;
     wire [31:0] bit_rhs;
-    reg  [31:0] addsub_lhs;
-    reg  [31:0] addsub_rhs;
-    reg         addsub_sub;
+    wire [31:0] addsub_lhs;
+    wire [31:0] addsub_rhs;
+    wire        addsub_sub;
     wire [31:0] addsub_rhs_xor;
     wire [31:0] addsub_result;
     wire [31:0] and_result;
@@ -218,50 +218,25 @@ module ysyx_26030082_exu (
     // ALU.
     assign ex_pc4 = fetch_pc + 32'd4;
     assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
-    always @(*) begin
-        addsub_lhs = 32'bx;
-        addsub_rhs = 32'bx;
-        addsub_sub = 1'bx;
-
-        case (opcode)
-            OPCODE_OP: begin
-                addsub_lhs = rf_rdata1_forward;
-                addsub_rhs = rf_rdata2_forward;
-                addsub_sub = (ex_funct3 == F3_ADD_SUB) && funct7_5;
-            end
-
-            OPCODE_OP_IMM: begin
-                addsub_lhs = rf_rdata1_forward;
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-            end
-
-            OPCODE_LOAD,
-            OPCODE_STORE,
-            OPCODE_JALR: begin
-                addsub_lhs = rf_rdata1_forward;
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-            end
-
-            OPCODE_AUIPC,
-            OPCODE_JAL: begin
-                addsub_lhs = fetch_pc;
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-            end
-
-            OPCODE_BRANCH: begin
-                addsub_lhs = fetch_pc;
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-            end
-
-            default: begin
-            end
-        endcase
-    end
-
+    assign addsub_lhs = ((opcode == OPCODE_AUIPC) ||
+                         (opcode == OPCODE_JAL) ||
+                         (opcode == OPCODE_BRANCH)) ? fetch_pc :
+                        ((opcode == OPCODE_OP) ||
+                         (opcode == OPCODE_OP_IMM) ||
+                         (opcode == OPCODE_LOAD) ||
+                         (opcode == OPCODE_STORE) ||
+                         (opcode == OPCODE_JALR)) ? rf_rdata1_forward : 32'bx;
+    assign addsub_rhs = (opcode == OPCODE_OP) ? rf_rdata2_forward :
+                        ((opcode == OPCODE_OP_IMM) ||
+                         (opcode == OPCODE_LOAD) ||
+                         (opcode == OPCODE_STORE) ||
+                         (opcode == OPCODE_BRANCH) ||
+                         (opcode == OPCODE_AUIPC) ||
+                         (opcode == OPCODE_JAL) ||
+                         (opcode == OPCODE_JALR)) ? imm : 32'bx;
+    assign addsub_sub = (opcode == OPCODE_OP) &&
+                        (ex_funct3 == F3_ADD_SUB) &&
+                        funct7_5;
     assign bit_lhs = (opcode == OPCODE_SYSTEM) ? csr_rdata :
                      ((opcode == OPCODE_OP) ||
                       (opcode == OPCODE_OP_IMM)) ? rf_rdata1_forward : 32'bx;
@@ -322,19 +297,14 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    always @(*) begin
-        case (opcode)
-            OPCODE_OP,
-            OPCODE_OP_IMM,
-            OPCODE_LUI,
-            OPCODE_AUIPC,
-            OPCODE_LOAD,
-            OPCODE_JAL,
-            OPCODE_JALR:   ex_rf_wen = 1'b1;
-            OPCODE_SYSTEM: ex_rf_wen = (ex_funct3 != F3_PRIV);
-            default:       ex_rf_wen = 1'b0;
-        endcase
-    end
+    assign ex_rf_wen = (opcode == OPCODE_OP) ||
+                       (opcode == OPCODE_OP_IMM) ||
+                       (opcode == OPCODE_LUI) ||
+                       (opcode == OPCODE_AUIPC) ||
+                       (opcode == OPCODE_LOAD) ||
+                       (opcode == OPCODE_JAL) ||
+                       (opcode == OPCODE_JALR) ||
+                       ((opcode == OPCODE_SYSTEM) && (ex_funct3 != F3_PRIV));
 
     // Output mux.
     always @(*) begin
