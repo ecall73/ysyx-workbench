@@ -302,24 +302,18 @@ module ysyx_26030082_exu (
     assign sll_result = rf_rdata1_forward << shift_rhs[4:0];
     assign srl_result = rf_rdata1_forward >> shift_rhs[4:0];
     assign sra_result = ($signed(rf_rdata1_forward)) >>> shift_rhs[4:0];
-    assign cmp_eq = (rf_rdata1_forward == cmp_rhs);
+    assign cmp_eq = (rf_rdata1_forward == rf_rdata2_forward);
     assign cmp_lt = ($signed(rf_rdata1_forward) < $signed(cmp_rhs));
     assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
 
     always @(*) begin
-        case (ex_funct3[2:1])
-            2'b00: begin
-                branch_redirect = cmp_eq ^ ex_funct3[0];
-            end
-
-            2'b10: begin
-                branch_redirect = cmp_lt ^ ex_funct3[0];
-            end
-
-            2'b11: begin
-                branch_redirect = cmp_ltu ^ ex_funct3[0];
-            end
-
+        case (ex_funct3)
+            F3_BEQ:  branch_redirect = cmp_eq;
+            F3_BNE:  branch_redirect = ~cmp_eq;
+            F3_BLT:  branch_redirect = cmp_lt;
+            F3_BGE:  branch_redirect = ~cmp_lt;
+            F3_BLTU: branch_redirect = cmp_ltu;
+            F3_BGEU: branch_redirect = ~cmp_ltu;
             default: branch_redirect = 1'b0;
         endcase
     end
