@@ -246,13 +246,13 @@ module ysyx_26030082_exu (
     assign ex_pc4 = fetch_pc + 32'd4;
     assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
     always @(*) begin
-        addsub_lhs = 32'b0;
-        addsub_rhs = 32'b0;
-        addsub_sub = 1'b0;
-        bit_lhs = 32'b0;
-        bit_rhs = 32'b0;
-        shift_rhs = 32'b0;
-        cmp_rhs = 32'b0;
+        addsub_lhs = 32'bx;
+        addsub_rhs = 32'bx;
+        addsub_sub = 1'bx;
+        bit_lhs = 32'bx;
+        bit_rhs = 32'bx;
+        shift_rhs = 32'bx;
+        cmp_rhs = 32'bx;
 
         case (opcode)
             OPCODE_OP: begin
@@ -335,14 +335,14 @@ module ysyx_26030082_exu (
 
     // Output mux.
     always @(*) begin
-        ex_mem_addr = 32'b0;
-        ex_wdata = 32'b0;
-        csr_write_data = 32'b0;
-        ex_rf_wen = 1'b0;
-        ex_mem_ren = 1'b0;
-        ex_mem_wen = 1'b0;
-        ex_redirect = 1'b0;
-        ex_fence_i = 1'b0;
+        ex_mem_addr = 32'bx;
+        ex_wdata = 32'bx;
+        csr_write_data = 32'bx;
+        ex_rf_wen = 1'bx;
+        ex_mem_ren = 1'bx;
+        ex_mem_wen = 1'bx;
+        ex_redirect = 1'bx;
+        ex_fence_i = 1'bx;
 
         case (opcode)
             OPCODE_OP,
@@ -350,9 +350,7 @@ module ysyx_26030082_exu (
                 ex_rf_wen = 1'b1;
                 ex_mem_ren = 1'b0;
                 ex_mem_wen = 1'b0;
-                ex_mem_addr = 32'b0;
                 ex_redirect = 1'b0;
-                csr_write_data = 32'b0;
                 ex_fence_i = 1'b0;
                 case (ex_funct3)
                     F3_ADD_SUB: begin
@@ -404,10 +402,8 @@ module ysyx_26030082_exu (
                 ex_rf_wen = 1'b1;
                 ex_mem_ren = 1'b0;
                 ex_mem_wen = 1'b0;
-                ex_mem_addr = 32'b0;
                 ex_redirect = 1'b0;
                 ex_wdata = imm;
-                csr_write_data = 32'b0;
                 ex_fence_i = 1'b0;
             end
 
@@ -415,10 +411,8 @@ module ysyx_26030082_exu (
                 ex_rf_wen = 1'b1;
                 ex_mem_ren = 1'b0;
                 ex_mem_wen = 1'b0;
-                ex_mem_addr = 32'b0;
                 ex_redirect = 1'b0;
                 ex_wdata = addsub_result;
-                csr_write_data = 32'b0;
                 ex_fence_i = 1'b0;
             end
 
@@ -429,7 +423,6 @@ module ysyx_26030082_exu (
                 ex_mem_addr = addsub_result;
                 ex_redirect = 1'b0;
                 ex_wdata = rf_rdata2_forward;
-                csr_write_data = 32'b0;
                 ex_fence_i = 1'b0;
             end
 
@@ -439,8 +432,6 @@ module ysyx_26030082_exu (
                 ex_mem_wen = 1'b0;
                 ex_mem_addr = addsub_result;
                 ex_redirect = 1'b0;
-                ex_wdata = 32'b0;
-                csr_write_data = 32'b0;
                 ex_fence_i = 1'b0;
             end
 
@@ -449,8 +440,6 @@ module ysyx_26030082_exu (
                 ex_mem_ren = 1'b0;
                 ex_mem_wen = 1'b0;
                 ex_mem_addr = addsub_result;
-                ex_wdata = 32'b0;
-                csr_write_data = 32'b0;
                 ex_fence_i = 1'b0;
                 case (ex_funct3)
                     F3_BEQ:  ex_redirect = cmp_eq;
@@ -471,7 +460,6 @@ module ysyx_26030082_exu (
                 ex_redirect = 1'b1;
                 ex_mem_addr = addsub_result;
                 ex_wdata = ex_pc4;
-                csr_write_data = 32'b0;
                 ex_fence_i = 1'b0;
             end
 
@@ -482,7 +470,6 @@ module ysyx_26030082_exu (
                 ex_redirect = 1'b1;
                 ex_mem_addr = {addsub_result[31:1], 1'b0};
                 ex_wdata = ex_pc4;
-                csr_write_data = 32'b0;
                 ex_fence_i = 1'b0;
             end
 
@@ -494,9 +481,6 @@ module ysyx_26030082_exu (
                 case (ex_funct3)
                     F3_PRIV: begin
                         ex_rf_wen = 1'b0;
-                        ex_mem_addr = 32'b0;
-                        ex_wdata = 32'b0;
-                        csr_write_data = 32'b0;
                         case (csr_addr)
                             F12_ECALL: begin
                                 ex_redirect = 1'b1;
@@ -516,7 +500,6 @@ module ysyx_26030082_exu (
                     F3_CSRRW,
                     F3_CSRRWI: begin
                         ex_rf_wen = 1'b1;
-                        ex_mem_addr = 32'b0;
                         ex_wdata = csr_rdata;
                         csr_write_data = csr_src_data;
                     end
@@ -524,7 +507,6 @@ module ysyx_26030082_exu (
                     F3_CSRRS,
                     F3_CSRRSI: begin
                         ex_rf_wen = 1'b1;
-                        ex_mem_addr = 32'b0;
                         ex_wdata = csr_rdata;
                         csr_write_data = or_result;
                     end
@@ -532,7 +514,6 @@ module ysyx_26030082_exu (
                     F3_CSRRC,
                     F3_CSRRCI: begin
                         ex_rf_wen = 1'b1;
-                        ex_mem_addr = 32'b0;
                         ex_wdata = csr_rdata;
                         csr_write_data = and_result;
                     end
@@ -546,10 +527,7 @@ module ysyx_26030082_exu (
                 ex_rf_wen = 1'b0;
                 ex_mem_ren = 1'b0;
                 ex_mem_wen = 1'b0;
-                ex_mem_addr = 32'b0;
                 ex_redirect = 1'b0;
-                ex_wdata = 32'b0;
-                csr_write_data = 32'b0;
                 ex_fence_i = 1'b0;
                 case (ex_funct3)
                     F3_FENCE: begin
