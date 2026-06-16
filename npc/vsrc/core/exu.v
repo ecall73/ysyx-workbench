@@ -254,10 +254,7 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_AUIPC,
-            OPCODE_JAL: begin
-                addsub_lhs = fetch_pc;
-            end
-
+            OPCODE_JAL,
             OPCODE_BRANCH: begin
                 addsub_lhs = fetch_pc;
                 cmp_rhs = rf_rdata2_forward;
@@ -297,7 +294,7 @@ module ysyx_26030082_exu (
     // Output mux.
     always @(*) begin
         ex_mem_addr = 32'b0;
-        ex_wdata = addsub_result;
+        ex_wdata = 32'b0;
         csr_write_data = csr_src_data;
         ex_rf_wen = 1'b1;
         ex_mem_ren = 1'b0;
@@ -309,6 +306,10 @@ module ysyx_26030082_exu (
             OPCODE_OP,
             OPCODE_OP_IMM: begin
                 case (ex_funct3)
+                    F3_ADD_SUB: begin
+                        ex_wdata = addsub_result;
+                    end
+
                     F3_SLL: begin
                         ex_wdata = sll_result;
                     end
@@ -411,6 +412,11 @@ module ysyx_26030082_exu (
                             default: begin
                             end
                         endcase
+                    end
+
+                    F3_CSRRW,
+                    F3_CSRRWI: begin
+                        csr_write_data = csr_src_data;
                     end
 
                     F3_CSRRS,
