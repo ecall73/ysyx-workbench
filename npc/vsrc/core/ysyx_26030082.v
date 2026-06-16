@@ -130,7 +130,6 @@ module ysyx_26030082 #(
     wire [ 4:0] ex_rf_waddr;
     wire [31:0] ex_mem_addr;
     wire        ex_redirect;
-    wire [31:0] ex_redirect_pc;
     wire [31:0] ex_wdata;
     wire        ex_fence_i;
     wire        ex_out_valid;
@@ -219,7 +218,7 @@ module ysyx_26030082 #(
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
         .ex_redirect            (ex_redirect),
-        .ex_redirect_pc         (ex_redirect_pc),
+        .ex_mem_addr            (ex_mem_addr),
         .ex_fence_i             (ex_fence_i),
 
         .fetch_valid            (fetch_valid),
@@ -269,7 +268,6 @@ module ysyx_26030082 #(
         .ex_rf_waddr            (ex_rf_waddr),
         .ex_mem_addr            (ex_mem_addr),
         .ex_redirect            (ex_redirect),
-        .ex_redirect_pc         (ex_redirect_pc),
         .ex_wdata               (ex_wdata),
         .ex_fence_i             (ex_fence_i)
     );
@@ -483,7 +481,7 @@ module ysyx_26030082 #(
             end
             if (pmu_ifu_nosupply) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
-                if (ifu.flush) begin
+                if (ifu.flush || ifu.need_flush) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
                 end else if (fetch_valid && !fetch_ready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;

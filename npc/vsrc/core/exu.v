@@ -15,14 +15,13 @@ module ysyx_26030082_exu (
     input  wire [31:0] rf_wdata,
     input  wire        ls_load_pending,
 
-    output wire        ex_rf_wen,
-    output wire        ex_mem_ren,
-    output wire        ex_mem_wen,
+    output reg         ex_rf_wen,
+    output reg         ex_mem_ren,
+    output reg         ex_mem_wen,
     output wire [ 2:0] ex_funct3,
     output wire [ 4:0] ex_rf_waddr,
-    output wire [31:0] ex_mem_addr,
+    output reg  [31:0] ex_mem_addr,
     output reg         ex_redirect,
-    output reg  [31:0] ex_redirect_pc,
     output reg  [31:0] ex_wdata,
     output reg         ex_fence_i
 );
@@ -57,12 +56,23 @@ module ysyx_26030082_exu (
     localparam [2:0] F3_CSRRSI = 3'b110;
     localparam [2:0] F3_CSRRCI = 3'b111;
 
+    localparam [2:0] F3_ADD_SUB = 3'b000;
+    localparam [2:0] F3_SLL     = 3'b001;
+    localparam [2:0] F3_SLT     = 3'b010;
+    localparam [2:0] F3_SLTU    = 3'b011;
+    localparam [2:0] F3_XOR     = 3'b100;
+    localparam [2:0] F3_SRL_SRA = 3'b101;
+    localparam [2:0] F3_OR      = 3'b110;
+    localparam [2:0] F3_AND     = 3'b111;
+
     localparam [2:0] F3_BEQ  = 3'b000;
     localparam [2:0] F3_BNE  = 3'b001;
     localparam [2:0] F3_BLT  = 3'b100;
     localparam [2:0] F3_BGE  = 3'b101;
     localparam [2:0] F3_BLTU = 3'b110;
     localparam [2:0] F3_BGEU = 3'b111;
+
+    localparam [2:0] F3_FENCE_I = 3'b001;
 
     localparam [31:0] CAUSE_ECALL = 32'd11;
 
@@ -72,16 +82,8 @@ module ysyx_26030082_exu (
     wire [4:0] rf_raddr1;
     wire [4:0] rf_raddr2;
     wire [11:0] csr_addr;
-    wire       op_rtype;
-    wire       op_itype;
-    wire       op_load;
-    wire       op_store;
-    wire       op_branch;
-    wire       op_auipc;
-    wire       op_jal;
-    wire       op_jalr;
-    wire       op_system;
-    wire       op_misc_mem;
+    reg        rs1_used;
+    reg        rs2_used;
 
     // RF + forward.
     reg  [31:0] reg_bank [1:15];
@@ -94,27 +96,26 @@ module ysyx_26030082_exu (
     // Immediate.
     reg  [31:0] imm;
 
-    // Execute datapath.
+    // ALU.
     wire [31:0] ex_pc4;
-    wire [31:0] add_lhs;
-    wire [31:0] add_rhs;
-    wire        add_sub;
-    wire [31:0] add_rhs_xor;
-    wire [31:0] add_result;
-    wire        add_carry;
-    wire [31:0] logic_lhs;
-    wire [31:0] logic_rhs;
+    reg  [31:0] fu_lhs;
+    reg  [31:0] fu_rhs;
+    reg  [31:0] addsub_lhs;
+    reg  [31:0] addsub_rhs;
+    reg         addsub_sub;
+    wire [31:0] addsub_rhs_xor;
+    wire [31:0] addsub_result;
     wire [31:0] and_result;
     wire [31:0] or_result;
     wire [31:0] xor_result;
     wire [31:0] sll_result;
     wire [31:0] srl_result;
     wire [31:0] sra_result;
+    reg  [31:0] cmp_lhs;
+    reg  [31:0] cmp_rhs;
+    wire        cmp_eq;
     wire        cmp_lt;
     wire        cmp_ltu;
-    wire        branch_cmp_eq;
-    wire        branch_cmp_lt;
-    wire        branch_cmp_ltu;
 
     // CSR.
     reg  [31:0] csr_mstatus;
@@ -132,17 +133,6 @@ module ysyx_26030082_exu (
     assign rf_raddr2 = fetch_inst[24:20];
     assign csr_addr = fetch_inst[31:20];
 
-    assign op_rtype    = opcode == OPCODE_OP;
-    assign op_itype    = opcode == OPCODE_OP_IMM;
-    assign op_load     = opcode == OPCODE_LOAD;
-    assign op_store    = opcode == OPCODE_STORE;
-    assign op_branch   = opcode == OPCODE_BRANCH;
-    assign op_auipc    = opcode == OPCODE_AUIPC;
-    assign op_jal      = opcode == OPCODE_JAL;
-    assign op_jalr     = opcode == OPCODE_JALR;
-    assign op_system   = opcode == OPCODE_SYSTEM;
-    assign op_misc_mem = opcode == OPCODE_MISC_MEM;
-
     // RF + forward.
     always @(posedge clock) begin
         if (rf_wen & (rf_waddr != 5'd0) & ~rf_waddr[4]) begin
@@ -156,20 +146,50 @@ module ysyx_26030082_exu (
     assign rf_rdata1_forward = ((rf_raddr1 == rf_waddr) && rf_wen && (rf_waddr != 5'b0)) ? rf_wdata : rf_rdata1;
     assign rf_rdata2_forward = ((rf_raddr2 == rf_waddr) && rf_wen && (rf_waddr != 5'b0)) ? rf_wdata : rf_rdata2;
 
+    always @(*) begin
+        rs1_used = 1'b0;
+        rs2_used = 1'b0;
+
+        case (opcode)
+            OPCODE_OP,
+            OPCODE_STORE,
+            OPCODE_BRANCH: begin
+                rs1_used = 1'b1;
+                rs2_used = 1'b1;
+            end
+
+            OPCODE_OP_IMM,
+            OPCODE_LOAD,
+            OPCODE_JALR: begin
+                rs1_used = 1'b1;
+            end
+
+            OPCODE_SYSTEM: begin
+                case (ex_funct3)
+                    F3_CSRRW,
+                    F3_CSRRS,
+                    F3_CSRRC: begin
+                        rs1_used = 1'b1;
+                    end
+
+                    default: begin
+                    end
+                endcase
+            end
+
+            default: begin
+            end
+        endcase
+    end
+
     assign load_use_hazard = ls_load_pending &&
                              (rf_waddr != 5'b0) &&
-                             (((op_rtype | op_itype | op_load | op_store | op_branch | op_jalr |
-                                (op_system && (ex_funct3 != F3_PRIV) && ~ex_funct3[2])) &&
-                               (rf_raddr1 == rf_waddr)) ||
-                              ((op_rtype | op_store | op_branch) &&
-                               (rf_raddr2 == rf_waddr)));
+                             ((rs1_used && (rf_raddr1 == rf_waddr)) ||
+                              (rs2_used && (rf_raddr2 == rf_waddr)));
 
     assign fetch_ready = ~fetch_valid || (~load_use_hazard && ex_out_ready);
     assign ex_out_valid = fetch_valid && ~load_use_hazard;
 
-    assign ex_rf_wen = ~(op_branch | op_store | op_misc_mem);
-    assign ex_mem_wen = op_store;
-    assign ex_mem_ren = op_load;
     assign ex_rf_waddr = fetch_inst[11:7];
 
     // Immediate.
@@ -177,21 +197,18 @@ module ysyx_26030082_exu (
         case (opcode)
             OPCODE_OP_IMM,
             OPCODE_LOAD,
-            OPCODE_JALR:   imm = {{20{fetch_inst[31]}}, fetch_inst[31:20]};
-            OPCODE_STORE:  imm = {{20{fetch_inst[31]}}, fetch_inst[31:25], fetch_inst[11:7]};
-            OPCODE_BRANCH: imm = {{20{fetch_inst[31]}}, fetch_inst[7], fetch_inst[30:25], fetch_inst[11:8], 1'b0};
+            OPCODE_JALR:  imm = {{20{fetch_inst[31]}}, fetch_inst[31:20]};
+            OPCODE_STORE:   imm = {{20{fetch_inst[31]}}, fetch_inst[31:25], fetch_inst[11:7]};
+            OPCODE_BRANCH:   imm = {{20{fetch_inst[31]}}, fetch_inst[7], fetch_inst[30:25], fetch_inst[11:8], 1'b0};
             OPCODE_LUI,
             OPCODE_AUIPC:  imm = {fetch_inst[31:12], 12'b0};
-            OPCODE_JAL:    imm = {{12{fetch_inst[31]}}, fetch_inst[19:12], fetch_inst[20], fetch_inst[30:21], 1'b0};
+            OPCODE_JAL:   imm = {{12{fetch_inst[31]}}, fetch_inst[19:12], fetch_inst[20], fetch_inst[30:21], 1'b0};
             OPCODE_SYSTEM: imm = {27'b0, fetch_inst[19:15]};
-            default:       imm = 32'b0;
+            default:     imm = 32'b0;
         endcase
     end
 
     // CSR read.
-    assign ex_pc4 = fetch_pc + 32'd4;
-    assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
-
     always @(*) begin
         case (csr_addr)
             CSR_MSTATUS:   csr_rdata = csr_mstatus;
@@ -204,54 +221,26 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    // ALU / BRU.
-    assign add_lhs = (op_auipc | op_jal | op_branch) ? fetch_pc : rf_rdata1_forward;
-    assign add_rhs = op_rtype ? rf_rdata2_forward : imm;
-    assign add_sub = (op_rtype && ex_funct3 == 3'b000 && funct7_5) ||
-                     ((op_rtype || op_itype) && (ex_funct3 == 3'b010 || ex_funct3 == 3'b011));
-    assign add_rhs_xor = add_sub ? ~add_rhs : add_rhs;
-    assign {add_carry, add_result} = {1'b0, add_lhs} + {1'b0, add_rhs_xor} + {32'b0, add_sub};
-
-    assign logic_lhs = op_system ? csr_rdata : rf_rdata1_forward;
-    assign logic_rhs = op_system ?
-                       ((ex_funct3 == F3_CSRRC || ex_funct3 == F3_CSRRCI) ? ~csr_src_data : csr_src_data) :
-                       (op_rtype ? rf_rdata2_forward : imm);
-    assign and_result = logic_lhs & logic_rhs;
-    assign or_result = logic_lhs | logic_rhs;
-    assign xor_result = logic_lhs ^ logic_rhs;
-    assign sll_result = rf_rdata1_forward << logic_rhs[4:0];
-    assign srl_result = rf_rdata1_forward >> logic_rhs[4:0];
-    assign sra_result = ($signed(rf_rdata1_forward)) >>> logic_rhs[4:0];
-    assign cmp_lt = (add_lhs[31] & ~add_rhs[31]) |
-                    ((add_lhs[31] ~^ add_rhs[31]) & add_result[31]);
-    assign cmp_ltu = ~add_carry;
-    assign branch_cmp_eq = (rf_rdata1_forward == rf_rdata2_forward);
-    assign branch_cmp_lt = ($signed(rf_rdata1_forward) < $signed(rf_rdata2_forward));
-    assign branch_cmp_ltu = (rf_rdata1_forward < rf_rdata2_forward);
-    assign ex_mem_addr = add_result;
-
-    // Redirect target.
+    // ALU.
+    assign ex_pc4 = fetch_pc + 32'd4;
+    assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
     always @(*) begin
-        ex_redirect_pc = add_result;
+        addsub_lhs = rf_rdata1_forward;
+        addsub_rhs = imm;
+        addsub_sub = 1'b0;
+        fu_lhs = rf_rdata1_forward;
+        fu_rhs = imm;
+        cmp_lhs = rf_rdata1_forward;
+        cmp_rhs = imm;
 
         case (opcode)
-            OPCODE_JALR: begin
-                ex_redirect_pc = {add_result[31:1], 1'b0};
-            end
-
-            OPCODE_SYSTEM: begin
+            OPCODE_OP: begin
+                addsub_rhs = rf_rdata2_forward;
+                fu_rhs = rf_rdata2_forward;
+                cmp_rhs = rf_rdata2_forward;
                 case (ex_funct3)
-                    F3_PRIV: begin
-                        case (csr_addr)
-                            F12_ECALL: begin
-                                ex_redirect_pc = {csr_mtvec[31:2], 2'b0};
-                            end
-                            F12_MRET: begin
-                                ex_redirect_pc = csr_mepc;
-                            end
-                            default: begin
-                            end
-                        endcase
+                    F3_ADD_SUB: begin
+                        addsub_sub = funct7_5;
                     end
 
                     default: begin
@@ -259,12 +248,23 @@ module ysyx_26030082_exu (
                 endcase
             end
 
-            OPCODE_MISC_MEM: begin
+            OPCODE_AUIPC,
+            OPCODE_JAL,
+            OPCODE_BRANCH: begin
+                addsub_lhs = fetch_pc;
+                cmp_rhs = rf_rdata2_forward;
+            end
+
+            OPCODE_SYSTEM: begin
+                fu_lhs = csr_rdata;
                 case (ex_funct3)
-                    3'b001: begin
-                        ex_redirect_pc = ex_pc4;
+                    F3_CSRRC,
+                    F3_CSRRCI: begin
+                        fu_rhs = ~csr_src_data;
                     end
+
                     default: begin
+                        fu_rhs = csr_src_data;
                     end
                 endcase
             end
@@ -274,97 +274,69 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    // Redirect / frontend invalidate.
+    assign addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
+    assign addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
+    assign and_result = fu_lhs & fu_rhs;
+    assign or_result = fu_lhs | fu_rhs;
+    assign xor_result = fu_lhs ^ fu_rhs;
+    assign sll_result = fu_lhs << fu_rhs[4:0];
+    assign srl_result = fu_lhs >> fu_rhs[4:0];
+    assign sra_result = ($signed(fu_lhs)) >>> fu_rhs[4:0];
+    assign cmp_eq = (cmp_lhs == cmp_rhs);
+    assign cmp_lt = ($signed(cmp_lhs) < $signed(cmp_rhs));
+    assign cmp_ltu = (cmp_lhs < cmp_rhs);
+
+    // Output mux.
     always @(*) begin
+        ex_mem_addr = addsub_result;
+        ex_wdata = addsub_result;
+        csr_write_data = csr_src_data;
+        ex_rf_wen = 1'b1;
+        ex_mem_ren = 1'b0;
+        ex_mem_wen = 1'b0;
         ex_redirect = 1'b0;
         ex_fence_i = 1'b0;
-
-        case (opcode)
-            OPCODE_BRANCH: begin
-                case (ex_funct3)
-                    F3_BEQ:  ex_redirect = branch_cmp_eq;
-                    F3_BNE:  ex_redirect = ~branch_cmp_eq;
-                    F3_BLT:  ex_redirect = branch_cmp_lt;
-                    F3_BGE:  ex_redirect = ~branch_cmp_lt;
-                    F3_BLTU: ex_redirect = branch_cmp_ltu;
-                    F3_BGEU: ex_redirect = ~branch_cmp_ltu;
-                    default: begin
-                    end
-                endcase
-            end
-
-            OPCODE_JAL,
-            OPCODE_JALR: begin
-                ex_redirect = 1'b1;
-            end
-
-            OPCODE_SYSTEM: begin
-                case (ex_funct3)
-                    F3_PRIV: begin
-                        case (csr_addr)
-                            F12_ECALL,
-                            F12_MRET: begin
-                                ex_redirect = 1'b1;
-                            end
-                            default: begin
-                            end
-                        endcase
-                    end
-
-                    default: begin
-                    end
-                endcase
-            end
-
-            OPCODE_MISC_MEM: begin
-                case (ex_funct3)
-                    3'b001: begin
-                        ex_redirect = 1'b1;
-                        ex_fence_i = 1'b1;
-                    end
-                    default: begin
-                    end
-                endcase
-            end
-
-            default: begin
-            end
-        endcase
-    end
-
-    // RF writeback payload and CSR write data.
-    always @(*) begin
-        ex_wdata = add_result;
-        csr_write_data = csr_src_data;
 
         case (opcode)
             OPCODE_OP,
             OPCODE_OP_IMM: begin
                 case (ex_funct3)
-                    3'b001: begin
+                    F3_SLL: begin
                         ex_wdata = sll_result;
                     end
-                    3'b010: begin
+
+                    F3_SLT: begin
                         ex_wdata = {31'b0, cmp_lt};
                     end
-                    3'b011: begin
+
+                    F3_SLTU: begin
                         ex_wdata = {31'b0, cmp_ltu};
                     end
-                    3'b100: begin
+
+                    F3_XOR: begin
                         ex_wdata = xor_result;
                     end
-                    3'b101: begin
+
+                    F3_SRL_SRA: begin
                         case (funct7_5)
-                            1'b0: ex_wdata = srl_result;
-                            1'b1: ex_wdata = sra_result;
+                            1'b0: begin
+                                ex_wdata = srl_result;
+                            end
+
+                            1'b1: begin
+                                ex_wdata = sra_result;
+                            end
                         endcase
                     end
-                    3'b110: begin
+
+                    F3_OR: begin
                         ex_wdata = or_result;
                     end
-                    3'b111: begin
+
+                    F3_AND: begin
                         ex_wdata = and_result;
                     end
+
                     default: begin
                     end
                 endcase
@@ -375,17 +347,60 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_STORE: begin
+                ex_rf_wen = 1'b0;
+                ex_mem_wen = 1'b1;
                 ex_wdata = rf_rdata2_forward;
             end
 
-            OPCODE_JAL,
+            OPCODE_LOAD: begin
+                ex_mem_ren = 1'b1;
+            end
+
+            OPCODE_BRANCH: begin
+                ex_rf_wen = 1'b0;
+                case (ex_funct3)
+                    F3_BEQ:  ex_redirect = cmp_eq;
+                    F3_BNE:  ex_redirect = ~cmp_eq;
+                    F3_BLT:  ex_redirect = cmp_lt;
+                    F3_BGE:  ex_redirect = ~cmp_lt;
+                    F3_BLTU: ex_redirect = cmp_ltu;
+                    F3_BGEU: ex_redirect = ~cmp_ltu;
+                    default: begin
+                    end
+                endcase
+            end
+
+            OPCODE_JAL: begin
+                ex_redirect = 1'b1;
+                ex_wdata = ex_pc4;
+            end
+
             OPCODE_JALR: begin
+                ex_redirect = 1'b1;
+                ex_mem_addr = {addsub_result[31:1], 1'b0};
                 ex_wdata = ex_pc4;
             end
 
             OPCODE_SYSTEM: begin
                 ex_wdata = csr_rdata;
                 case (ex_funct3)
+                    F3_PRIV: begin
+                        case (csr_addr)
+                            F12_ECALL: begin
+                                ex_redirect = 1'b1;
+                                ex_mem_addr = {csr_mtvec[31:2], 2'b0};
+                            end
+
+                            F12_MRET: begin
+                                ex_redirect = 1'b1;
+                                ex_mem_addr = csr_mepc;
+                            end
+
+                            default: begin
+                            end
+                        endcase
+                    end
+
                     F3_CSRRW,
                     F3_CSRRWI: begin
                         csr_write_data = csr_src_data;
@@ -406,6 +421,20 @@ module ysyx_26030082_exu (
                 endcase
             end
 
+            OPCODE_MISC_MEM: begin
+                ex_rf_wen = 1'b0;
+                case (ex_funct3)
+                    F3_FENCE_I: begin
+                        ex_redirect = 1'b1;
+                        ex_mem_addr = ex_pc4;
+                        ex_fence_i = 1'b1;
+                    end
+
+                    default: begin
+                    end
+                endcase
+            end
+
             default: begin
             end
         endcase
@@ -417,7 +446,7 @@ module ysyx_26030082_exu (
             csr_mtvec   <= 32'h1;
             csr_mepc    <= 32'h0;
             csr_mcause  <= 32'h0;
-        end else if (ex_out_valid && ex_out_ready && op_system) begin
+        end else if (ex_out_valid && ex_out_ready && (opcode == OPCODE_SYSTEM)) begin
             case (ex_funct3)
                 F3_PRIV: begin
                     case (csr_addr)
