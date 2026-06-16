@@ -74,6 +74,15 @@ module ysyx_26030082_exu (
 
     localparam [2:0] F3_FENCE   = 3'b000;
     localparam [2:0] F3_FENCE_I = 3'b001;
+    localparam [2:0] F3_LB      = 3'b000;
+    localparam [2:0] F3_LH      = 3'b001;
+    localparam [2:0] F3_LW      = 3'b010;
+    localparam [2:0] F3_LBU     = 3'b100;
+    localparam [2:0] F3_LHU     = 3'b101;
+    localparam [2:0] F3_SB      = 3'b000;
+    localparam [2:0] F3_SH      = 3'b001;
+    localparam [2:0] F3_SW      = 3'b010;
+    localparam [2:0] F3_JALR    = 3'b000;
 
     localparam [31:0] CAUSE_ECALL = 32'd11;
 
@@ -205,13 +214,13 @@ module ysyx_26030082_exu (
     assign ex_pc4 = fetch_pc + 32'd4;
     assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
     always @(*) begin
-        addsub_lhs = 32'b0;
-        addsub_rhs = 32'b0;
-        addsub_sub = 1'b0;
-        bit_lhs = 32'b0;
-        bit_rhs = 32'b0;
-        shift_rhs = 32'b0;
-        cmp_rhs = 32'b0;
+        addsub_lhs = 32'bx;
+        addsub_rhs = 32'bx;
+        addsub_sub = 1'bx;
+        bit_lhs = 32'bx;
+        bit_rhs = 32'bx;
+        shift_rhs = 32'bx;
+        cmp_rhs = 32'bx;
 
         case (opcode)
             OPCODE_OP: begin
@@ -294,9 +303,9 @@ module ysyx_26030082_exu (
 
     // Output mux.
     always @(*) begin
-        ex_mem_addr = 32'b0;
-        ex_wdata = 32'b0;
-        csr_write_data = 32'b0;
+        ex_mem_addr = 32'bx;
+        ex_wdata = 32'bx;
+        csr_write_data = 32'bx;
         ex_rf_wen = 1'b0;
         ex_mem_ren = 1'b0;
         ex_mem_wen = 1'b0;
@@ -306,49 +315,57 @@ module ysyx_26030082_exu (
         case (opcode)
             OPCODE_OP,
             OPCODE_OP_IMM: begin
-                ex_rf_wen = 1'b1;
                 ex_mem_ren = 1'b0;
                 ex_mem_wen = 1'b0;
                 ex_redirect = 1'b0;
                 ex_fence_i = 1'b0;
                 case (ex_funct3)
                     F3_ADD_SUB: begin
+                        ex_rf_wen = 1'b1;
                         ex_wdata = addsub_result;
                     end
 
                     F3_SLL: begin
+                        ex_rf_wen = 1'b1;
                         ex_wdata = sll_result;
                     end
 
                     F3_SLT: begin
+                        ex_rf_wen = 1'b1;
                         ex_wdata = {31'b0, cmp_lt};
                     end
 
                     F3_SLTU: begin
+                        ex_rf_wen = 1'b1;
                         ex_wdata = {31'b0, cmp_ltu};
                     end
 
                     F3_XOR: begin
+                        ex_rf_wen = 1'b1;
                         ex_wdata = xor_result;
                     end
 
                     F3_SRL_SRA: begin
                         case (funct7_5)
                             1'b0: begin
+                                ex_rf_wen = 1'b1;
                                 ex_wdata = srl_result;
                             end
 
                             1'b1: begin
+                                ex_rf_wen = 1'b1;
                                 ex_wdata = sra_result;
                             end
                         endcase
                     end
 
                     F3_OR: begin
+                        ex_rf_wen = 1'b1;
                         ex_wdata = or_result;
                     end
 
                     F3_AND: begin
+                        ex_rf_wen = 1'b1;
                         ex_wdata = and_result;
                     end
 
@@ -376,22 +393,35 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_STORE: begin
-                ex_rf_wen = 1'b0;
-                ex_mem_ren = 1'b0;
-                ex_mem_wen = 1'b1;
-                ex_mem_addr = addsub_result;
-                ex_redirect = 1'b0;
-                ex_wdata = rf_rdata2_forward;
-                ex_fence_i = 1'b0;
+                case (ex_funct3)
+                    F3_SB,
+                    F3_SH,
+                    F3_SW: begin
+                        ex_mem_wen = 1'b1;
+                        ex_mem_addr = addsub_result;
+                        ex_wdata = rf_rdata2_forward;
+                    end
+
+                    default: begin
+                    end
+                endcase
             end
 
             OPCODE_LOAD: begin
-                ex_rf_wen = 1'b1;
-                ex_mem_ren = 1'b1;
-                ex_mem_wen = 1'b0;
-                ex_mem_addr = addsub_result;
-                ex_redirect = 1'b0;
-                ex_fence_i = 1'b0;
+                case (ex_funct3)
+                    F3_LB,
+                    F3_LH,
+                    F3_LW,
+                    F3_LBU,
+                    F3_LHU: begin
+                        ex_rf_wen = 1'b1;
+                        ex_mem_ren = 1'b1;
+                        ex_mem_addr = addsub_result;
+                    end
+
+                    default: begin
+                    end
+                endcase
             end
 
             OPCODE_BRANCH: begin
@@ -423,13 +453,17 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_JALR: begin
-                ex_rf_wen = 1'b1;
-                ex_mem_ren = 1'b0;
-                ex_mem_wen = 1'b0;
-                ex_redirect = 1'b1;
-                ex_mem_addr = {addsub_result[31:1], 1'b0};
-                ex_wdata = ex_pc4;
-                ex_fence_i = 1'b0;
+                case (ex_funct3)
+                    F3_JALR: begin
+                        ex_rf_wen = 1'b1;
+                        ex_redirect = 1'b1;
+                        ex_mem_addr = {addsub_result[31:1], 1'b0};
+                        ex_wdata = ex_pc4;
+                    end
+
+                    default: begin
+                    end
+                endcase
             end
 
             OPCODE_SYSTEM: begin
