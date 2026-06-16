@@ -100,7 +100,6 @@ module ysyx_26030082_exu (
 
     // RF + forward.
     reg  [31:0] reg_bank [1:15];
-    wire        ls_rf_waddr_valid;
     wire        ls_rf_write;
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
@@ -149,11 +148,10 @@ module ysyx_26030082_exu (
     assign csr_addr = fetch_inst[31:20];
 
     // RF + forward.
-    assign ls_rf_waddr_valid = (ls_rf_waddr != 5'd0) && ~ls_rf_waddr[4];
-    assign ls_rf_write = ls_out_valid && ls_rf_wen && ls_rf_waddr_valid;
+    assign ls_rf_write = ls_out_valid && ls_rf_wen;
 
     always @(posedge clock) begin
-        if (ls_rf_write) begin
+        if (ls_rf_write & (ls_rf_waddr != 5'd0) & ~ls_rf_waddr[4]) begin
             reg_bank[ls_rf_waddr[3:0]] <= ls_rf_wdata;
         end
     end
@@ -161,8 +159,8 @@ module ysyx_26030082_exu (
     assign rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
     assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
 
-    assign rf_rdata1_forward = ((rf_raddr1 == ls_rf_waddr) && ls_rf_write) ? ls_rf_wdata : rf_rdata1;
-    assign rf_rdata2_forward = ((rf_raddr2 == ls_rf_waddr) && ls_rf_write) ? ls_rf_wdata : rf_rdata2;
+    assign rf_rdata1_forward = ((rf_raddr1 == ls_rf_waddr) && ls_rf_write && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata1;
+    assign rf_rdata2_forward = ((rf_raddr2 == ls_rf_waddr) && ls_rf_write && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata2;
 
     assign csr_rs1_used = (opcode == OPCODE_SYSTEM) &&
                           ~ex_funct3[2] &&
@@ -177,7 +175,7 @@ module ysyx_26030082_exu (
                       csr_rs1_used;
 
     assign load_use_hazard = ls_load_pending &&
-                             ls_rf_waddr_valid &&
+                             (ls_rf_waddr != 5'b0) &&
                              ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
                               (rs2_used && (rf_raddr2 == ls_rf_waddr)));
 
@@ -329,6 +327,19 @@ module ysyx_26030082_exu (
     assign ex_mem_wen = (opcode == OPCODE_STORE);
     assign ex_fence_i = (opcode == OPCODE_MISC_MEM) &&
                         (ex_funct3 == F3_FENCE_I);
+
+    always @(*) begin
+        case (ex_funct3)
+            F3_CSRRW,
+            F3_CSRRWI: csr_write_data = csr_src_data;
+            F3_CSRRS,
+            F3_CSRRSI: csr_write_data = or_result;
+            F3_CSRRC,
+            F3_CSRRCI: csr_write_data = and_result;
+            default:   csr_write_data = csr_src_data;
+        endcase
+    end
+
     always @(*) begin
         case (opcode)
             OPCODE_OP,
@@ -347,7 +358,6 @@ module ysyx_26030082_exu (
     always @(*) begin
         ex_mem_addr = 32'bx;
         ex_wdata = 32'bx;
-        csr_write_data = 32'bx;
 
         case (opcode)
             OPCODE_OP,
@@ -449,19 +459,16 @@ module ysyx_26030082_exu (
                     F3_CSRRW,
                     F3_CSRRWI: begin
                         ex_wdata = csr_rdata;
-                        csr_write_data = csr_src_data;
                     end
 
                     F3_CSRRS,
                     F3_CSRRSI: begin
                         ex_wdata = csr_rdata;
-                        csr_write_data = or_result;
                     end
 
                     F3_CSRRC,
                     F3_CSRRCI: begin
                         ex_wdata = csr_rdata;
-                        csr_write_data = and_result;
                     end
 
                     default: begin
