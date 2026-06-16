@@ -325,7 +325,7 @@ module ysyx_26030082_exu (
                        (opcode == OPCODE_LOAD) ||
                        (opcode == OPCODE_JAL) ||
                        (opcode == OPCODE_JALR) ||
-                       (opcode == OPCODE_SYSTEM);
+                       ((opcode == OPCODE_SYSTEM) && (ex_funct3 != F3_PRIV));
     assign ex_mem_ren = (opcode == OPCODE_LOAD);
     assign ex_mem_wen = (opcode == OPCODE_STORE);
     assign ex_redirect = ((opcode == OPCODE_BRANCH) && branch_redirect) ||
