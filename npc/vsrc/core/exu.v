@@ -254,7 +254,10 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_AUIPC,
-            OPCODE_JAL,
+            OPCODE_JAL: begin
+                addsub_lhs = fetch_pc;
+            end
+
             OPCODE_BRANCH: begin
                 addsub_lhs = fetch_pc;
                 cmp_rhs = rf_rdata2_forward;
@@ -408,11 +411,6 @@ module ysyx_26030082_exu (
                             default: begin
                             end
                         endcase
-                    end
-
-                    F3_CSRRW,
-                    F3_CSRRWI: begin
-                        csr_write_data = csr_src_data;
                     end
 
                     F3_CSRRS,
