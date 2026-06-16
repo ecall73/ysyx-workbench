@@ -93,30 +93,24 @@ module ysyx_26030082_exu (
     // Immediate.
     reg  [31:0] imm;
 
-    // ALU.
+    // FU input mux and function units.
     wire [31:0] ex_pc4;
-    wire [31:0] alu_logic_lhs;
-    wire [31:0] alu_logic_rhs;
-    wire [31:0] alu_add_lhs;
-    wire [31:0] alu_add_rhs;
-    wire        alu_sub_family;
-    wire [31:0] alu_adder_rhs;
-    wire [31:0] alu_addsub_result;
-    wire        alu_addsub_carry;
-    wire [31:0] alu_and_result;
-    wire [31:0] alu_or_result;
-    wire [31:0] alu_xor_result;
-    wire [31:0] alu_sll_result;
-    wire [31:0] alu_srl_result;
-    wire [31:0] alu_sra_result;
-    wire        alu_cmp_lt;
-    wire        alu_cmp_ltu;
-    reg  [31:0] fu_result;
-
-    // BRU / redirect.
-    wire        bru_cmp_eq;
-    wire        bru_cmp_lt;
-    wire        bru_cmp_ltu;
+    reg  [31:0] fu_a;
+    reg  [31:0] fu_b;
+    reg         fu_sub;
+    reg  [31:0] cmp_a;
+    reg  [31:0] cmp_b;
+    wire [31:0] fu_addsub_rhs;
+    wire [31:0] fu_addsub_result;
+    wire [31:0] fu_and_result;
+    wire [31:0] fu_or_result;
+    wire [31:0] fu_xor_result;
+    wire [31:0] fu_sll_result;
+    wire [31:0] fu_srl_result;
+    wire [31:0] fu_sra_result;
+    wire        fu_cmp_eq;
+    wire        fu_cmp_lt;
+    wire        fu_cmp_ltu;
 
     // CSR.
     reg  [31:0] csr_mstatus;
@@ -179,139 +173,21 @@ module ysyx_26030082_exu (
         case (opcode)
             OPCODE_OP_IMM,
             OPCODE_LOAD,
-            OPCODE_JALR:  imm = {{20{fetch_inst[31]}}, fetch_inst[31:20]};
-            OPCODE_STORE:   imm = {{20{fetch_inst[31]}}, fetch_inst[31:25], fetch_inst[11:7]};
-            OPCODE_BRANCH:   imm = {{20{fetch_inst[31]}}, fetch_inst[7], fetch_inst[30:25], fetch_inst[11:8], 1'b0};
+            OPCODE_JALR:   imm = {{20{fetch_inst[31]}}, fetch_inst[31:20]};
+            OPCODE_STORE:  imm = {{20{fetch_inst[31]}}, fetch_inst[31:25], fetch_inst[11:7]};
+            OPCODE_BRANCH: imm = {{20{fetch_inst[31]}}, fetch_inst[7], fetch_inst[30:25], fetch_inst[11:8], 1'b0};
             OPCODE_LUI,
             OPCODE_AUIPC:  imm = {fetch_inst[31:12], 12'b0};
-            OPCODE_JAL:   imm = {{12{fetch_inst[31]}}, fetch_inst[19:12], fetch_inst[20], fetch_inst[30:21], 1'b0};
+            OPCODE_JAL:    imm = {{12{fetch_inst[31]}}, fetch_inst[19:12], fetch_inst[20], fetch_inst[30:21], 1'b0};
             OPCODE_SYSTEM: imm = {27'b0, fetch_inst[19:15]};
-            default:     imm = 32'b0;
+            default:       imm = 32'b0;
         endcase
     end
 
-    // ALU.
+    // CSR read.
     assign ex_pc4 = fetch_pc + 32'd4;
     assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
-    assign alu_logic_lhs = op_system ? csr_rdata : rf_rdata1_forward;
-    assign alu_logic_rhs = op_system ?
-                           ((ex_funct3 == F3_CSRRC || ex_funct3 == F3_CSRRCI) ? ~csr_src_data : csr_src_data) :
-                           (op_rtype ? rf_rdata2_forward : imm);
-    assign alu_add_lhs = (op_auipc | op_jal | op_branch) ? fetch_pc : rf_rdata1_forward;
-    assign alu_add_rhs = op_rtype ? rf_rdata2_forward : imm;
-    assign alu_sub_family = (op_rtype && ex_funct3 == 3'b000 && funct7_5) ||
-                            ((op_rtype || op_itype) && (ex_funct3 == 3'b010 || ex_funct3 == 3'b011));
-    assign alu_adder_rhs = alu_sub_family ? ~alu_add_rhs : alu_add_rhs;
-    assign {alu_addsub_carry, alu_addsub_result} = {1'b0, alu_add_lhs} + {1'b0, alu_adder_rhs} +
-                                                   {32'b0, alu_sub_family};
-    assign alu_and_result = alu_logic_lhs & alu_logic_rhs;
-    assign alu_or_result = alu_logic_lhs | alu_logic_rhs;
-    assign alu_xor_result = alu_logic_lhs ^ alu_logic_rhs;
-    assign alu_sll_result = rf_rdata1_forward << alu_logic_rhs[4:0];
-    assign alu_srl_result = rf_rdata1_forward >> alu_logic_rhs[4:0];
-    assign alu_sra_result = ($signed(rf_rdata1_forward)) >>> alu_logic_rhs[4:0];
-    assign alu_cmp_lt = (alu_add_lhs[31] & ~alu_add_rhs[31]) |
-                        ((alu_add_lhs[31] ~^ alu_add_rhs[31]) & alu_addsub_result[31]);
-    assign alu_cmp_ltu = ~alu_addsub_carry;
 
-    always @(*) begin
-        case (opcode)
-            OPCODE_OP: begin
-                case (ex_funct3)
-                    3'b000:  fu_result = alu_addsub_result;
-                    3'b001:  fu_result = alu_sll_result;
-                    3'b010:  fu_result = {31'b0, alu_cmp_lt};
-                    3'b011:  fu_result = {31'b0, alu_cmp_ltu};
-                    3'b100:  fu_result = alu_xor_result;
-                    3'b101:  fu_result = funct7_5 ? alu_sra_result : alu_srl_result;
-                    3'b110:  fu_result = alu_or_result;
-                    3'b111:  fu_result = alu_and_result;
-                    default: fu_result = alu_addsub_result;
-                endcase
-            end
-
-            OPCODE_OP_IMM: begin
-                case (ex_funct3)
-                    3'b000:  fu_result = alu_addsub_result;
-                    3'b001:  fu_result = alu_sll_result;
-                    3'b010:  fu_result = {31'b0, alu_cmp_lt};
-                    3'b011:  fu_result = {31'b0, alu_cmp_ltu};
-                    3'b100:  fu_result = alu_xor_result;
-                    3'b101:  fu_result = funct7_5 ? alu_sra_result : alu_srl_result;
-                    3'b110:  fu_result = alu_or_result;
-                    3'b111:  fu_result = alu_and_result;
-                    default: fu_result = alu_addsub_result;
-                endcase
-            end
-
-            OPCODE_LOAD,
-            OPCODE_JALR,
-            OPCODE_STORE,
-            OPCODE_AUIPC,
-            OPCODE_JAL: begin
-                fu_result = alu_addsub_result;
-            end
-
-            default: begin
-                fu_result = alu_addsub_result;
-            end
-        endcase
-    end
-
-    // BRU / redirect.
-    assign bru_cmp_eq = (rf_rdata1_forward == rf_rdata2_forward);
-    assign bru_cmp_lt = ($signed(rf_rdata1_forward) < $signed(rf_rdata2_forward));
-    assign bru_cmp_ltu = (rf_rdata1_forward < rf_rdata2_forward);
-
-    always @(*) begin
-        ex_redirect = 1'b0;
-        ex_mem_addr = fu_result;
-        ex_fence_i = 1'b0;
-
-        case (opcode)
-            OPCODE_BRANCH: begin
-                case (ex_funct3)
-                    F3_BEQ:  ex_redirect = bru_cmp_eq;
-                    F3_BNE:  ex_redirect = ~bru_cmp_eq;
-                    F3_BLT:  ex_redirect = bru_cmp_lt;
-                    F3_BGE:  ex_redirect = ~bru_cmp_lt;
-                    F3_BLTU: ex_redirect = bru_cmp_ltu;
-                    F3_BGEU: ex_redirect = ~bru_cmp_ltu;
-                    default: begin
-                    end
-                endcase
-            end
-
-            OPCODE_JAL: begin
-                ex_redirect = 1'b1;
-            end
-
-            OPCODE_JALR: begin
-                ex_redirect = 1'b1;
-                ex_mem_addr = {fu_result[31:1], 1'b0};
-            end
-
-            OPCODE_SYSTEM: begin
-                if (ex_funct3 == F3_PRIV) begin
-                    ex_redirect = 1'b1;
-                    ex_mem_addr = (csr_addr == F12_ECALL) ? {csr_mtvec[31:2], 2'b0} : csr_mepc;
-                end
-            end
-
-            OPCODE_MISC_MEM: begin
-                if (ex_funct3 == 3'b001) begin
-                    ex_redirect = 1'b1;
-                    ex_mem_addr = ex_pc4;
-                    ex_fence_i = 1'b1;
-                end
-            end
-
-            default: begin
-            end
-        endcase
-    end
-
-    // CSR and writeback side data.
     always @(*) begin
         case (csr_addr)
             CSR_MSTATUS:   csr_rdata = csr_mstatus;
@@ -324,39 +200,201 @@ module ysyx_26030082_exu (
         endcase
     end
 
+    // FU input mux.
     always @(*) begin
-        case (ex_funct3)
-            F3_CSRRW,
-            F3_CSRRWI: csr_write_data = csr_src_data;
-            F3_CSRRS,
-            F3_CSRRSI: csr_write_data = alu_or_result;
-            F3_CSRRC,
-            F3_CSRRCI: csr_write_data = alu_and_result;
-            default:   csr_write_data = csr_src_data;
-        endcase
-    end
+        fu_a = rf_rdata1_forward;
+        fu_b = imm;
+        fu_sub = 1'b0;
+        cmp_a = rf_rdata1_forward;
+        cmp_b = rf_rdata2_forward;
 
-    always @(*) begin
         case (opcode)
-            OPCODE_LUI: begin
-                ex_wdata = imm;
+            OPCODE_OP: begin
+                fu_b = rf_rdata2_forward;
+                fu_sub = (ex_funct3 == 3'b000) && funct7_5;
+            end
+
+            OPCODE_OP_IMM: begin
+                case (ex_funct3)
+                    3'b010,
+                    3'b011: begin
+                        cmp_b = imm;
+                    end
+                    default: begin
+                    end
+                endcase
+            end
+
+            OPCODE_AUIPC,
+            OPCODE_JAL,
+            OPCODE_BRANCH: begin
+                fu_a = fetch_pc;
+                fu_b = imm;
             end
 
             OPCODE_SYSTEM: begin
-                ex_wdata = csr_rdata;
+                case (ex_funct3)
+                    F3_CSRRW,
+                    F3_CSRRS,
+                    F3_CSRRWI,
+                    F3_CSRRSI: begin
+                        fu_a = csr_rdata;
+                        fu_b = csr_src_data;
+                    end
+
+                    F3_CSRRC,
+                    F3_CSRRCI: begin
+                        fu_a = csr_rdata;
+                        fu_b = ~csr_src_data;
+                    end
+
+                    default: begin
+                    end
+                endcase
             end
 
-            OPCODE_JAL,
-            OPCODE_JALR: begin
-                ex_wdata = ex_pc4;
+            default: begin
+            end
+        endcase
+    end
+
+    // FU.
+    assign fu_addsub_rhs = fu_sub ? ~fu_b : fu_b;
+    assign fu_addsub_result = fu_a + fu_addsub_rhs + {31'b0, fu_sub};
+    assign fu_and_result = fu_a & fu_b;
+    assign fu_or_result = fu_a | fu_b;
+    assign fu_xor_result = fu_a ^ fu_b;
+    assign fu_sll_result = fu_a << fu_b[4:0];
+    assign fu_srl_result = fu_a >> fu_b[4:0];
+    assign fu_sra_result = ($signed(fu_a)) >>> fu_b[4:0];
+    assign fu_cmp_eq = (cmp_a == cmp_b);
+    assign fu_cmp_lt = ($signed(cmp_a) < $signed(cmp_b));
+    assign fu_cmp_ltu = (cmp_a < cmp_b);
+
+    // Output mux: ex_mem_addr is also the redirect target when ex_redirect is high.
+    always @(*) begin
+        ex_mem_addr = fu_addsub_result;
+        ex_redirect = 1'b0;
+        ex_wdata = fu_addsub_result;
+        ex_fence_i = 1'b0;
+        csr_write_data = csr_src_data;
+
+        case (opcode)
+            OPCODE_OP,
+            OPCODE_OP_IMM: begin
+                case (ex_funct3)
+                    3'b001: begin
+                        ex_wdata = fu_sll_result;
+                    end
+                    3'b010: begin
+                        ex_wdata = {31'b0, fu_cmp_lt};
+                    end
+                    3'b011: begin
+                        ex_wdata = {31'b0, fu_cmp_ltu};
+                    end
+                    3'b100: begin
+                        ex_wdata = fu_xor_result;
+                    end
+                    3'b101: begin
+                        case (funct7_5)
+                            1'b0: ex_wdata = fu_srl_result;
+                            1'b1: ex_wdata = fu_sra_result;
+                        endcase
+                    end
+                    3'b110: begin
+                        ex_wdata = fu_or_result;
+                    end
+                    3'b111: begin
+                        ex_wdata = fu_and_result;
+                    end
+                    default: begin
+                    end
+                endcase
+            end
+
+            OPCODE_LUI: begin
+                ex_wdata = imm;
             end
 
             OPCODE_STORE: begin
                 ex_wdata = rf_rdata2_forward;
             end
 
+            OPCODE_BRANCH: begin
+                case (ex_funct3)
+                    F3_BEQ:  ex_redirect = fu_cmp_eq;
+                    F3_BNE:  ex_redirect = ~fu_cmp_eq;
+                    F3_BLT:  ex_redirect = fu_cmp_lt;
+                    F3_BGE:  ex_redirect = ~fu_cmp_lt;
+                    F3_BLTU: ex_redirect = fu_cmp_ltu;
+                    F3_BGEU: ex_redirect = ~fu_cmp_ltu;
+                    default: begin
+                    end
+                endcase
+            end
+
+            OPCODE_JAL: begin
+                ex_redirect = 1'b1;
+                ex_wdata = ex_pc4;
+            end
+
+            OPCODE_JALR: begin
+                ex_redirect = 1'b1;
+                ex_mem_addr = {fu_addsub_result[31:1], 1'b0};
+                ex_wdata = ex_pc4;
+            end
+
+            OPCODE_SYSTEM: begin
+                ex_wdata = csr_rdata;
+                case (ex_funct3)
+                    F3_PRIV: begin
+                        case (csr_addr)
+                            F12_ECALL: begin
+                                ex_redirect = 1'b1;
+                                ex_mem_addr = {csr_mtvec[31:2], 2'b0};
+                            end
+                            F12_MRET: begin
+                                ex_redirect = 1'b1;
+                                ex_mem_addr = csr_mepc;
+                            end
+                            default: begin
+                            end
+                        endcase
+                    end
+
+                    F3_CSRRW,
+                    F3_CSRRWI: begin
+                        csr_write_data = csr_src_data;
+                    end
+
+                    F3_CSRRS,
+                    F3_CSRRSI: begin
+                        csr_write_data = fu_or_result;
+                    end
+
+                    F3_CSRRC,
+                    F3_CSRRCI: begin
+                        csr_write_data = fu_and_result;
+                    end
+
+                    default: begin
+                    end
+                endcase
+            end
+
+            OPCODE_MISC_MEM: begin
+                case (ex_funct3)
+                    3'b001: begin
+                        ex_redirect = 1'b1;
+                        ex_mem_addr = ex_pc4;
+                        ex_fence_i = 1'b1;
+                    end
+                    default: begin
+                    end
+                endcase
+            end
+
             default: begin
-                ex_wdata = fu_result;
             end
         endcase
     end
