@@ -293,7 +293,7 @@ module ysyx_26030082_exu (
 
     // Output mux.
     always @(*) begin
-        ex_mem_addr = 32'b0;
+        ex_mem_addr = 32'bx;
         ex_wdata = addsub_result;
         csr_write_data = csr_src_data;
         ex_rf_wen = 1'b1;
