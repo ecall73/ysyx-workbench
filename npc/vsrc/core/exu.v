@@ -100,8 +100,8 @@ module ysyx_26030082_exu (
     // RF + forward.
     reg  [31:0] reg_bank [1:15];
     wire        ls_rf_write;
-    wire [31:0] rf_rdata1;
-    wire [31:0] rf_rdata2;
+    reg  [31:0] rf_rdata1;
+    reg  [31:0] rf_rdata2;
     wire        load_use_hazard;
     wire [31:0] rf_rdata1_forward;
     wire [31:0] rf_rdata2_forward;
@@ -155,8 +155,47 @@ module ysyx_26030082_exu (
         end
     end
 
-    assign rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
-    assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
+    always @(*) begin
+        case (rf_raddr1)
+            5'd1:    rf_rdata1 = reg_bank[1];
+            5'd2:    rf_rdata1 = reg_bank[2];
+            5'd3:    rf_rdata1 = reg_bank[3];
+            5'd4:    rf_rdata1 = reg_bank[4];
+            5'd5:    rf_rdata1 = reg_bank[5];
+            5'd6:    rf_rdata1 = reg_bank[6];
+            5'd7:    rf_rdata1 = reg_bank[7];
+            5'd8:    rf_rdata1 = reg_bank[8];
+            5'd9:    rf_rdata1 = reg_bank[9];
+            5'd10:   rf_rdata1 = reg_bank[10];
+            5'd11:   rf_rdata1 = reg_bank[11];
+            5'd12:   rf_rdata1 = reg_bank[12];
+            5'd13:   rf_rdata1 = reg_bank[13];
+            5'd14:   rf_rdata1 = reg_bank[14];
+            5'd15:   rf_rdata1 = reg_bank[15];
+            default: rf_rdata1 = 32'b0;
+        endcase
+    end
+
+    always @(*) begin
+        case (rf_raddr2)
+            5'd1:    rf_rdata2 = reg_bank[1];
+            5'd2:    rf_rdata2 = reg_bank[2];
+            5'd3:    rf_rdata2 = reg_bank[3];
+            5'd4:    rf_rdata2 = reg_bank[4];
+            5'd5:    rf_rdata2 = reg_bank[5];
+            5'd6:    rf_rdata2 = reg_bank[6];
+            5'd7:    rf_rdata2 = reg_bank[7];
+            5'd8:    rf_rdata2 = reg_bank[8];
+            5'd9:    rf_rdata2 = reg_bank[9];
+            5'd10:   rf_rdata2 = reg_bank[10];
+            5'd11:   rf_rdata2 = reg_bank[11];
+            5'd12:   rf_rdata2 = reg_bank[12];
+            5'd13:   rf_rdata2 = reg_bank[13];
+            5'd14:   rf_rdata2 = reg_bank[14];
+            5'd15:   rf_rdata2 = reg_bank[15];
+            default: rf_rdata2 = 32'b0;
+        endcase
+    end
 
     assign rf_rdata1_forward = ((rf_raddr1 == ls_rf_waddr) && ls_rf_write && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata1;
     assign rf_rdata2_forward = ((rf_raddr2 == ls_rf_waddr) && ls_rf_write && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata2;
