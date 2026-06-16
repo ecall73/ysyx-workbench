@@ -96,7 +96,7 @@ module ysyx_26030082_exu (
     wire       rs1_used;
     wire       rs2_used;
     wire       csr_rs1_used;
-    wire       branch_redirect;
+    reg        branch_redirect;
 
     // RF + forward.
     reg  [31:0] reg_bank [1:15];
@@ -306,12 +306,17 @@ module ysyx_26030082_exu (
     assign cmp_lt = ($signed(rf_rdata1_forward) < $signed(cmp_rhs));
     assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
 
-    assign branch_redirect = ((ex_funct3 == F3_BEQ) && cmp_eq) ||
-                             ((ex_funct3 == F3_BNE) && ~cmp_eq) ||
-                             ((ex_funct3 == F3_BLT) && cmp_lt) ||
-                             ((ex_funct3 == F3_BGE) && ~cmp_lt) ||
-                             ((ex_funct3 == F3_BLTU) && cmp_ltu) ||
-                             ((ex_funct3 == F3_BGEU) && ~cmp_ltu);
+    always @(*) begin
+        case (ex_funct3)
+            F3_BEQ:  branch_redirect = cmp_eq;
+            F3_BNE:  branch_redirect = ~cmp_eq;
+            F3_BLT:  branch_redirect = cmp_lt;
+            F3_BGE:  branch_redirect = ~cmp_lt;
+            F3_BLTU: branch_redirect = cmp_ltu;
+            F3_BGEU: branch_redirect = ~cmp_ltu;
+            default: branch_redirect = 1'b0;
+        endcase
+    end
 
     assign ex_rf_wen = (opcode == OPCODE_OP) ||
                        (opcode == OPCODE_OP_IMM) ||
