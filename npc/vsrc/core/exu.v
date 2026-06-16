@@ -203,19 +203,15 @@ module ysyx_26030082_exu (
 
     // CSR read.
     always @(*) begin
-        csr_rdata = 32'bx;
-
-        if (opcode == OPCODE_SYSTEM) begin
-            case (csr_addr)
-                CSR_MSTATUS:   csr_rdata = csr_mstatus;
-                CSR_MTVEC:     csr_rdata = csr_mtvec;
-                CSR_MEPC:      csr_rdata = csr_mepc;
-                CSR_MCAUSE:    csr_rdata = csr_mcause;
-                CSR_MVENDORID: csr_rdata = 32'h7973_7978;
-                CSR_MARCHID:   csr_rdata = 32'd26030082;
-                default:       csr_rdata = 32'b0;
-            endcase
-        end
+        case (csr_addr)
+            CSR_MSTATUS:   csr_rdata = csr_mstatus;
+            CSR_MTVEC:     csr_rdata = csr_mtvec;
+            CSR_MEPC:      csr_rdata = csr_mepc;
+            CSR_MCAUSE:    csr_rdata = csr_mcause;
+            CSR_MVENDORID: csr_rdata = 32'h7973_7978;
+            CSR_MARCHID:   csr_rdata = 32'd26030082;
+            default:       csr_rdata = 32'b0;
+        endcase
     end
 
     // ALU.
@@ -426,7 +422,9 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_BRANCH: begin
-                ex_mem_addr = addsub_result;
+                if (branch_redirect) begin
+                    ex_mem_addr = addsub_result;
+                end
             end
 
             OPCODE_JAL: begin
