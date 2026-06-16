@@ -83,8 +83,9 @@ module ysyx_26030082_exu (
     wire [4:0] rf_raddr1;
     wire [4:0] rf_raddr2;
     wire [11:0] csr_addr;
-    reg        rs1_used;
-    reg        rs2_used;
+    wire       rs1_used;
+    wire       rs2_used;
+    wire       csr_rs1_used;
 
     // RF + forward.
     reg  [31:0] reg_bank [1:15];
@@ -147,59 +148,17 @@ module ysyx_26030082_exu (
     assign rf_rdata1_forward = ((rf_raddr1 == ls_rf_waddr) && ls_rf_wen && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata1;
     assign rf_rdata2_forward = ((rf_raddr2 == ls_rf_waddr) && ls_rf_wen && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata2;
 
-    always @(*) begin
-        rs1_used = 1'b0;
-        rs2_used = 1'b0;
-
-        case (opcode)
-            OPCODE_OP,
-            OPCODE_STORE,
-            OPCODE_BRANCH: begin
-                rs1_used = 1'b1;
-                rs2_used = 1'b1;
-            end
-
-            OPCODE_OP_IMM,
-            OPCODE_LOAD,
-            OPCODE_JALR: begin
-                rs1_used = 1'b1;
-                rs2_used = 1'b0;
-            end
-
-            OPCODE_LUI,
-            OPCODE_AUIPC,
-            OPCODE_JAL,
-            OPCODE_MISC_MEM: begin
-                rs1_used = 1'b0;
-                rs2_used = 1'b0;
-            end
-
-            OPCODE_SYSTEM: begin
-                case (ex_funct3)
-                    F3_PRIV,
-                    F3_CSRRWI,
-                    F3_CSRRSI,
-                    F3_CSRRCI: begin
-                        rs1_used = 1'b0;
-                        rs2_used = 1'b0;
-                    end
-
-                    F3_CSRRW,
-                    F3_CSRRS,
-                    F3_CSRRC: begin
-                        rs1_used = 1'b1;
-                        rs2_used = 1'b0;
-                    end
-
-                    default: begin
-                    end
-                endcase
-            end
-
-            default: begin
-            end
-        endcase
-    end
+    assign csr_rs1_used = (opcode == OPCODE_SYSTEM) &&
+                          ~ex_funct3[2] &&
+                          (ex_funct3[1:0] != 2'b00);
+    assign rs2_used = (opcode == OPCODE_OP) ||
+                      (opcode == OPCODE_STORE) ||
+                      (opcode == OPCODE_BRANCH);
+    assign rs1_used = rs2_used ||
+                      (opcode == OPCODE_OP_IMM) ||
+                      (opcode == OPCODE_LOAD) ||
+                      (opcode == OPCODE_JALR) ||
+                      csr_rs1_used;
 
     assign load_use_hazard = ls_load_pending &&
                              (ls_rf_waddr != 5'b0) &&
@@ -256,63 +215,23 @@ module ysyx_26030082_exu (
 
         case (opcode)
             OPCODE_OP: begin
-                case (ex_funct3)
-                    F3_ADD_SUB: begin
-                        addsub_lhs = rf_rdata1_forward;
-                        addsub_rhs = rf_rdata2_forward;
-                        addsub_sub = funct7_5;
-                    end
-
-                    F3_SLL,
-                    F3_SRL_SRA: begin
-                        shift_rhs = rf_rdata2_forward;
-                    end
-
-                    F3_SLT,
-                    F3_SLTU: begin
-                        cmp_rhs = rf_rdata2_forward;
-                    end
-
-                    F3_XOR,
-                    F3_OR,
-                    F3_AND: begin
-                        bit_lhs = rf_rdata1_forward;
-                        bit_rhs = rf_rdata2_forward;
-                    end
-
-                    default: begin
-                    end
-                endcase
+                addsub_lhs = rf_rdata1_forward;
+                addsub_rhs = rf_rdata2_forward;
+                addsub_sub = (ex_funct3 == F3_ADD_SUB) && funct7_5;
+                bit_lhs = rf_rdata1_forward;
+                bit_rhs = rf_rdata2_forward;
+                shift_rhs = rf_rdata2_forward;
+                cmp_rhs = rf_rdata2_forward;
             end
 
             OPCODE_OP_IMM: begin
-                case (ex_funct3)
-                    F3_ADD_SUB: begin
-                        addsub_lhs = rf_rdata1_forward;
-                        addsub_rhs = imm;
-                        addsub_sub = 1'b0;
-                    end
-
-                    F3_SLL,
-                    F3_SRL_SRA: begin
-                        shift_rhs = imm;
-                    end
-
-                    F3_SLT,
-                    F3_SLTU: begin
-                        cmp_rhs = imm;
-                    end
-
-                    F3_XOR,
-                    F3_OR,
-                    F3_AND: begin
-                        bit_lhs = rf_rdata1_forward;
-                        bit_rhs = imm;
-                    end
-
-                    default: begin
-                    end
-                endcase
+                addsub_lhs = rf_rdata1_forward;
+                addsub_rhs = imm;
+                addsub_sub = 1'b0;
+                bit_lhs = rf_rdata1_forward;
+                bit_rhs = imm;
+                shift_rhs = imm;
+                cmp_rhs = imm;
             end
 
             OPCODE_LOAD,
