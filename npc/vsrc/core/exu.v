@@ -98,19 +98,20 @@ module ysyx_26030082_exu (
     reg  [31:0] fu_a;
     reg  [31:0] fu_b;
     reg         fu_sub;
-    reg  [31:0] cmp_a;
-    reg  [31:0] cmp_b;
     wire [31:0] fu_addsub_rhs;
     wire [31:0] fu_addsub_result;
+    wire        fu_addsub_carry;
     wire [31:0] fu_and_result;
     wire [31:0] fu_or_result;
     wire [31:0] fu_xor_result;
     wire [31:0] fu_sll_result;
     wire [31:0] fu_srl_result;
     wire [31:0] fu_sra_result;
-    wire        fu_cmp_eq;
     wire        fu_cmp_lt;
     wire        fu_cmp_ltu;
+    wire        branch_cmp_eq;
+    wire        branch_cmp_lt;
+    wire        branch_cmp_ltu;
 
     // CSR.
     reg  [31:0] csr_mstatus;
@@ -205,21 +206,32 @@ module ysyx_26030082_exu (
         fu_a = rf_rdata1_forward;
         fu_b = imm;
         fu_sub = 1'b0;
-        cmp_a = rf_rdata1_forward;
-        cmp_b = rf_rdata2_forward;
 
         case (opcode)
             OPCODE_OP: begin
                 fu_b = rf_rdata2_forward;
-                fu_sub = (ex_funct3 == 3'b000) && funct7_5;
+                case (ex_funct3)
+                    3'b000: begin
+                        fu_sub = funct7_5;
+                    end
+
+                    3'b010,
+                    3'b011: begin
+                        fu_sub = 1'b1;
+                    end
+
+                    default: begin
+                    end
+                endcase
             end
 
             OPCODE_OP_IMM: begin
                 case (ex_funct3)
                     3'b010,
                     3'b011: begin
-                        cmp_b = imm;
+                        fu_sub = 1'b1;
                     end
+
                     default: begin
                     end
                 endcase
@@ -260,16 +272,20 @@ module ysyx_26030082_exu (
 
     // FU.
     assign fu_addsub_rhs = fu_sub ? ~fu_b : fu_b;
-    assign fu_addsub_result = fu_a + fu_addsub_rhs + {31'b0, fu_sub};
+    assign {fu_addsub_carry, fu_addsub_result} = {1'b0, fu_a} + {1'b0, fu_addsub_rhs} +
+                                                 {32'b0, fu_sub};
     assign fu_and_result = fu_a & fu_b;
     assign fu_or_result = fu_a | fu_b;
     assign fu_xor_result = fu_a ^ fu_b;
     assign fu_sll_result = fu_a << fu_b[4:0];
     assign fu_srl_result = fu_a >> fu_b[4:0];
     assign fu_sra_result = ($signed(fu_a)) >>> fu_b[4:0];
-    assign fu_cmp_eq = (cmp_a == cmp_b);
-    assign fu_cmp_lt = ($signed(cmp_a) < $signed(cmp_b));
-    assign fu_cmp_ltu = (cmp_a < cmp_b);
+    assign fu_cmp_lt = (fu_a[31] & ~fu_b[31]) |
+                       ((fu_a[31] ~^ fu_b[31]) & fu_addsub_result[31]);
+    assign fu_cmp_ltu = ~fu_addsub_carry;
+    assign branch_cmp_eq = (rf_rdata1_forward == rf_rdata2_forward);
+    assign branch_cmp_lt = ($signed(rf_rdata1_forward) < $signed(rf_rdata2_forward));
+    assign branch_cmp_ltu = (rf_rdata1_forward < rf_rdata2_forward);
 
     // Output mux: ex_mem_addr is also the redirect target when ex_redirect is high.
     always @(*) begin
@@ -322,12 +338,12 @@ module ysyx_26030082_exu (
 
             OPCODE_BRANCH: begin
                 case (ex_funct3)
-                    F3_BEQ:  ex_redirect = fu_cmp_eq;
-                    F3_BNE:  ex_redirect = ~fu_cmp_eq;
-                    F3_BLT:  ex_redirect = fu_cmp_lt;
-                    F3_BGE:  ex_redirect = ~fu_cmp_lt;
-                    F3_BLTU: ex_redirect = fu_cmp_ltu;
-                    F3_BGEU: ex_redirect = ~fu_cmp_ltu;
+                    F3_BEQ:  ex_redirect = branch_cmp_eq;
+                    F3_BNE:  ex_redirect = ~branch_cmp_eq;
+                    F3_BLT:  ex_redirect = branch_cmp_lt;
+                    F3_BGE:  ex_redirect = ~branch_cmp_lt;
+                    F3_BLTU: ex_redirect = branch_cmp_ltu;
+                    F3_BGEU: ex_redirect = ~branch_cmp_ltu;
                     default: begin
                     end
                 endcase
