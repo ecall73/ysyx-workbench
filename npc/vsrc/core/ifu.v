@@ -9,9 +9,9 @@ module ysyx_26030082_ifu #(
     // EX retire feedback
     input  wire        ex_out_valid,
     input  wire        ex_out_ready,
-    input  wire        ex_Redirect,
-    input  wire [31:0] ex_RedirectTarget,
-    input  wire        ex_FenceI,
+    input  wire        ex_redirect,
+    input  wire [31:0] ex_redirect_pc,
+    input  wire        ex_fence_i,
 
     // Frontend response interface
     output wire        fetch_valid,
@@ -81,8 +81,8 @@ module ysyx_26030082_ifu #(
     assign cache_miss = (state == S_LOOKUP) && !cache_hit;
 
     assign commit_fire = ex_out_valid && ex_out_ready;
-    assign flush = commit_fire && ex_Redirect;
-    assign invalidate = commit_fire && ex_FenceI;
+    assign flush = commit_fire && ex_redirect;
+    assign invalidate = commit_fire && ex_fence_i;
     assign fetch_valid = (state == S_LOOKUP) && cache_hit;
     assign fetch_pc = pc_r;
     assign fetch_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
@@ -110,7 +110,7 @@ module ysyx_26030082_ifu #(
             valid_array <= {LINE_COUNT{1'b0}};
         end else begin
             if (flush) begin
-                pc_r <= ex_RedirectTarget;
+                pc_r <= ex_redirect_pc;
             end else if (req_fire) begin
                 pc_r <= pc_r + 32'd4;
             end
