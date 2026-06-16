@@ -119,6 +119,9 @@ module ysyx_26030082_exu (
     reg         addsub_sub;
     wire [31:0] addsub_rhs_xor;
     wire [31:0] addsub_result;
+    wire        addsub_carry;
+    wire        slt_result;
+    wire        sltu_result;
     wire [31:0] and_result;
     wire [31:0] or_result;
     wire [31:0] xor_result;
@@ -195,7 +198,9 @@ module ysyx_26030082_exu (
             OPCODE_AUIPC:  imm = {fetch_inst[31:12], 12'b0};
             OPCODE_JAL:   imm = {{12{fetch_inst[31]}}, fetch_inst[19:12], fetch_inst[20], fetch_inst[30:21], 1'b0};
             OPCODE_SYSTEM: imm = {27'b0, fetch_inst[19:15]};
-            default:       imm = 32'bx;
+            OPCODE_OP,
+            OPCODE_MISC_MEM: imm = 32'b0;
+            default:     imm = 32'b0;
         endcase
     end
 
@@ -289,7 +294,12 @@ module ysyx_26030082_exu (
     end
 
     assign addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
-    assign addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
+    assign {addsub_carry, addsub_result} = {1'b0, addsub_lhs} +
+                                           {1'b0, addsub_rhs_xor} +
+                                           {32'b0, addsub_sub};
+    assign slt_result = (addsub_lhs[31] & ~addsub_rhs[31]) |
+                        ((addsub_lhs[31] ~^ addsub_rhs[31]) & addsub_result[31]);
+    assign sltu_result = ~addsub_carry;
     assign and_result = bit_lhs & bit_rhs;
     assign or_result = bit_lhs | bit_rhs;
     assign xor_result = bit_lhs ^ bit_rhs;
@@ -366,11 +376,11 @@ module ysyx_26030082_exu (
                     end
 
                     F3_SLT: begin
-                        ex_wdata = {31'b0, cmp_lt};
+                        ex_wdata = {31'b0, slt_result};
                     end
 
                     F3_SLTU: begin
-                        ex_wdata = {31'b0, cmp_ltu};
+                        ex_wdata = {31'b0, sltu_result};
                     end
 
                     F3_XOR: begin
