@@ -97,10 +97,6 @@ module ysyx_26030082_exu (
     wire       rs2_used;
     wire       csr_rs1_used;
     wire       alu_rf_wen;
-    wire       load_f3_valid;
-    wire       store_f3_valid;
-    wire       jalr_valid;
-    wire       csr_rf_wen;
     wire       system_redirect;
     wire       fence_i_inst;
     wire       branch_redirect;
@@ -315,23 +311,6 @@ module ysyx_26030082_exu (
 
     assign alu_rf_wen = (opcode == OPCODE_OP) ||
                         (opcode == OPCODE_OP_IMM);
-    assign load_f3_valid = (ex_funct3 == F3_LB) ||
-                           (ex_funct3 == F3_LH) ||
-                           (ex_funct3 == F3_LW) ||
-                           (ex_funct3 == F3_LBU) ||
-                           (ex_funct3 == F3_LHU);
-    assign store_f3_valid = (ex_funct3 == F3_SB) ||
-                            (ex_funct3 == F3_SH) ||
-                            (ex_funct3 == F3_SW);
-    assign jalr_valid = (opcode == OPCODE_JALR) &&
-                        (ex_funct3 == F3_JALR);
-    assign csr_rf_wen = (opcode == OPCODE_SYSTEM) &&
-                        ((ex_funct3 == F3_CSRRW) ||
-                         (ex_funct3 == F3_CSRRS) ||
-                         (ex_funct3 == F3_CSRRC) ||
-                         (ex_funct3 == F3_CSRRWI) ||
-                         (ex_funct3 == F3_CSRRSI) ||
-                         (ex_funct3 == F3_CSRRCI));
     assign system_redirect = (opcode == OPCODE_SYSTEM) &&
                              (ex_funct3 == F3_PRIV) &&
                              ((csr_addr == F12_ECALL) ||
@@ -348,15 +327,15 @@ module ysyx_26030082_exu (
     assign ex_rf_wen = alu_rf_wen ||
                        (opcode == OPCODE_LUI) ||
                        (opcode == OPCODE_AUIPC) ||
-                       ((opcode == OPCODE_LOAD) && load_f3_valid) ||
+                       (opcode == OPCODE_LOAD) ||
                        (opcode == OPCODE_JAL) ||
-                       jalr_valid ||
-                       csr_rf_wen;
-    assign ex_mem_ren = (opcode == OPCODE_LOAD) && load_f3_valid;
-    assign ex_mem_wen = (opcode == OPCODE_STORE) && store_f3_valid;
+                       (opcode == OPCODE_JALR) ||
+                       (opcode == OPCODE_SYSTEM);
+    assign ex_mem_ren = (opcode == OPCODE_LOAD);
+    assign ex_mem_wen = (opcode == OPCODE_STORE);
     assign ex_redirect = ((opcode == OPCODE_BRANCH) && branch_redirect) ||
                          (opcode == OPCODE_JAL) ||
-                         jalr_valid ||
+                         (opcode == OPCODE_JALR) ||
                          system_redirect ||
                          fence_i_inst;
     assign ex_fence_i = fence_i_inst;
