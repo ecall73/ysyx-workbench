@@ -206,7 +206,7 @@ module ysyx_26030082_exu (
             OPCODE_AUIPC:  imm = {fetch_inst[31:12], 12'b0};
             OPCODE_JAL:   imm = {{12{fetch_inst[31]}}, fetch_inst[19:12], fetch_inst[20], fetch_inst[30:21], 1'b0};
             OPCODE_SYSTEM: imm = {27'b0, fetch_inst[19:15]};
-            default:     imm = 32'bx;
+            default:     imm = 32'b0;
         endcase
     end
 
@@ -294,7 +294,7 @@ module ysyx_26030082_exu (
     // Output mux.
     always @(*) begin
         ex_mem_addr = 32'b0;
-        ex_wdata = 32'b0;
+        ex_wdata = addsub_result;
         csr_write_data = csr_src_data;
         ex_rf_wen = 1'b1;
         ex_mem_ren = 1'b0;
@@ -306,10 +306,6 @@ module ysyx_26030082_exu (
             OPCODE_OP,
             OPCODE_OP_IMM: begin
                 case (ex_funct3)
-                    F3_ADD_SUB: begin
-                        ex_wdata = addsub_result;
-                    end
-
                     F3_SLL: begin
                         ex_wdata = sll_result;
                     end
