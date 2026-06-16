@@ -123,8 +123,7 @@ module ysyx_26030082_exu (
     reg  [31:0] csr_mepc;
     reg  [31:0] csr_mcause;
     reg  [31:0] csr_rdata;
-    wire [31:0] csr_src_data;
-    reg  [31:0] csr_wdata;
+    wire [31:0] csr_wdata;
 
     assign opcode = fetch_inst[6:0];
     assign ex_funct3 = fetch_inst[14:12];
@@ -307,7 +306,7 @@ module ysyx_26030082_exu (
     end
 
     // CSR and writeback side data.
-    assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
+    assign csr_wdata = ex_funct3[2] ? imm : rf_rdata1_forward;
 
     always @(*) begin
         case (csr_addr)
@@ -318,18 +317,6 @@ module ysyx_26030082_exu (
             CSR_MVENDORID: csr_rdata = 32'h7973_7978;
             CSR_MARCHID:   csr_rdata = 32'd26030082;
             default:       csr_rdata = 32'b0;
-        endcase
-    end
-
-    always @(*) begin
-        case (ex_funct3)
-            F3_CSRRW,
-            F3_CSRRWI: csr_wdata = csr_src_data;
-            F3_CSRRS,
-            F3_CSRRSI: csr_wdata = csr_rdata | csr_src_data;
-            F3_CSRRC,
-            F3_CSRRCI: csr_wdata = csr_rdata & ~csr_src_data;
-            default:   csr_wdata = csr_rdata;
         endcase
     end
 
@@ -384,16 +371,36 @@ module ysyx_26030082_exu (
                 end
 
                 F3_CSRRW,
-                F3_CSRRS,
-                F3_CSRRC,
-                F3_CSRRWI,
-                F3_CSRRSI,
-                F3_CSRRCI: begin
+                F3_CSRRWI: begin
                     case (csr_addr)
                         CSR_MSTATUS: csr_mstatus <= csr_wdata;
                         CSR_MTVEC:   csr_mtvec   <= csr_wdata;
                         CSR_MEPC:    csr_mepc    <= csr_wdata;
                         CSR_MCAUSE:  csr_mcause  <= csr_wdata;
+                        default: begin
+                        end
+                    endcase
+                end
+
+                F3_CSRRS,
+                F3_CSRRSI: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_mstatus <= csr_mstatus | csr_wdata;
+                        CSR_MTVEC:   csr_mtvec   <= csr_mtvec | csr_wdata;
+                        CSR_MEPC:    csr_mepc    <= csr_mepc | csr_wdata;
+                        CSR_MCAUSE:  csr_mcause  <= csr_mcause | csr_wdata;
+                        default: begin
+                        end
+                    endcase
+                end
+
+                F3_CSRRC,
+                F3_CSRRCI: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_mstatus <= csr_mstatus & ~csr_wdata;
+                        CSR_MTVEC:   csr_mtvec   <= csr_mtvec & ~csr_wdata;
+                        CSR_MEPC:    csr_mepc    <= csr_mepc & ~csr_wdata;
+                        CSR_MCAUSE:  csr_mcause  <= csr_mcause & ~csr_wdata;
                         default: begin
                         end
                     endcase
