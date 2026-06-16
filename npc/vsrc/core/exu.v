@@ -101,7 +101,6 @@ module ysyx_26030082_exu (
     wire [31:0] alu_add_lhs;
     wire [31:0] alu_add_rhs;
     wire        alu_sub_family;
-    wire        alu_cmp_family;
     wire [31:0] alu_adder_rhs;
     wire [31:0] alu_addsub_result;
     wire        alu_addsub_carry;
@@ -115,8 +114,9 @@ module ysyx_26030082_exu (
     wire        alu_cmp_ltu;
 
     // BRU / redirect.
-    wire [31:0] branch_target;
     wire        bru_cmp_eq;
+    wire        bru_cmp_lt;
+    wire        bru_cmp_ltu;
 
     // CSR.
     reg  [31:0] csr_mstatus;
@@ -197,11 +197,10 @@ module ysyx_26030082_exu (
     assign alu_logic_rhs = op_system ?
                            ((ex_funct3 == F3_CSRRC || ex_funct3 == F3_CSRRCI) ? ~csr_src_data : csr_src_data) :
                            (op_rtype ? rf_rdata2_forward : imm);
-    assign alu_add_lhs = (op_auipc | op_jal) ? fetch_pc : rf_rdata1_forward;
-    assign alu_add_rhs = (op_rtype | op_branch) ? rf_rdata2_forward : imm;
-    assign alu_cmp_family = op_branch ||
+    assign alu_add_lhs = (op_auipc | op_jal | op_branch) ? fetch_pc : rf_rdata1_forward;
+    assign alu_add_rhs = op_rtype ? rf_rdata2_forward : imm;
+    assign alu_sub_family = (op_rtype && ex_funct3 == 3'b000 && funct7_5) ||
                             ((op_rtype || op_itype) && (ex_funct3 == 3'b010 || ex_funct3 == 3'b011));
-    assign alu_sub_family = (op_rtype && ex_funct3 == 3'b000 && funct7_5) || alu_cmp_family;
     assign alu_adder_rhs = alu_sub_family ? ~alu_add_rhs : alu_add_rhs;
     assign {alu_addsub_carry, alu_addsub_result} = {1'b0, alu_add_lhs} + {1'b0, alu_adder_rhs} +
                                                    {32'b0, alu_sub_family};
@@ -221,8 +220,8 @@ module ysyx_26030082_exu (
                 case (ex_funct3)
                     3'b000:  ex_alu_result = alu_addsub_result;
                     3'b001:  ex_alu_result = alu_sll_result;
-                    3'b010:  ex_alu_result = {31'b0, alu_cmp_lt};
-                    3'b011:  ex_alu_result = {31'b0, alu_cmp_ltu};
+                    3'b010:  ex_alu_result = {31'b0, bru_cmp_lt};
+                    3'b011:  ex_alu_result = {31'b0, bru_cmp_ltu};
                     3'b100:  ex_alu_result = alu_xor_result;
                     3'b101:  ex_alu_result = funct7_5 ? alu_sra_result : alu_srl_result;
                     3'b110:  ex_alu_result = alu_or_result;
@@ -260,8 +259,9 @@ module ysyx_26030082_exu (
     end
 
     // BRU / redirect.
-    assign branch_target = fetch_pc + imm;
-    assign bru_cmp_eq = alu_addsub_result == 32'b0;
+    assign bru_cmp_eq = (rf_rdata1_forward == rf_rdata2_forward);
+    assign bru_cmp_lt = ($signed(rf_rdata1_forward) < $signed(rf_rdata2_forward));
+    assign bru_cmp_ltu = (rf_rdata1_forward < rf_rdata2_forward);
 
     always @(*) begin
         ex_redirect = 1'b0;
@@ -270,14 +270,13 @@ module ysyx_26030082_exu (
 
         case (opcode)
             OPCODE_BRANCH: begin
-                ex_redirect_pc = branch_target;
                 case (ex_funct3)
                     F3_BEQ:  ex_redirect = bru_cmp_eq;
                     F3_BNE:  ex_redirect = ~bru_cmp_eq;
-                    F3_BLT:  ex_redirect = alu_cmp_lt;
-                    F3_BGE:  ex_redirect = ~alu_cmp_lt;
-                    F3_BLTU: ex_redirect = alu_cmp_ltu;
-                    F3_BGEU: ex_redirect = ~alu_cmp_ltu;
+                    F3_BLT:  ex_redirect = bru_cmp_lt;
+                    F3_BGE:  ex_redirect = ~bru_cmp_lt;
+                    F3_BLTU: ex_redirect = bru_cmp_ltu;
+                    F3_BGEU: ex_redirect = ~bru_cmp_ltu;
                     default: begin
                     end
                 endcase
