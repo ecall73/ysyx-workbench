@@ -220,7 +220,7 @@ module ysyx_26030082_exu (
     always @(*) begin
         addsub_lhs = 32'bx;
         addsub_rhs = 32'bx;
-        addsub_sub = 1'bx;
+        addsub_sub = 1'b0;
         bit_lhs = 32'bx;
         bit_rhs = 32'bx;
         cmp_rhs = 32'bx;
@@ -422,9 +422,7 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_BRANCH: begin
-                if (branch_redirect) begin
-                    ex_mem_addr = addsub_result;
-                end
+                ex_mem_addr = addsub_result;
             end
 
             OPCODE_JAL: begin
