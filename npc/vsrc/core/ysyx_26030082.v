@@ -146,9 +146,9 @@ module ysyx_26030082 #(
     reg  [31:0] ls_wdata;
     wire        ls_in_ready;
     wire        ls_out_valid;
-    wire        ls_rf_wb_wen;
-    wire [ 4:0] ls_rf_wb_waddr;
-    wire [31:0] ls_rf_wb_wdata;
+    wire        ls_rf_wen;
+    wire [ 4:0] ls_rf_waddr;
+    wire [31:0] ls_rf_wdata;
     wire [31:0] ls_mem_rdata;
 
 `ifndef SYNTHESIS
@@ -238,9 +238,9 @@ module ysyx_26030082 #(
         .ifu_axi_rready         (ifu_axi_rready)
     );
 
-    assign ls_rf_wb_wen = ls_out_valid && ls_rf_wen;
-    assign ls_rf_wb_waddr = ls_rf_waddr;
-    assign ls_rf_wb_wdata = ls_mem_ren ? ls_mem_rdata : ls_wdata;
+    assign ls_rf_wen = ls_out_valid && ls_rf_wen;
+    assign ls_rf_waddr = ls_rf_waddr;
+    assign ls_rf_wdata = ls_mem_ren ? ls_mem_rdata : ls_wdata;
 
     // EX -> LS handshake coupling
     assign ex_out_ready = ls_in_ready;
@@ -256,9 +256,9 @@ module ysyx_26030082 #(
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
 
-        .ls_rf_wen              (ls_rf_wb_wen),
-        .ls_rf_waddr            (ls_rf_wb_waddr),
-        .ls_rf_wdata            (ls_rf_wb_wdata),
+        .ls_rf_wen              (ls_rf_wen),
+        .ls_rf_waddr            (ls_rf_waddr),
+        .ls_rf_wdata            (ls_rf_wdata),
         .ls_load_pending        (ls_in_valid && ls_mem_ren && ~ls_out_valid),
 
         .ex_rf_wen              (ex_rf_wen),
