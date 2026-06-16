@@ -295,9 +295,9 @@ module ysyx_26030082_exu (
     assign and_result = bit_lhs & bit_rhs;
     assign or_result = bit_lhs | bit_rhs;
     assign xor_result = bit_lhs ^ bit_rhs;
-    assign sll_result = bit_lhs << bit_rhs[4:0];
-    assign srl_result = bit_lhs >> bit_rhs[4:0];
-    assign sra_result = ($signed(bit_lhs)) >>> bit_rhs[4:0];
+    assign sll_result = rf_rdata1_forward << bit_rhs[4:0];
+    assign srl_result = rf_rdata1_forward >> bit_rhs[4:0];
+    assign sra_result = ($signed(rf_rdata1_forward)) >>> bit_rhs[4:0];
     assign cmp_eq = (rf_rdata1_forward == cmp_rhs);
     assign cmp_lt = ($signed(rf_rdata1_forward) < $signed(cmp_rhs));
     assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
