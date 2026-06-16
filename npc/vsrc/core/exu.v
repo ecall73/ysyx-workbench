@@ -16,15 +16,15 @@ module ysyx_26030082_exu (
     input  wire [31:0] ls_rf_wdata,
     input  wire        ls_load_pending,
 
-    output reg         ex_rf_wen,
-    output reg         ex_mem_ren,
-    output reg         ex_mem_wen,
+    output wire        ex_rf_wen,
+    output wire        ex_mem_ren,
+    output wire        ex_mem_wen,
     output wire [ 2:0] ex_funct3,
     output wire [ 4:0] ex_rf_waddr,
     output reg  [31:0] ex_mem_addr,
-    output reg         ex_redirect,
+    output wire        ex_redirect,
     output reg  [31:0] ex_wdata,
-    output reg         ex_fence_i
+    output wire        ex_fence_i
 );
 
     localparam [6:0] OPCODE_OP   = 7'b011_0011;
@@ -96,12 +96,20 @@ module ysyx_26030082_exu (
     wire       rs1_used;
     wire       rs2_used;
     wire       csr_rs1_used;
+    wire       alu_rf_wen;
+    wire       load_f3_valid;
+    wire       store_f3_valid;
+    wire       jalr_valid;
+    wire       csr_rf_wen;
+    wire       system_redirect;
+    wire       fence_i_inst;
+    wire       branch_redirect;
 
     // RF + forward.
     reg  [31:0] reg_bank [1:15];
     wire        ls_rf_write;
-    reg  [31:0] rf_rdata1;
-    reg  [31:0] rf_rdata2;
+    wire [31:0] rf_rdata1;
+    wire [31:0] rf_rdata2;
     wire        load_use_hazard;
     wire [31:0] rf_rdata1_forward;
     wire [31:0] rf_rdata2_forward;
@@ -155,47 +163,8 @@ module ysyx_26030082_exu (
         end
     end
 
-    always @(*) begin
-        case (rf_raddr1)
-            5'd1:    rf_rdata1 = reg_bank[1];
-            5'd2:    rf_rdata1 = reg_bank[2];
-            5'd3:    rf_rdata1 = reg_bank[3];
-            5'd4:    rf_rdata1 = reg_bank[4];
-            5'd5:    rf_rdata1 = reg_bank[5];
-            5'd6:    rf_rdata1 = reg_bank[6];
-            5'd7:    rf_rdata1 = reg_bank[7];
-            5'd8:    rf_rdata1 = reg_bank[8];
-            5'd9:    rf_rdata1 = reg_bank[9];
-            5'd10:   rf_rdata1 = reg_bank[10];
-            5'd11:   rf_rdata1 = reg_bank[11];
-            5'd12:   rf_rdata1 = reg_bank[12];
-            5'd13:   rf_rdata1 = reg_bank[13];
-            5'd14:   rf_rdata1 = reg_bank[14];
-            5'd15:   rf_rdata1 = reg_bank[15];
-            default: rf_rdata1 = 32'b0;
-        endcase
-    end
-
-    always @(*) begin
-        case (rf_raddr2)
-            5'd1:    rf_rdata2 = reg_bank[1];
-            5'd2:    rf_rdata2 = reg_bank[2];
-            5'd3:    rf_rdata2 = reg_bank[3];
-            5'd4:    rf_rdata2 = reg_bank[4];
-            5'd5:    rf_rdata2 = reg_bank[5];
-            5'd6:    rf_rdata2 = reg_bank[6];
-            5'd7:    rf_rdata2 = reg_bank[7];
-            5'd8:    rf_rdata2 = reg_bank[8];
-            5'd9:    rf_rdata2 = reg_bank[9];
-            5'd10:   rf_rdata2 = reg_bank[10];
-            5'd11:   rf_rdata2 = reg_bank[11];
-            5'd12:   rf_rdata2 = reg_bank[12];
-            5'd13:   rf_rdata2 = reg_bank[13];
-            5'd14:   rf_rdata2 = reg_bank[14];
-            5'd15:   rf_rdata2 = reg_bank[15];
-            default: rf_rdata2 = 32'b0;
-        endcase
-    end
+    assign rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
+    assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
 
     assign rf_rdata1_forward = ((rf_raddr1 == ls_rf_waddr) && ls_rf_write && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata1;
     assign rf_rdata2_forward = ((rf_raddr2 == ls_rf_waddr) && ls_rf_write && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata2;
@@ -344,67 +313,101 @@ module ysyx_26030082_exu (
     assign cmp_lt = ($signed(rf_rdata1_forward) < $signed(cmp_rhs));
     assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
 
+    assign alu_rf_wen = (opcode == OPCODE_OP) ||
+                        (opcode == OPCODE_OP_IMM);
+    assign load_f3_valid = (ex_funct3 == F3_LB) ||
+                           (ex_funct3 == F3_LH) ||
+                           (ex_funct3 == F3_LW) ||
+                           (ex_funct3 == F3_LBU) ||
+                           (ex_funct3 == F3_LHU);
+    assign store_f3_valid = (ex_funct3 == F3_SB) ||
+                            (ex_funct3 == F3_SH) ||
+                            (ex_funct3 == F3_SW);
+    assign jalr_valid = (opcode == OPCODE_JALR) &&
+                        (ex_funct3 == F3_JALR);
+    assign csr_rf_wen = (opcode == OPCODE_SYSTEM) &&
+                        ((ex_funct3 == F3_CSRRW) ||
+                         (ex_funct3 == F3_CSRRS) ||
+                         (ex_funct3 == F3_CSRRC) ||
+                         (ex_funct3 == F3_CSRRWI) ||
+                         (ex_funct3 == F3_CSRRSI) ||
+                         (ex_funct3 == F3_CSRRCI));
+    assign system_redirect = (opcode == OPCODE_SYSTEM) &&
+                             (ex_funct3 == F3_PRIV) &&
+                             ((csr_addr == F12_ECALL) ||
+                              (csr_addr == F12_MRET));
+    assign fence_i_inst = (opcode == OPCODE_MISC_MEM) &&
+                          (ex_funct3 == F3_FENCE_I);
+    assign branch_redirect = ((ex_funct3 == F3_BEQ) && cmp_eq) ||
+                             ((ex_funct3 == F3_BNE) && ~cmp_eq) ||
+                             ((ex_funct3 == F3_BLT) && cmp_lt) ||
+                             ((ex_funct3 == F3_BGE) && ~cmp_lt) ||
+                             ((ex_funct3 == F3_BLTU) && cmp_ltu) ||
+                             ((ex_funct3 == F3_BGEU) && ~cmp_ltu);
+
+    assign ex_rf_wen = alu_rf_wen ||
+                       (opcode == OPCODE_LUI) ||
+                       (opcode == OPCODE_AUIPC) ||
+                       ((opcode == OPCODE_LOAD) && load_f3_valid) ||
+                       (opcode == OPCODE_JAL) ||
+                       jalr_valid ||
+                       csr_rf_wen;
+    assign ex_mem_ren = (opcode == OPCODE_LOAD) && load_f3_valid;
+    assign ex_mem_wen = (opcode == OPCODE_STORE) && store_f3_valid;
+    assign ex_redirect = ((opcode == OPCODE_BRANCH) && branch_redirect) ||
+                         (opcode == OPCODE_JAL) ||
+                         jalr_valid ||
+                         system_redirect ||
+                         fence_i_inst;
+    assign ex_fence_i = fence_i_inst;
+
     // Output mux.
     always @(*) begin
         ex_mem_addr = 32'bx;
         ex_wdata = 32'bx;
         csr_write_data = 32'bx;
-        ex_rf_wen = 1'b0;
-        ex_mem_ren = 1'b0;
-        ex_mem_wen = 1'b0;
-        ex_redirect = 1'b0;
-        ex_fence_i = 1'b0;
 
         case (opcode)
             OPCODE_OP,
             OPCODE_OP_IMM: begin
                 case (ex_funct3)
                     F3_ADD_SUB: begin
-                        ex_rf_wen = 1'b1;
                         ex_wdata = addsub_result;
                     end
 
                     F3_SLL: begin
-                        ex_rf_wen = 1'b1;
                         ex_wdata = sll_result;
                     end
 
                     F3_SLT: begin
-                        ex_rf_wen = 1'b1;
                         ex_wdata = {31'b0, cmp_lt};
                     end
 
                     F3_SLTU: begin
-                        ex_rf_wen = 1'b1;
                         ex_wdata = {31'b0, cmp_ltu};
                     end
 
                     F3_XOR: begin
-                        ex_rf_wen = 1'b1;
                         ex_wdata = xor_result;
                     end
 
                     F3_SRL_SRA: begin
                         case (funct7_5)
                             1'b0: begin
-                                ex_rf_wen = 1'b1;
                                 ex_wdata = srl_result;
                             end
 
                             1'b1: begin
-                                ex_rf_wen = 1'b1;
                                 ex_wdata = sra_result;
                             end
                         endcase
                     end
 
                     F3_OR: begin
-                        ex_rf_wen = 1'b1;
                         ex_wdata = or_result;
                     end
 
                     F3_AND: begin
-                        ex_rf_wen = 1'b1;
                         ex_wdata = and_result;
                     end
 
@@ -414,12 +417,10 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_LUI: begin
-                ex_rf_wen = 1'b1;
                 ex_wdata = imm;
             end
 
             OPCODE_AUIPC: begin
-                ex_rf_wen = 1'b1;
                 ex_wdata = addsub_result;
             end
 
@@ -428,7 +429,6 @@ module ysyx_26030082_exu (
                     F3_SB,
                     F3_SH,
                     F3_SW: begin
-                        ex_mem_wen = 1'b1;
                         ex_mem_addr = addsub_result;
                         ex_wdata = rf_rdata2_forward;
                     end
@@ -445,8 +445,6 @@ module ysyx_26030082_exu (
                     F3_LW,
                     F3_LBU,
                     F3_LHU: begin
-                        ex_rf_wen = 1'b1;
-                        ex_mem_ren = 1'b1;
                         ex_mem_addr = addsub_result;
                     end
 
@@ -457,21 +455,9 @@ module ysyx_26030082_exu (
 
             OPCODE_BRANCH: begin
                 ex_mem_addr = addsub_result;
-                case (ex_funct3)
-                    F3_BEQ:  ex_redirect = cmp_eq;
-                    F3_BNE:  ex_redirect = ~cmp_eq;
-                    F3_BLT:  ex_redirect = cmp_lt;
-                    F3_BGE:  ex_redirect = ~cmp_lt;
-                    F3_BLTU: ex_redirect = cmp_ltu;
-                    F3_BGEU: ex_redirect = ~cmp_ltu;
-                    default: begin
-                    end
-                endcase
             end
 
             OPCODE_JAL: begin
-                ex_rf_wen = 1'b1;
-                ex_redirect = 1'b1;
                 ex_mem_addr = addsub_result;
                 ex_wdata = ex_pc4;
             end
@@ -479,8 +465,6 @@ module ysyx_26030082_exu (
             OPCODE_JALR: begin
                 case (ex_funct3)
                     F3_JALR: begin
-                        ex_rf_wen = 1'b1;
-                        ex_redirect = 1'b1;
                         ex_mem_addr = {addsub_result[31:1], 1'b0};
                         ex_wdata = ex_pc4;
                     end
@@ -495,12 +479,10 @@ module ysyx_26030082_exu (
                     F3_PRIV: begin
                         case (csr_addr)
                             F12_ECALL: begin
-                                ex_redirect = 1'b1;
                                 ex_mem_addr = {csr_mtvec[31:2], 2'b0};
                             end
 
                             F12_MRET: begin
-                                ex_redirect = 1'b1;
                                 ex_mem_addr = csr_mepc;
                             end
 
@@ -511,21 +493,18 @@ module ysyx_26030082_exu (
 
                     F3_CSRRW,
                     F3_CSRRWI: begin
-                        ex_rf_wen = 1'b1;
                         ex_wdata = csr_rdata;
                         csr_write_data = csr_src_data;
                     end
 
                     F3_CSRRS,
                     F3_CSRRSI: begin
-                        ex_rf_wen = 1'b1;
                         ex_wdata = csr_rdata;
                         csr_write_data = or_result;
                     end
 
                     F3_CSRRC,
                     F3_CSRRCI: begin
-                        ex_rf_wen = 1'b1;
                         ex_wdata = csr_rdata;
                         csr_write_data = and_result;
                     end
@@ -537,10 +516,11 @@ module ysyx_26030082_exu (
 
             OPCODE_MISC_MEM: begin
                 case (ex_funct3)
+                    F3_FENCE: begin
+                    end
+
                     F3_FENCE_I: begin
-                        ex_redirect = 1'b1;
                         ex_mem_addr = ex_pc4;
-                        ex_fence_i = 1'b1;
                     end
 
                     default: begin
