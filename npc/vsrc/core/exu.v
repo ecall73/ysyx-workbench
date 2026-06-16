@@ -10,9 +10,9 @@ module ysyx_26030082_exu (
     input  wire        ex_out_ready,
     output wire        ex_out_valid,
 
-    input  wire        rf_wen,
-    input  wire [ 4:0] rf_waddr,
-    input  wire [31:0] rf_wdata,
+    input  wire        ls_rf_wen,
+    input  wire [ 4:0] ls_rf_waddr,
+    input  wire [31:0] ls_rf_wdata,
     input  wire        ls_load_pending,
 
     output reg         ex_rf_wen,
@@ -137,16 +137,16 @@ module ysyx_26030082_exu (
 
     // RF + forward.
     always @(posedge clock) begin
-        if (rf_wen & (rf_waddr != 5'd0) & ~rf_waddr[4]) begin
-            reg_bank[rf_waddr[3:0]] <= rf_wdata;
+        if (ls_rf_wen & (ls_rf_waddr != 5'd0) & ~ls_rf_waddr[4]) begin
+            reg_bank[ls_rf_waddr[3:0]] <= ls_rf_wdata;
         end
     end
 
     assign rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
     assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
 
-    assign rf_rdata1_forward = ((rf_raddr1 == rf_waddr) && rf_wen && (rf_waddr != 5'b0)) ? rf_wdata : rf_rdata1;
-    assign rf_rdata2_forward = ((rf_raddr2 == rf_waddr) && rf_wen && (rf_waddr != 5'b0)) ? rf_wdata : rf_rdata2;
+    assign rf_rdata1_forward = ((rf_raddr1 == ls_rf_waddr) && ls_rf_wen && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata1;
+    assign rf_rdata2_forward = ((rf_raddr2 == ls_rf_waddr) && ls_rf_wen && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata2;
 
     always @(*) begin
         rs1_used = 1'b0;
@@ -185,9 +185,9 @@ module ysyx_26030082_exu (
     end
 
     assign load_use_hazard = ls_load_pending &&
-                             (rf_waddr != 5'b0) &&
-                             ((rs1_used && (rf_raddr1 == rf_waddr)) ||
-                              (rs2_used && (rf_raddr2 == rf_waddr)));
+                             (ls_rf_waddr != 5'b0) &&
+                             ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
+                              (rs2_used && (rf_raddr2 == ls_rf_waddr)));
 
     assign fetch_ready = ~fetch_valid || (~load_use_hazard && ex_out_ready);
     assign ex_out_valid = fetch_valid && ~load_use_hazard;
