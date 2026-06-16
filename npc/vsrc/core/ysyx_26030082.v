@@ -282,7 +282,7 @@ module ysyx_26030082 #(
             ls_in_valid <= ex_out_valid;
             ls_rf_wen <= ex_rf_wen;
             ls_mem_wen <= ex_mem_wen;
-            ls_mem_addr <= ex_mem_addr;
+            ls_mem_addr <= (ex_mem_ren || ex_mem_wen) ? ex_mem_addr : 32'b0;
             ls_funct3 <= ex_funct3;
             ls_rf_waddr <= ex_rf_waddr;
             ls_wdata <= ex_wdata;
