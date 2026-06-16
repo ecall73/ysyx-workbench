@@ -311,9 +311,7 @@ module ysyx_26030082_exu (
     assign alu_rf_wen = (opcode == OPCODE_OP) ||
                         (opcode == OPCODE_OP_IMM);
     assign system_redirect = (opcode == OPCODE_SYSTEM) &&
-                             (ex_funct3 == F3_PRIV) &&
-                             ((csr_addr == F12_ECALL) ||
-                              (csr_addr == F12_MRET));
+                             (ex_funct3 == F3_PRIV);
     assign branch_redirect = ((ex_funct3 == F3_BEQ) && cmp_eq) ||
                              ((ex_funct3 == F3_BNE) && ~cmp_eq) ||
                              ((ex_funct3 == F3_BLT) && cmp_lt) ||
