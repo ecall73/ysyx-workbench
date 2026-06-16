@@ -41,7 +41,7 @@ module ysyx_26030082_lsu (
     output wire        lsu_axi_bready,
 
     // LS payload outputs
-    output wire [31:0] ls_mem_rdata
+    output wire [31:0] ls_rf_wdata
 );
 
     localparam L_IDLE      = 3'd0;
@@ -119,7 +119,7 @@ module ysyx_26030082_lsu (
     assign lsu_axi_wvalid = (state == L_WR_AW_W) && ~wr_w_done;
     assign lsu_axi_bready = (state == L_WR_WAIT_B);
 
-    assign ls_mem_rdata = ls_rdata_decoded;
+    assign ls_rf_wdata = ls_mem_ren ? ls_rdata_decoded : ls_wdata;
 
     // Store alignment
     always @(*) begin

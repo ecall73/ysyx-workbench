@@ -146,7 +146,7 @@ module ysyx_26030082 #(
     reg  [31:0] ls_wdata;
     wire        ls_in_ready;
     wire        ls_out_valid;
-    wire [31:0] ls_mem_rdata;
+    wire [31:0] ls_rf_wdata;
 
 `ifndef SYNTHESIS
     assign pc_ex = fetch_pc;
@@ -249,9 +249,10 @@ module ysyx_26030082 #(
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
 
-        .ls_rf_wen              (ls_out_valid && ls_rf_wen),
+        .ls_out_valid           (ls_out_valid),
+        .ls_rf_wen              (ls_rf_wen),
         .ls_rf_waddr            (ls_rf_waddr),
-        .ls_rf_wdata            (ls_mem_ren ? ls_mem_rdata : ls_wdata),
+        .ls_rf_wdata            (ls_rf_wdata),
         .ls_load_pending        (ls_in_valid && ls_mem_ren && ~ls_out_valid),
 
         .ex_rf_wen              (ex_rf_wen),
@@ -336,7 +337,7 @@ module ysyx_26030082 #(
         .lsu_axi_bvalid         (lsu_axi_bvalid),
         .lsu_axi_bready         (lsu_axi_bready),
 
-        .ls_mem_rdata           (ls_mem_rdata)
+        .ls_rf_wdata            (ls_rf_wdata)
     );
 
     ysyx_26030082_axi4lite_arbiter axi4lite_arbiter (
