@@ -319,10 +319,6 @@ module ysyx_26030082_exu (
         case (opcode)
             OPCODE_OP,
             OPCODE_OP_IMM: begin
-                ex_mem_ren = 1'b0;
-                ex_mem_wen = 1'b0;
-                ex_redirect = 1'b0;
-                ex_fence_i = 1'b0;
                 case (ex_funct3)
                     F3_ADD_SUB: begin
                         ex_rf_wen = 1'b1;
@@ -380,20 +376,12 @@ module ysyx_26030082_exu (
 
             OPCODE_LUI: begin
                 ex_rf_wen = 1'b1;
-                ex_mem_ren = 1'b0;
-                ex_mem_wen = 1'b0;
-                ex_redirect = 1'b0;
                 ex_wdata = imm;
-                ex_fence_i = 1'b0;
             end
 
             OPCODE_AUIPC: begin
                 ex_rf_wen = 1'b1;
-                ex_mem_ren = 1'b0;
-                ex_mem_wen = 1'b0;
-                ex_redirect = 1'b0;
                 ex_wdata = addsub_result;
-                ex_fence_i = 1'b0;
             end
 
             OPCODE_STORE: begin
@@ -429,11 +417,7 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_BRANCH: begin
-                ex_rf_wen = 1'b0;
-                ex_mem_ren = 1'b0;
-                ex_mem_wen = 1'b0;
                 ex_mem_addr = addsub_result;
-                ex_fence_i = 1'b0;
                 case (ex_funct3)
                     F3_BEQ:  ex_redirect = cmp_eq;
                     F3_BNE:  ex_redirect = ~cmp_eq;
@@ -448,12 +432,9 @@ module ysyx_26030082_exu (
 
             OPCODE_JAL: begin
                 ex_rf_wen = 1'b1;
-                ex_mem_ren = 1'b0;
-                ex_mem_wen = 1'b0;
                 ex_redirect = 1'b1;
                 ex_mem_addr = addsub_result;
                 ex_wdata = ex_pc4;
-                ex_fence_i = 1'b0;
             end
 
             OPCODE_JALR: begin
@@ -471,13 +452,8 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_SYSTEM: begin
-                ex_mem_ren = 1'b0;
-                ex_mem_wen = 1'b0;
-                ex_redirect = 1'b0;
-                ex_fence_i = 1'b0;
                 case (ex_funct3)
                     F3_PRIV: begin
-                        ex_rf_wen = 1'b0;
                         case (csr_addr)
                             F12_ECALL: begin
                                 ex_redirect = 1'b1;
@@ -521,16 +497,7 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_MISC_MEM: begin
-                ex_rf_wen = 1'b0;
-                ex_mem_ren = 1'b0;
-                ex_mem_wen = 1'b0;
-                ex_redirect = 1'b0;
-                ex_fence_i = 1'b0;
                 case (ex_funct3)
-                    F3_FENCE: begin
-                        ex_redirect = 1'b0;
-                    end
-
                     F3_FENCE_I: begin
                         ex_redirect = 1'b1;
                         ex_mem_addr = ex_pc4;
