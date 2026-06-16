@@ -307,13 +307,19 @@ module ysyx_26030082_exu (
     assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
 
     always @(*) begin
-        case (ex_funct3)
-            F3_BEQ:  branch_redirect = cmp_eq;
-            F3_BNE:  branch_redirect = ~cmp_eq;
-            F3_BLT:  branch_redirect = cmp_lt;
-            F3_BGE:  branch_redirect = ~cmp_lt;
-            F3_BLTU: branch_redirect = cmp_ltu;
-            F3_BGEU: branch_redirect = ~cmp_ltu;
+        case (ex_funct3[2:1])
+            2'b00: begin
+                branch_redirect = cmp_eq ^ ex_funct3[0];
+            end
+
+            2'b10: begin
+                branch_redirect = cmp_lt ^ ex_funct3[0];
+            end
+
+            2'b11: begin
+                branch_redirect = cmp_ltu ^ ex_funct3[0];
+            end
+
             default: branch_redirect = 1'b0;
         endcase
     end
@@ -329,23 +335,14 @@ module ysyx_26030082_exu (
                         (ex_funct3 == F3_FENCE_I);
 
     always @(*) begin
-        csr_write_data = 32'bx;
-
-        case (opcode)
-            OPCODE_SYSTEM: begin
-                case (ex_funct3)
-                    F3_CSRRW,
-                    F3_CSRRWI: csr_write_data = csr_src_data;
-                    F3_CSRRS,
-                    F3_CSRRSI: csr_write_data = or_result;
-                    F3_CSRRC,
-                    F3_CSRRCI: csr_write_data = and_result;
-                    default:   csr_write_data = csr_src_data;
-                endcase
-            end
-
-            default: begin
-            end
+        case (ex_funct3)
+            F3_CSRRW,
+            F3_CSRRWI: csr_write_data = csr_src_data;
+            F3_CSRRS,
+            F3_CSRRSI: csr_write_data = or_result;
+            F3_CSRRC,
+            F3_CSRRCI: csr_write_data = and_result;
+            default:   csr_write_data = csr_src_data;
         endcase
     end
 
