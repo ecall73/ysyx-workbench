@@ -112,21 +112,21 @@ module ysyx_26030082_exu (
 
     // ALU.
     wire [31:0] ex_pc4;
-    reg  [31:0] bit_lhs;
-    reg  [31:0] bit_rhs;
-    reg  [31:0] addsub_lhs;
-    reg  [31:0] addsub_rhs;
-    reg         addsub_sub;
+    wire [31:0] bit_lhs;
+    wire [31:0] bit_rhs;
+    wire [31:0] addsub_lhs;
+    wire [31:0] addsub_rhs;
+    wire        addsub_sub;
     wire [31:0] addsub_rhs_xor;
     wire [31:0] addsub_result;
     wire [31:0] and_result;
     wire [31:0] or_result;
     wire [31:0] xor_result;
-    reg  [31:0] shift_rhs;
+    wire [31:0] shift_rhs;
     wire [31:0] sll_result;
     wire [31:0] srl_result;
     wire [31:0] sra_result;
-    reg  [31:0] cmp_rhs;
+    wire [31:0] cmp_rhs;
     wire        cmp_eq;
     wire        cmp_lt;
     wire        cmp_ltu;
@@ -218,81 +218,38 @@ module ysyx_26030082_exu (
     // ALU.
     assign ex_pc4 = fetch_pc + 32'd4;
     assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
-    always @(*) begin
-        addsub_lhs = 32'bx;
-        addsub_rhs = 32'bx;
-        addsub_sub = 1'bx;
-        bit_lhs = 32'bx;
-        bit_rhs = 32'bx;
-        shift_rhs = 32'bx;
-        cmp_rhs = 32'bx;
-
-        case (opcode)
-            OPCODE_OP: begin
-                addsub_lhs = rf_rdata1_forward;
-                addsub_rhs = rf_rdata2_forward;
-                addsub_sub = (ex_funct3 == F3_ADD_SUB) && funct7_5;
-                bit_lhs = rf_rdata1_forward;
-                bit_rhs = rf_rdata2_forward;
-                shift_rhs = rf_rdata2_forward;
-                cmp_rhs = rf_rdata2_forward;
-            end
-
-            OPCODE_OP_IMM: begin
-                addsub_lhs = rf_rdata1_forward;
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-                bit_lhs = rf_rdata1_forward;
-                bit_rhs = imm;
-                shift_rhs = imm;
-                cmp_rhs = imm;
-            end
-
-            OPCODE_LOAD,
-            OPCODE_STORE,
-            OPCODE_JALR: begin
-                addsub_lhs = rf_rdata1_forward;
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-            end
-
-            OPCODE_AUIPC,
-            OPCODE_JAL: begin
-                addsub_lhs = fetch_pc;
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-            end
-
-            OPCODE_BRANCH: begin
-                addsub_lhs = fetch_pc;
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-                cmp_rhs = rf_rdata2_forward;
-            end
-
-            OPCODE_SYSTEM: begin
-                case (ex_funct3)
-                    F3_CSRRS,
-                    F3_CSRRSI: begin
-                        bit_lhs = csr_rdata;
-                        bit_rhs = csr_src_data;
-                    end
-
-                    F3_CSRRC,
-                    F3_CSRRCI: begin
-                        bit_lhs = csr_rdata;
-                        bit_rhs = ~csr_src_data;
-                    end
-
-                    default: begin
-                    end
-                endcase
-            end
-
-            default: begin
-            end
-        endcase
-    end
+    assign addsub_lhs = ((opcode == OPCODE_AUIPC) ||
+                         (opcode == OPCODE_JAL) ||
+                         (opcode == OPCODE_BRANCH)) ? fetch_pc :
+                        ((opcode == OPCODE_OP) ||
+                         (opcode == OPCODE_OP_IMM) ||
+                         (opcode == OPCODE_LOAD) ||
+                         (opcode == OPCODE_STORE) ||
+                         (opcode == OPCODE_JALR)) ? rf_rdata1_forward : 32'bx;
+    assign addsub_rhs = (opcode == OPCODE_OP) ? rf_rdata2_forward :
+                        ((opcode == OPCODE_OP_IMM) ||
+                         (opcode == OPCODE_LOAD) ||
+                         (opcode == OPCODE_STORE) ||
+                         (opcode == OPCODE_BRANCH) ||
+                         (opcode == OPCODE_AUIPC) ||
+                         (opcode == OPCODE_JAL) ||
+                         (opcode == OPCODE_JALR)) ? imm : 32'bx;
+    assign addsub_sub = (opcode == OPCODE_OP) &&
+                        (ex_funct3 == F3_ADD_SUB) &&
+                        funct7_5;
+    assign bit_lhs = (opcode == OPCODE_SYSTEM) ? csr_rdata :
+                     ((opcode == OPCODE_OP) ||
+                      (opcode == OPCODE_OP_IMM)) ? rf_rdata1_forward : 32'bx;
+    assign bit_rhs = (opcode == OPCODE_SYSTEM) ?
+                     (((ex_funct3 == F3_CSRRC) ||
+                       (ex_funct3 == F3_CSRRCI)) ? ~csr_src_data : csr_src_data) :
+                     (opcode == OPCODE_OP) ? rf_rdata2_forward :
+                     (opcode == OPCODE_OP_IMM) ? imm : 32'bx;
+    assign shift_rhs = (opcode == OPCODE_OP) ? rf_rdata2_forward :
+                       (opcode == OPCODE_OP_IMM) ? imm : 32'bx;
+    assign cmp_rhs = ((opcode == OPCODE_OP) ||
+                      (opcode == OPCODE_BRANCH)) ? rf_rdata2_forward :
+                     (opcode == OPCODE_OP_IMM) ? imm : 32'bx;
 
     assign addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
     assign addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
@@ -357,58 +314,6 @@ module ysyx_26030082_exu (
     // Output mux.
     always @(*) begin
         ex_mem_addr = 32'bx;
-
-        case (opcode)
-            OPCODE_STORE,
-            OPCODE_LOAD,
-            OPCODE_BRANCH,
-            OPCODE_JAL: begin
-                ex_mem_addr = addsub_result;
-            end
-
-            OPCODE_JALR: begin
-                ex_mem_addr = {addsub_result[31:1], 1'b0};
-            end
-
-            OPCODE_SYSTEM: begin
-                case (ex_funct3)
-                    F3_PRIV: begin
-                        case (csr_addr)
-                            F12_ECALL: begin
-                                ex_mem_addr = {csr_mtvec[31:2], 2'b0};
-                            end
-
-                            F12_MRET: begin
-                                ex_mem_addr = csr_mepc;
-                            end
-
-                            default: begin
-                            end
-                        endcase
-                    end
-
-                    default: begin
-                    end
-                endcase
-            end
-
-            OPCODE_MISC_MEM: begin
-                case (ex_funct3)
-                    F3_FENCE_I: begin
-                        ex_mem_addr = ex_pc4;
-                    end
-
-                    default: begin
-                    end
-                endcase
-            end
-
-            default: begin
-            end
-        endcase
-    end
-
-    always @(*) begin
         ex_wdata = 32'bx;
 
         case (opcode)
@@ -469,16 +374,45 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_STORE: begin
+                ex_mem_addr = addsub_result;
                 ex_wdata = rf_rdata2_forward;
             end
 
-            OPCODE_JAL,
+            OPCODE_LOAD: begin
+                ex_mem_addr = addsub_result;
+            end
+
+            OPCODE_BRANCH: begin
+                ex_mem_addr = addsub_result;
+            end
+
+            OPCODE_JAL: begin
+                ex_mem_addr = addsub_result;
+                ex_wdata = ex_pc4;
+            end
+
             OPCODE_JALR: begin
+                ex_mem_addr = {addsub_result[31:1], 1'b0};
                 ex_wdata = ex_pc4;
             end
 
             OPCODE_SYSTEM: begin
                 case (ex_funct3)
+                    F3_PRIV: begin
+                        case (csr_addr)
+                            F12_ECALL: begin
+                                ex_mem_addr = {csr_mtvec[31:2], 2'b0};
+                            end
+
+                            F12_MRET: begin
+                                ex_mem_addr = csr_mepc;
+                            end
+
+                            default: begin
+                            end
+                        endcase
+                    end
+
                     F3_CSRRW,
                     F3_CSRRWI: begin
                         ex_wdata = csr_rdata;
@@ -492,6 +426,17 @@ module ysyx_26030082_exu (
                     F3_CSRRC,
                     F3_CSRRCI: begin
                         ex_wdata = csr_rdata;
+                    end
+
+                    default: begin
+                    end
+                endcase
+            end
+
+            OPCODE_MISC_MEM: begin
+                case (ex_funct3)
+                    F3_FENCE_I: begin
+                        ex_mem_addr = ex_pc4;
                     end
 
                     default: begin
