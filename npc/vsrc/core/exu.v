@@ -325,10 +325,14 @@ module ysyx_26030082_exu (
                         (ex_funct3 == F3_FENCE_I);
 
     always @(*) begin
-        case (ex_funct3[1:0])
-            2'b10:  csr_write_data = or_result;
-            2'b11:  csr_write_data = and_result;
-            default: csr_write_data = csr_src_data;
+        case (ex_funct3)
+            F3_CSRRW,
+            F3_CSRRWI: csr_write_data = csr_src_data;
+            F3_CSRRS,
+            F3_CSRRSI: csr_write_data = or_result;
+            F3_CSRRC,
+            F3_CSRRCI: csr_write_data = and_result;
+            default:   csr_write_data = csr_src_data;
         endcase
     end
 
@@ -349,14 +353,13 @@ module ysyx_26030082_exu (
     // Output mux.
     always @(*) begin
         ex_mem_addr = 32'bx;
-        ex_wdata = 32'bx;
+        ex_wdata = addsub_result;
 
         case (opcode)
             OPCODE_OP,
             OPCODE_OP_IMM: begin
                 case (ex_funct3)
                     F3_ADD_SUB: begin
-                        ex_wdata = addsub_result;
                     end
 
                     F3_SLL: begin
@@ -405,7 +408,6 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_AUIPC: begin
-                ex_wdata = addsub_result;
             end
 
             OPCODE_STORE: begin
