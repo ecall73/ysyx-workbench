@@ -220,8 +220,8 @@ module ysyx_26030082_exu (
                 case (ex_funct3)
                     3'b000:  ex_alu_result = alu_addsub_result;
                     3'b001:  ex_alu_result = alu_sll_result;
-                    3'b010:  ex_alu_result = {31'b0, bru_cmp_lt};
-                    3'b011:  ex_alu_result = {31'b0, bru_cmp_ltu};
+                    3'b010:  ex_alu_result = {31'b0, alu_cmp_lt};
+                    3'b011:  ex_alu_result = {31'b0, alu_cmp_ltu};
                     3'b100:  ex_alu_result = alu_xor_result;
                     3'b101:  ex_alu_result = funct7_5 ? alu_sra_result : alu_srl_result;
                     3'b110:  ex_alu_result = alu_or_result;
