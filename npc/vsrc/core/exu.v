@@ -230,12 +230,111 @@ module ysyx_26030082_exu (
     assign branch_cmp_ltu = (rf_rdata1_forward < rf_rdata2_forward);
     assign ex_mem_addr = add_result;
 
-    // Execute outputs.
+    // Redirect target.
+    always @(*) begin
+        ex_redirect_pc = add_result;
+
+        case (opcode)
+            OPCODE_JALR: begin
+                ex_redirect_pc = {add_result[31:1], 1'b0};
+            end
+
+            OPCODE_SYSTEM: begin
+                case (ex_funct3)
+                    F3_PRIV: begin
+                        case (csr_addr)
+                            F12_ECALL: begin
+                                ex_redirect_pc = {csr_mtvec[31:2], 2'b0};
+                            end
+                            F12_MRET: begin
+                                ex_redirect_pc = csr_mepc;
+                            end
+                            default: begin
+                            end
+                        endcase
+                    end
+
+                    default: begin
+                    end
+                endcase
+            end
+
+            OPCODE_MISC_MEM: begin
+                case (ex_funct3)
+                    3'b001: begin
+                        ex_redirect_pc = ex_pc4;
+                    end
+                    default: begin
+                    end
+                endcase
+            end
+
+            default: begin
+            end
+        endcase
+    end
+
+    // Redirect / frontend invalidate.
     always @(*) begin
         ex_redirect = 1'b0;
-        ex_redirect_pc = add_result;
-        ex_wdata = add_result;
         ex_fence_i = 1'b0;
+
+        case (opcode)
+            OPCODE_BRANCH: begin
+                case (ex_funct3)
+                    F3_BEQ:  ex_redirect = branch_cmp_eq;
+                    F3_BNE:  ex_redirect = ~branch_cmp_eq;
+                    F3_BLT:  ex_redirect = branch_cmp_lt;
+                    F3_BGE:  ex_redirect = ~branch_cmp_lt;
+                    F3_BLTU: ex_redirect = branch_cmp_ltu;
+                    F3_BGEU: ex_redirect = ~branch_cmp_ltu;
+                    default: begin
+                    end
+                endcase
+            end
+
+            OPCODE_JAL,
+            OPCODE_JALR: begin
+                ex_redirect = 1'b1;
+            end
+
+            OPCODE_SYSTEM: begin
+                case (ex_funct3)
+                    F3_PRIV: begin
+                        case (csr_addr)
+                            F12_ECALL,
+                            F12_MRET: begin
+                                ex_redirect = 1'b1;
+                            end
+                            default: begin
+                            end
+                        endcase
+                    end
+
+                    default: begin
+                    end
+                endcase
+            end
+
+            OPCODE_MISC_MEM: begin
+                case (ex_funct3)
+                    3'b001: begin
+                        ex_redirect = 1'b1;
+                        ex_fence_i = 1'b1;
+                    end
+                    default: begin
+                    end
+                endcase
+            end
+
+            default: begin
+            end
+        endcase
+    end
+
+    // RF writeback payload and CSR write data.
+    always @(*) begin
+        ex_wdata = add_result;
         csr_write_data = csr_src_data;
 
         case (opcode)
@@ -279,48 +378,14 @@ module ysyx_26030082_exu (
                 ex_wdata = rf_rdata2_forward;
             end
 
-            OPCODE_BRANCH: begin
-                case (ex_funct3)
-                    F3_BEQ:  ex_redirect = branch_cmp_eq;
-                    F3_BNE:  ex_redirect = ~branch_cmp_eq;
-                    F3_BLT:  ex_redirect = branch_cmp_lt;
-                    F3_BGE:  ex_redirect = ~branch_cmp_lt;
-                    F3_BLTU: ex_redirect = branch_cmp_ltu;
-                    F3_BGEU: ex_redirect = ~branch_cmp_ltu;
-                    default: begin
-                    end
-                endcase
-            end
-
-            OPCODE_JAL: begin
-                ex_redirect = 1'b1;
-                ex_wdata = ex_pc4;
-            end
-
+            OPCODE_JAL,
             OPCODE_JALR: begin
-                ex_redirect = 1'b1;
-                ex_redirect_pc = {add_result[31:1], 1'b0};
                 ex_wdata = ex_pc4;
             end
 
             OPCODE_SYSTEM: begin
                 ex_wdata = csr_rdata;
                 case (ex_funct3)
-                    F3_PRIV: begin
-                        case (csr_addr)
-                            F12_ECALL: begin
-                                ex_redirect = 1'b1;
-                                ex_redirect_pc = {csr_mtvec[31:2], 2'b0};
-                            end
-                            F12_MRET: begin
-                                ex_redirect = 1'b1;
-                                ex_redirect_pc = csr_mepc;
-                            end
-                            default: begin
-                            end
-                        endcase
-                    end
-
                     F3_CSRRW,
                     F3_CSRRWI: begin
                         csr_write_data = csr_src_data;
@@ -336,18 +401,6 @@ module ysyx_26030082_exu (
                         csr_write_data = and_result;
                     end
 
-                    default: begin
-                    end
-                endcase
-            end
-
-            OPCODE_MISC_MEM: begin
-                case (ex_funct3)
-                    3'b001: begin
-                        ex_redirect = 1'b1;
-                        ex_redirect_pc = ex_pc4;
-                        ex_fence_i = 1'b1;
-                    end
                     default: begin
                     end
                 endcase
