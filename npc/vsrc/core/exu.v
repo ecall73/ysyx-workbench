@@ -16,7 +16,7 @@ module ysyx_26030082_exu (
     input  wire [31:0] ls_rf_wdata,
     input  wire        ls_load_pending,
 
-    output wire        ex_rf_wen,
+    output reg         ex_rf_wen,
     output wire        ex_mem_ren,
     output wire        ex_mem_wen,
     output wire [ 2:0] ex_funct3,
@@ -318,23 +318,28 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    assign ex_rf_wen = (opcode == OPCODE_OP) ||
-                       (opcode == OPCODE_OP_IMM) ||
-                       (opcode == OPCODE_LUI) ||
-                       (opcode == OPCODE_AUIPC) ||
-                       (opcode == OPCODE_LOAD) ||
-                       (opcode == OPCODE_JAL) ||
-                       (opcode == OPCODE_JALR) ||
-                       ((opcode == OPCODE_SYSTEM) && (ex_funct3 != F3_PRIV));
-    assign ex_mem_ren = (opcode == OPCODE_LOAD);
-    assign ex_mem_wen = (opcode == OPCODE_STORE);
     assign ex_redirect = ((opcode == OPCODE_BRANCH) && branch_redirect) ||
                          (opcode == OPCODE_JAL) ||
                          (opcode == OPCODE_JALR) ||
                          ((opcode == OPCODE_SYSTEM) && (ex_funct3 == F3_PRIV)) ||
                          ex_fence_i;
+    assign ex_mem_ren = (opcode == OPCODE_LOAD);
+    assign ex_mem_wen = (opcode == OPCODE_STORE);
     assign ex_fence_i = (opcode == OPCODE_MISC_MEM) &&
                         (ex_funct3 == F3_FENCE_I);
+    always @(*) begin
+        case (opcode)
+            OPCODE_OP,
+            OPCODE_OP_IMM,
+            OPCODE_LUI,
+            OPCODE_AUIPC,
+            OPCODE_LOAD,
+            OPCODE_JAL,
+            OPCODE_JALR:   ex_rf_wen = 1'b1;
+            OPCODE_SYSTEM: ex_rf_wen = (ex_funct3 != F3_PRIV);
+            default:       ex_rf_wen = 1'b0;
+        endcase
+    end
 
     // Output mux.
     always @(*) begin
@@ -400,32 +405,12 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_STORE: begin
-                case (ex_funct3)
-                    F3_SB,
-                    F3_SH,
-                    F3_SW: begin
-                        ex_mem_addr = addsub_result;
-                        ex_wdata = rf_rdata2_forward;
-                    end
-
-                    default: begin
-                    end
-                endcase
+                ex_mem_addr = addsub_result;
+                ex_wdata = rf_rdata2_forward;
             end
 
             OPCODE_LOAD: begin
-                case (ex_funct3)
-                    F3_LB,
-                    F3_LH,
-                    F3_LW,
-                    F3_LBU,
-                    F3_LHU: begin
-                        ex_mem_addr = addsub_result;
-                    end
-
-                    default: begin
-                    end
-                endcase
+                ex_mem_addr = addsub_result;
             end
 
             OPCODE_BRANCH: begin
@@ -438,15 +423,8 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_JALR: begin
-                case (ex_funct3)
-                    F3_JALR: begin
-                        ex_mem_addr = {addsub_result[31:1], 1'b0};
-                        ex_wdata = ex_pc4;
-                    end
-
-                    default: begin
-                    end
-                endcase
+                ex_mem_addr = {addsub_result[31:1], 1'b0};
+                ex_wdata = ex_pc4;
             end
 
             OPCODE_SYSTEM: begin
@@ -491,9 +469,6 @@ module ysyx_26030082_exu (
 
             OPCODE_MISC_MEM: begin
                 case (ex_funct3)
-                    F3_FENCE: begin
-                    end
-
                     F3_FENCE_I: begin
                         ex_mem_addr = ex_pc4;
                     end
