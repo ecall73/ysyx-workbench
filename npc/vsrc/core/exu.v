@@ -293,7 +293,7 @@ module ysyx_26030082_exu (
 
     // Output mux.
     always @(*) begin
-        ex_mem_addr = 32'bx;
+        ex_mem_addr = 32'b0;
         ex_wdata = addsub_result;
         csr_write_data = csr_src_data;
         ex_rf_wen = 1'b1;
@@ -306,6 +306,10 @@ module ysyx_26030082_exu (
             OPCODE_OP,
             OPCODE_OP_IMM: begin
                 case (ex_funct3)
+                    F3_ADD_SUB: begin
+                        ex_wdata = addsub_result;
+                    end
+
                     F3_SLL: begin
                         ex_wdata = sll_result;
                     end
@@ -343,6 +347,7 @@ module ysyx_26030082_exu (
                     end
 
                     default: begin
+                        ex_wdata = 32'bx;
                     end
                 endcase
             end
