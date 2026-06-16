@@ -256,23 +256,63 @@ module ysyx_26030082_exu (
 
         case (opcode)
             OPCODE_OP: begin
-                addsub_lhs = rf_rdata1_forward;
-                addsub_rhs = rf_rdata2_forward;
-                addsub_sub = (ex_funct3 == F3_ADD_SUB) && funct7_5;
-                bit_lhs = rf_rdata1_forward;
-                bit_rhs = rf_rdata2_forward;
-                shift_rhs = rf_rdata2_forward;
-                cmp_rhs = rf_rdata2_forward;
+                case (ex_funct3)
+                    F3_ADD_SUB: begin
+                        addsub_lhs = rf_rdata1_forward;
+                        addsub_rhs = rf_rdata2_forward;
+                        addsub_sub = funct7_5;
+                    end
+
+                    F3_SLL,
+                    F3_SRL_SRA: begin
+                        shift_rhs = rf_rdata2_forward;
+                    end
+
+                    F3_SLT,
+                    F3_SLTU: begin
+                        cmp_rhs = rf_rdata2_forward;
+                    end
+
+                    F3_XOR,
+                    F3_OR,
+                    F3_AND: begin
+                        bit_lhs = rf_rdata1_forward;
+                        bit_rhs = rf_rdata2_forward;
+                    end
+
+                    default: begin
+                    end
+                endcase
             end
 
             OPCODE_OP_IMM: begin
-                addsub_lhs = rf_rdata1_forward;
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-                bit_lhs = rf_rdata1_forward;
-                bit_rhs = imm;
-                shift_rhs = imm;
-                cmp_rhs = imm;
+                case (ex_funct3)
+                    F3_ADD_SUB: begin
+                        addsub_lhs = rf_rdata1_forward;
+                        addsub_rhs = imm;
+                        addsub_sub = 1'b0;
+                    end
+
+                    F3_SLL,
+                    F3_SRL_SRA: begin
+                        shift_rhs = imm;
+                    end
+
+                    F3_SLT,
+                    F3_SLTU: begin
+                        cmp_rhs = imm;
+                    end
+
+                    F3_XOR,
+                    F3_OR,
+                    F3_AND: begin
+                        bit_lhs = rf_rdata1_forward;
+                        bit_rhs = imm;
+                    end
+
+                    default: begin
+                    end
+                endcase
             end
 
             OPCODE_LOAD,
