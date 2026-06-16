@@ -130,6 +130,7 @@ module ysyx_26030082 #(
     wire [ 4:0] ex_rf_waddr;
     wire [31:0] ex_mem_addr;
     wire        ex_redirect;
+    wire [31:0] ex_redirect_pc;
     wire [31:0] ex_wdata;
     wire        ex_fence_i;
     wire        ex_out_valid;
@@ -218,7 +219,7 @@ module ysyx_26030082 #(
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
         .ex_redirect            (ex_redirect),
-        .ex_mem_addr            (ex_mem_addr),
+        .ex_redirect_pc         (ex_redirect_pc),
         .ex_fence_i             (ex_fence_i),
 
         .fetch_valid            (fetch_valid),
@@ -268,6 +269,7 @@ module ysyx_26030082 #(
         .ex_rf_waddr            (ex_rf_waddr),
         .ex_mem_addr            (ex_mem_addr),
         .ex_redirect            (ex_redirect),
+        .ex_redirect_pc         (ex_redirect_pc),
         .ex_wdata               (ex_wdata),
         .ex_fence_i             (ex_fence_i)
     );

@@ -20,8 +20,9 @@ module ysyx_26030082_exu (
     output wire        ex_mem_wen,
     output wire [ 2:0] ex_funct3,
     output wire [ 4:0] ex_rf_waddr,
-    output reg  [31:0] ex_mem_addr,
+    output wire [31:0] ex_mem_addr,
     output reg         ex_redirect,
+    output reg  [31:0] ex_redirect_pc,
     output reg  [31:0] ex_wdata,
     output reg         ex_fence_i
 );
@@ -227,11 +228,12 @@ module ysyx_26030082_exu (
     assign branch_cmp_eq = (rf_rdata1_forward == rf_rdata2_forward);
     assign branch_cmp_lt = ($signed(rf_rdata1_forward) < $signed(rf_rdata2_forward));
     assign branch_cmp_ltu = (rf_rdata1_forward < rf_rdata2_forward);
+    assign ex_mem_addr = add_result;
 
-    // Execute outputs. ex_mem_addr is also the redirect target when ex_redirect is high.
+    // Execute outputs.
     always @(*) begin
-        ex_mem_addr = add_result;
         ex_redirect = 1'b0;
+        ex_redirect_pc = add_result;
         ex_wdata = add_result;
         ex_fence_i = 1'b0;
         csr_write_data = csr_src_data;
@@ -297,7 +299,7 @@ module ysyx_26030082_exu (
 
             OPCODE_JALR: begin
                 ex_redirect = 1'b1;
-                ex_mem_addr = {add_result[31:1], 1'b0};
+                ex_redirect_pc = {add_result[31:1], 1'b0};
                 ex_wdata = ex_pc4;
             end
 
@@ -308,11 +310,11 @@ module ysyx_26030082_exu (
                         case (csr_addr)
                             F12_ECALL: begin
                                 ex_redirect = 1'b1;
-                                ex_mem_addr = {csr_mtvec[31:2], 2'b0};
+                                ex_redirect_pc = {csr_mtvec[31:2], 2'b0};
                             end
                             F12_MRET: begin
                                 ex_redirect = 1'b1;
-                                ex_mem_addr = csr_mepc;
+                                ex_redirect_pc = csr_mepc;
                             end
                             default: begin
                             end
@@ -343,7 +345,7 @@ module ysyx_26030082_exu (
                 case (ex_funct3)
                     3'b001: begin
                         ex_redirect = 1'b1;
-                        ex_mem_addr = ex_pc4;
+                        ex_redirect_pc = ex_pc4;
                         ex_fence_i = 1'b1;
                     end
                     default: begin
