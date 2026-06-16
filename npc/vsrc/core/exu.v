@@ -108,12 +108,10 @@ module ysyx_26030082_exu (
     wire [31:0] and_result;
     wire [31:0] or_result;
     wire [31:0] xor_result;
-    reg  [31:0] shift_lhs;
     reg  [31:0] shift_rhs;
     wire [31:0] sll_result;
     wire [31:0] srl_result;
     wire [31:0] sra_result;
-    reg  [31:0] cmp_lhs;
     reg  [31:0] cmp_rhs;
     wire        cmp_eq;
     wire        cmp_lt;
@@ -232,9 +230,7 @@ module ysyx_26030082_exu (
         addsub_sub = 1'b0;
         bit_lhs = rf_rdata1_forward;
         bit_rhs = imm;
-        shift_lhs = rf_rdata1_forward;
         shift_rhs = imm;
-        cmp_lhs = rf_rdata1_forward;
         cmp_rhs = imm;
 
         case (opcode)
@@ -284,12 +280,12 @@ module ysyx_26030082_exu (
     assign and_result = bit_lhs & bit_rhs;
     assign or_result = bit_lhs | bit_rhs;
     assign xor_result = bit_lhs ^ bit_rhs;
-    assign sll_result = shift_lhs << shift_rhs[4:0];
-    assign srl_result = shift_lhs >> shift_rhs[4:0];
-    assign sra_result = ($signed(shift_lhs)) >>> shift_rhs[4:0];
-    assign cmp_eq = (cmp_lhs == cmp_rhs);
-    assign cmp_lt = ($signed(cmp_lhs) < $signed(cmp_rhs));
-    assign cmp_ltu = (cmp_lhs < cmp_rhs);
+    assign sll_result = rf_rdata1_forward << shift_rhs[4:0];
+    assign srl_result = rf_rdata1_forward >> shift_rhs[4:0];
+    assign sra_result = ($signed(rf_rdata1_forward)) >>> shift_rhs[4:0];
+    assign cmp_eq = (rf_rdata1_forward == cmp_rhs);
+    assign cmp_lt = ($signed(rf_rdata1_forward) < $signed(cmp_rhs));
+    assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
 
     // Output mux.
     always @(*) begin
