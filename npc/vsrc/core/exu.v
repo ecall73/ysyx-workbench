@@ -195,9 +195,7 @@ module ysyx_26030082_exu (
             OPCODE_AUIPC:  imm = {fetch_inst[31:12], 12'b0};
             OPCODE_JAL:   imm = {{12{fetch_inst[31]}}, fetch_inst[19:12], fetch_inst[20], fetch_inst[30:21], 1'b0};
             OPCODE_SYSTEM: imm = {27'b0, fetch_inst[19:15]};
-            OPCODE_OP,
-            OPCODE_MISC_MEM: imm = 32'b0;
-            default:     imm = 32'b0;
+            default:       imm = 32'bx;
         endcase
     end
 
@@ -436,10 +434,8 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_SYSTEM: begin
-                ex_wdata = csr_rdata;
                 case (ex_funct3)
                     F3_PRIV: begin
-                        ex_wdata = 32'bx;
                         case (csr_addr)
                             F12_ECALL: begin
                                 ex_mem_addr = {csr_mtvec[31:2], 2'b0};
@@ -452,6 +448,21 @@ module ysyx_26030082_exu (
                             default: begin
                             end
                         endcase
+                    end
+
+                    F3_CSRRW,
+                    F3_CSRRWI: begin
+                        ex_wdata = csr_rdata;
+                    end
+
+                    F3_CSRRS,
+                    F3_CSRRSI: begin
+                        ex_wdata = csr_rdata;
+                    end
+
+                    F3_CSRRC,
+                    F3_CSRRCI: begin
+                        ex_wdata = csr_rdata;
                     end
 
                     default: begin
