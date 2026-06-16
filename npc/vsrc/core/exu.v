@@ -93,22 +93,24 @@ module ysyx_26030082_exu (
     // Immediate.
     reg  [31:0] imm;
 
-    // FU input mux and function units.
+    // Execute datapath.
     wire [31:0] ex_pc4;
-    reg  [31:0] fu_a;
-    reg  [31:0] fu_b;
-    reg         fu_sub;
-    wire [31:0] fu_addsub_rhs;
-    wire [31:0] fu_addsub_result;
-    wire        fu_addsub_carry;
-    wire [31:0] fu_and_result;
-    wire [31:0] fu_or_result;
-    wire [31:0] fu_xor_result;
-    wire [31:0] fu_sll_result;
-    wire [31:0] fu_srl_result;
-    wire [31:0] fu_sra_result;
-    wire        fu_cmp_lt;
-    wire        fu_cmp_ltu;
+    wire [31:0] add_lhs;
+    wire [31:0] add_rhs;
+    wire        add_sub;
+    wire [31:0] add_rhs_xor;
+    wire [31:0] add_result;
+    wire        add_carry;
+    wire [31:0] logic_lhs;
+    wire [31:0] logic_rhs;
+    wire [31:0] and_result;
+    wire [31:0] or_result;
+    wire [31:0] xor_result;
+    wire [31:0] sll_result;
+    wire [31:0] srl_result;
+    wire [31:0] sra_result;
+    wire        cmp_lt;
+    wire        cmp_ltu;
     wire        branch_cmp_eq;
     wire        branch_cmp_lt;
     wire        branch_cmp_ltu;
@@ -201,97 +203,36 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    // FU input mux.
-    always @(*) begin
-        fu_a = rf_rdata1_forward;
-        fu_b = imm;
-        fu_sub = 1'b0;
+    // ALU / BRU.
+    assign add_lhs = (op_auipc | op_jal | op_branch) ? fetch_pc : rf_rdata1_forward;
+    assign add_rhs = op_rtype ? rf_rdata2_forward : imm;
+    assign add_sub = (op_rtype && ex_funct3 == 3'b000 && funct7_5) ||
+                     ((op_rtype || op_itype) && (ex_funct3 == 3'b010 || ex_funct3 == 3'b011));
+    assign add_rhs_xor = add_sub ? ~add_rhs : add_rhs;
+    assign {add_carry, add_result} = {1'b0, add_lhs} + {1'b0, add_rhs_xor} + {32'b0, add_sub};
 
-        case (opcode)
-            OPCODE_OP: begin
-                fu_b = rf_rdata2_forward;
-                case (ex_funct3)
-                    3'b000: begin
-                        fu_sub = funct7_5;
-                    end
-
-                    3'b010,
-                    3'b011: begin
-                        fu_sub = 1'b1;
-                    end
-
-                    default: begin
-                    end
-                endcase
-            end
-
-            OPCODE_OP_IMM: begin
-                case (ex_funct3)
-                    3'b010,
-                    3'b011: begin
-                        fu_sub = 1'b1;
-                    end
-
-                    default: begin
-                    end
-                endcase
-            end
-
-            OPCODE_AUIPC,
-            OPCODE_JAL,
-            OPCODE_BRANCH: begin
-                fu_a = fetch_pc;
-                fu_b = imm;
-            end
-
-            OPCODE_SYSTEM: begin
-                case (ex_funct3)
-                    F3_CSRRW,
-                    F3_CSRRS,
-                    F3_CSRRWI,
-                    F3_CSRRSI: begin
-                        fu_a = csr_rdata;
-                        fu_b = csr_src_data;
-                    end
-
-                    F3_CSRRC,
-                    F3_CSRRCI: begin
-                        fu_a = csr_rdata;
-                        fu_b = ~csr_src_data;
-                    end
-
-                    default: begin
-                    end
-                endcase
-            end
-
-            default: begin
-            end
-        endcase
-    end
-
-    // FU.
-    assign fu_addsub_rhs = fu_sub ? ~fu_b : fu_b;
-    assign {fu_addsub_carry, fu_addsub_result} = {1'b0, fu_a} + {1'b0, fu_addsub_rhs} +
-                                                 {32'b0, fu_sub};
-    assign fu_and_result = fu_a & fu_b;
-    assign fu_or_result = fu_a | fu_b;
-    assign fu_xor_result = fu_a ^ fu_b;
-    assign fu_sll_result = fu_a << fu_b[4:0];
-    assign fu_srl_result = fu_a >> fu_b[4:0];
-    assign fu_sra_result = ($signed(fu_a)) >>> fu_b[4:0];
-    assign fu_cmp_lt = (fu_a[31] & ~fu_b[31]) |
-                       ((fu_a[31] ~^ fu_b[31]) & fu_addsub_result[31]);
-    assign fu_cmp_ltu = ~fu_addsub_carry;
+    assign logic_lhs = op_system ? csr_rdata : rf_rdata1_forward;
+    assign logic_rhs = op_system ?
+                       ((ex_funct3 == F3_CSRRC || ex_funct3 == F3_CSRRCI) ? ~csr_src_data : csr_src_data) :
+                       (op_rtype ? rf_rdata2_forward : imm);
+    assign and_result = logic_lhs & logic_rhs;
+    assign or_result = logic_lhs | logic_rhs;
+    assign xor_result = logic_lhs ^ logic_rhs;
+    assign sll_result = rf_rdata1_forward << logic_rhs[4:0];
+    assign srl_result = rf_rdata1_forward >> logic_rhs[4:0];
+    assign sra_result = ($signed(rf_rdata1_forward)) >>> logic_rhs[4:0];
+    assign cmp_lt = (add_lhs[31] & ~add_rhs[31]) |
+                    ((add_lhs[31] ~^ add_rhs[31]) & add_result[31]);
+    assign cmp_ltu = ~add_carry;
     assign branch_cmp_eq = (rf_rdata1_forward == rf_rdata2_forward);
     assign branch_cmp_lt = ($signed(rf_rdata1_forward) < $signed(rf_rdata2_forward));
     assign branch_cmp_ltu = (rf_rdata1_forward < rf_rdata2_forward);
 
     // Output mux: ex_mem_addr is also the redirect target when ex_redirect is high.
     always @(*) begin
-        ex_mem_addr = fu_addsub_result;
+        ex_mem_addr = add_result;
         ex_redirect = 1'b0;
-        ex_wdata = fu_addsub_result;
+        ex_wdata = add_result;
         ex_fence_i = 1'b0;
         csr_write_data = csr_src_data;
 
@@ -300,28 +241,28 @@ module ysyx_26030082_exu (
             OPCODE_OP_IMM: begin
                 case (ex_funct3)
                     3'b001: begin
-                        ex_wdata = fu_sll_result;
+                        ex_wdata = sll_result;
                     end
                     3'b010: begin
-                        ex_wdata = {31'b0, fu_cmp_lt};
+                        ex_wdata = {31'b0, cmp_lt};
                     end
                     3'b011: begin
-                        ex_wdata = {31'b0, fu_cmp_ltu};
+                        ex_wdata = {31'b0, cmp_ltu};
                     end
                     3'b100: begin
-                        ex_wdata = fu_xor_result;
+                        ex_wdata = xor_result;
                     end
                     3'b101: begin
                         case (funct7_5)
-                            1'b0: ex_wdata = fu_srl_result;
-                            1'b1: ex_wdata = fu_sra_result;
+                            1'b0: ex_wdata = srl_result;
+                            1'b1: ex_wdata = sra_result;
                         endcase
                     end
                     3'b110: begin
-                        ex_wdata = fu_or_result;
+                        ex_wdata = or_result;
                     end
                     3'b111: begin
-                        ex_wdata = fu_and_result;
+                        ex_wdata = and_result;
                     end
                     default: begin
                     end
@@ -356,7 +297,7 @@ module ysyx_26030082_exu (
 
             OPCODE_JALR: begin
                 ex_redirect = 1'b1;
-                ex_mem_addr = {fu_addsub_result[31:1], 1'b0};
+                ex_mem_addr = {add_result[31:1], 1'b0};
                 ex_wdata = ex_pc4;
             end
 
@@ -385,12 +326,12 @@ module ysyx_26030082_exu (
 
                     F3_CSRRS,
                     F3_CSRRSI: begin
-                        csr_write_data = fu_or_result;
+                        csr_write_data = or_result;
                     end
 
                     F3_CSRRC,
                     F3_CSRRCI: begin
-                        csr_write_data = fu_and_result;
+                        csr_write_data = and_result;
                     end
 
                     default: begin
