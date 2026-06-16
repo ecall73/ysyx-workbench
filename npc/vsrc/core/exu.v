@@ -229,27 +229,23 @@ module ysyx_26030082_exu (
 
         case (opcode)
             OPCODE_OP: begin
+                addsub_lhs = rf_rdata1_forward;
+                addsub_rhs = rf_rdata2_forward;
+                addsub_sub = (ex_funct3 == F3_ADD_SUB) && funct7_5;
                 bit_lhs = rf_rdata1_forward;
                 bit_rhs = rf_rdata2_forward;
                 shift_rhs = rf_rdata2_forward;
                 cmp_rhs = rf_rdata2_forward;
-                if (ex_funct3 == F3_ADD_SUB) begin
-                    addsub_lhs = rf_rdata1_forward;
-                    addsub_rhs = rf_rdata2_forward;
-                    addsub_sub = funct7_5;
-                end
             end
 
             OPCODE_OP_IMM: begin
+                addsub_lhs = rf_rdata1_forward;
+                addsub_rhs = imm;
+                addsub_sub = 1'b0;
                 bit_lhs = rf_rdata1_forward;
                 bit_rhs = imm;
                 shift_rhs = imm;
                 cmp_rhs = imm;
-                if (ex_funct3 == F3_ADD_SUB) begin
-                    addsub_lhs = rf_rdata1_forward;
-                    addsub_rhs = imm;
-                    addsub_sub = 1'b0;
-                end
             end
 
             OPCODE_LOAD,
@@ -460,22 +456,8 @@ module ysyx_26030082_exu (
                         endcase
                     end
 
-                    F3_CSRRW,
-                    F3_CSRRWI: begin
-                        ex_wdata = csr_rdata;
-                    end
-
-                    F3_CSRRS,
-                    F3_CSRRSI: begin
-                        ex_wdata = csr_rdata;
-                    end
-
-                    F3_CSRRC,
-                    F3_CSRRCI: begin
-                        ex_wdata = csr_rdata;
-                    end
-
                     default: begin
+                        ex_wdata = csr_rdata;
                     end
                 endcase
             end
