@@ -96,6 +96,7 @@ module ysyx_26030082_exu (
 
     // ALU.
     wire [31:0] ex_pc4;
+    wire [31:0] alu_logic_lhs;
     wire [31:0] alu_logic_rhs;
     wire [31:0] alu_add_lhs;
     wire [31:0] alu_add_rhs;
@@ -123,7 +124,8 @@ module ysyx_26030082_exu (
     reg  [31:0] csr_mepc;
     reg  [31:0] csr_mcause;
     reg  [31:0] csr_rdata;
-    wire [31:0] csr_wdata;
+    wire [31:0] csr_src_data;
+    reg  [31:0] csr_write_data;
 
     assign opcode = fetch_inst[6:0];
     assign ex_funct3 = fetch_inst[14:12];
@@ -190,7 +192,11 @@ module ysyx_26030082_exu (
 
     // ALU.
     assign ex_pc4 = fetch_pc + 32'd4;
-    assign alu_logic_rhs = op_rtype ? rf_rdata2_forward : imm;
+    assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
+    assign alu_logic_lhs = op_system ? csr_rdata : rf_rdata1_forward;
+    assign alu_logic_rhs = op_system ?
+                           ((ex_funct3 == F3_CSRRC || ex_funct3 == F3_CSRRCI) ? ~csr_src_data : csr_src_data) :
+                           (op_rtype ? rf_rdata2_forward : imm);
     assign alu_add_lhs = (op_auipc | op_jal | op_branch) ? fetch_pc : rf_rdata1_forward;
     assign alu_add_rhs = op_rtype ? rf_rdata2_forward : imm;
     assign alu_sub_family = (op_rtype && ex_funct3 == 3'b000 && funct7_5) ||
@@ -198,9 +204,9 @@ module ysyx_26030082_exu (
     assign alu_adder_rhs = alu_sub_family ? ~alu_add_rhs : alu_add_rhs;
     assign {alu_addsub_carry, alu_addsub_result} = {1'b0, alu_add_lhs} + {1'b0, alu_adder_rhs} +
                                                    {32'b0, alu_sub_family};
-    assign alu_and_result = rf_rdata1_forward & alu_logic_rhs;
-    assign alu_or_result = rf_rdata1_forward | alu_logic_rhs;
-    assign alu_xor_result = rf_rdata1_forward ^ alu_logic_rhs;
+    assign alu_and_result = alu_logic_lhs & alu_logic_rhs;
+    assign alu_or_result = alu_logic_lhs | alu_logic_rhs;
+    assign alu_xor_result = alu_logic_lhs ^ alu_logic_rhs;
     assign alu_sll_result = rf_rdata1_forward << alu_logic_rhs[4:0];
     assign alu_srl_result = rf_rdata1_forward >> alu_logic_rhs[4:0];
     assign alu_sra_result = ($signed(rf_rdata1_forward)) >>> alu_logic_rhs[4:0];
@@ -306,8 +312,6 @@ module ysyx_26030082_exu (
     end
 
     // CSR and writeback side data.
-    assign csr_wdata = ex_funct3[2] ? imm : rf_rdata1_forward;
-
     always @(*) begin
         case (csr_addr)
             CSR_MSTATUS:   csr_rdata = csr_mstatus;
@@ -317,6 +321,18 @@ module ysyx_26030082_exu (
             CSR_MVENDORID: csr_rdata = 32'h7973_7978;
             CSR_MARCHID:   csr_rdata = 32'd26030082;
             default:       csr_rdata = 32'b0;
+        endcase
+    end
+
+    always @(*) begin
+        case (ex_funct3)
+            F3_CSRRW,
+            F3_CSRRWI: csr_write_data = csr_src_data;
+            F3_CSRRS,
+            F3_CSRRSI: csr_write_data = alu_or_result;
+            F3_CSRRC,
+            F3_CSRRCI: csr_write_data = alu_and_result;
+            default:   csr_write_data = csr_src_data;
         endcase
     end
 
@@ -371,36 +387,16 @@ module ysyx_26030082_exu (
                 end
 
                 F3_CSRRW,
-                F3_CSRRWI: begin
-                    case (csr_addr)
-                        CSR_MSTATUS: csr_mstatus <= csr_wdata;
-                        CSR_MTVEC:   csr_mtvec   <= csr_wdata;
-                        CSR_MEPC:    csr_mepc    <= csr_wdata;
-                        CSR_MCAUSE:  csr_mcause  <= csr_wdata;
-                        default: begin
-                        end
-                    endcase
-                end
-
                 F3_CSRRS,
-                F3_CSRRSI: begin
-                    case (csr_addr)
-                        CSR_MSTATUS: csr_mstatus <= csr_mstatus | csr_wdata;
-                        CSR_MTVEC:   csr_mtvec   <= csr_mtvec | csr_wdata;
-                        CSR_MEPC:    csr_mepc    <= csr_mepc | csr_wdata;
-                        CSR_MCAUSE:  csr_mcause  <= csr_mcause | csr_wdata;
-                        default: begin
-                        end
-                    endcase
-                end
-
                 F3_CSRRC,
+                F3_CSRRWI,
+                F3_CSRRSI,
                 F3_CSRRCI: begin
                     case (csr_addr)
-                        CSR_MSTATUS: csr_mstatus <= csr_mstatus & ~csr_wdata;
-                        CSR_MTVEC:   csr_mtvec   <= csr_mtvec & ~csr_wdata;
-                        CSR_MEPC:    csr_mepc    <= csr_mepc & ~csr_wdata;
-                        CSR_MCAUSE:  csr_mcause  <= csr_mcause & ~csr_wdata;
+                        CSR_MSTATUS: csr_mstatus <= csr_write_data;
+                        CSR_MTVEC:   csr_mtvec   <= csr_write_data;
+                        CSR_MEPC:    csr_mepc    <= csr_write_data;
+                        CSR_MCAUSE:  csr_mcause  <= csr_write_data;
                         default: begin
                         end
                     endcase

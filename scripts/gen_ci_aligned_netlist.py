@@ -24,8 +24,9 @@ RELEASE_TAG_RE = re.compile(r"OSS_CAD_SUITE_RELEASE_TAG:\s*([0-9-]+)")
 YOSYS_STA_BRANCH_RE = re.compile(r"git clone -b ([^\s]+) https://github\.com/OSCPU/yosys-sta")
 YOSYS_STA_REVERT_RE = re.compile(r"git revert --no-edit ([0-9a-f]{40})")
 AREA_RE = re.compile(r"Chip area for module '.*?': ([0-9.]+)")
+FLOAT_RE = r"[-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)"
 TIMING_ROW_RE = re.compile(
-    r"^\|.*?\|\s*[^|]+\s*\|\s*max\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*([0-9.]+)\s*\|\s*([0-9.]+)\s*\|$",
+    rf"^\|.*?\|\s*[^|]+\s*\|\s*max\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*({FLOAT_RE})\s*\|\s*({FLOAT_RE})\s*\|$",
     re.MULTILINE,
 )
 MODULE_RE = re.compile(r"Generating RTLIL representation for module `\\([^']+)'\.")

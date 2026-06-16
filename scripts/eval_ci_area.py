@@ -48,8 +48,9 @@ class EvalSummary:
 
 
 AREA_RE = re.compile(r"Chip area for module '.*?': ([0-9.]+)")
+FLOAT_RE = r"[-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)"
 TIMING_ROW_RE = re.compile(
-    r"^\|.*?\|\s*[^|]+\s*\|\s*max\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*([0-9.]+)\s*\|\s*([0-9.]+)\s*\|$",
+    rf"^\|.*?\|\s*[^|]+\s*\|\s*max\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*({FLOAT_RE})\s*\|\s*({FLOAT_RE})\s*\|$",
     re.MULTILINE,
 )
 STUID_RE = re.compile(r"^STUID\s*=\s*ysyx_(\d{8})\s*$", re.MULTILINE)
