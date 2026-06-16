@@ -130,6 +130,7 @@ module ysyx_26030082_exu (
     wire        cmp_eq;
     wire        cmp_lt;
     wire        cmp_ltu;
+    reg  [31:0] op_wdata;
 
     // CSR.
     reg  [31:0] csr_mstatus;
@@ -307,6 +308,55 @@ module ysyx_26030082_exu (
     assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
 
     always @(*) begin
+        op_wdata = 32'bx;
+
+        case (ex_funct3)
+            F3_ADD_SUB: begin
+                op_wdata = addsub_result;
+            end
+
+            F3_SLL: begin
+                op_wdata = sll_result;
+            end
+
+            F3_SLT: begin
+                op_wdata = {31'b0, cmp_lt};
+            end
+
+            F3_SLTU: begin
+                op_wdata = {31'b0, cmp_ltu};
+            end
+
+            F3_XOR: begin
+                op_wdata = xor_result;
+            end
+
+            F3_SRL_SRA: begin
+                case (funct7_5)
+                    1'b0: begin
+                        op_wdata = srl_result;
+                    end
+
+                    1'b1: begin
+                        op_wdata = sra_result;
+                    end
+                endcase
+            end
+
+            F3_OR: begin
+                op_wdata = or_result;
+            end
+
+            F3_AND: begin
+                op_wdata = and_result;
+            end
+
+            default: begin
+            end
+        endcase
+    end
+
+    always @(*) begin
         case (ex_funct3)
             F3_BEQ:  branch_redirect = cmp_eq;
             F3_BNE:  branch_redirect = ~cmp_eq;
@@ -362,50 +412,7 @@ module ysyx_26030082_exu (
         case (opcode)
             OPCODE_OP,
             OPCODE_OP_IMM: begin
-                case (ex_funct3)
-                    F3_ADD_SUB: begin
-                        ex_wdata = addsub_result;
-                    end
-
-                    F3_SLL: begin
-                        ex_wdata = sll_result;
-                    end
-
-                    F3_SLT: begin
-                        ex_wdata = {31'b0, cmp_lt};
-                    end
-
-                    F3_SLTU: begin
-                        ex_wdata = {31'b0, cmp_ltu};
-                    end
-
-                    F3_XOR: begin
-                        ex_wdata = xor_result;
-                    end
-
-                    F3_SRL_SRA: begin
-                        case (funct7_5)
-                            1'b0: begin
-                                ex_wdata = srl_result;
-                            end
-
-                            1'b1: begin
-                                ex_wdata = sra_result;
-                            end
-                        endcase
-                    end
-
-                    F3_OR: begin
-                        ex_wdata = or_result;
-                    end
-
-                    F3_AND: begin
-                        ex_wdata = and_result;
-                    end
-
-                    default: begin
-                    end
-                endcase
+                ex_wdata = op_wdata;
             end
 
             OPCODE_LUI: begin
@@ -456,8 +463,22 @@ module ysyx_26030082_exu (
                         endcase
                     end
 
-                    default: begin
+                    F3_CSRRW,
+                    F3_CSRRWI: begin
                         ex_wdata = csr_rdata;
+                    end
+
+                    F3_CSRRS,
+                    F3_CSRRSI: begin
+                        ex_wdata = csr_rdata;
+                    end
+
+                    F3_CSRRC,
+                    F3_CSRRCI: begin
+                        ex_wdata = csr_rdata;
+                    end
+
+                    default: begin
                     end
                 endcase
             end
