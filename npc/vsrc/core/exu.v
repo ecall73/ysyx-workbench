@@ -83,6 +83,9 @@ module ysyx_26030082_exu (
     wire [4:0] rf_raddr1;
     wire [4:0] rf_raddr2;
     wire [11:0] csr_addr;
+    wire       rs1_used;
+    wire       rs2_used;
+    wire       csr_rs1_used;
 
     // RF + forward.
     reg  [31:0] reg_bank [1:15];
@@ -145,10 +148,22 @@ module ysyx_26030082_exu (
     assign rf_rdata1_forward = ((rf_raddr1 == ls_rf_waddr) && ls_rf_wen && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata1;
     assign rf_rdata2_forward = ((rf_raddr2 == ls_rf_waddr) && ls_rf_wen && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata2;
 
+    assign csr_rs1_used = (opcode == OPCODE_SYSTEM) &&
+                          ~ex_funct3[2] &&
+                          (ex_funct3[1:0] != 2'b00);
+    assign rs2_used = (opcode == OPCODE_OP) ||
+                      (opcode == OPCODE_STORE) ||
+                      (opcode == OPCODE_BRANCH);
+    assign rs1_used = rs2_used ||
+                      (opcode == OPCODE_OP_IMM) ||
+                      (opcode == OPCODE_LOAD) ||
+                      (opcode == OPCODE_JALR) ||
+                      csr_rs1_used;
+
     assign load_use_hazard = ls_load_pending &&
                              (ls_rf_waddr != 5'b0) &&
-                             ((rf_raddr1 == ls_rf_waddr) ||
-                              (rf_raddr2 == ls_rf_waddr));
+                             ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
+                              (rs2_used && (rf_raddr2 == ls_rf_waddr)));
 
     assign fetch_ready = ~fetch_valid || (~load_use_hazard && ex_out_ready);
     assign ex_out_valid = fetch_valid && ~load_use_hazard;
@@ -190,13 +205,13 @@ module ysyx_26030082_exu (
     assign ex_pc4 = fetch_pc + 32'd4;
     assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
     always @(*) begin
-        addsub_lhs = 32'bx;
-        addsub_rhs = 32'bx;
-        addsub_sub = 1'bx;
-        bit_lhs = 32'bx;
-        bit_rhs = 32'bx;
-        shift_rhs = 32'bx;
-        cmp_rhs = 32'bx;
+        addsub_lhs = 32'b0;
+        addsub_rhs = 32'b0;
+        addsub_sub = 1'b0;
+        bit_lhs = 32'b0;
+        bit_rhs = 32'b0;
+        shift_rhs = 32'b0;
+        cmp_rhs = 32'b0;
 
         case (opcode)
             OPCODE_OP: begin
@@ -279,14 +294,14 @@ module ysyx_26030082_exu (
 
     // Output mux.
     always @(*) begin
-        ex_mem_addr = 32'bx;
-        ex_wdata = 32'bx;
-        csr_write_data = 32'bx;
-        ex_rf_wen = 1'bx;
-        ex_mem_ren = 1'bx;
-        ex_mem_wen = 1'bx;
-        ex_redirect = 1'bx;
-        ex_fence_i = 1'bx;
+        ex_mem_addr = 32'b0;
+        ex_wdata = 32'b0;
+        csr_write_data = 32'b0;
+        ex_rf_wen = 1'b0;
+        ex_mem_ren = 1'b0;
+        ex_mem_wen = 1'b0;
+        ex_redirect = 1'b0;
+        ex_fence_i = 1'b0;
 
         case (opcode)
             OPCODE_OP,
