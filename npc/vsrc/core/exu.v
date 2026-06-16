@@ -225,34 +225,28 @@ module ysyx_26030082_exu (
     assign ex_pc4 = fetch_pc + 32'd4;
     assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
     always @(*) begin
-        addsub_lhs = rf_rdata1_forward;
-        addsub_rhs = imm;
-        addsub_sub = 1'b0;
-        bit_lhs = rf_rdata1_forward;
-        bit_rhs = imm;
-        shift_rhs = imm;
-        cmp_rhs = imm;
+        addsub_lhs = 32'bx;
+        addsub_rhs = 32'bx;
+        addsub_sub = 1'bx;
+        bit_lhs = 32'bx;
+        bit_rhs = 32'bx;
+        shift_rhs = 32'bx;
+        cmp_rhs = 32'bx;
 
         case (opcode)
             OPCODE_OP: begin
+                addsub_lhs = rf_rdata1_forward;
                 addsub_rhs = rf_rdata2_forward;
+                addsub_sub = (ex_funct3 == F3_ADD_SUB) && funct7_5;
+                bit_lhs = rf_rdata1_forward;
                 bit_rhs = rf_rdata2_forward;
                 shift_rhs = rf_rdata2_forward;
                 cmp_rhs = rf_rdata2_forward;
-                case (ex_funct3)
-                    F3_ADD_SUB: begin
-                        addsub_sub = funct7_5;
-                    end
-
-                    default: begin
-                    end
-                endcase
             end
 
             OPCODE_OP_IMM: begin
                 addsub_lhs = rf_rdata1_forward;
                 addsub_rhs = imm;
-                addsub_sub = 1'b0;
                 bit_lhs = rf_rdata1_forward;
                 bit_rhs = imm;
                 shift_rhs = imm;
@@ -264,20 +258,17 @@ module ysyx_26030082_exu (
             OPCODE_JALR: begin
                 addsub_lhs = rf_rdata1_forward;
                 addsub_rhs = imm;
-                addsub_sub = 1'b0;
             end
 
             OPCODE_AUIPC,
             OPCODE_JAL: begin
                 addsub_lhs = fetch_pc;
                 addsub_rhs = imm;
-                addsub_sub = 1'b0;
             end
 
             OPCODE_BRANCH: begin
                 addsub_lhs = fetch_pc;
                 addsub_rhs = imm;
-                addsub_sub = 1'b0;
                 cmp_rhs = rf_rdata2_forward;
             end
 
@@ -319,18 +310,19 @@ module ysyx_26030082_exu (
 
     // Output mux.
     always @(*) begin
-        ex_mem_addr = 32'b0;
-        ex_wdata = 32'b0;
-        csr_write_data = 32'b0;
-        ex_rf_wen = 1'b1;
-        ex_mem_ren = 1'b0;
-        ex_mem_wen = 1'b0;
-        ex_redirect = 1'b0;
-        ex_fence_i = 1'b0;
+        ex_mem_addr = 32'bx;
+        ex_wdata = 32'bx;
+        csr_write_data = 32'bx;
+        ex_rf_wen = 1'bx;
+        ex_mem_ren = 1'bx;
+        ex_mem_wen = 1'bx;
+        ex_redirect = 1'bx;
+        ex_fence_i = 1'bx;
 
         case (opcode)
             OPCODE_OP,
             OPCODE_OP_IMM: begin
+                ex_rf_wen = 1'b1;
                 case (ex_funct3)
                     F3_ADD_SUB: begin
                         ex_wdata = addsub_result;
@@ -378,10 +370,12 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_LUI: begin
+                ex_rf_wen = 1'b1;
                 ex_wdata = imm;
             end
 
             OPCODE_AUIPC: begin
+                ex_rf_wen = 1'b1;
                 ex_wdata = addsub_result;
             end
 
@@ -393,12 +387,12 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_LOAD: begin
+                ex_rf_wen = 1'b1;
                 ex_mem_ren = 1'b1;
                 ex_mem_addr = addsub_result;
             end
 
             OPCODE_BRANCH: begin
-                ex_rf_wen = 1'b0;
                 ex_mem_addr = addsub_result;
                 case (ex_funct3)
                     F3_BEQ:  ex_redirect = cmp_eq;
@@ -413,18 +407,21 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_JAL: begin
+                ex_rf_wen = 1'b1;
                 ex_redirect = 1'b1;
                 ex_mem_addr = addsub_result;
                 ex_wdata = ex_pc4;
             end
 
             OPCODE_JALR: begin
+                ex_rf_wen = 1'b1;
                 ex_redirect = 1'b1;
                 ex_mem_addr = {addsub_result[31:1], 1'b0};
                 ex_wdata = ex_pc4;
             end
 
             OPCODE_SYSTEM: begin
+                ex_rf_wen = 1'b1;
                 ex_wdata = csr_rdata;
                 case (ex_funct3)
                     F3_PRIV: begin
