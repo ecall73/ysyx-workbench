@@ -20,7 +20,6 @@ module ysyx_26030082_exu (
     output wire        ex_mem_wen,
     output wire [ 2:0] ex_funct3,
     output wire [ 4:0] ex_rf_waddr,
-    output reg  [31:0] ex_alu_result,
     output reg  [31:0] ex_mem_addr,
     output reg         ex_redirect,
     output reg  [31:0] ex_wdata,
@@ -112,6 +111,7 @@ module ysyx_26030082_exu (
     wire [31:0] alu_sra_result;
     wire        alu_cmp_lt;
     wire        alu_cmp_ltu;
+    reg  [31:0] fu_result;
 
     // BRU / redirect.
     wire        bru_cmp_eq;
@@ -218,29 +218,29 @@ module ysyx_26030082_exu (
         case (opcode)
             OPCODE_OP: begin
                 case (ex_funct3)
-                    3'b000:  ex_alu_result = alu_addsub_result;
-                    3'b001:  ex_alu_result = alu_sll_result;
-                    3'b010:  ex_alu_result = {31'b0, alu_cmp_lt};
-                    3'b011:  ex_alu_result = {31'b0, alu_cmp_ltu};
-                    3'b100:  ex_alu_result = alu_xor_result;
-                    3'b101:  ex_alu_result = funct7_5 ? alu_sra_result : alu_srl_result;
-                    3'b110:  ex_alu_result = alu_or_result;
-                    3'b111:  ex_alu_result = alu_and_result;
-                    default: ex_alu_result = alu_addsub_result;
+                    3'b000:  fu_result = alu_addsub_result;
+                    3'b001:  fu_result = alu_sll_result;
+                    3'b010:  fu_result = {31'b0, alu_cmp_lt};
+                    3'b011:  fu_result = {31'b0, alu_cmp_ltu};
+                    3'b100:  fu_result = alu_xor_result;
+                    3'b101:  fu_result = funct7_5 ? alu_sra_result : alu_srl_result;
+                    3'b110:  fu_result = alu_or_result;
+                    3'b111:  fu_result = alu_and_result;
+                    default: fu_result = alu_addsub_result;
                 endcase
             end
 
             OPCODE_OP_IMM: begin
                 case (ex_funct3)
-                    3'b000:  ex_alu_result = alu_addsub_result;
-                    3'b001:  ex_alu_result = alu_sll_result;
-                    3'b010:  ex_alu_result = {31'b0, alu_cmp_lt};
-                    3'b011:  ex_alu_result = {31'b0, alu_cmp_ltu};
-                    3'b100:  ex_alu_result = alu_xor_result;
-                    3'b101:  ex_alu_result = funct7_5 ? alu_sra_result : alu_srl_result;
-                    3'b110:  ex_alu_result = alu_or_result;
-                    3'b111:  ex_alu_result = alu_and_result;
-                    default: ex_alu_result = alu_addsub_result;
+                    3'b000:  fu_result = alu_addsub_result;
+                    3'b001:  fu_result = alu_sll_result;
+                    3'b010:  fu_result = {31'b0, alu_cmp_lt};
+                    3'b011:  fu_result = {31'b0, alu_cmp_ltu};
+                    3'b100:  fu_result = alu_xor_result;
+                    3'b101:  fu_result = funct7_5 ? alu_sra_result : alu_srl_result;
+                    3'b110:  fu_result = alu_or_result;
+                    3'b111:  fu_result = alu_and_result;
+                    default: fu_result = alu_addsub_result;
                 endcase
             end
 
@@ -249,11 +249,11 @@ module ysyx_26030082_exu (
             OPCODE_STORE,
             OPCODE_AUIPC,
             OPCODE_JAL: begin
-                ex_alu_result = alu_addsub_result;
+                fu_result = alu_addsub_result;
             end
 
             default: begin
-                ex_alu_result = alu_addsub_result;
+                fu_result = alu_addsub_result;
             end
         endcase
     end
@@ -265,7 +265,7 @@ module ysyx_26030082_exu (
 
     always @(*) begin
         ex_redirect = 1'b0;
-        ex_mem_addr = ex_alu_result;
+        ex_mem_addr = fu_result;
         ex_fence_i = 1'b0;
 
         case (opcode)
@@ -288,7 +288,7 @@ module ysyx_26030082_exu (
 
             OPCODE_JALR: begin
                 ex_redirect = 1'b1;
-                ex_mem_addr = {ex_alu_result[31:1], 1'b0};
+                ex_mem_addr = {fu_result[31:1], 1'b0};
             end
 
             OPCODE_SYSTEM: begin
@@ -356,7 +356,7 @@ module ysyx_26030082_exu (
             end
 
             default: begin
-                ex_wdata = ex_alu_result;
+                ex_wdata = fu_result;
             end
         endcase
     end
