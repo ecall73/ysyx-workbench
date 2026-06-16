@@ -249,35 +249,53 @@ module ysyx_26030082_exu (
                 endcase
             end
 
-            OPCODE_OP_IMM,
+            OPCODE_OP_IMM: begin
+                addsub_lhs = rf_rdata1_forward;
+                addsub_rhs = imm;
+                addsub_sub = 1'b0;
+                bit_lhs = rf_rdata1_forward;
+                bit_rhs = imm;
+                shift_rhs = imm;
+                cmp_rhs = imm;
+            end
+
             OPCODE_LOAD,
             OPCODE_STORE,
             OPCODE_JALR: begin
-                // default FU inputs are rs1/imm.
+                addsub_lhs = rf_rdata1_forward;
+                addsub_rhs = imm;
+                addsub_sub = 1'b0;
             end
 
             OPCODE_AUIPC,
-            OPCODE_JAL,
+            OPCODE_JAL: begin
+                addsub_lhs = fetch_pc;
+                addsub_rhs = imm;
+                addsub_sub = 1'b0;
+            end
+
             OPCODE_BRANCH: begin
                 addsub_lhs = fetch_pc;
+                addsub_rhs = imm;
+                addsub_sub = 1'b0;
                 cmp_rhs = rf_rdata2_forward;
             end
 
-            OPCODE_LUI,
-            OPCODE_MISC_MEM: begin
-                // no FU input override needed.
-            end
-
             OPCODE_SYSTEM: begin
-                bit_lhs = csr_rdata;
                 case (ex_funct3)
+                    F3_CSRRS,
+                    F3_CSRRSI: begin
+                        bit_lhs = csr_rdata;
+                        bit_rhs = csr_src_data;
+                    end
+
                     F3_CSRRC,
                     F3_CSRRCI: begin
+                        bit_lhs = csr_rdata;
                         bit_rhs = ~csr_src_data;
                     end
 
                     default: begin
-                        bit_rhs = csr_src_data;
                     end
                 endcase
             end
@@ -302,8 +320,8 @@ module ysyx_26030082_exu (
     // Output mux.
     always @(*) begin
         ex_mem_addr = 32'b0;
-        ex_wdata = addsub_result;
-        csr_write_data = csr_src_data;
+        ex_wdata = 32'b0;
+        csr_write_data = 32'b0;
         ex_rf_wen = 1'b1;
         ex_mem_ren = 1'b0;
         ex_mem_wen = 1'b0;
