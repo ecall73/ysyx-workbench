@@ -100,7 +100,6 @@ module ysyx_26030082_exu (
 
     // RF + forward.
     reg  [31:0] reg_bank [1:15];
-    wire        ls_rf_waddr_valid;
     wire        ls_rf_write;
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
@@ -148,13 +147,10 @@ module ysyx_26030082_exu (
     assign csr_addr = fetch_inst[31:20];
 
     // RF + forward.
-    assign ls_rf_waddr_valid = ls_rf_wen &&
-                               (ls_rf_waddr != 5'd0) &&
-                               ~ls_rf_waddr[4];
-    assign ls_rf_write = ls_out_valid && ls_rf_waddr_valid;
+    assign ls_rf_write = ls_out_valid && ls_rf_wen;
 
     always @(posedge clock) begin
-        if (ls_rf_write) begin
+        if (ls_rf_write & (ls_rf_waddr != 5'd0) & ~ls_rf_waddr[4]) begin
             reg_bank[ls_rf_waddr[3:0]] <= ls_rf_wdata;
         end
     end
@@ -162,8 +158,8 @@ module ysyx_26030082_exu (
     assign rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
     assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
 
-    assign rf_rdata1_forward = ((rf_raddr1 == ls_rf_waddr) && ls_rf_write) ? ls_rf_wdata : rf_rdata1;
-    assign rf_rdata2_forward = ((rf_raddr2 == ls_rf_waddr) && ls_rf_write) ? ls_rf_wdata : rf_rdata2;
+    assign rf_rdata1_forward = ((rf_raddr1 == ls_rf_waddr) && ls_rf_write && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata1;
+    assign rf_rdata2_forward = ((rf_raddr2 == ls_rf_waddr) && ls_rf_write && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata2;
 
     assign csr_rs1_used = (opcode == OPCODE_SYSTEM) &&
                           ~ex_funct3[2] &&
@@ -178,7 +174,7 @@ module ysyx_26030082_exu (
                       csr_rs1_used;
 
     assign load_use_hazard = ls_load_pending &&
-                             ls_rf_waddr_valid &&
+                             (ls_rf_waddr != 5'b0) &&
                              ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
                               (rs2_used && (rf_raddr2 == ls_rf_waddr)));
 
@@ -440,8 +436,10 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_SYSTEM: begin
+                ex_wdata = csr_rdata;
                 case (ex_funct3)
                     F3_PRIV: begin
+                        ex_wdata = 32'bx;
                         case (csr_addr)
                             F12_ECALL: begin
                                 ex_mem_addr = {csr_mtvec[31:2], 2'b0};
@@ -454,21 +452,6 @@ module ysyx_26030082_exu (
                             default: begin
                             end
                         endcase
-                    end
-
-                    F3_CSRRW,
-                    F3_CSRRWI: begin
-                        ex_wdata = csr_rdata;
-                    end
-
-                    F3_CSRRS,
-                    F3_CSRRSI: begin
-                        ex_wdata = csr_rdata;
-                    end
-
-                    F3_CSRRC,
-                    F3_CSRRCI: begin
-                        ex_wdata = csr_rdata;
                     end
 
                     default: begin
