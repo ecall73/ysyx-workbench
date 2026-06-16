@@ -96,8 +96,6 @@ module ysyx_26030082_exu (
     wire       rs1_used;
     wire       rs2_used;
     wire       csr_rs1_used;
-    wire       alu_rf_wen;
-    wire       system_redirect;
     wire       branch_redirect;
 
     // RF + forward.
@@ -308,10 +306,6 @@ module ysyx_26030082_exu (
     assign cmp_lt = ($signed(rf_rdata1_forward) < $signed(cmp_rhs));
     assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
 
-    assign alu_rf_wen = (opcode == OPCODE_OP) ||
-                        (opcode == OPCODE_OP_IMM);
-    assign system_redirect = (opcode == OPCODE_SYSTEM) &&
-                             (ex_funct3 == F3_PRIV);
     assign branch_redirect = ((ex_funct3 == F3_BEQ) && cmp_eq) ||
                              ((ex_funct3 == F3_BNE) && ~cmp_eq) ||
                              ((ex_funct3 == F3_BLT) && cmp_lt) ||
@@ -319,7 +313,8 @@ module ysyx_26030082_exu (
                              ((ex_funct3 == F3_BLTU) && cmp_ltu) ||
                              ((ex_funct3 == F3_BGEU) && ~cmp_ltu);
 
-    assign ex_rf_wen = alu_rf_wen ||
+    assign ex_rf_wen = (opcode == OPCODE_OP) ||
+                       (opcode == OPCODE_OP_IMM) ||
                        (opcode == OPCODE_LUI) ||
                        (opcode == OPCODE_AUIPC) ||
                        (opcode == OPCODE_LOAD) ||
@@ -331,7 +326,7 @@ module ysyx_26030082_exu (
     assign ex_redirect = ((opcode == OPCODE_BRANCH) && branch_redirect) ||
                          (opcode == OPCODE_JAL) ||
                          (opcode == OPCODE_JALR) ||
-                         system_redirect ||
+                         ((opcode == OPCODE_SYSTEM) && (ex_funct3 == F3_PRIV)) ||
                          ex_fence_i;
     assign ex_fence_i = (opcode == OPCODE_MISC_MEM) &&
                         (ex_funct3 == F3_FENCE_I);
