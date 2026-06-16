@@ -98,7 +98,6 @@ module ysyx_26030082_exu (
     wire       csr_rs1_used;
     wire       alu_rf_wen;
     wire       system_redirect;
-    wire       fence_i_inst;
     wire       branch_redirect;
 
     // RF + forward.
@@ -315,8 +314,6 @@ module ysyx_26030082_exu (
                              (ex_funct3 == F3_PRIV) &&
                              ((csr_addr == F12_ECALL) ||
                               (csr_addr == F12_MRET));
-    assign fence_i_inst = (opcode == OPCODE_MISC_MEM) &&
-                          (ex_funct3 == F3_FENCE_I);
     assign branch_redirect = ((ex_funct3 == F3_BEQ) && cmp_eq) ||
                              ((ex_funct3 == F3_BNE) && ~cmp_eq) ||
                              ((ex_funct3 == F3_BLT) && cmp_lt) ||
@@ -337,8 +334,9 @@ module ysyx_26030082_exu (
                          (opcode == OPCODE_JAL) ||
                          (opcode == OPCODE_JALR) ||
                          system_redirect ||
-                         fence_i_inst;
-    assign ex_fence_i = fence_i_inst;
+                         ex_fence_i;
+    assign ex_fence_i = (opcode == OPCODE_MISC_MEM) &&
+                        (ex_funct3 == F3_FENCE_I);
 
     // Output mux.
     always @(*) begin
