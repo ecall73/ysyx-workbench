@@ -256,18 +256,21 @@ module ysyx_26030082_exu (
                 addsub_sub = 1'b0;
             end
 
-            OPCODE_AUIPC,
-            OPCODE_JAL: begin
+            OPCODE_AUIPC: begin
                 addsub_lhs = fetch_pc;
                 addsub_rhs = imm;
                 addsub_sub = 1'b0;
             end
 
+            OPCODE_JAL,
             OPCODE_BRANCH: begin
                 addsub_lhs = fetch_pc;
                 addsub_rhs = imm;
                 addsub_sub = 1'b0;
-                cmp_rhs = rf_rdata2_forward;
+
+                if (opcode == OPCODE_BRANCH) begin
+                    cmp_rhs = rf_rdata2_forward;
+                end
             end
 
             OPCODE_SYSTEM: begin
