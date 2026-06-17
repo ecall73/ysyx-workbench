@@ -175,7 +175,6 @@ module ysyx_26030082_exu (
 
     assign load_use_hazard = ls_load_pending &&
                              (ls_rf_waddr != 5'b0) &&
-                             ~ls_rf_waddr[4] &&
                              ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
                               (rs2_used && (rf_raddr2 == ls_rf_waddr)));
 
@@ -230,19 +229,33 @@ module ysyx_26030082_exu (
             OPCODE_OP: begin
                 addsub_lhs = rf_rdata1_forward;
                 addsub_rhs = rf_rdata2_forward;
-                addsub_sub = (ex_funct3 == F3_ADD_SUB) && funct7_5;
                 bit_lhs = rf_rdata1_forward;
                 bit_rhs = rf_rdata2_forward;
                 cmp_rhs = rf_rdata2_forward;
+                case (ex_funct3)
+                    F3_ADD_SUB: begin
+                        addsub_sub = funct7_5;
+                    end
+
+                    default: begin
+                    end
+                endcase
             end
 
             OPCODE_OP_IMM: begin
                 addsub_lhs = rf_rdata1_forward;
                 addsub_rhs = imm;
-                addsub_sub = 1'b0;
                 bit_lhs = rf_rdata1_forward;
                 bit_rhs = imm;
                 cmp_rhs = imm;
+                case (ex_funct3)
+                    F3_ADD_SUB: begin
+                        addsub_sub = 1'b0;
+                    end
+
+                    default: begin
+                    end
+                endcase
             end
 
             OPCODE_LOAD,
