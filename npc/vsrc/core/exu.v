@@ -227,10 +227,6 @@ module ysyx_26030082_exu (
         shift_shamt = 5'bx;
         cmp_rhs = 32'bx;
 
-        if (opcode == OPCODE_BRANCH) begin
-            cmp_rhs = rf_rdata2_forward;
-        end
-
         case (opcode)
             OPCODE_OP: begin
                 addsub_lhs = rf_rdata1_forward;
@@ -261,11 +257,17 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_AUIPC,
-            OPCODE_JAL,
+            OPCODE_JAL: begin
+                addsub_lhs = fetch_pc;
+                addsub_rhs = imm;
+                addsub_sub = 1'b0;
+            end
+
             OPCODE_BRANCH: begin
                 addsub_lhs = fetch_pc;
                 addsub_rhs = imm;
                 addsub_sub = 1'b0;
+                cmp_rhs = rf_rdata2_forward;
             end
 
             OPCODE_SYSTEM: begin
