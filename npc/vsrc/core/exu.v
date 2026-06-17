@@ -125,6 +125,8 @@ module ysyx_26030082_exu (
     wire [31:0] shifter_lhs;
     wire [31:0] shifter_lhs_rev;
     wire [31:0] shifter_result;
+    wire [31:0] shifter_sra_result;
+    wire signed [31:0] shifter_lhs_signed;
     wire        shifter_arith;
     wire [31:0] sll_result;
     wire [31:0] srl_result;
@@ -311,9 +313,11 @@ module ysyx_26030082_exu (
     assign xor_result = bit_lhs ^ bit_rhs;
     assign shifter_lhs_rev = reverse_bits(rf_rdata1_forward);
     assign shifter_lhs = (ex_funct3 == F3_SLL) ? shifter_lhs_rev : rf_rdata1_forward;
+    assign shifter_lhs_signed = shifter_lhs;
     assign shifter_arith = (ex_funct3 == F3_SRL_SRA) && funct7_5;
+    assign shifter_sra_result = shifter_lhs_signed >>> bit_rhs[4:0];
     assign shifter_result = shifter_arith ?
-                            (($signed(shifter_lhs)) >>> bit_rhs[4:0]) :
+                            shifter_sra_result :
                             (shifter_lhs >> bit_rhs[4:0]);
     assign sll_result = reverse_bits(shifter_result);
     assign srl_result = shifter_result;
