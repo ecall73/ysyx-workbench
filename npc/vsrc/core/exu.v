@@ -179,8 +179,8 @@ module ysyx_26030082_exu (
                              ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
                               (rs2_used && (rf_raddr2 == ls_rf_waddr)));
 
+    assign fetch_ready = ~fetch_valid || (~load_use_hazard && ex_out_ready);
     assign ex_out_valid = fetch_valid && ~load_use_hazard;
-    assign fetch_ready = ~fetch_valid || (ex_out_ready && ex_out_valid);
 
     assign ex_rf_waddr = fetch_inst[11:7];
 
@@ -238,36 +238,32 @@ module ysyx_26030082_exu (
                 cmp_rhs = rf_rdata2_forward;
             end
 
-            OPCODE_OP_IMM: begin
-                addsub_lhs = rf_rdata1_forward;
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-                bit_lhs = rf_rdata1_forward;
-                bit_rhs = imm;
-                shift_shamt = imm[4:0];
-                cmp_rhs = imm;
-            end
-
+            OPCODE_OP_IMM,
             OPCODE_LOAD,
             OPCODE_STORE,
             OPCODE_JALR: begin
                 addsub_lhs = rf_rdata1_forward;
                 addsub_rhs = imm;
                 addsub_sub = 1'b0;
+
+                if (opcode == OPCODE_OP_IMM) begin
+                    bit_lhs = rf_rdata1_forward;
+                    bit_rhs = imm;
+                    shift_shamt = imm[4:0];
+                    cmp_rhs = imm;
+                end
             end
 
             OPCODE_AUIPC,
-            OPCODE_JAL: begin
-                addsub_lhs = fetch_pc;
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-            end
-
+            OPCODE_JAL,
             OPCODE_BRANCH: begin
                 addsub_lhs = fetch_pc;
                 addsub_rhs = imm;
                 addsub_sub = 1'b0;
-                cmp_rhs = rf_rdata2_forward;
+
+                if (opcode == OPCODE_BRANCH) begin
+                    cmp_rhs = rf_rdata2_forward;
+                end
             end
 
             OPCODE_SYSTEM: begin
