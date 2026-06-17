@@ -179,8 +179,8 @@ module ysyx_26030082_exu (
                              ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
                               (rs2_used && (rf_raddr2 == ls_rf_waddr)));
 
-    assign fetch_ready = ~fetch_valid || (~load_use_hazard && ex_out_ready);
     assign ex_out_valid = fetch_valid && ~load_use_hazard;
+    assign fetch_ready = ~fetch_valid || (ex_out_ready && ex_out_valid);
 
     assign ex_rf_waddr = fetch_inst[11:7];
 
