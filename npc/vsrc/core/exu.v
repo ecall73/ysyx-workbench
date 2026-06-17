@@ -130,6 +130,7 @@ module ysyx_26030082_exu (
     wire        cmp_eq;
     wire        cmp_lt;
     wire        cmp_ltu;
+    reg  [31:0] op_wdata;
 
     // CSR.
     reg  [31:0] csr_mstatus;
@@ -218,20 +219,36 @@ module ysyx_26030082_exu (
     // ALU.
     assign ex_pc4 = fetch_pc + 32'd4;
     assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
-
     always @(*) begin
         addsub_lhs = 32'bx;
         addsub_rhs = 32'bx;
         addsub_sub = 1'bx;
+        bit_lhs = 32'bx;
+        bit_rhs = 32'bx;
+        shift_shamt = 5'bx;
+        cmp_rhs = 32'bx;
 
         case (opcode)
             OPCODE_OP: begin
                 addsub_lhs = rf_rdata1_forward;
                 addsub_rhs = rf_rdata2_forward;
                 addsub_sub = (ex_funct3 == F3_ADD_SUB) && funct7_5;
+                bit_lhs = rf_rdata1_forward;
+                bit_rhs = rf_rdata2_forward;
+                shift_shamt = rf_rdata2_forward[4:0];
+                cmp_rhs = rf_rdata2_forward;
             end
 
-            OPCODE_OP_IMM,
+            OPCODE_OP_IMM: begin
+                addsub_lhs = rf_rdata1_forward;
+                addsub_rhs = imm;
+                addsub_sub = 1'b0;
+                bit_lhs = rf_rdata1_forward;
+                bit_rhs = imm;
+                shift_shamt = imm[4:0];
+                cmp_rhs = imm;
+            end
+
             OPCODE_LOAD,
             OPCODE_STORE,
             OPCODE_JALR: begin
@@ -241,31 +258,17 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_AUIPC,
-            OPCODE_JAL,
-            OPCODE_BRANCH: begin
+            OPCODE_JAL: begin
                 addsub_lhs = fetch_pc;
                 addsub_rhs = imm;
                 addsub_sub = 1'b0;
             end
 
-            default: begin
-            end
-        endcase
-    end
-
-    always @(*) begin
-        bit_lhs = 32'bx;
-        bit_rhs = 32'bx;
-
-        case (opcode)
-            OPCODE_OP: begin
-                bit_lhs = rf_rdata1_forward;
-                bit_rhs = rf_rdata2_forward;
-            end
-
-            OPCODE_OP_IMM: begin
-                bit_lhs = rf_rdata1_forward;
-                bit_rhs = imm;
+            OPCODE_BRANCH: begin
+                addsub_lhs = fetch_pc;
+                addsub_rhs = imm;
+                addsub_sub = 1'b0;
+                cmp_rhs = rf_rdata2_forward;
             end
 
             OPCODE_SYSTEM: begin
@@ -292,29 +295,6 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    always @(*) begin
-        shift_shamt = 5'bx;
-
-        case (opcode)
-            OPCODE_OP:      shift_shamt = rf_rdata2_forward[4:0];
-            OPCODE_OP_IMM:  shift_shamt = imm[4:0];
-            default: begin
-            end
-        endcase
-    end
-
-    always @(*) begin
-        cmp_rhs = 32'bx;
-
-        case (opcode)
-            OPCODE_OP,
-            OPCODE_BRANCH:  cmp_rhs = rf_rdata2_forward;
-            OPCODE_OP_IMM:  cmp_rhs = imm;
-            default: begin
-            end
-        endcase
-    end
-
     assign addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
     assign addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
     assign and_result = bit_lhs & bit_rhs;
@@ -326,6 +306,55 @@ module ysyx_26030082_exu (
     assign cmp_eq = (rf_rdata1_forward == cmp_rhs);
     assign cmp_lt = ($signed(rf_rdata1_forward) < $signed(cmp_rhs));
     assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
+
+    always @(*) begin
+        op_wdata = 32'bx;
+
+        case (ex_funct3)
+            F3_ADD_SUB: begin
+                op_wdata = addsub_result;
+            end
+
+            F3_SLL: begin
+                op_wdata = sll_result;
+            end
+
+            F3_SLT: begin
+                op_wdata = {31'b0, cmp_lt};
+            end
+
+            F3_SLTU: begin
+                op_wdata = {31'b0, cmp_ltu};
+            end
+
+            F3_XOR: begin
+                op_wdata = xor_result;
+            end
+
+            F3_SRL_SRA: begin
+                case (funct7_5)
+                    1'b0: begin
+                        op_wdata = srl_result;
+                    end
+
+                    1'b1: begin
+                        op_wdata = sra_result;
+                    end
+                endcase
+            end
+
+            F3_OR: begin
+                op_wdata = or_result;
+            end
+
+            F3_AND: begin
+                op_wdata = and_result;
+            end
+
+            default: begin
+            end
+        endcase
+    end
 
     always @(*) begin
         case (ex_funct3)
@@ -383,50 +412,7 @@ module ysyx_26030082_exu (
         case (opcode)
             OPCODE_OP,
             OPCODE_OP_IMM: begin
-                case (ex_funct3)
-                    F3_ADD_SUB: begin
-                        ex_wdata = addsub_result;
-                    end
-
-                    F3_SLL: begin
-                        ex_wdata = sll_result;
-                    end
-
-                    F3_SLT: begin
-                        ex_wdata = {31'b0, cmp_lt};
-                    end
-
-                    F3_SLTU: begin
-                        ex_wdata = {31'b0, cmp_ltu};
-                    end
-
-                    F3_XOR: begin
-                        ex_wdata = xor_result;
-                    end
-
-                    F3_SRL_SRA: begin
-                        case (funct7_5)
-                            1'b0: begin
-                                ex_wdata = srl_result;
-                            end
-
-                            1'b1: begin
-                                ex_wdata = sra_result;
-                            end
-                        endcase
-                    end
-
-                    F3_OR: begin
-                        ex_wdata = or_result;
-                    end
-
-                    F3_AND: begin
-                        ex_wdata = and_result;
-                    end
-
-                    default: begin
-                    end
-                endcase
+                ex_wdata = op_wdata;
             end
 
             OPCODE_LUI: begin
