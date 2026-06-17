@@ -130,7 +130,6 @@ module ysyx_26030082_exu (
     wire        cmp_eq;
     wire        cmp_lt;
     wire        cmp_ltu;
-    reg  [31:0] op_wdata;
 
     // CSR.
     reg  [31:0] csr_mstatus;
@@ -149,10 +148,10 @@ module ysyx_26030082_exu (
     assign csr_addr = fetch_inst[31:20];
 
     // RF + forward.
-    assign ls_rf_write = ls_out_valid && ls_rf_wen;
+    assign ls_rf_write = ls_out_valid && ls_rf_wen && (ls_rf_waddr != 5'b0);
 
     always @(posedge clock) begin
-        if (ls_rf_write & (ls_rf_waddr != 5'd0) & ~ls_rf_waddr[4]) begin
+        if (ls_rf_write & ~ls_rf_waddr[4]) begin
             reg_bank[ls_rf_waddr[3:0]] <= ls_rf_wdata;
         end
     end
@@ -160,8 +159,8 @@ module ysyx_26030082_exu (
     assign rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
     assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
 
-    assign rf_rdata1_forward = ((rf_raddr1 == ls_rf_waddr) && ls_rf_write && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata1;
-    assign rf_rdata2_forward = ((rf_raddr2 == ls_rf_waddr) && ls_rf_write && (ls_rf_waddr != 5'b0)) ? ls_rf_wdata : rf_rdata2;
+    assign rf_rdata1_forward = ((rf_raddr1 == ls_rf_waddr) && ls_rf_write) ? ls_rf_wdata : rf_rdata1;
+    assign rf_rdata2_forward = ((rf_raddr2 == ls_rf_waddr) && ls_rf_write) ? ls_rf_wdata : rf_rdata2;
 
     assign csr_rs1_used = (opcode == OPCODE_SYSTEM) &&
                           ~ex_funct3[2] &&
@@ -176,7 +175,7 @@ module ysyx_26030082_exu (
                       csr_rs1_used;
 
     assign load_use_hazard = ls_load_pending &&
-                             (ls_rf_waddr != 5'b0) &&
+                             ls_rf_write &&
                              ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
                               (rs2_used && (rf_raddr2 == ls_rf_waddr)));
 
@@ -308,55 +307,6 @@ module ysyx_26030082_exu (
     assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
 
     always @(*) begin
-        op_wdata = 32'bx;
-
-        case (ex_funct3)
-            F3_ADD_SUB: begin
-                op_wdata = addsub_result;
-            end
-
-            F3_SLL: begin
-                op_wdata = sll_result;
-            end
-
-            F3_SLT: begin
-                op_wdata = {31'b0, cmp_lt};
-            end
-
-            F3_SLTU: begin
-                op_wdata = {31'b0, cmp_ltu};
-            end
-
-            F3_XOR: begin
-                op_wdata = xor_result;
-            end
-
-            F3_SRL_SRA: begin
-                case (funct7_5)
-                    1'b0: begin
-                        op_wdata = srl_result;
-                    end
-
-                    1'b1: begin
-                        op_wdata = sra_result;
-                    end
-                endcase
-            end
-
-            F3_OR: begin
-                op_wdata = or_result;
-            end
-
-            F3_AND: begin
-                op_wdata = and_result;
-            end
-
-            default: begin
-            end
-        endcase
-    end
-
-    always @(*) begin
         case (ex_funct3)
             F3_BEQ:  branch_redirect = cmp_eq;
             F3_BNE:  branch_redirect = ~cmp_eq;
@@ -412,7 +362,50 @@ module ysyx_26030082_exu (
         case (opcode)
             OPCODE_OP,
             OPCODE_OP_IMM: begin
-                ex_wdata = op_wdata;
+                case (ex_funct3)
+                    F3_ADD_SUB: begin
+                        ex_wdata = addsub_result;
+                    end
+
+                    F3_SLL: begin
+                        ex_wdata = sll_result;
+                    end
+
+                    F3_SLT: begin
+                        ex_wdata = {31'b0, cmp_lt};
+                    end
+
+                    F3_SLTU: begin
+                        ex_wdata = {31'b0, cmp_ltu};
+                    end
+
+                    F3_XOR: begin
+                        ex_wdata = xor_result;
+                    end
+
+                    F3_SRL_SRA: begin
+                        case (funct7_5)
+                            1'b0: begin
+                                ex_wdata = srl_result;
+                            end
+
+                            1'b1: begin
+                                ex_wdata = sra_result;
+                            end
+                        endcase
+                    end
+
+                    F3_OR: begin
+                        ex_wdata = or_result;
+                    end
+
+                    F3_AND: begin
+                        ex_wdata = and_result;
+                    end
+
+                    default: begin
+                    end
+                endcase
             end
 
             OPCODE_LUI: begin
