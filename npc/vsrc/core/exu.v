@@ -238,20 +238,22 @@ module ysyx_26030082_exu (
                 cmp_rhs = rf_rdata2_forward;
             end
 
-            OPCODE_OP_IMM,
+            OPCODE_OP_IMM: begin
+                addsub_lhs = rf_rdata1_forward;
+                addsub_rhs = imm;
+                addsub_sub = 1'b0;
+                bit_lhs = rf_rdata1_forward;
+                bit_rhs = imm;
+                shift_shamt = imm[4:0];
+                cmp_rhs = imm;
+            end
+
             OPCODE_LOAD,
             OPCODE_STORE,
             OPCODE_JALR: begin
                 addsub_lhs = rf_rdata1_forward;
                 addsub_rhs = imm;
                 addsub_sub = 1'b0;
-
-                if (opcode == OPCODE_OP_IMM) begin
-                    bit_lhs = rf_rdata1_forward;
-                    bit_rhs = imm;
-                    shift_shamt = imm[4:0];
-                    cmp_rhs = imm;
-                end
             end
 
             OPCODE_AUIPC,
