@@ -122,6 +122,10 @@ module ysyx_26030082_exu (
     wire [31:0] and_result;
     wire [31:0] or_result;
     wire [31:0] xor_result;
+    wire [31:0] shifter_lhs;
+    wire [31:0] shifter_lhs_rev;
+    wire [31:0] shifter_result;
+    wire        shifter_arith;
     wire [31:0] sll_result;
     wire [31:0] srl_result;
     wire [31:0] sra_result;
@@ -138,6 +142,16 @@ module ysyx_26030082_exu (
     reg  [31:0] csr_rdata;
     wire [31:0] csr_src_data;
     reg  [31:0] csr_write_data;
+
+    function [31:0] reverse_bits;
+        input [31:0] in;
+        integer i;
+        begin
+            for (i = 0; i < 32; i = i + 1) begin
+                reverse_bits[i] = in[31 - i];
+            end
+        end
+    endfunction
 
     assign opcode = fetch_inst[6:0];
     assign ex_funct3 = fetch_inst[14:12];
@@ -229,33 +243,19 @@ module ysyx_26030082_exu (
             OPCODE_OP: begin
                 addsub_lhs = rf_rdata1_forward;
                 addsub_rhs = rf_rdata2_forward;
+                addsub_sub = (ex_funct3 == F3_ADD_SUB) && funct7_5;
                 bit_lhs = rf_rdata1_forward;
                 bit_rhs = rf_rdata2_forward;
                 cmp_rhs = rf_rdata2_forward;
-                case (ex_funct3)
-                    F3_ADD_SUB: begin
-                        addsub_sub = funct7_5;
-                    end
-
-                    default: begin
-                    end
-                endcase
             end
 
             OPCODE_OP_IMM: begin
                 addsub_lhs = rf_rdata1_forward;
                 addsub_rhs = imm;
+                addsub_sub = 1'b0;
                 bit_lhs = rf_rdata1_forward;
                 bit_rhs = imm;
                 cmp_rhs = imm;
-                case (ex_funct3)
-                    F3_ADD_SUB: begin
-                        addsub_sub = 1'b0;
-                    end
-
-                    default: begin
-                    end
-                endcase
             end
 
             OPCODE_LOAD,
@@ -309,9 +309,15 @@ module ysyx_26030082_exu (
     assign and_result = bit_lhs & bit_rhs;
     assign or_result = bit_lhs | bit_rhs;
     assign xor_result = bit_lhs ^ bit_rhs;
-    assign sll_result = rf_rdata1_forward << bit_rhs[4:0];
-    assign srl_result = rf_rdata1_forward >> bit_rhs[4:0];
-    assign sra_result = ($signed(rf_rdata1_forward)) >>> bit_rhs[4:0];
+    assign shifter_lhs_rev = reverse_bits(rf_rdata1_forward);
+    assign shifter_lhs = (ex_funct3 == F3_SLL) ? shifter_lhs_rev : rf_rdata1_forward;
+    assign shifter_arith = (ex_funct3 == F3_SRL_SRA) && funct7_5;
+    assign shifter_result = shifter_arith ?
+                            (($signed(shifter_lhs)) >>> bit_rhs[4:0]) :
+                            (shifter_lhs >> bit_rhs[4:0]);
+    assign sll_result = reverse_bits(shifter_result);
+    assign srl_result = shifter_result;
+    assign sra_result = shifter_result;
     assign cmp_eq = (rf_rdata1_forward == cmp_rhs);
     assign cmp_lt = ($signed(rf_rdata1_forward) < $signed(cmp_rhs));
     assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
