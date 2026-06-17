@@ -120,7 +120,6 @@ module ysyx_26030082_exu (
     wire [31:0] addsub_rhs_xor;
     wire [31:0] addsub_result;
     wire [31:0] and_result;
-    wire [31:0] andnot_result;
     wire [31:0] or_result;
     wire [31:0] xor_result;
     reg  [ 4:0] shift_shamt;
@@ -183,7 +182,7 @@ module ysyx_26030082_exu (
     assign fetch_ready = ~fetch_valid || (~load_use_hazard && ex_out_ready);
     assign ex_out_valid = fetch_valid && ~load_use_hazard;
 
-    assign ex_rf_waddr = fetch_inst[11:7];
+    assign ex_rf_waddr = ex_rf_wen ? fetch_inst[11:7] : 5'bx;
 
     // Immediate.
     always @(*) begin
@@ -274,11 +273,15 @@ module ysyx_26030082_exu (
             OPCODE_SYSTEM: begin
                 case (ex_funct3)
                     F3_CSRRS,
-                    F3_CSRRSI,
+                    F3_CSRRSI: begin
+                        bit_lhs = csr_rdata;
+                        bit_rhs = csr_src_data;
+                    end
+
                     F3_CSRRC,
                     F3_CSRRCI: begin
                         bit_lhs = csr_rdata;
-                        bit_rhs = csr_src_data;
+                        bit_rhs = ~csr_src_data;
                     end
 
                     default: begin
@@ -294,7 +297,6 @@ module ysyx_26030082_exu (
     assign addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
     assign addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
     assign and_result = bit_lhs & bit_rhs;
-    assign andnot_result = bit_lhs & ~bit_rhs;
     assign or_result = bit_lhs | bit_rhs;
     assign xor_result = bit_lhs ^ bit_rhs;
     assign sll_result = rf_rdata1_forward << shift_shamt;
@@ -333,7 +335,7 @@ module ysyx_26030082_exu (
             F3_CSRRS,
             F3_CSRRSI: csr_write_data = or_result;
             F3_CSRRC,
-            F3_CSRRCI: csr_write_data = andnot_result;
+            F3_CSRRCI: csr_write_data = and_result;
             default:   csr_write_data = csr_src_data;
         endcase
     end
