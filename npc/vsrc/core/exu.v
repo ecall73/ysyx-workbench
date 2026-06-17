@@ -175,6 +175,7 @@ module ysyx_26030082_exu (
 
     assign load_use_hazard = ls_load_pending &&
                              (ls_rf_waddr != 5'b0) &&
+                             ~ls_rf_waddr[4] &&
                              ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
                               (rs2_used && (rf_raddr2 == ls_rf_waddr)));
 
@@ -220,7 +221,7 @@ module ysyx_26030082_exu (
     always @(*) begin
         addsub_lhs = 32'bx;
         addsub_rhs = 32'bx;
-        addsub_sub = 1'b0;
+        addsub_sub = 1'bx;
         bit_lhs = 32'bx;
         bit_rhs = 32'bx;
         cmp_rhs = 32'bx;
