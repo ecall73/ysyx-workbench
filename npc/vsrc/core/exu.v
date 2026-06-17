@@ -122,12 +122,6 @@ module ysyx_26030082_exu (
     wire [31:0] and_result;
     wire [31:0] or_result;
     wire [31:0] xor_result;
-    wire [31:0] shifter_lhs;
-    wire [31:0] shifter_lhs_rev;
-    wire [31:0] shifter_result;
-    wire [31:0] shifter_sra_result;
-    wire signed [31:0] shifter_lhs_signed;
-    wire        shifter_arith;
     wire [31:0] sll_result;
     wire [31:0] srl_result;
     wire [31:0] sra_result;
@@ -144,16 +138,6 @@ module ysyx_26030082_exu (
     reg  [31:0] csr_rdata;
     wire [31:0] csr_src_data;
     reg  [31:0] csr_write_data;
-
-    function [31:0] reverse_bits;
-        input [31:0] in;
-        integer i;
-        begin
-            for (i = 0; i < 32; i = i + 1) begin
-                reverse_bits[i] = in[31 - i];
-            end
-        end
-    endfunction
 
     assign opcode = fetch_inst[6:0];
     assign ex_funct3 = fetch_inst[14:12];
@@ -282,25 +266,6 @@ module ysyx_26030082_exu (
                 cmp_rhs = rf_rdata2_forward;
             end
 
-            OPCODE_SYSTEM: begin
-                case (ex_funct3)
-                    F3_CSRRS,
-                    F3_CSRRSI: begin
-                        bit_lhs = csr_rdata;
-                        bit_rhs = csr_src_data;
-                    end
-
-                    F3_CSRRC,
-                    F3_CSRRCI: begin
-                        bit_lhs = csr_rdata;
-                        bit_rhs = ~csr_src_data;
-                    end
-
-                    default: begin
-                    end
-                endcase
-            end
-
             default: begin
             end
         endcase
@@ -311,17 +276,9 @@ module ysyx_26030082_exu (
     assign and_result = bit_lhs & bit_rhs;
     assign or_result = bit_lhs | bit_rhs;
     assign xor_result = bit_lhs ^ bit_rhs;
-    assign shifter_lhs_rev = reverse_bits(rf_rdata1_forward);
-    assign shifter_lhs = (ex_funct3 == F3_SLL) ? shifter_lhs_rev : rf_rdata1_forward;
-    assign shifter_lhs_signed = shifter_lhs;
-    assign shifter_arith = (ex_funct3 == F3_SRL_SRA) && funct7_5;
-    assign shifter_sra_result = shifter_lhs_signed >>> bit_rhs[4:0];
-    assign shifter_result = shifter_arith ?
-                            shifter_sra_result :
-                            (shifter_lhs >> bit_rhs[4:0]);
-    assign sll_result = reverse_bits(shifter_result);
-    assign srl_result = shifter_result;
-    assign sra_result = shifter_result;
+    assign sll_result = rf_rdata1_forward << bit_rhs[4:0];
+    assign srl_result = rf_rdata1_forward >> bit_rhs[4:0];
+    assign sra_result = ($signed(rf_rdata1_forward)) >>> bit_rhs[4:0];
     assign cmp_eq = (rf_rdata1_forward == cmp_rhs);
     assign cmp_lt = ($signed(rf_rdata1_forward) < $signed(cmp_rhs));
     assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
@@ -353,9 +310,9 @@ module ysyx_26030082_exu (
             F3_CSRRW,
             F3_CSRRWI: csr_write_data = csr_src_data;
             F3_CSRRS,
-            F3_CSRRSI: csr_write_data = or_result;
+            F3_CSRRSI: csr_write_data = csr_rdata | csr_src_data;
             F3_CSRRC,
-            F3_CSRRCI: csr_write_data = and_result;
+            F3_CSRRCI: csr_write_data = csr_rdata & ~csr_src_data;
             default:   csr_write_data = csr_src_data;
         endcase
     end
