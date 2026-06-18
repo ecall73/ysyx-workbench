@@ -116,11 +116,17 @@ module ysyx_26030082 #(
 `endif
 `endif
 
-    // FETCH -> EX
-    wire        fetch_valid;
-    wire        fetch_ready;
-    wire [31:0] fetch_pc;
-    wire [31:0] fetch_inst;
+    // IF -> IF/EX
+    wire        if_out_valid;
+    wire        if_out_ready;
+    wire [31:0] if_out_pc;
+    wire [31:0] if_out_inst;
+
+    // IF/EX
+    reg         ex_in_valid;
+    wire        ex_in_ready;
+    reg  [31:0] ex_in_pc;
+    reg  [31:0] ex_in_inst;
 
     // EX
     wire        ex_rf_wen;
@@ -130,6 +136,7 @@ module ysyx_26030082 #(
     wire [ 4:0] ex_rf_waddr;
     wire [31:0] ex_mem_addr;
     wire        ex_redirect;
+    wire [31:0] ex_redirect_pc;
     wire [31:0] ex_wdata;
     wire        ex_fence_i;
     wire        ex_out_valid;
@@ -149,8 +156,8 @@ module ysyx_26030082 #(
     wire [31:0] ls_rf_wdata;
 
 `ifndef SYNTHESIS
-    assign pc_ex = fetch_pc;
-    assign inst_ex = fetch_inst;
+    assign pc_ex = ex_in_pc;
+    assign inst_ex = ex_in_inst;
 `endif
 
     // IFU AXI4 (read-only in practice)
@@ -215,13 +222,13 @@ module ysyx_26030082 #(
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
         .ex_redirect            (ex_redirect),
-        .ex_mem_addr            (ex_mem_addr),
+        .ex_redirect_pc         (ex_redirect_pc),
         .ex_fence_i             (ex_fence_i),
 
-        .fetch_valid            (fetch_valid),
-        .fetch_ready            (fetch_ready),
-        .fetch_pc               (fetch_pc),
-        .fetch_inst             (fetch_inst),
+        .if_out_valid           (if_out_valid),
+        .if_out_ready           (if_out_ready),
+        .if_out_pc              (if_out_pc),
+        .if_out_inst            (if_out_inst),
 
         .ifu_axi_araddr         (ifu_axi_araddr),
         .ifu_axi_arlen          (ifu_axi_arlen),
@@ -237,14 +244,15 @@ module ysyx_26030082 #(
 
     // EX -> LS handshake coupling
     assign ex_out_ready = ls_in_ready;
+    assign if_out_ready = ~ex_in_valid || ex_in_ready;
 
     ysyx_26030082_exu exu (
         .clock                  (clock),
         .reset                  (reset),
-        .fetch_valid            (fetch_valid),
-        .fetch_ready            (fetch_ready),
-        .fetch_pc               (fetch_pc),
-        .fetch_inst             (fetch_inst),
+        .ex_in_valid            (ex_in_valid),
+        .ex_in_ready            (ex_in_ready),
+        .ex_in_pc               (ex_in_pc),
+        .ex_in_inst             (ex_in_inst),
 
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
@@ -262,9 +270,29 @@ module ysyx_26030082 #(
         .ex_rf_waddr            (ex_rf_waddr),
         .ex_mem_addr            (ex_mem_addr),
         .ex_redirect            (ex_redirect),
+        .ex_redirect_pc         (ex_redirect_pc),
         .ex_wdata               (ex_wdata),
         .ex_fence_i             (ex_fence_i)
     );
+
+    // ================================================================
+    // IF -> EX
+    // ================================================================
+    always @(posedge clock) begin
+        if (reset) begin
+            ex_in_valid <= 1'b0;
+            ex_in_pc <= 32'b0;
+            ex_in_inst <= 32'b0;
+        end else if (ex_redirect && ex_out_valid && ex_out_ready) begin
+            ex_in_valid <= 1'b0;
+            ex_in_pc <= 32'b0;
+            ex_in_inst <= 32'b0;
+        end else if (if_out_ready) begin
+            ex_in_valid <= if_out_valid;
+            ex_in_pc <= if_out_pc;
+            ex_in_inst <= if_out_inst;
+        end
+    end
 
     // ================================================================
     // EX -> LS
@@ -455,7 +483,7 @@ module ysyx_26030082 #(
     reg  [31:0] pmu_event_mask;
 
     // Direct hierarchical reads: simulation-only, no extra submodule ports.
-    assign pmu_ifu_r_fire = fetch_valid && fetch_ready;
+    assign pmu_ifu_r_fire = if_out_valid && if_out_ready;
     assign pmu_ifu_nosupply = !pmu_ifu_r_fire;
     assign pmu_lsu_r_fire = lsu.r_fire;
     assign pmu_lsu_load_req = (lsu.state == PMU_LSU_IDLE) && ls_in_valid && lsu.ls_is_load;
@@ -477,7 +505,7 @@ module ysyx_26030082 #(
                 pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
                 if (ifu.flush) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
-                end else if (fetch_valid && !fetch_ready) begin
+                end else if (if_out_valid && !if_out_ready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;
                 end else if (ifu_axi_arvalid && !ifu_axi_arready) begin
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_ARREADY;
@@ -485,7 +513,7 @@ module ysyx_26030082 #(
                     pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
                 end
             end
-            if (fetch_valid) begin
+            if (if_out_valid) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_HIT;
             end
             if ((ifu.state == PMU_ICACHE_LOOKUP) && ifu.cache_miss) begin
