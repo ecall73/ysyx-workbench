@@ -16,8 +16,8 @@ module ysyx_26030082_ifu #(
     // IF output interface
     output wire        if_out_valid,
     input  wire        if_out_ready,
-    output wire [31:0] if_out_pc,
-    output wire [31:0] if_out_inst,
+    output wire [31:0] if_pc,
+    output wire [31:0] if_inst,
 
     // AXI4 read master interface
     output wire [31:0] ifu_axi_araddr,
@@ -83,8 +83,8 @@ module ysyx_26030082_ifu #(
     assign flush = commit_fire && ex_redirect;
     assign invalidate = commit_fire && ex_fence_i;
     assign if_out_valid = (state == S_LOOKUP) && cache_hit;
-    assign if_out_pc = pc_r;
-    assign if_out_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
+    assign if_pc = pc_r;
+    assign if_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
 
     assign req_fire = if_out_valid && if_out_ready;
 

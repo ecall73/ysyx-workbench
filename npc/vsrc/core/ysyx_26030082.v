@@ -119,14 +119,14 @@ module ysyx_26030082 #(
     // IF -> IF/EX
     wire        if_out_valid;
     wire        if_out_ready;
-    wire [31:0] if_out_pc;
-    wire [31:0] if_out_inst;
+    wire [31:0] if_pc;
+    wire [31:0] if_inst;
 
     // IF/EX
     reg         ex_in_valid;
     wire        ex_in_ready;
-    reg  [31:0] ex_in_pc;
-    reg  [31:0] ex_in_inst;
+    reg  [31:0] ex_pc;
+    reg  [31:0] ex_inst;
 
     // EX
     wire        ex_rf_wen;
@@ -156,8 +156,8 @@ module ysyx_26030082 #(
     wire [31:0] ls_rf_wdata;
 
 `ifndef SYNTHESIS
-    assign pc_ex = ex_in_pc;
-    assign inst_ex = ex_in_inst;
+    assign pc_ex = ex_pc;
+    assign inst_ex = ex_inst;
 `endif
 
     // IFU AXI4 (read-only in practice)
@@ -227,8 +227,8 @@ module ysyx_26030082 #(
 
         .if_out_valid           (if_out_valid),
         .if_out_ready           (if_out_ready),
-        .if_out_pc              (if_out_pc),
-        .if_out_inst            (if_out_inst),
+        .if_pc              (if_pc),
+        .if_inst            (if_inst),
 
         .ifu_axi_araddr         (ifu_axi_araddr),
         .ifu_axi_arlen          (ifu_axi_arlen),
@@ -251,8 +251,8 @@ module ysyx_26030082 #(
         .reset                  (reset),
         .ex_in_valid            (ex_in_valid),
         .ex_in_ready            (ex_in_ready),
-        .ex_in_pc               (ex_in_pc),
-        .ex_in_inst             (ex_in_inst),
+        .ex_pc               (ex_pc),
+        .ex_inst             (ex_inst),
 
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
@@ -281,16 +281,16 @@ module ysyx_26030082 #(
     always @(posedge clock) begin
         if (reset) begin
             ex_in_valid <= 1'b0;
-            ex_in_pc <= 32'b0;
-            ex_in_inst <= 32'b0;
+            ex_pc <= 32'b0;
+            ex_inst <= 32'b0;
         end else if (ex_redirect && ex_out_valid && ex_out_ready) begin
             ex_in_valid <= 1'b0;
-            ex_in_pc <= 32'b0;
-            ex_in_inst <= 32'b0;
+            ex_pc <= 32'b0;
+            ex_inst <= 32'b0;
         end else if (if_out_ready) begin
             ex_in_valid <= if_out_valid;
-            ex_in_pc <= if_out_pc;
-            ex_in_inst <= if_out_inst;
+            ex_pc <= if_pc;
+            ex_inst <= if_inst;
         end
     end
 
