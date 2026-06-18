@@ -100,7 +100,7 @@ module ysyx_26030082_exu (
     reg        branch_redirect;
 
     // RF + forward.
-    reg  [31:0] reg_bank [1:15];
+    reg  [31:0] reg_bank [1:31];
     wire        ls_rf_write;
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
@@ -153,13 +153,13 @@ module ysyx_26030082_exu (
     assign ls_rf_write = ls_out_valid && ls_rf_wen && (ls_rf_waddr != 5'b0);
 
     always @(posedge clock) begin
-        if (ls_rf_write & ~ls_rf_waddr[4]) begin
-            reg_bank[ls_rf_waddr[3:0]] <= ls_rf_wdata;
+        if (ls_rf_write) begin
+            reg_bank[ls_rf_waddr] <= ls_rf_wdata;
         end
     end
 
-    assign rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
-    assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
+    assign rf_rdata1 = (rf_raddr1 == 5'd0) ? 32'b0 : reg_bank[rf_raddr1];
+    assign rf_rdata2 = (rf_raddr2 == 5'd0) ? 32'b0 : reg_bank[rf_raddr2];
 
     assign rf_rdata1_forward = ((rf_raddr1 == ls_rf_waddr) && ls_rf_write) ? ls_rf_wdata : rf_rdata1;
     assign rf_rdata2_forward = ((rf_raddr2 == ls_rf_waddr) && ls_rf_write) ? ls_rf_wdata : rf_rdata2;
