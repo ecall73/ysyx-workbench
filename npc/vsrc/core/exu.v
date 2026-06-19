@@ -13,15 +13,8 @@ module ysyx_26030082_exu (
 
     input  wire [63:0] ex_mtime,
 
-    output reg         ex_rf_wen,
-    output wire        ex_mem_ren,
-    output wire        ex_mem_wen,
-    output wire [ 2:0] ex_funct3,
-    output wire [ 4:0] ex_rf_waddr,
-    output wire [31:0] ex_mem_addr,
     output wire        ex_redirect,
     output reg  [31:0] ex_redirect_pc,
-    output reg  [31:0] ex_wdata,
     output wire        ex_fence_i,
 
     output wire [31:0] lsu_axi_araddr,
@@ -116,28 +109,30 @@ module ysyx_26030082_exu (
     // Common decode fields.
     wire [6:0] opcode;
     wire       funct7_5;
+    wire [2:0] ex_funct3;
     wire [4:0] rf_raddr1;
     wire [4:0] rf_raddr2;
+    wire [4:0] ex_rf_waddr;
     wire [11:0] csr_addr;
-    wire       rs1_used;
-    wire       rs2_used;
-    wire       csr_rs1_used;
     reg        branch_redirect;
 
-    // RF + forward.
+    // RF.
     reg  [31:0] reg_bank [1:15];
-    wire        ls_rf_write;
+    reg         ex_rf_wen;
+    reg  [31:0] ex_wdata;
+    wire        rf_write;
+    wire [31:0] rf_wdata;
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
-    wire        load_use_hazard;
-    wire [31:0] rf_rdata1_forward;
-    wire [31:0] rf_rdata2_forward;
 
     // Immediate.
     wire [31:0] imm;
 
     // ALU.
     wire [31:0] ex_pc4;
+    wire        ex_mem_ren;
+    wire        ex_mem_wen;
+    wire [31:0] ex_mem_addr;
     reg  [31:0] bit_lhs;
     wire [31:0] bit_rhs;
     wire [31:0] addsub_lhs;
@@ -177,6 +172,8 @@ module ysyx_26030082_exu (
     wire        lsu_is_clint;
     wire        lsu_is_local;
     wire        lsu_is_local_load;
+    wire        ex_ready_go;
+    wire        ex_fire;
     wire        ar_fire;
     wire        r_fire;
     wire        aw_fire;
@@ -189,17 +186,6 @@ module ysyx_26030082_exu (
     reg  [31:0] lsu_wdata_aligned;
     reg  [31:0] lsu_rdata_decoded;
     reg  [2:0]  lsu_axi_size;
-    reg         ls_in_valid;
-    reg         ls_rf_wen;
-    reg         ls_mem_ren;
-    reg         ls_mem_wen;
-    reg  [ 2:0] ls_funct3;
-    reg  [ 4:0] ls_rf_waddr;
-    reg  [31:0] ls_mem_addr;
-    reg  [31:0] ls_wdata;
-    wire        ls_in_ready;
-    wire [31:0] ls_rf_wdata;
-    wire        ls_load_pending;
 
     assign opcode = ex_inst[6:0];
     assign ex_funct3 = ex_inst[14:12];
@@ -208,42 +194,24 @@ module ysyx_26030082_exu (
     assign rf_raddr2 = ex_inst[24:20];
     assign csr_addr = ex_inst[31:20];
 
-    // RF + forward.
-    assign ls_rf_write = ls_out_valid && ls_rf_wen && (ls_rf_waddr != 5'b0);
+    // RF.
+    assign ex_fire = ex_out_valid && ex_out_ready;
+    assign rf_write = ex_fire && ex_rf_wen && (ex_rf_waddr != 5'b0);
+    assign rf_wdata = ex_mem_ren ? lsu_rdata_decoded : ex_wdata;
 
     always @(posedge clock) begin
-        if (ls_rf_write & ~ls_rf_waddr[4]) begin
-            reg_bank[ls_rf_waddr[3:0]] <= ls_rf_wdata;
+        if (rf_write & ~ex_rf_waddr[4]) begin
+            reg_bank[ex_rf_waddr[3:0]] <= rf_wdata;
         end
     end
 
     assign rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
     assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
 
-    assign rf_rdata1_forward = ((rf_raddr1 == ls_rf_waddr) && ls_rf_write) ? ls_rf_wdata : rf_rdata1;
-    assign rf_rdata2_forward = ((rf_raddr2 == ls_rf_waddr) && ls_rf_write) ? ls_rf_wdata : rf_rdata2;
-
-    assign csr_rs1_used = (opcode == OPCODE_SYSTEM) &&
-                          ~ex_funct3[2] &&
-                          (ex_funct3[1:0] != 2'b00);
-    assign rs2_used = (opcode == OPCODE_OP) ||
-                      (opcode == OPCODE_STORE) ||
-                      (opcode == OPCODE_BRANCH);
-    assign rs1_used = rs2_used ||
-                      (opcode == OPCODE_OP_IMM) ||
-                      (opcode == OPCODE_LOAD) ||
-                      (opcode == OPCODE_JALR) ||
-                      csr_rs1_used;
-
-    assign ls_load_pending = ls_in_valid && ls_mem_ren && ~ls_out_valid;
-    assign load_use_hazard = ls_load_pending &&
-                             ls_rf_write &&
-                             ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
-                              (rs2_used && (rf_raddr2 == ls_rf_waddr)));
-
-    assign ex_in_ready = ~ex_in_valid || (~load_use_hazard && ex_out_ready);
-    assign ex_out_valid = ex_in_valid && ~load_use_hazard;
-    assign ex_out_ready = ls_in_ready;
+    assign ex_in_ready = ~ex_in_valid || ex_ready_go;
+    assign ex_out_valid = ex_in_valid;
+    assign ex_out_ready = ex_ready_go;
+    assign ls_out_valid = ex_fire;
 
     assign ex_rf_waddr = ex_inst[11:7];
 
@@ -278,7 +246,7 @@ module ysyx_26030082_exu (
 
     // ALU.
     assign ex_pc4 = ex_pc + 32'd4;
-    assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
+    assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1;
     always @(*) begin
         addsub_rhs = 32'b0;
         addsub_sub = 1'bx;
@@ -288,17 +256,17 @@ module ysyx_26030082_exu (
 
         case (opcode)
             OPCODE_OP: begin
-                addsub_rhs = rf_rdata2_forward;
+                addsub_rhs = rf_rdata2;
                 addsub_sub = (ex_funct3 == F3_ADD_SUB) && funct7_5;
-                bit_lhs = rf_rdata1_forward;
-                shift_shamt = rf_rdata2_forward[4:0];
-                cmp_rhs = rf_rdata2_forward;
+                bit_lhs = rf_rdata1;
+                shift_shamt = rf_rdata2[4:0];
+                cmp_rhs = rf_rdata2;
             end
 
             OPCODE_OP_IMM: begin
                 addsub_rhs = imm;
                 addsub_sub = 1'b0;
-                bit_lhs = rf_rdata1_forward;
+                bit_lhs = rf_rdata1;
                 shift_shamt = imm[4:0];
                 cmp_rhs = imm;
             end
@@ -319,7 +287,7 @@ module ysyx_26030082_exu (
             OPCODE_BRANCH: begin
                 addsub_rhs = imm;
                 addsub_sub = 1'b0;
-                cmp_rhs = rf_rdata2_forward;
+                cmp_rhs = rf_rdata2;
             end
 
             OPCODE_SYSTEM: begin
@@ -349,12 +317,12 @@ module ysyx_26030082_exu (
     assign and_result = bit_lhs & bit_rhs;
     assign or_result = bit_lhs | bit_rhs;
     assign xor_result = bit_lhs ^ bit_rhs;
-    assign sll_result = rf_rdata1_forward << shift_shamt;
-    assign srl_result = rf_rdata1_forward >> shift_shamt;
-    assign sra_result = ($signed(rf_rdata1_forward)) >>> shift_shamt;
-    assign cmp_eq = (rf_rdata1_forward == cmp_rhs);
-    assign cmp_lt = ($signed(rf_rdata1_forward) < $signed(cmp_rhs));
-    assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
+    assign sll_result = rf_rdata1 << shift_shamt;
+    assign srl_result = rf_rdata1 >> shift_shamt;
+    assign sra_result = ($signed(rf_rdata1)) >>> shift_shamt;
+    assign cmp_eq = (rf_rdata1 == cmp_rhs);
+    assign cmp_lt = ($signed(rf_rdata1) < $signed(cmp_rhs));
+    assign cmp_ltu = (rf_rdata1 < cmp_rhs);
 
     always @(*) begin
         case (ex_funct3)
@@ -378,10 +346,10 @@ module ysyx_26030082_exu (
     assign ex_fence_i = (opcode == OPCODE_MISC_MEM) &&
                         (ex_funct3 == F3_FENCE_I);
     assign addsub_lhs = ({32{(opcode == OPCODE_OP) ||
-	                              (opcode == OPCODE_OP_IMM) ||
-	                              (opcode == OPCODE_LOAD) ||
-	                              (opcode == OPCODE_STORE) ||
-		                              (opcode == OPCODE_JALR)}} & rf_rdata1_forward) |
+                              (opcode == OPCODE_OP_IMM) ||
+                              (opcode == OPCODE_LOAD) ||
+                              (opcode == OPCODE_STORE) ||
+                              (opcode == OPCODE_JALR)}} & rf_rdata1) |
                         ({32{(opcode == OPCODE_AUIPC) ||
                               (opcode == OPCODE_JAL) ||
                               (opcode == OPCODE_BRANCH)}} & ex_pc);
@@ -389,7 +357,7 @@ module ysyx_26030082_exu (
                               (ex_funct3 == F3_CSRRSI);
     assign csr_wdata_and_sel = (ex_funct3 == F3_CSRRC) ||
                                (ex_funct3 == F3_CSRRCI);
-    assign bit_rhs = ({32{opcode == OPCODE_OP}} & rf_rdata2_forward) |
+    assign bit_rhs = ({32{opcode == OPCODE_OP}} & rf_rdata2) |
                      ({32{opcode == OPCODE_OP_IMM}} & imm) |
                      ({32{(opcode == OPCODE_SYSTEM) && csr_wdata_or_sel}} & csr_src_data) |
                      ({32{(opcode == OPCODE_SYSTEM) && csr_wdata_and_sel}} & ~csr_src_data);
@@ -399,9 +367,9 @@ module ysyx_26030082_exu (
     assign ex_mem_addr = addsub_result;
 
     // LSU.
-    assign lsu_is_mem = ls_mem_ren || ls_mem_wen;
-    assign lsu_is_load = ls_mem_ren && ~ls_mem_wen;
-    assign lsu_is_clint = (ls_mem_addr[31:16] == CLINT_BASE_HI);
+    assign lsu_is_mem = ex_mem_ren || ex_mem_wen;
+    assign lsu_is_load = ex_mem_ren && ~ex_mem_wen;
+    assign lsu_is_clint = (ex_mem_addr[31:16] == CLINT_BASE_HI);
     assign lsu_is_local = lsu_is_mem && lsu_is_clint;
     assign lsu_is_local_load = lsu_is_load && lsu_is_clint;
     assign ar_fire = lsu_axi_arvalid && lsu_axi_arready;
@@ -409,29 +377,25 @@ module ysyx_26030082_exu (
     assign aw_fire = lsu_axi_awvalid && lsu_axi_awready;
     assign w_fire = lsu_axi_wvalid && lsu_axi_wready;
     assign b_fire = lsu_axi_bvalid && lsu_axi_bready;
-    assign lsu_offset = ls_mem_addr[1:0];
+    assign lsu_offset = ex_mem_addr[1:0];
     assign lsu_load_raw_data = lsu_is_local_load ? lsu_local_rdata : lsu_axi_rdata;
-    assign ls_in_ready = (lsu_state == L_IDLE) ? ~(ls_in_valid && lsu_is_mem && ~lsu_is_local) :
+    assign ex_ready_go = (lsu_state == L_IDLE) ? ~(ex_in_valid && lsu_is_mem && ~lsu_is_local) :
                          (lsu_state == L_RD_WAIT_R) ? lsu_axi_rvalid :
                          (lsu_state == L_WR_WAIT_B) ? lsu_axi_bvalid : 1'b0;
-    assign ls_out_valid = (lsu_state == L_IDLE) ? (ls_in_valid && (~lsu_is_mem || lsu_is_local)) :
-                          (lsu_state == L_RD_WAIT_R) ? lsu_axi_rvalid :
-                          (lsu_state == L_WR_WAIT_B) ? lsu_axi_bvalid : 1'b0;
-    assign lsu_axi_araddr = ls_mem_addr;
+    assign lsu_axi_araddr = ex_mem_addr;
     assign lsu_axi_arsize = lsu_axi_size;
     assign lsu_axi_arvalid = (lsu_state == L_RD_AR);
     assign lsu_axi_rready = (lsu_state == L_RD_WAIT_R);
-    assign lsu_axi_awaddr = ls_mem_addr;
+    assign lsu_axi_awaddr = ex_mem_addr;
     assign lsu_axi_awsize = lsu_axi_size;
     assign lsu_axi_awvalid = (lsu_state == L_WR_AW_W) && ~wr_aw_done;
     assign lsu_axi_wdata = lsu_wdata_aligned;
     assign lsu_axi_wstrb = lsu_wmask_calc;
     assign lsu_axi_wvalid = (lsu_state == L_WR_AW_W) && ~wr_w_done;
     assign lsu_axi_bready = (lsu_state == L_WR_WAIT_B);
-    assign ls_rf_wdata = ls_mem_ren ? lsu_rdata_decoded : ls_wdata;
 
     always @(*) begin
-        case (ls_mem_addr[15:2])
+        case (ex_mem_addr[15:2])
             MTIME_WORD_OFFSET:  lsu_local_rdata = ex_mtime[31:0];
             MTIMEH_WORD_OFFSET: lsu_local_rdata = ex_mtime[63:32];
             default:            lsu_local_rdata = 32'b0;
@@ -440,27 +404,27 @@ module ysyx_26030082_exu (
 
     always @(*) begin
         lsu_wmask_calc = 4'b0000;
-        lsu_wdata_aligned = ls_wdata;
+        lsu_wdata_aligned = ex_wdata;
         lsu_axi_size = 3'b010;
-        case (ls_funct3)
+        case (ex_funct3)
             F3_SB: begin
                 lsu_axi_size = 3'b000;
                 case (lsu_offset)
                     2'b00: begin
                         lsu_wmask_calc = 4'b0001;
-                        lsu_wdata_aligned = {24'b0, ls_wdata[7:0]};
+                        lsu_wdata_aligned = {24'b0, ex_wdata[7:0]};
                     end
                     2'b01: begin
                         lsu_wmask_calc = 4'b0010;
-                        lsu_wdata_aligned = {16'b0, ls_wdata[7:0], 8'b0};
+                        lsu_wdata_aligned = {16'b0, ex_wdata[7:0], 8'b0};
                     end
                     2'b10: begin
                         lsu_wmask_calc = 4'b0100;
-                        lsu_wdata_aligned = {8'b0, ls_wdata[7:0], 16'b0};
+                        lsu_wdata_aligned = {8'b0, ex_wdata[7:0], 16'b0};
                     end
                     2'b11: begin
                         lsu_wmask_calc = 4'b1000;
-                        lsu_wdata_aligned = {ls_wdata[7:0], 24'b0};
+                        lsu_wdata_aligned = {ex_wdata[7:0], 24'b0};
                     end
                 endcase
             end
@@ -469,11 +433,11 @@ module ysyx_26030082_exu (
                 case (lsu_offset[1])
                     1'b0: begin
                         lsu_wmask_calc = 4'b0011;
-                        lsu_wdata_aligned = {16'b0, ls_wdata[15:0]};
+                        lsu_wdata_aligned = {16'b0, ex_wdata[15:0]};
                     end
                     1'b1: begin
                         lsu_wmask_calc = 4'b1100;
-                        lsu_wdata_aligned = {ls_wdata[15:0], 16'b0};
+                        lsu_wdata_aligned = {ex_wdata[15:0], 16'b0};
                     end
                 endcase
             end
@@ -485,14 +449,14 @@ module ysyx_26030082_exu (
             end
             default: begin
                 lsu_wmask_calc = 4'b1111;
-                lsu_wdata_aligned = ls_wdata;
+                lsu_wdata_aligned = ex_wdata;
             end
         endcase
     end
 
     always @(*) begin
         lsu_rdata_decoded = lsu_load_raw_data;
-        case (ls_funct3)
+        case (ex_funct3)
             F3_LB: begin
                 case (lsu_offset)
                     2'b00: lsu_rdata_decoded = {{24{lsu_load_raw_data[7]}}, lsu_load_raw_data[7:0]};
@@ -606,7 +570,7 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_STORE: begin
-                ex_wdata = rf_rdata2_forward;
+                ex_wdata = rf_rdata2;
             end
 
             OPCODE_LOAD: begin
@@ -728,21 +692,6 @@ module ysyx_26030082_exu (
 
     always @(posedge clock) begin
         if (reset) begin
-            ls_in_valid <= 1'b0;
-        end else if (ex_out_ready) begin
-            ls_in_valid <= ex_out_valid;
-            ls_rf_wen <= ex_rf_wen;
-            ls_mem_wen <= ex_mem_wen;
-            ls_mem_addr <= ex_mem_addr;
-            ls_funct3 <= ex_funct3;
-            ls_rf_waddr <= ex_rf_waddr;
-            ls_wdata <= ex_wdata;
-            ls_mem_ren <= ex_mem_ren;
-        end
-    end
-
-    always @(posedge clock) begin
-        if (reset) begin
             lsu_state <= L_IDLE;
             wr_aw_done <= 1'b0;
             wr_w_done <= 1'b0;
@@ -751,7 +700,7 @@ module ysyx_26030082_exu (
                 L_IDLE: begin
                     wr_aw_done <= 1'b0;
                     wr_w_done <= 1'b0;
-                    if (ls_in_valid && lsu_is_mem && ~lsu_is_local) begin
+                    if (ex_in_valid && lsu_is_mem && ~lsu_is_local) begin
                         if (lsu_is_load) begin
                             lsu_state <= L_RD_AR;
                         end else begin

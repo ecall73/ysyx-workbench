@@ -129,15 +129,8 @@ module ysyx_26030082 #(
     reg  [31:0] ex_inst;
 
     // EX
-    wire        ex_rf_wen;
-    wire        ex_mem_ren;
-    wire        ex_mem_wen;
-    wire [ 2:0] ex_funct3;
-    wire [ 4:0] ex_rf_waddr;
-    wire [31:0] ex_mem_addr;
     wire        ex_redirect;
     wire [31:0] ex_redirect_pc;
-    wire [31:0] ex_wdata;
     wire        ex_fence_i;
     wire        ex_out_valid;
     wire        ex_out_ready;
@@ -183,12 +176,12 @@ module ysyx_26030082 #(
     reg  [63:0] mtime;
 
     // Debug Interface
-    `ifndef SYNTHESIS
+`ifndef SYNTHESIS
         wire [31:0] pc_ex;
-        reg  [31:0] pc_ls;
+        wire [31:0] pc_ls;
         wire [31:0] inst_ex;
-        reg  [31:0] inst_ls;
-    `endif
+        wire [31:0] inst_ls;
+`endif
 
 ////////////////////////////////////////////////////////////////
 
@@ -265,15 +258,8 @@ module ysyx_26030082 #(
 
         .ex_mtime               (mtime),
 
-        .ex_rf_wen              (ex_rf_wen),
-        .ex_mem_ren             (ex_mem_ren),
-        .ex_mem_wen             (ex_mem_wen),
-        .ex_funct3              (ex_funct3),
-        .ex_rf_waddr            (ex_rf_waddr),
-        .ex_mem_addr            (ex_mem_addr),
         .ex_redirect            (ex_redirect),
         .ex_redirect_pc         (ex_redirect_pc),
-        .ex_wdata               (ex_wdata),
         .ex_fence_i             (ex_fence_i),
 
         .lsu_axi_araddr         (lsu_axi_araddr),
@@ -299,20 +285,8 @@ module ysyx_26030082 #(
 
     //trace
     `ifndef SYNTHESIS
-        always @(posedge clock) begin
-            if (reset) begin
-                pc_ls <= 32'b0;
-                inst_ls <= 32'b0;
-            end else if (ex_out_ready) begin
-                if (ex_out_valid) begin
-                    pc_ls <= pc_ex;
-                    inst_ls <= inst_ex;
-                end else begin
-                    pc_ls <= 32'b0;
-                    inst_ls <= 32'b0;
-                end
-            end
-        end
+        assign pc_ls = pc_ex;
+        assign inst_ls = inst_ex;
     `endif
 
     ysyx_26030082_axi4lite_arbiter axi4lite_arbiter (
@@ -434,7 +408,7 @@ module ysyx_26030082 #(
     assign pmu_ifu_nosupply = !pmu_ifu_r_fire;
     assign pmu_lsu_r_fire = exu.r_fire;
     assign pmu_lsu_load_req = (exu.lsu_state == PMU_LSU_IDLE) &&
-                              exu.ls_in_valid && exu.lsu_is_load;
+                              ex_in_valid && exu.lsu_is_load;
     assign pmu_lsu_load_pending = (exu.lsu_state == PMU_LSU_RD_AR) ||
                                   (exu.lsu_state == PMU_LSU_RD_WAIT_R);
     assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
