@@ -7,14 +7,11 @@ module ysyx_26030082_exu (
     input  wire [31:0] ex_pc,
     input  wire [31:0] ex_inst,
 
-    input  wire        ex_out_ready,
+    output wire        ex_out_ready,
     output wire        ex_out_valid,
+    output wire        ls_out_valid,
 
-    input  wire        ls_out_valid,
-    input  wire        ls_rf_wen,
-    input  wire [ 4:0] ls_rf_waddr,
-    input  wire [31:0] ls_rf_wdata,
-    input  wire        ls_load_pending,
+    input  wire [63:0] ex_mtime,
 
     output reg         ex_rf_wen,
     output wire        ex_mem_ren,
@@ -25,7 +22,27 @@ module ysyx_26030082_exu (
     output wire        ex_redirect,
     output reg  [31:0] ex_redirect_pc,
     output reg  [31:0] ex_wdata,
-    output wire        ex_fence_i
+    output wire        ex_fence_i,
+
+    output wire [31:0] lsu_axi_araddr,
+    output wire [ 2:0] lsu_axi_arsize,
+    output wire        lsu_axi_arvalid,
+    input  wire        lsu_axi_arready,
+    input  wire [31:0] lsu_axi_rdata,
+    input  wire [ 1:0] lsu_axi_rresp,
+    input  wire        lsu_axi_rvalid,
+    output wire        lsu_axi_rready,
+    output wire [31:0] lsu_axi_awaddr,
+    output wire [ 2:0] lsu_axi_awsize,
+    output wire        lsu_axi_awvalid,
+    input  wire        lsu_axi_awready,
+    output wire [31:0] lsu_axi_wdata,
+    output wire [ 3:0] lsu_axi_wstrb,
+    output wire        lsu_axi_wvalid,
+    input  wire        lsu_axi_wready,
+    input  wire [ 1:0] lsu_axi_bresp,
+    input  wire        lsu_axi_bvalid,
+    output wire        lsu_axi_bready
 );
 
     localparam [6:0] OPCODE_OP   = 7'b011_0011;
@@ -87,6 +104,14 @@ module ysyx_26030082_exu (
     localparam [2:0] F3_JALR    = 3'b000;
 
     localparam [31:0] CAUSE_ECALL = 32'd11;
+    localparam L_IDLE      = 3'd0;
+    localparam L_RD_AR     = 3'd1;
+    localparam L_RD_WAIT_R = 3'd2;
+    localparam L_WR_AW_W   = 3'd3;
+    localparam L_WR_WAIT_B = 3'd4;
+    localparam [15:0] CLINT_BASE_HI     = 16'h0200;
+    localparam [13:0] MTIME_WORD_OFFSET  = 14'h2ffe;
+    localparam [13:0] MTIMEH_WORD_OFFSET = 14'h2fff;
 
     // Common decode fields.
     wire [6:0] opcode;
@@ -142,6 +167,40 @@ module ysyx_26030082_exu (
     wire [31:0] csr_write_data;
     wire        csr_wdata_or_sel;
     wire        csr_wdata_and_sel;
+
+    // LSU.
+    reg  [2:0]  lsu_state;
+    reg         wr_aw_done;
+    reg         wr_w_done;
+    wire        lsu_is_mem;
+    wire        lsu_is_load;
+    wire        lsu_is_clint;
+    wire        lsu_is_local;
+    wire        lsu_is_local_load;
+    wire        ar_fire;
+    wire        r_fire;
+    wire        aw_fire;
+    wire        w_fire;
+    wire        b_fire;
+    wire [1:0]  lsu_offset;
+    reg  [31:0] lsu_local_rdata;
+    wire [31:0] lsu_load_raw_data;
+    reg  [3:0]  lsu_wmask_calc;
+    reg  [31:0] lsu_wdata_aligned;
+    reg  [31:0] lsu_rdata_decoded;
+    reg  [2:0]  lsu_axi_size;
+    reg         ls_in_valid;
+    reg         ls_rf_wen;
+    reg         ls_mem_ren;
+    reg         ls_mem_wen;
+    reg  [ 2:0] ls_funct3;
+    reg  [ 4:0] ls_rf_waddr;
+    reg  [31:0] ls_mem_addr;
+    reg  [31:0] ls_wdata;
+    wire        ls_in_ready;
+    wire [31:0] ls_rf_wdata;
+    wire        ls_load_pending;
+
     assign opcode = ex_inst[6:0];
     assign ex_funct3 = ex_inst[14:12];
     assign funct7_5 = ex_inst[30];
@@ -176,6 +235,7 @@ module ysyx_26030082_exu (
                       (opcode == OPCODE_JALR) ||
                       csr_rs1_used;
 
+    assign ls_load_pending = ls_in_valid && ls_mem_ren && ~ls_out_valid;
     assign load_use_hazard = ls_load_pending &&
                              ls_rf_write &&
                              ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
@@ -183,6 +243,7 @@ module ysyx_26030082_exu (
 
     assign ex_in_ready = ~ex_in_valid || (~load_use_hazard && ex_out_ready);
     assign ex_out_valid = ex_in_valid && ~load_use_hazard;
+    assign ex_out_ready = ls_in_ready;
 
     assign ex_rf_waddr = ex_inst[11:7];
 
@@ -317,10 +378,10 @@ module ysyx_26030082_exu (
     assign ex_fence_i = (opcode == OPCODE_MISC_MEM) &&
                         (ex_funct3 == F3_FENCE_I);
     assign addsub_lhs = ({32{(opcode == OPCODE_OP) ||
-                              (opcode == OPCODE_OP_IMM) ||
-                              (opcode == OPCODE_LOAD) ||
-                              (opcode == OPCODE_STORE) ||
-                              (opcode == OPCODE_JALR)}} & rf_rdata1_forward) |
+	                              (opcode == OPCODE_OP_IMM) ||
+	                              (opcode == OPCODE_LOAD) ||
+	                              (opcode == OPCODE_STORE) ||
+		                              (opcode == OPCODE_JALR)}} & rf_rdata1_forward) |
                         ({32{(opcode == OPCODE_AUIPC) ||
                               (opcode == OPCODE_JAL) ||
                               (opcode == OPCODE_BRANCH)}} & ex_pc);
@@ -336,6 +397,137 @@ module ysyx_26030082_exu (
                             ({32{csr_wdata_and_sel}} & and_result) |
                             ({32{~csr_wdata_or_sel && ~csr_wdata_and_sel}} & csr_src_data);
     assign ex_mem_addr = addsub_result;
+
+    // LSU.
+    assign lsu_is_mem = ls_mem_ren || ls_mem_wen;
+    assign lsu_is_load = ls_mem_ren && ~ls_mem_wen;
+    assign lsu_is_clint = (ls_mem_addr[31:16] == CLINT_BASE_HI);
+    assign lsu_is_local = lsu_is_mem && lsu_is_clint;
+    assign lsu_is_local_load = lsu_is_load && lsu_is_clint;
+    assign ar_fire = lsu_axi_arvalid && lsu_axi_arready;
+    assign r_fire = lsu_axi_rvalid && lsu_axi_rready;
+    assign aw_fire = lsu_axi_awvalid && lsu_axi_awready;
+    assign w_fire = lsu_axi_wvalid && lsu_axi_wready;
+    assign b_fire = lsu_axi_bvalid && lsu_axi_bready;
+    assign lsu_offset = ls_mem_addr[1:0];
+    assign lsu_load_raw_data = lsu_is_local_load ? lsu_local_rdata : lsu_axi_rdata;
+    assign ls_in_ready = (lsu_state == L_IDLE) ? ~(ls_in_valid && lsu_is_mem && ~lsu_is_local) :
+                         (lsu_state == L_RD_WAIT_R) ? lsu_axi_rvalid :
+                         (lsu_state == L_WR_WAIT_B) ? lsu_axi_bvalid : 1'b0;
+    assign ls_out_valid = (lsu_state == L_IDLE) ? (ls_in_valid && (~lsu_is_mem || lsu_is_local)) :
+                          (lsu_state == L_RD_WAIT_R) ? lsu_axi_rvalid :
+                          (lsu_state == L_WR_WAIT_B) ? lsu_axi_bvalid : 1'b0;
+    assign lsu_axi_araddr = ls_mem_addr;
+    assign lsu_axi_arsize = lsu_axi_size;
+    assign lsu_axi_arvalid = (lsu_state == L_RD_AR);
+    assign lsu_axi_rready = (lsu_state == L_RD_WAIT_R);
+    assign lsu_axi_awaddr = ls_mem_addr;
+    assign lsu_axi_awsize = lsu_axi_size;
+    assign lsu_axi_awvalid = (lsu_state == L_WR_AW_W) && ~wr_aw_done;
+    assign lsu_axi_wdata = lsu_wdata_aligned;
+    assign lsu_axi_wstrb = lsu_wmask_calc;
+    assign lsu_axi_wvalid = (lsu_state == L_WR_AW_W) && ~wr_w_done;
+    assign lsu_axi_bready = (lsu_state == L_WR_WAIT_B);
+    assign ls_rf_wdata = ls_mem_ren ? lsu_rdata_decoded : ls_wdata;
+
+    always @(*) begin
+        case (ls_mem_addr[15:2])
+            MTIME_WORD_OFFSET:  lsu_local_rdata = ex_mtime[31:0];
+            MTIMEH_WORD_OFFSET: lsu_local_rdata = ex_mtime[63:32];
+            default:            lsu_local_rdata = 32'b0;
+        endcase
+    end
+
+    always @(*) begin
+        lsu_wmask_calc = 4'b0000;
+        lsu_wdata_aligned = ls_wdata;
+        lsu_axi_size = 3'b010;
+        case (ls_funct3)
+            F3_SB: begin
+                lsu_axi_size = 3'b000;
+                case (lsu_offset)
+                    2'b00: begin
+                        lsu_wmask_calc = 4'b0001;
+                        lsu_wdata_aligned = {24'b0, ls_wdata[7:0]};
+                    end
+                    2'b01: begin
+                        lsu_wmask_calc = 4'b0010;
+                        lsu_wdata_aligned = {16'b0, ls_wdata[7:0], 8'b0};
+                    end
+                    2'b10: begin
+                        lsu_wmask_calc = 4'b0100;
+                        lsu_wdata_aligned = {8'b0, ls_wdata[7:0], 16'b0};
+                    end
+                    2'b11: begin
+                        lsu_wmask_calc = 4'b1000;
+                        lsu_wdata_aligned = {ls_wdata[7:0], 24'b0};
+                    end
+                endcase
+            end
+            F3_SH: begin
+                lsu_axi_size = 3'b001;
+                case (lsu_offset[1])
+                    1'b0: begin
+                        lsu_wmask_calc = 4'b0011;
+                        lsu_wdata_aligned = {16'b0, ls_wdata[15:0]};
+                    end
+                    1'b1: begin
+                        lsu_wmask_calc = 4'b1100;
+                        lsu_wdata_aligned = {ls_wdata[15:0], 16'b0};
+                    end
+                endcase
+            end
+            F3_LBU: begin
+                lsu_axi_size = 3'b000;
+            end
+            F3_LHU: begin
+                lsu_axi_size = 3'b001;
+            end
+            default: begin
+                lsu_wmask_calc = 4'b1111;
+                lsu_wdata_aligned = ls_wdata;
+            end
+        endcase
+    end
+
+    always @(*) begin
+        lsu_rdata_decoded = lsu_load_raw_data;
+        case (ls_funct3)
+            F3_LB: begin
+                case (lsu_offset)
+                    2'b00: lsu_rdata_decoded = {{24{lsu_load_raw_data[7]}}, lsu_load_raw_data[7:0]};
+                    2'b01: lsu_rdata_decoded = {{24{lsu_load_raw_data[15]}}, lsu_load_raw_data[15:8]};
+                    2'b10: lsu_rdata_decoded = {{24{lsu_load_raw_data[23]}}, lsu_load_raw_data[23:16]};
+                    2'b11: lsu_rdata_decoded = {{24{lsu_load_raw_data[31]}}, lsu_load_raw_data[31:24]};
+                    default: lsu_rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LH: begin
+                case (lsu_offset[1])
+                    1'b0: lsu_rdata_decoded = {{16{lsu_load_raw_data[15]}}, lsu_load_raw_data[15:0]};
+                    1'b1: lsu_rdata_decoded = {{16{lsu_load_raw_data[31]}}, lsu_load_raw_data[31:16]};
+                    default: lsu_rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LBU: begin
+                case (lsu_offset)
+                    2'b00: lsu_rdata_decoded = {24'b0, lsu_load_raw_data[7:0]};
+                    2'b01: lsu_rdata_decoded = {24'b0, lsu_load_raw_data[15:8]};
+                    2'b10: lsu_rdata_decoded = {24'b0, lsu_load_raw_data[23:16]};
+                    2'b11: lsu_rdata_decoded = {24'b0, lsu_load_raw_data[31:24]};
+                    default: lsu_rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LHU: begin
+                case (lsu_offset[1])
+                    1'b0: lsu_rdata_decoded = {16'b0, lsu_load_raw_data[15:0]};
+                    1'b1: lsu_rdata_decoded = {16'b0, lsu_load_raw_data[31:16]};
+                    default: lsu_rdata_decoded = 32'b0;
+                endcase
+            end
+            default: lsu_rdata_decoded = lsu_load_raw_data;
+        endcase
+    end
 
     always @(*) begin
         case (opcode)
@@ -529,6 +721,81 @@ module ysyx_26030082_exu (
                 end
 
                 default: begin
+                end
+            endcase
+        end
+    end
+
+    always @(posedge clock) begin
+        if (reset) begin
+            ls_in_valid <= 1'b0;
+        end else if (ex_out_ready) begin
+            ls_in_valid <= ex_out_valid;
+            ls_rf_wen <= ex_rf_wen;
+            ls_mem_wen <= ex_mem_wen;
+            ls_mem_addr <= ex_mem_addr;
+            ls_funct3 <= ex_funct3;
+            ls_rf_waddr <= ex_rf_waddr;
+            ls_wdata <= ex_wdata;
+            ls_mem_ren <= ex_mem_ren;
+        end
+    end
+
+    always @(posedge clock) begin
+        if (reset) begin
+            lsu_state <= L_IDLE;
+            wr_aw_done <= 1'b0;
+            wr_w_done <= 1'b0;
+        end else begin
+            case (lsu_state)
+                L_IDLE: begin
+                    wr_aw_done <= 1'b0;
+                    wr_w_done <= 1'b0;
+                    if (ls_in_valid && lsu_is_mem && ~lsu_is_local) begin
+                        if (lsu_is_load) begin
+                            lsu_state <= L_RD_AR;
+                        end else begin
+                            lsu_state <= L_WR_AW_W;
+                        end
+                    end
+                end
+
+                L_RD_AR: begin
+                    if (ar_fire) begin
+                        lsu_state <= L_RD_WAIT_R;
+                    end
+                end
+
+                L_RD_WAIT_R: begin
+                    if (r_fire) begin
+                        lsu_state <= L_IDLE;
+                    end
+                end
+
+                L_WR_AW_W: begin
+                    if (aw_fire) begin
+                        wr_aw_done <= 1'b1;
+                    end
+                    if (w_fire) begin
+                        wr_w_done <= 1'b1;
+                    end
+                    if ((wr_aw_done || aw_fire) && (wr_w_done || w_fire)) begin
+                        wr_aw_done <= 1'b0;
+                        wr_w_done <= 1'b0;
+                        lsu_state <= L_WR_WAIT_B;
+                    end
+                end
+
+                L_WR_WAIT_B: begin
+                    if (b_fire) begin
+                        lsu_state <= L_IDLE;
+                    end
+                end
+
+                default: begin
+                    lsu_state <= L_IDLE;
+                    wr_aw_done <= 1'b0;
+                    wr_w_done <= 1'b0;
                 end
             endcase
         end

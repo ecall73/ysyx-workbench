@@ -141,19 +141,7 @@ module ysyx_26030082 #(
     wire        ex_fence_i;
     wire        ex_out_valid;
     wire        ex_out_ready;
-
-    // LS
-    reg         ls_in_valid;
-    reg         ls_rf_wen;
-    reg         ls_mem_ren;
-    reg         ls_mem_wen;
-    reg  [ 2:0] ls_funct3;
-    reg  [ 4:0] ls_rf_waddr;
-    reg  [31:0] ls_mem_addr;
-    reg  [31:0] ls_wdata;
-    wire        ls_in_ready;
     wire        ls_out_valid;
-    wire [31:0] ls_rf_wdata;
 
 `ifndef SYNTHESIS
     assign pc_ex = ex_pc;
@@ -271,14 +259,11 @@ module ysyx_26030082 #(
         .ex_pc                  (ex_pc),
         .ex_inst                (ex_inst),
 
-        .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
-
+        .ex_out_valid           (ex_out_valid),
         .ls_out_valid           (ls_out_valid),
-        .ls_rf_wen              (ls_rf_wen),
-        .ls_rf_waddr            (ls_rf_waddr),
-        .ls_rf_wdata            (ls_rf_wdata),
-        .ls_load_pending        (ls_in_valid && ls_mem_ren && ~ls_out_valid),
+
+        .ex_mtime               (mtime),
 
         .ex_rf_wen              (ex_rf_wen),
         .ex_mem_ren             (ex_mem_ren),
@@ -289,62 +274,7 @@ module ysyx_26030082 #(
         .ex_redirect            (ex_redirect),
         .ex_redirect_pc         (ex_redirect_pc),
         .ex_wdata               (ex_wdata),
-        .ex_fence_i             (ex_fence_i)
-    );
-
-    // EX -> LS handshake coupling
-    assign ex_out_ready = ls_in_ready;
-
-    // ================================================================
-    // EX -> LS
-    // ================================================================
-    always @(posedge clock) begin
-        if (reset) begin
-            ls_in_valid <= 1'b0;
-        end else if (ex_out_ready) begin
-            ls_in_valid <= ex_out_valid;
-            ls_rf_wen <= ex_rf_wen;
-            ls_mem_wen <= ex_mem_wen;
-            ls_mem_addr <= ex_mem_addr;
-            ls_funct3 <= ex_funct3;
-            ls_rf_waddr <= ex_rf_waddr;
-            ls_wdata <= ex_wdata;
-            ls_mem_ren <= ex_mem_ren;
-        end
-    end
-
-    //trace
-    `ifndef SYNTHESIS
-        always @(posedge clock) begin
-            if (reset) begin
-                pc_ls <= 32'b0;
-                inst_ls <= 32'b0;
-            end else if (ex_out_ready) begin
-                if (ex_out_valid) begin
-                    pc_ls <= pc_ex;
-                    inst_ls <= inst_ex;
-                end else begin
-                    pc_ls <= 32'b0;
-                    inst_ls <= 32'b0;
-                end
-            end
-        end
-    `endif
-
-    ysyx_26030082_lsu lsu (
-        .clock                  (clock),
-        .reset                  (reset),
-        .ls_in_valid            (ls_in_valid),
-        .ls_in_ready            (ls_in_ready),
-        .ls_out_valid           (ls_out_valid),
-
-        .ls_mem_addr            (ls_mem_addr),
-        .ls_funct3              (ls_funct3),
-        .ls_mem_wen             (ls_mem_wen),
-        .ls_mem_ren             (ls_mem_ren),
-        .ls_wdata               (ls_wdata),
-
-        .ls_mtime               (mtime),
+        .ex_fence_i             (ex_fence_i),
 
         .lsu_axi_araddr         (lsu_axi_araddr),
         .lsu_axi_arsize         (lsu_axi_arsize),
@@ -364,10 +294,26 @@ module ysyx_26030082 #(
         .lsu_axi_wready         (lsu_axi_wready),
         .lsu_axi_bresp          (lsu_axi_bresp),
         .lsu_axi_bvalid         (lsu_axi_bvalid),
-        .lsu_axi_bready         (lsu_axi_bready),
-
-        .ls_rf_wdata            (ls_rf_wdata)
+        .lsu_axi_bready         (lsu_axi_bready)
     );
+
+    //trace
+    `ifndef SYNTHESIS
+        always @(posedge clock) begin
+            if (reset) begin
+                pc_ls <= 32'b0;
+                inst_ls <= 32'b0;
+            end else if (ex_out_ready) begin
+                if (ex_out_valid) begin
+                    pc_ls <= pc_ex;
+                    inst_ls <= inst_ex;
+                end else begin
+                    pc_ls <= 32'b0;
+                    inst_ls <= 32'b0;
+                end
+            end
+        end
+    `endif
 
     ysyx_26030082_axi4lite_arbiter axi4lite_arbiter (
         .clock                  (clock),
@@ -486,9 +432,11 @@ module ysyx_26030082 #(
     // Direct hierarchical reads: simulation-only, no extra submodule ports.
     assign pmu_ifu_r_fire = if_out_valid && if_out_ready;
     assign pmu_ifu_nosupply = !pmu_ifu_r_fire;
-    assign pmu_lsu_r_fire = lsu.r_fire;
-    assign pmu_lsu_load_req = (lsu.state == PMU_LSU_IDLE) && ls_in_valid && lsu.ls_is_load;
-    assign pmu_lsu_load_pending = (lsu.state == PMU_LSU_RD_AR) || (lsu.state == PMU_LSU_RD_WAIT_R);
+    assign pmu_lsu_r_fire = exu.r_fire;
+    assign pmu_lsu_load_req = (exu.lsu_state == PMU_LSU_IDLE) &&
+                              exu.ls_in_valid && exu.lsu_is_load;
+    assign pmu_lsu_load_pending = (exu.lsu_state == PMU_LSU_RD_AR) ||
+                                  (exu.lsu_state == PMU_LSU_RD_WAIT_R);
     assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
     assign pmu_dec_total = !ifu.flush && ex_out_valid && ex_out_ready;
     assign pmu_icache_miss_refill_busy =
