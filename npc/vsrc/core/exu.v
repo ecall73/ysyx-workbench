@@ -2,10 +2,10 @@ module ysyx_26030082_exu (
     input  wire        clock,
     input  wire        reset,
 
-    input  wire        fetch_valid,
-    output wire        fetch_ready,
-    input  wire [31:0] fetch_pc,
-    input  wire [31:0] fetch_inst,
+    input  wire        ex_in_valid,
+    output wire        ex_in_ready,
+    input  wire [31:0] ex_pc,
+    input  wire [31:0] ex_inst,
 
     input  wire        ex_out_ready,
     output wire        ex_out_valid,
@@ -142,12 +142,12 @@ module ysyx_26030082_exu (
     wire [31:0] csr_write_data;
     wire        csr_wdata_or_sel;
     wire        csr_wdata_and_sel;
-    assign opcode = fetch_inst[6:0];
-    assign ex_funct3 = fetch_inst[14:12];
-    assign funct7_5 = fetch_inst[30];
-    assign rf_raddr1 = fetch_inst[19:15];
-    assign rf_raddr2 = fetch_inst[24:20];
-    assign csr_addr = fetch_inst[31:20];
+    assign opcode = ex_inst[6:0];
+    assign ex_funct3 = ex_inst[14:12];
+    assign funct7_5 = ex_inst[30];
+    assign rf_raddr1 = ex_inst[19:15];
+    assign rf_raddr2 = ex_inst[24:20];
+    assign csr_addr = ex_inst[31:20];
 
     // RF + forward.
     assign ls_rf_write = ls_out_valid && ls_rf_wen && (ls_rf_waddr != 5'b0);
@@ -181,26 +181,26 @@ module ysyx_26030082_exu (
                              ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
                               (rs2_used && (rf_raddr2 == ls_rf_waddr)));
 
-    assign fetch_ready = ~fetch_valid || (~load_use_hazard && ex_out_ready);
-    assign ex_out_valid = fetch_valid && ~load_use_hazard;
+    assign ex_in_ready = ~ex_in_valid || (~load_use_hazard && ex_out_ready);
+    assign ex_out_valid = ex_in_valid && ~load_use_hazard;
 
-    assign ex_rf_waddr = fetch_inst[11:7];
+    assign ex_rf_waddr = ex_inst[11:7];
 
     assign imm = ({32{(opcode == OPCODE_OP_IMM) ||
                       (opcode == OPCODE_LOAD) ||
                       (opcode == OPCODE_JALR)}} &
-                  {{20{fetch_inst[31]}}, fetch_inst[31:20]}) |
+                  {{20{ex_inst[31]}}, ex_inst[31:20]}) |
                  ({32{opcode == OPCODE_STORE}} &
-                  {{20{fetch_inst[31]}}, fetch_inst[31:25], fetch_inst[11:7]}) |
+                  {{20{ex_inst[31]}}, ex_inst[31:25], ex_inst[11:7]}) |
                  ({32{opcode == OPCODE_BRANCH}} &
-                  {{20{fetch_inst[31]}}, fetch_inst[7], fetch_inst[30:25], fetch_inst[11:8], 1'b0}) |
+                  {{20{ex_inst[31]}}, ex_inst[7], ex_inst[30:25], ex_inst[11:8], 1'b0}) |
                  ({32{(opcode == OPCODE_LUI) ||
                       (opcode == OPCODE_AUIPC)}} &
-                  {fetch_inst[31:12], 12'b0}) |
+                  {ex_inst[31:12], 12'b0}) |
                  ({32{opcode == OPCODE_JAL}} &
-                  {{12{fetch_inst[31]}}, fetch_inst[19:12], fetch_inst[20], fetch_inst[30:21], 1'b0}) |
+                  {{12{ex_inst[31]}}, ex_inst[19:12], ex_inst[20], ex_inst[30:21], 1'b0}) |
                  ({32{opcode == OPCODE_SYSTEM}} &
-                  {27'b0, fetch_inst[19:15]});
+                  {27'b0, ex_inst[19:15]});
 
     // CSR read.
     always @(*) begin
@@ -216,7 +216,7 @@ module ysyx_26030082_exu (
     end
 
     // ALU.
-    assign ex_pc4 = fetch_pc + 32'd4;
+    assign ex_pc4 = ex_pc + 32'd4;
     assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
     always @(*) begin
         addsub_rhs = 32'b0;
@@ -323,7 +323,7 @@ module ysyx_26030082_exu (
                               (opcode == OPCODE_JALR)}} & rf_rdata1_forward) |
                         ({32{(opcode == OPCODE_AUIPC) ||
                               (opcode == OPCODE_JAL) ||
-                              (opcode == OPCODE_BRANCH)}} & fetch_pc);
+                              (opcode == OPCODE_BRANCH)}} & ex_pc);
     assign csr_wdata_or_sel = (ex_funct3 == F3_CSRRS) ||
                               (ex_funct3 == F3_CSRRSI);
     assign csr_wdata_and_sel = (ex_funct3 == F3_CSRRC) ||
@@ -501,7 +501,7 @@ module ysyx_26030082_exu (
                             csr_mstatus[3] <= 1'b0;
                             csr_mstatus[7] <= csr_mstatus[3];
                             csr_mstatus[12:11] <= 2'b11;
-                            csr_mepc <= fetch_pc;
+                            csr_mepc <= ex_pc;
                             csr_mcause <= CAUSE_ECALL;
                         end
                         F12_MRET: begin

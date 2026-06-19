@@ -13,11 +13,11 @@ module ysyx_26030082_ifu #(
     input  wire [31:0] ex_redirect_pc,
     input  wire        ex_fence_i,
 
-    // Frontend response interface
-    output wire        fetch_valid,
-    input  wire        fetch_ready,
-    output wire [31:0] fetch_pc,
-    output wire [31:0] fetch_inst,
+    // IF output interface
+    output wire        if_out_valid,
+    input  wire        if_out_ready,
+    output wire [31:0] if_pc,
+    output wire [31:0] if_inst,
 
     // AXI4 read master interface
     output wire [31:0] ifu_axi_araddr,
@@ -82,11 +82,11 @@ module ysyx_26030082_ifu #(
     assign commit_fire = ex_out_valid && ex_out_ready;
     assign flush = commit_fire && ex_redirect;
     assign invalidate = commit_fire && ex_fence_i;
-    assign fetch_valid = (state == S_LOOKUP) && cache_hit;
-    assign fetch_pc = pc_r;
-    assign fetch_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
+    assign if_out_valid = (state == S_LOOKUP) && cache_hit;
+    assign if_pc = pc_r;
+    assign if_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
 
-    assign req_fire = fetch_valid && fetch_ready;
+    assign req_fire = if_out_valid && if_out_ready;
 
     assign miss_line_base = {miss_tag, miss_index, {OFFSET_W{1'b0}}};
     assign ifu_axi_araddr = miss_line_base;
