@@ -227,8 +227,8 @@ module ysyx_26030082 #(
 
         .if_out_valid           (if_out_valid),
         .if_out_ready           (if_out_ready),
-        .if_pc              (if_pc),
-        .if_inst            (if_inst),
+        .if_pc                  (if_pc),
+        .if_inst                (if_inst),
 
         .ifu_axi_araddr         (ifu_axi_araddr),
         .ifu_axi_arlen          (ifu_axi_arlen),
@@ -242,17 +242,35 @@ module ysyx_26030082 #(
         .ifu_axi_rready         (ifu_axi_rready)
     );
 
-    // EX -> LS handshake coupling
-    assign ex_out_ready = ls_in_ready;
+    
     assign if_out_ready = ~ex_in_valid || ex_in_ready;
+
+    // ================================================================
+    // IF -> EX
+    // ================================================================
+    always @(posedge clock) begin
+        if (reset) begin
+            ex_in_valid <= 1'b0;
+            ex_pc <= 32'b0;
+            ex_inst <= 32'b0;
+        end else if (ex_redirect && ex_out_valid && ex_out_ready) begin
+            ex_in_valid <= 1'b0;
+            ex_pc <= 32'b0;
+            ex_inst <= 32'b0;
+        end else if (if_out_ready) begin
+            ex_in_valid <= if_out_valid;
+            ex_pc <= if_pc;
+            ex_inst <= if_inst;
+        end
+    end
 
     ysyx_26030082_exu exu (
         .clock                  (clock),
         .reset                  (reset),
         .ex_in_valid            (ex_in_valid),
         .ex_in_ready            (ex_in_ready),
-        .ex_pc               (ex_pc),
-        .ex_inst             (ex_inst),
+        .ex_pc                  (ex_pc),
+        .ex_inst                (ex_inst),
 
         .ex_out_valid           (ex_out_valid),
         .ex_out_ready           (ex_out_ready),
@@ -275,24 +293,8 @@ module ysyx_26030082 #(
         .ex_fence_i             (ex_fence_i)
     );
 
-    // ================================================================
-    // IF -> EX
-    // ================================================================
-    always @(posedge clock) begin
-        if (reset) begin
-            ex_in_valid <= 1'b0;
-            ex_pc <= 32'b0;
-            ex_inst <= 32'b0;
-        end else if (ex_redirect && ex_out_valid && ex_out_ready) begin
-            ex_in_valid <= 1'b0;
-            ex_pc <= 32'b0;
-            ex_inst <= 32'b0;
-        end else if (if_out_ready) begin
-            ex_in_valid <= if_out_valid;
-            ex_pc <= if_pc;
-            ex_inst <= if_inst;
-        end
-    end
+    // EX -> LS handshake coupling
+    assign ex_out_ready = ls_in_ready;
 
     // ================================================================
     // EX -> LS
