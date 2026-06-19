@@ -241,9 +241,8 @@ module ysyx_26030082 #(
         .ifu_axi_rvalid         (ifu_axi_rvalid),
         .ifu_axi_rready         (ifu_axi_rready)
     );
-
     
-    assign if_out_ready = ~ex_in_valid || ex_in_ready;
+    assign if_out_ready = ex_in_ready;
 
     // ================================================================
     // IF -> EX
