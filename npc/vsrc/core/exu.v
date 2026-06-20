@@ -27,7 +27,7 @@ module ysyx_26030082_exu (
     output wire [ 2:0] lsu_master_awsize,
     output wire        lsu_master_awvalid,
     input  wire        lsu_master_awready,
-    output wire [31:0] lsu_master_wdata,
+    output reg  [31:0] lsu_master_wdata,
     output wire [ 3:0] lsu_master_wstrb,
     output wire        lsu_master_wvalid,
     input  wire        lsu_master_wready,
@@ -183,7 +183,6 @@ module ysyx_26030082_exu (
     reg  [31:0] local_rdata;
     wire [31:0] load_raw_data;
     reg  [3:0]  wmask_calc;
-    reg  [31:0] wdata_aligned;
     reg  [31:0] rdata_decoded;
     reg  [2:0]  mem_size;
 
@@ -467,6 +466,59 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // LS: lsu_master.
+
+    always @(*) begin
+        wmask_calc = 4'b0000;
+        lsu_master_wdata = store_wdata;
+        mem_size = 3'b010;
+        case (funct3)
+            F3_SB: begin
+                mem_size = 3'b000;
+                case (mem_offset)
+                    2'b00: begin
+                        wmask_calc = 4'b0001;
+                        lsu_master_wdata = {24'b0, store_wdata[7:0]};
+                    end
+                    2'b01: begin
+                        wmask_calc = 4'b0010;
+                        lsu_master_wdata = {16'b0, store_wdata[7:0], 8'b0};
+                    end
+                    2'b10: begin
+                        wmask_calc = 4'b0100;
+                        lsu_master_wdata = {8'b0, store_wdata[7:0], 16'b0};
+                    end
+                    2'b11: begin
+                        wmask_calc = 4'b1000;
+                        lsu_master_wdata = {store_wdata[7:0], 24'b0};
+                    end
+                endcase
+            end
+            F3_SH: begin
+                mem_size = 3'b001;
+                case (mem_offset[1])
+                    1'b0: begin
+                        wmask_calc = 4'b0011;
+                        lsu_master_wdata = {16'b0, store_wdata[15:0]};
+                    end
+                    1'b1: begin
+                        wmask_calc = 4'b1100;
+                        lsu_master_wdata = {store_wdata[15:0], 16'b0};
+                    end
+                endcase
+            end
+            F3_LBU: begin
+                mem_size = 3'b000;
+            end
+            F3_LHU: begin
+                mem_size = 3'b001;
+            end
+            default: begin
+                wmask_calc = 4'b1111;
+                lsu_master_wdata = store_wdata;
+            end
+        endcase
+    end
+
     assign is_mem = mem_ren || mem_wen;
     assign is_load = mem_ren && ~mem_wen;
     assign is_clint = (mem_addr[31:16] == CLINT_BASE_HI);
@@ -498,7 +550,6 @@ module ysyx_26030082_exu (
     assign lsu_master_awvalid = ((mem_state == L_IDLE) && ext_store_req) ||
                              (mem_state == L_WR_AW_W) ||
                              (mem_state == L_WR_AW);
-    assign lsu_master_wdata = wdata_aligned;
     assign lsu_master_wstrb = wmask_calc;
     assign lsu_master_wvalid = ((mem_state == L_IDLE) && ext_store_req) ||
                             (mem_state == L_WR_AW_W) ||
@@ -513,96 +564,7 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    always @(*) begin
-        wmask_calc = 4'b0000;
-        wdata_aligned = store_wdata;
-        mem_size = 3'b010;
-        case (funct3)
-            F3_SB: begin
-                mem_size = 3'b000;
-                case (mem_offset)
-                    2'b00: begin
-                        wmask_calc = 4'b0001;
-                        wdata_aligned = {24'b0, store_wdata[7:0]};
-                    end
-                    2'b01: begin
-                        wmask_calc = 4'b0010;
-                        wdata_aligned = {16'b0, store_wdata[7:0], 8'b0};
-                    end
-                    2'b10: begin
-                        wmask_calc = 4'b0100;
-                        wdata_aligned = {8'b0, store_wdata[7:0], 16'b0};
-                    end
-                    2'b11: begin
-                        wmask_calc = 4'b1000;
-                        wdata_aligned = {store_wdata[7:0], 24'b0};
-                    end
-                endcase
-            end
-            F3_SH: begin
-                mem_size = 3'b001;
-                case (mem_offset[1])
-                    1'b0: begin
-                        wmask_calc = 4'b0011;
-                        wdata_aligned = {16'b0, store_wdata[15:0]};
-                    end
-                    1'b1: begin
-                        wmask_calc = 4'b1100;
-                        wdata_aligned = {store_wdata[15:0], 16'b0};
-                    end
-                endcase
-            end
-            F3_LBU: begin
-                mem_size = 3'b000;
-            end
-            F3_LHU: begin
-                mem_size = 3'b001;
-            end
-            default: begin
-                wmask_calc = 4'b1111;
-                wdata_aligned = store_wdata;
-            end
-        endcase
-    end
 
-    always @(*) begin
-        rdata_decoded = load_raw_data;
-        case (funct3)
-            F3_LB: begin
-                case (mem_offset)
-                    2'b00: rdata_decoded = {{24{load_raw_data[7]}}, load_raw_data[7:0]};
-                    2'b01: rdata_decoded = {{24{load_raw_data[15]}}, load_raw_data[15:8]};
-                    2'b10: rdata_decoded = {{24{load_raw_data[23]}}, load_raw_data[23:16]};
-                    2'b11: rdata_decoded = {{24{load_raw_data[31]}}, load_raw_data[31:24]};
-                    default: rdata_decoded = 32'b0;
-                endcase
-            end
-            F3_LH: begin
-                case (mem_offset[1])
-                    1'b0: rdata_decoded = {{16{load_raw_data[15]}}, load_raw_data[15:0]};
-                    1'b1: rdata_decoded = {{16{load_raw_data[31]}}, load_raw_data[31:16]};
-                    default: rdata_decoded = 32'b0;
-                endcase
-            end
-            F3_LBU: begin
-                case (mem_offset)
-                    2'b00: rdata_decoded = {24'b0, load_raw_data[7:0]};
-                    2'b01: rdata_decoded = {24'b0, load_raw_data[15:8]};
-                    2'b10: rdata_decoded = {24'b0, load_raw_data[23:16]};
-                    2'b11: rdata_decoded = {24'b0, load_raw_data[31:24]};
-                    default: rdata_decoded = 32'b0;
-                endcase
-            end
-            F3_LHU: begin
-                case (mem_offset[1])
-                    1'b0: rdata_decoded = {16'b0, load_raw_data[15:0]};
-                    1'b1: rdata_decoded = {16'b0, load_raw_data[31:16]};
-                    default: rdata_decoded = 32'b0;
-                endcase
-            end
-            default: rdata_decoded = load_raw_data;
-        endcase
-    end
 
     always @(posedge clock) begin
         if (reset) begin
@@ -675,6 +637,46 @@ module ysyx_26030082_exu (
             endcase
         end
     end
+
+    always @(*) begin
+        rdata_decoded = load_raw_data;
+        case (funct3)
+            F3_LB: begin
+                case (mem_offset)
+                    2'b00: rdata_decoded = {{24{load_raw_data[7]}}, load_raw_data[7:0]};
+                    2'b01: rdata_decoded = {{24{load_raw_data[15]}}, load_raw_data[15:8]};
+                    2'b10: rdata_decoded = {{24{load_raw_data[23]}}, load_raw_data[23:16]};
+                    2'b11: rdata_decoded = {{24{load_raw_data[31]}}, load_raw_data[31:24]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LH: begin
+                case (mem_offset[1])
+                    1'b0: rdata_decoded = {{16{load_raw_data[15]}}, load_raw_data[15:0]};
+                    1'b1: rdata_decoded = {{16{load_raw_data[31]}}, load_raw_data[31:16]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LBU: begin
+                case (mem_offset)
+                    2'b00: rdata_decoded = {24'b0, load_raw_data[7:0]};
+                    2'b01: rdata_decoded = {24'b0, load_raw_data[15:8]};
+                    2'b10: rdata_decoded = {24'b0, load_raw_data[23:16]};
+                    2'b11: rdata_decoded = {24'b0, load_raw_data[31:24]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LHU: begin
+                case (mem_offset[1])
+                    1'b0: rdata_decoded = {16'b0, load_raw_data[15:0]};
+                    1'b1: rdata_decoded = {16'b0, load_raw_data[31:16]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            default: rdata_decoded = load_raw_data;
+        endcase
+    end
+
 
 /////////////////////////
     // WB: output mux and RF write.
