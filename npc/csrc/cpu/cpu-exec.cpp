@@ -149,7 +149,7 @@ static void statistic() {
         g_ret_class_cnt[PMU_CLASS_SYSTEM] +
         g_ret_class_cnt[PMU_CLASS_MISC_MEM];
 
-    PmuLog("=============== PMU IFU-ICache ===============");
+    PmuLog("\n=============== PMU IFU-ICache ===============");
     PmuLog("+------------------+-------------+-----------+");
     PmuLog("| %-16s | %11s | %9s |", "item", "count/value", "ratio");
     PmuLog("+------------------+-------------+-----------+");
@@ -169,7 +169,7 @@ static void statistic() {
         "AMAT", icache_amat, "-");
     PmuLog("| %-16s | %11s | %9.4f |",
         "access / cycle", "-", ratio(icache_access, g_nr_sim_cycle));
-    PmuLog("+------------------+-------------+-----------+");
+    PmuLog("+------------------+-------------+-----------+\n");
 
     PmuLog("=============== PMU LSU-DCache ===============");
     PmuLog("+------------------+-------------+-----------+");
@@ -193,7 +193,7 @@ static void statistic() {
         "avg_miss_penalty", dcache_miss_penalty, "-");
     PmuLog("| %-16s | %11s | %9.4f |",
         "access / cycle", "-", ratio(g_pmu.dcache_access, g_nr_sim_cycle));
-    PmuLog("+------------------+-------------+-----------+");
+    PmuLog("+------------------+-------------+-----------+\n");
 
     PmuLog("================ PMU Redirect ================");
     PmuLog("+------------------+-------------+-----------+");
@@ -216,7 +216,7 @@ static void statistic() {
         PmuLog("| %-16s | %11" PRIu64 " | %8.4f%% |",
             kPmuClassName[i], g_ret_class_cnt[i], retire_mix);
     }
-    PmuLog("+------------------+-------------+-----------+");
+    PmuLog("+------------------+-------------+-----------+\n");
 }
 
 void cpu_exec(uint64_t n) {
