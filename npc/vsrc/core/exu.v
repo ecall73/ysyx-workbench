@@ -691,34 +691,26 @@ module ysyx_26030082_exu (
 
     always @(*) begin
         rf_wdata = 32'bx;
-
         case (opcode)
-            OPCODE_OP,
-            OPCODE_OP_IMM: begin
+            OPCODE_OP, OPCODE_OP_IMM: begin
                 case (funct3)
-                    F3_ADD_SUB: rf_wdata = addsub_result;
-                    F3_SLL:     rf_wdata = sll_result;
-                    F3_SLT:     rf_wdata = {31'b0, cmp_lt};
-                    F3_SLTU:    rf_wdata = {31'b0, cmp_ltu};
-                    F3_XOR:     rf_wdata = xor_result;
-                    F3_SRL_SRA: begin
-                        case (funct7_5)
-                            1'b0:   rf_wdata = srl_result;
-                            1'b1:   rf_wdata = sra_result;
-                        endcase
-                    end
-                    F3_OR:      rf_wdata = or_result;
-                    F3_AND:     rf_wdata = and_result;
-                    default: ;
+                    F3_ADD_SUB:         rf_wdata = addsub_result;
+                    F3_SLL:             rf_wdata = sll_result;
+                    F3_SLT:             rf_wdata = {31'b0, cmp_lt};
+                    F3_SLTU:            rf_wdata = {31'b0, cmp_ltu};
+                    F3_XOR:             rf_wdata = xor_result;
+                    F3_SRL_SRA:         rf_wdata = funct7_5 ? sra_result : srl_result;
+                    F3_OR:              rf_wdata = or_result;
+                    F3_AND:             rf_wdata = and_result;
+                    default:;
                 endcase
             end
-            OPCODE_LUI:     rf_wdata = imm;
-            OPCODE_AUIPC:   rf_wdata = addsub_result;
-            OPCODE_LOAD:    rf_wdata = rdata_decoded;
-            OPCODE_JAL,
-            OPCODE_JALR:    rf_wdata = pc4;
-            OPCODE_SYSTEM:  rf_wdata = csr_rdata;
-            default: ;
+            OPCODE_LUI:                 rf_wdata = imm;
+            OPCODE_AUIPC:               rf_wdata = addsub_result;
+            OPCODE_LOAD:                rf_wdata = rdata_decoded;
+            OPCODE_JAL, OPCODE_JALR:    rf_wdata = pc4;
+            OPCODE_SYSTEM:              rf_wdata = csr_rdata;
+            default:;
         endcase
     end
 
