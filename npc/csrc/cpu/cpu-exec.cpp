@@ -208,15 +208,15 @@ static void statistic() {
     PmuLog("+------------------+-------------+-----------+");
 
     PmuLog("=== PMU commit table (type/count/ratio) ===");
-    PmuLog("+----------+-----------+-----------+");
-    PmuLog("| %-8s | %9s | %9s |", "type", "count", "ratio");
-    PmuLog("+----------+-----------+-----------+");
+    PmuLog("+------------------+-----------+-----------+");
+    PmuLog("| %-16s | %9s | %9s |", "type", "count", "ratio");
+    PmuLog("+------------------+-----------+-----------+");
     for (int i = 0; i < PMU_CLASS_COUNT; i++) {
         double retire_mix = 100.0 * ratio(g_ret_class_cnt[i], g_nr_guest_inst);
-        PmuLog("| %-8s | %9" PRIu64 " | %8.4f%% |",
+        PmuLog("| %-16s | %9" PRIu64 " | %8.4f%% |",
             kPmuClassName[i], g_ret_class_cnt[i], retire_mix);
     }
-    PmuLog("+----------+-----------+-----------+");
+    PmuLog("+------------------+-----------+-----------+");
 }
 
 void cpu_exec(uint64_t n) {
