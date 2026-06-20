@@ -22,68 +22,26 @@ static constexpr uint32_t kEbreakInst = 0x00100073u;
 static uint64_t g_timer_us = 0;
 static uint64_t g_nr_sim_cycle = 0;
 
-enum PmuInstClass : uint8_t {
-    PMU_CLASS_LOAD = 0,
-    PMU_CLASS_MISC_MEM,
-    PMU_CLASS_OP_IMM,
-    PMU_CLASS_AUIPC,
-    PMU_CLASS_STORE,
-    PMU_CLASS_OP,
-    PMU_CLASS_LUI,
-    PMU_CLASS_BRANCH,
-    PMU_CLASS_JALR,
-    PMU_CLASS_JAL,
-    PMU_CLASS_SYSTEM,
-    PMU_CLASS_INVALID,
-    PMU_CLASS_COUNT
-};
-
-static const char *kPmuClassName[PMU_CLASS_COUNT] = {
-    "LOAD", "MISC-MEM", "OP-IMM", "AUIPC", "STORE", "OP",
-    "LUI", "BRANCH", "JALR", "JAL", "SYSTEM", "INVALID"
-};
-
 struct PmuCounters {
-    uint64_t ifu_r_fire;
+    uint64_t ifu_supply;
     uint64_t ifu_nosupply_total;
     uint64_t ifu_wait_arready;
     uint64_t ifu_wait_rvalid;
-    uint64_t ifu_id_backpressure;
+    uint64_t ifu_ex_backpressure;
     uint64_t ifu_redirect_drop;
-    uint64_t lsu_r_fire;
+    uint64_t lsu_load_resp;
     uint64_t lsu_load_req;
+    uint64_t lsu_store_req;
     uint64_t lsu_load_pending_cycle;
+    uint64_t lsu_store_pending_cycle;
     uint64_t exu_done_fire;
-    uint64_t dec_total;
-    uint64_t icache_hit;
+    uint64_t non_redirect_commit;
+    uint64_t icache_hit_cycle;
     uint64_t icache_miss;
     uint64_t icache_miss_refill_cycle;
 };
 
 static PmuCounters g_pmu = {};
-static uint64_t g_ret_class_cnt[PMU_CLASS_COUNT] = {};
-
-static uint8_t pmu_classify_inst(uint32_t inst) {
-    uint32_t opcode = inst & 0x7f;
-    switch (opcode) {
-        case 0x03: return PMU_CLASS_LOAD;      // LOAD
-        case 0x0f: return PMU_CLASS_MISC_MEM;  // MISC-MEM (e.g. fence)
-        case 0x13: return PMU_CLASS_OP_IMM;    // OP-IMM
-        case 0x17: return PMU_CLASS_AUIPC;     // AUIPC
-        case 0x23: return PMU_CLASS_STORE;     // STORE
-        case 0x33: return PMU_CLASS_OP;        // OP
-        case 0x37: return PMU_CLASS_LUI;       // LUI
-        case 0x63: return PMU_CLASS_BRANCH;    // BRANCH
-        case 0x67: return PMU_CLASS_JALR;      // JALR
-        case 0x6f: return PMU_CLASS_JAL;       // JAL
-        case 0x73: return PMU_CLASS_SYSTEM;    // SYSTEM
-        default: return PMU_CLASS_INVALID;
-    }
-}
-
-static void pmu_on_commit(uint32_t inst) {
-    g_ret_class_cnt[pmu_classify_inst(inst)]++;
-}
 
 extern "C" void npc_commit(int pc, int inst) {
     if (is_finished) {
@@ -93,7 +51,6 @@ extern "C" void npc_commit(int pc, int inst) {
     g_commit_valid = true;
     g_commit_pc = (uint32_t)pc;
     g_commit_inst = (uint32_t)inst;
-    pmu_on_commit((uint32_t)inst);
 }
 
 extern "C" void npc_pmu_event(int event_mask) {
@@ -102,18 +59,20 @@ extern "C" void npc_pmu_event(int event_mask) {
     }
 
     uint32_t mask = (uint32_t)event_mask;
-    if (mask & NPC_PMU_EVT_IFU_R_FIRE) g_pmu.ifu_r_fire++;
+    if (mask & NPC_PMU_EVT_IFU_R_FIRE) g_pmu.ifu_supply++;
     if (mask & NPC_PMU_EVT_IFU_NOSUPPLY_TOTAL) g_pmu.ifu_nosupply_total++;
     if (mask & NPC_PMU_EVT_IFU_WAIT_ARREADY) g_pmu.ifu_wait_arready++;
     if (mask & NPC_PMU_EVT_IFU_WAIT_RVALID) g_pmu.ifu_wait_rvalid++;
-    if (mask & NPC_PMU_EVT_IFU_ID_BACKPRESSURE) g_pmu.ifu_id_backpressure++;
+    if (mask & NPC_PMU_EVT_IFU_ID_BACKPRESSURE) g_pmu.ifu_ex_backpressure++;
     if (mask & NPC_PMU_EVT_IFU_REDIRECT_DROP) g_pmu.ifu_redirect_drop++;
-    if (mask & NPC_PMU_EVT_LSU_R_FIRE) g_pmu.lsu_r_fire++;
+    if (mask & NPC_PMU_EVT_LSU_R_FIRE) g_pmu.lsu_load_resp++;
     if (mask & NPC_PMU_EVT_LSU_LOAD_REQ) g_pmu.lsu_load_req++;
+    if (mask & NPC_PMU_EVT_LSU_STORE_REQ) g_pmu.lsu_store_req++;
     if (mask & NPC_PMU_EVT_LSU_LOAD_PENDING_CYCLE) g_pmu.lsu_load_pending_cycle++;
+    if (mask & NPC_PMU_EVT_LSU_STORE_PENDING_CYCLE) g_pmu.lsu_store_pending_cycle++;
     if (mask & NPC_PMU_EVT_EXU_DONE_FIRE) g_pmu.exu_done_fire++;
-    if (mask & NPC_PMU_EVT_DEC_TOTAL) g_pmu.dec_total++;
-    if (mask & NPC_PMU_EVT_ICACHE_HIT) g_pmu.icache_hit++;
+    if (mask & NPC_PMU_EVT_DEC_TOTAL) g_pmu.non_redirect_commit++;
+    if (mask & NPC_PMU_EVT_ICACHE_HIT) g_pmu.icache_hit_cycle++;
     if (mask & NPC_PMU_EVT_ICACHE_MISS) g_pmu.icache_miss++;
     if (mask & NPC_PMU_EVT_ICACHE_MISS_REFILL_CYCLE) g_pmu.icache_miss_refill_cycle++;
 }
@@ -126,6 +85,26 @@ static uint64_t get_time_us() {
 
 static double ratio(uint64_t numerator, uint64_t denominator) {
     return denominator ? (double)numerator / (double)denominator : 0.0;
+}
+
+static void pmu_table_header(const char *title) {
+    PmuLog("=== %s ===", title);
+    PmuLog("+----------------------+--------------+------------+------------------+");
+    PmuLog("| %-20s | %12s | %10s | %-16s |", "item", "count/value", "cycle%", "detail");
+    PmuLog("+----------------------+--------------+------------+------------------+");
+}
+
+static void pmu_table_row_count(const char *item, uint64_t count, const char *detail) {
+    PmuLog("| %-20s | %12" PRIu64 " | %9.2f%% | %-16s |",
+        item, count, 100.0 * ratio(count, g_nr_sim_cycle), detail);
+}
+
+static void pmu_table_row_value(const char *item, double value, const char *unit) {
+    PmuLog("| %-20s | %12.3f | %10s | %-16s |", item, value, "-", unit);
+}
+
+static void pmu_table_footer() {
+    PmuLog("+----------------------+--------------+------------+------------------+");
 }
 
 static void statistic() {
@@ -145,85 +124,57 @@ static void statistic() {
         Log("Finish running in less than 1 us and can not calculate the simulation frequency");
     }
 
-    uint64_t dec_total = g_pmu.dec_total;
     uint64_t ifu_reason_known = g_pmu.ifu_wait_arready + g_pmu.ifu_wait_rvalid +
-                                g_pmu.ifu_id_backpressure + g_pmu.ifu_redirect_drop;
+                                g_pmu.ifu_ex_backpressure + g_pmu.ifu_redirect_drop;
     uint64_t ifu_reason_unknown = (g_pmu.ifu_nosupply_total >= ifu_reason_known)
                                       ? (g_pmu.ifu_nosupply_total - ifu_reason_known)
                                       : 0;
+    uint64_t icache_lookup = g_pmu.icache_hit_cycle + g_pmu.icache_miss;
+    double icache_miss_rate = ratio(g_pmu.icache_miss, icache_lookup);
+    double icache_miss_penalty = ratio(g_pmu.icache_miss_refill_cycle, g_pmu.icache_miss);
+    double icache_amat = 1.0 + icache_miss_rate * icache_miss_penalty;
+    uint64_t redirect_commit = (g_pmu.exu_done_fire >= g_pmu.non_redirect_commit)
+                                   ? (g_pmu.exu_done_fire - g_pmu.non_redirect_commit)
+                                   : 0;
 
-    PmuLog("=== PMU counters (simulation-only) ===");
-    PmuLog("ifu_r_fire      = %" PRIu64, g_pmu.ifu_r_fire);
-    PmuLog("ifu_nosupply_total   = %" PRIu64, g_pmu.ifu_nosupply_total);
-    PmuLog("ifu_wait_arready     = %" PRIu64, g_pmu.ifu_wait_arready);
-    PmuLog("ifu_wait_rvalid      = %" PRIu64, g_pmu.ifu_wait_rvalid);
-    PmuLog("ifu_id_backpressure  = %" PRIu64, g_pmu.ifu_id_backpressure);
-    PmuLog("ifu_redirect_drop    = %" PRIu64, g_pmu.ifu_redirect_drop);
-    PmuLog("lsu_r_fire      = %" PRIu64, g_pmu.lsu_r_fire);
-    PmuLog("lsu_load_req    = %" PRIu64, g_pmu.lsu_load_req);
-    PmuLog("lsu_load_pending_cycle = %" PRIu64, g_pmu.lsu_load_pending_cycle);
-    PmuLog("exu_done_fire   = %" PRIu64, g_pmu.exu_done_fire);
-    PmuLog("dec_total       = %" PRIu64, dec_total);
-    PmuLog("icache_hit      = %" PRIu64, g_pmu.icache_hit);
-    PmuLog("icache_miss     = %" PRIu64, g_pmu.icache_miss);
-    PmuLog("icache_miss_refill_cycle = %" PRIu64, g_pmu.icache_miss_refill_cycle);
-
-    if (g_nr_sim_cycle > 0) {
-        PmuLog("rate.ifu_r/cycle      = %.4f", ratio(g_pmu.ifu_r_fire, g_nr_sim_cycle));
-        PmuLog("rate.ifu_nosupply/cycle = %.4f", ratio(g_pmu.ifu_nosupply_total, g_nr_sim_cycle));
-        PmuLog("rate.exu_done/cycle   = %.4f", ratio(g_pmu.exu_done_fire, g_nr_sim_cycle));
-        PmuLog("rate.instret/cycle    = %.4f", ratio(g_nr_guest_inst, g_nr_sim_cycle));
+    pmu_table_header("PMU IFU-ICache");
+    pmu_table_row_count("if_supply", g_pmu.ifu_supply, "frontend valid");
+    pmu_table_row_count("if_no_supply", g_pmu.ifu_nosupply_total, "frontend bubble");
+    pmu_table_row_count("wait_arready", g_pmu.ifu_wait_arready, "miss request");
+    pmu_table_row_count("wait_rvalid", g_pmu.ifu_wait_rvalid, "miss refill");
+    pmu_table_row_count("ex_backpressure", g_pmu.ifu_ex_backpressure, "EX not ready");
+    pmu_table_row_count("icache_hit_cycle", g_pmu.icache_hit_cycle, "hit valid cycle");
+    pmu_table_row_count("icache_miss", g_pmu.icache_miss, "lookup miss");
+    pmu_table_row_count("refill_cycles", g_pmu.icache_miss_refill_cycle, "miss service");
+    if (ifu_reason_unknown != 0) {
+        pmu_table_row_count("unclassified", ifu_reason_unknown, "PMU coverage");
     }
+    pmu_table_row_value("hit_rate", 100.0 * ratio(g_pmu.icache_hit_cycle, icache_lookup), "% of lookup");
+    pmu_table_row_value("avg_miss_penalty", icache_miss_penalty, "cycles/miss");
+    pmu_table_row_value("AMAT", icache_amat, "cycles/access");
+    pmu_table_footer();
 
-    if (g_pmu.icache_hit + g_pmu.icache_miss > 0) {
-        uint64_t cacheable_lookup = g_pmu.icache_hit + g_pmu.icache_miss;
-        double hit_rate = ratio(g_pmu.icache_hit, cacheable_lookup);
-        double miss_rate = ratio(g_pmu.icache_miss, cacheable_lookup);
-        double miss_penalty = ratio(g_pmu.icache_miss_refill_cycle, g_pmu.icache_miss);
-        double access_time = 1.0;
-        double amat = access_time + miss_rate * miss_penalty;
+    pmu_table_header("PMU LSU");
+    pmu_table_row_count("load_req", g_pmu.lsu_load_req, "load access");
+    pmu_table_row_count("load_resp", g_pmu.lsu_load_resp, "external R beat");
+    pmu_table_row_count("store_req", g_pmu.lsu_store_req, "store access");
+    pmu_table_row_count("load_pending", g_pmu.lsu_load_pending_cycle, "load wait");
+    pmu_table_row_count("store_pending", g_pmu.lsu_store_pending_cycle, "store wait");
+    pmu_table_row_value("avg_load_latency",
+        ratio(g_pmu.lsu_load_pending_cycle, g_pmu.lsu_load_req), "cycles/load");
+    pmu_table_row_value("avg_store_latency",
+        ratio(g_pmu.lsu_store_pending_cycle, g_pmu.lsu_store_req), "cycles/store");
+    pmu_table_footer();
 
-        PmuLog("=== PMU ICache AMAT ===");
-        PmuLog("icache.cacheable_lookup = %" PRIu64, cacheable_lookup);
-        PmuLog("icache.hit_rate(cacheable lookup) = %.2f%%", 100.0 * hit_rate);
-        PmuLog("icache.miss_rate(cacheable lookup) = %.2f%%", 100.0 * miss_rate);
-        PmuLog("icache.access_time(cycle) = %.3f", access_time);
-        PmuLog("icache.avg_miss_penalty(cycle) = %.3f", miss_penalty);
-        PmuLog("icache.AMAT(cycle/cacheable_access) = %.3f", amat);
-    }
-
-    PmuLog("=== PMU IFU no-supply breakdown ===");
-    PmuLog("ifu.reason.wait_arready: P(reason|nosupply)=%.2f%%, P(reason)=%.2f%%",
-        100.0 * ratio(g_pmu.ifu_wait_arready, g_pmu.ifu_nosupply_total),
-        100.0 * ratio(g_pmu.ifu_wait_arready, g_nr_sim_cycle));
-    PmuLog("ifu.reason.wait_rvalid: P(reason|nosupply)=%.2f%%, P(reason)=%.2f%%",
-        100.0 * ratio(g_pmu.ifu_wait_rvalid, g_pmu.ifu_nosupply_total),
-        100.0 * ratio(g_pmu.ifu_wait_rvalid, g_nr_sim_cycle));
-    PmuLog("ifu.reason.id_backpressure: P(reason|nosupply)=%.2f%%, P(reason)=%.2f%%",
-        100.0 * ratio(g_pmu.ifu_id_backpressure, g_pmu.ifu_nosupply_total),
-        100.0 * ratio(g_pmu.ifu_id_backpressure, g_nr_sim_cycle));
-    PmuLog("ifu.reason.redirect_drop: P(reason|nosupply)=%.2f%%, P(reason)=%.2f%%",
-        100.0 * ratio(g_pmu.ifu_redirect_drop, g_pmu.ifu_nosupply_total),
-        100.0 * ratio(g_pmu.ifu_redirect_drop, g_nr_sim_cycle));
-    PmuLog("ifu.reason.unclassified: P(reason|nosupply)=%.2f%%, P(reason)=%.2f%%",
-        100.0 * ratio(ifu_reason_unknown, g_pmu.ifu_nosupply_total),
-        100.0 * ratio(ifu_reason_unknown, g_nr_sim_cycle));
-
-    PmuLog("=== PMU LSU load latency ===");
-    PmuLog("lsu.avg_load_latency(cycle) = %.3f (pending=%" PRIu64 ", load_req=%" PRIu64 ")",
-        ratio(g_pmu.lsu_load_pending_cycle, g_pmu.lsu_load_req),
-        g_pmu.lsu_load_pending_cycle, g_pmu.lsu_load_req);
-
-    PmuLog("=== PMU commit table (type/count/percentage) ===");
-    PmuLog("+----------+--------------+------------+");
-    PmuLog("| %-8s | %12s | %10s |", "type", "count", "percentage");
-    PmuLog("+----------+--------------+------------+");
-    for (int i = 0; i < PMU_CLASS_COUNT; i++) {
-        double retire_mix = 100.0 * ratio(g_ret_class_cnt[i], g_nr_guest_inst);
-        PmuLog("| %-8s | %12" PRIu64 " | %9.5f%% |",
-            kPmuClassName[i], g_ret_class_cnt[i], retire_mix);
-    }
-    PmuLog("+----------+--------------+------------+");
+    pmu_table_header("PMU Redirect");
+    pmu_table_row_count("commit", g_pmu.exu_done_fire, "retire fire");
+    pmu_table_row_count("non_redirect", g_pmu.non_redirect_commit, "normal retire");
+    pmu_table_row_count("redirect", redirect_commit, "flush retire");
+    pmu_table_row_count("if_drop", g_pmu.ifu_redirect_drop, "frontend bubble");
+    pmu_table_row_value("redirect_rate",
+        100.0 * ratio(redirect_commit, g_pmu.exu_done_fire), "% of commit");
+    pmu_table_row_value("predict_accuracy", 0.0, "N/A no predictor");
+    pmu_table_footer();
 }
 
 void cpu_exec(uint64_t n) {

@@ -356,10 +356,12 @@ module ysyx_26030082 #(
     localparam [31:0] PMU_EVT_IFU_ID_BACKPRESSURE = 32'h0000_4000;
     localparam [31:0] PMU_EVT_IFU_REDIRECT_DROP   = 32'h0000_8000;
     localparam [31:0] PMU_EVT_LSU_LOAD_REQ        = 32'h0004_0000;
+    localparam [31:0] PMU_EVT_LSU_STORE_REQ       = 32'h0008_0000;
     localparam [31:0] PMU_EVT_LSU_LOAD_PENDING_CYCLE = 32'h0020_0000;
     localparam [31:0] PMU_EVT_ICACHE_HIT          = 32'h0040_0000;
     localparam [31:0] PMU_EVT_ICACHE_MISS         = 32'h0080_0000;
     localparam [31:0] PMU_EVT_ICACHE_MISS_REFILL_CYCLE = 32'h0100_0000;
+    localparam [31:0] PMU_EVT_LSU_STORE_PENDING_CYCLE = 32'h0200_0000;
 
     localparam [1:0] PMU_ICACHE_LOOKUP  = 2'd0;
     localparam [1:0] PMU_ICACHE_MISS_AR = 2'd1;
@@ -368,27 +370,39 @@ module ysyx_26030082 #(
     localparam [2:0] PMU_LSU_IDLE       = 3'd0;
     localparam [2:0] PMU_LSU_RD_AR      = 3'd1;
     localparam [2:0] PMU_LSU_RD_WAIT_R  = 3'd2;
+    localparam [2:0] PMU_LSU_WR_AW_W    = 3'd3;
+    localparam [2:0] PMU_LSU_WR_AW      = 3'd4;
+    localparam [2:0] PMU_LSU_WR_W       = 3'd5;
+    localparam [2:0] PMU_LSU_WR_WAIT_B  = 3'd6;
 
-    wire        pmu_ifu_r_fire;
+    wire        pmu_ifu_supply;
     wire        pmu_ifu_nosupply;
-    wire        pmu_lsu_r_fire;
+    wire        pmu_lsu_load_resp;
     wire        pmu_lsu_load_req;
+    wire        pmu_lsu_store_req;
     wire        pmu_lsu_load_pending;
+    wire        pmu_lsu_store_pending;
     wire        pmu_exu_done_fire;
-    wire        pmu_dec_total;
+    wire        pmu_non_redirect_commit;
     wire        pmu_icache_miss_refill_busy;
     reg  [31:0] pmu_event_mask;
 
     // Direct hierarchical reads: simulation-only, no extra submodule ports.
-    assign pmu_ifu_r_fire = if_out_valid && if_out_ready;
-    assign pmu_ifu_nosupply = !pmu_ifu_r_fire;
-    assign pmu_lsu_r_fire = exu.r_fire;
+    assign pmu_ifu_supply = if_out_valid && if_out_ready;
+    assign pmu_ifu_nosupply = !pmu_ifu_supply;
+    assign pmu_lsu_load_resp = exu.r_fire;
     assign pmu_lsu_load_req = (exu.mem_state == PMU_LSU_IDLE) &&
                               ex_in_valid && exu.is_load;
+    assign pmu_lsu_store_req = (exu.mem_state == PMU_LSU_IDLE) &&
+                               ex_in_valid && exu.mem_wen && !exu.is_local;
     assign pmu_lsu_load_pending = (exu.mem_state == PMU_LSU_RD_AR) ||
                                   (exu.mem_state == PMU_LSU_RD_WAIT_R);
+    assign pmu_lsu_store_pending = (exu.mem_state == PMU_LSU_WR_AW_W) ||
+                                   (exu.mem_state == PMU_LSU_WR_AW) ||
+                                   (exu.mem_state == PMU_LSU_WR_W) ||
+                                   (exu.mem_state == PMU_LSU_WR_WAIT_B);
     assign pmu_exu_done_fire = ex_out_valid;
-    assign pmu_dec_total = !ifu.flush && ex_out_valid;
+    assign pmu_non_redirect_commit = !ifu.flush && ex_out_valid;
     assign pmu_icache_miss_refill_busy =
         (ifu.state == PMU_ICACHE_MISS_AR) ||
         (ifu.state == PMU_ICACHE_MISS_R);
@@ -397,7 +411,7 @@ module ysyx_26030082 #(
         pmu_event_mask = 32'b0;
 
         if (!reset) begin
-            if (pmu_ifu_r_fire) begin
+            if (pmu_ifu_supply) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_R_FIRE;
             end
             if (pmu_ifu_nosupply) begin
@@ -421,20 +435,26 @@ module ysyx_26030082 #(
             if (pmu_icache_miss_refill_busy) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_MISS_REFILL_CYCLE;
             end
-            if (pmu_lsu_r_fire) begin
+            if (pmu_lsu_load_resp) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_LSU_R_FIRE;
             end
             if (pmu_lsu_load_req) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_LSU_LOAD_REQ;
             end
+            if (pmu_lsu_store_req) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_LSU_STORE_REQ;
+            end
             if (pmu_lsu_load_pending) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_LSU_LOAD_PENDING_CYCLE;
+            end
+            if (pmu_lsu_store_pending) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_LSU_STORE_PENDING_CYCLE;
             end
             if (pmu_exu_done_fire) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_EXU_DONE_FIRE;
             end
 
-            if (pmu_dec_total) begin
+            if (pmu_non_redirect_commit) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_DEC_TOTAL;
             end
         end
