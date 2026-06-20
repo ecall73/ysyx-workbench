@@ -205,7 +205,7 @@ static void statistic() {
         "redirect / inst", "-", 100.0 * ratio(g_pmu.redirect, g_nr_guest_inst));
     PmuLog("| %-16s | %11s | %8.4f%% |",
         "redirect / ctrl", "-", 100.0 * ratio(g_pmu.redirect, control_flow));
-    PmuLog("+------------------+-------------+-----------+");
+    PmuLog("+------------------+-------------+-----------+\n");
 
     PmuLog("==== PMU commit table (type/count/ratio) ====");
     PmuLog("+------------------+-------------+-----------+");
