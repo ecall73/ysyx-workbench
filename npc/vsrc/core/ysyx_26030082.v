@@ -134,11 +134,6 @@ module ysyx_26030082 #(
     wire        ex_fence_i;
     wire        ex_out_valid;
 
-`ifndef SYNTHESIS
-    assign pc_ex = ex_pc;
-    assign inst_ex = ex_inst;
-`endif
-
     // IFU AXI4 (read-only in practice)
     wire [31:0] ifu_master_araddr;
     wire [ 7:0] ifu_master_arlen;
@@ -172,12 +167,6 @@ module ysyx_26030082 #(
     wire        lsu_master_bvalid;
     wire        lsu_master_bready;
     reg  [63:0] mtime;
-
-    // Debug Interface
-`ifndef SYNTHESIS
-        wire [31:0] pc_ex;
-        wire [31:0] inst_ex;
-`endif
 
 ////////////////////////////////////////////////////////////////
 
@@ -346,7 +335,7 @@ module ysyx_26030082 #(
 `ifndef __ICARUS__
     always @(posedge clock) begin
         if (!reset && ex_out_valid) begin
-            npc_commit(pc_ex, inst_ex);
+            npc_commit(ex_pc, ex_inst);
         end
     end
 `endif
