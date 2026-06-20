@@ -163,9 +163,9 @@ static void statistic() {
         "hit_rate", "-", 100.0 * ratio(icache_hit, icache_access));
     PmuLog("| %-19s | %11s | %8.4f%% |",
         "miss_rate", "-", 100.0 * icache_miss_rate);
-    PmuLog("| %-19s | %12.4f | %10s |",
+    PmuLog("| %-19s | %11.4f | %9s |",
         "avg_miss_penalty", icache_miss_penalty, "-");
-    PmuLog("| %-19s | %11.4f | %10s |",
+    PmuLog("| %-19s | %11.4f | %9s |",
         "AMAT", icache_amat, "-");
     PmuLog("| %-19s | %11s | %9.4f |",
         "access_per_cycle", "-", ratio(icache_access, g_nr_sim_cycle));
@@ -189,7 +189,7 @@ static void statistic() {
         "store_ratio", "-", 100.0 * ratio(g_pmu.dcache_store, g_pmu.dcache_access));
     PmuLog("| %-19s | %11s | %8.4f%% |",
         "miss_rate", "-", 100.0 * ratio(g_pmu.dcache_miss, g_pmu.dcache_access));
-    PmuLog("| %-19s | %11.4f | %10s |",
+    PmuLog("| %-19s | %11.4f | %9s |",
         "avg_miss_penalty", dcache_miss_penalty, "-");
     PmuLog("| %-19s | %11s | %9.4f |",
         "access_per_cycle", "-", ratio(g_pmu.dcache_access, g_nr_sim_cycle));
