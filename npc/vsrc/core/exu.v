@@ -712,31 +712,13 @@ module ysyx_26030082_exu (
                     default: ;
                 endcase
             end
-
             OPCODE_LUI:     rf_wdata = imm;
             OPCODE_AUIPC:   rf_wdata = addsub_result;
             OPCODE_LOAD:    rf_wdata = rdata_decoded;
             OPCODE_JAL,
             OPCODE_JALR:    rf_wdata = pc4;
-
-            OPCODE_SYSTEM: begin
-                case (funct3)
-                    F3_CSRRW,
-                    F3_CSRRWI,
-                    F3_CSRRS,
-                    F3_CSRRSI,
-                    F3_CSRRC,
-                    F3_CSRRCI: begin
-                        rf_wdata = csr_rdata;
-                    end
-
-                    default: begin
-                    end
-                endcase
-            end
-
-            default: begin
-            end
+            OPCODE_SYSTEM:  rf_wdata = csr_rdata;
+            default: ;
         endcase
     end
 
