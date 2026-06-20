@@ -2,66 +2,66 @@ module ysyx_26030082_axi4lite_arbiter (
     input  wire        clock,
     input  wire        reset,
     // IFU master interface
-    input  wire [31:0] ifu_axi_araddr,
-    input  wire [ 7:0] ifu_axi_arlen,
-    input  wire [ 1:0] ifu_axi_arburst,
-    input  wire        ifu_axi_arvalid,
-    output wire        ifu_axi_arready,
-    output wire [31:0] ifu_axi_rdata,
-    output wire [ 1:0] ifu_axi_rresp,
-    output wire        ifu_axi_rlast,
-    output wire        ifu_axi_rvalid,
-    input  wire        ifu_axi_rready,
+    input  wire [31:0] ifu_master_araddr,
+    input  wire [ 7:0] ifu_master_arlen,
+    input  wire [ 1:0] ifu_master_arburst,
+    input  wire        ifu_master_arvalid,
+    output wire        ifu_master_arready,
+    output wire [31:0] ifu_master_rdata,
+    output wire [ 1:0] ifu_master_rresp,
+    output wire        ifu_master_rlast,
+    output wire        ifu_master_rvalid,
+    input  wire        ifu_master_rready,
     // LSU master interface
-    input  wire [31:0] lsu_axi_araddr,
-    input  wire [ 2:0] lsu_axi_arsize,
-    input  wire        lsu_axi_arvalid,
-    output wire        lsu_axi_arready,
-    output wire [31:0] lsu_axi_rdata,
-    output wire [ 1:0] lsu_axi_rresp,
-    output wire        lsu_axi_rvalid,
-    input  wire        lsu_axi_rready,
-    input  wire [31:0] lsu_axi_awaddr,
-    input  wire [ 2:0] lsu_axi_awsize,
-    input  wire        lsu_axi_awvalid,
-    output wire        lsu_axi_awready,
-    input  wire [31:0] lsu_axi_wdata,
-    input  wire [ 3:0] lsu_axi_wstrb,
-    input  wire        lsu_axi_wvalid,
-    output wire        lsu_axi_wready,
-    output wire [ 1:0] lsu_axi_bresp,
-    output wire        lsu_axi_bvalid,
-    input  wire        lsu_axi_bready,
-    // Shared MEM slave interface
-    output wire [31:0] mem_axi_araddr,
-    output wire [ 3:0] mem_axi_arid,
-    output wire [ 7:0] mem_axi_arlen,
-    output wire [ 2:0] mem_axi_arsize,
-    output wire [ 1:0] mem_axi_arburst,
-    output wire        mem_axi_arvalid,
-    input  wire        mem_axi_arready,
-    input  wire [31:0] mem_axi_rdata,
-    input  wire [ 3:0] mem_axi_rid,
-    input  wire [ 1:0] mem_axi_rresp,
-    input  wire        mem_axi_rlast,
-    input  wire        mem_axi_rvalid,
-    output wire        mem_axi_rready,
-    output wire [31:0] mem_axi_awaddr,
-    output wire [ 3:0] mem_axi_awid,
-    output wire [ 7:0] mem_axi_awlen,
-    output wire [ 2:0] mem_axi_awsize,
-    output wire [ 1:0] mem_axi_awburst,
-    output wire        mem_axi_awvalid,
-    input  wire        mem_axi_awready,
-    output wire [31:0] mem_axi_wdata,
-    output wire [ 3:0] mem_axi_wstrb,
-    output wire        mem_axi_wlast,
-    output wire        mem_axi_wvalid,
-    input  wire        mem_axi_wready,
-    input  wire [ 3:0] mem_axi_bid,
-    input  wire [ 1:0] mem_axi_bresp,
-    input  wire        mem_axi_bvalid,
-    output wire        mem_axi_bready
+    input  wire [31:0] lsu_master_araddr,
+    input  wire [ 2:0] lsu_master_arsize,
+    input  wire        lsu_master_arvalid,
+    output wire        lsu_master_arready,
+    output wire [31:0] lsu_master_rdata,
+    output wire [ 1:0] lsu_master_rresp,
+    output wire        lsu_master_rvalid,
+    input  wire        lsu_master_rready,
+    input  wire [31:0] lsu_master_awaddr,
+    input  wire [ 2:0] lsu_master_awsize,
+    input  wire        lsu_master_awvalid,
+    output wire        lsu_master_awready,
+    input  wire [31:0] lsu_master_wdata,
+    input  wire [ 3:0] lsu_master_wstrb,
+    input  wire        lsu_master_wvalid,
+    output wire        lsu_master_wready,
+    output wire [ 1:0] lsu_master_bresp,
+    output wire        lsu_master_bvalid,
+    input  wire        lsu_master_bready,
+    // Shared IO master interface
+    output wire [31:0] io_master_araddr,
+    output wire [ 3:0] io_master_arid,
+    output wire [ 7:0] io_master_arlen,
+    output wire [ 2:0] io_master_arsize,
+    output wire [ 1:0] io_master_arburst,
+    output wire        io_master_arvalid,
+    input  wire        io_master_arready,
+    input  wire [31:0] io_master_rdata,
+    input  wire [ 3:0] io_master_rid,
+    input  wire [ 1:0] io_master_rresp,
+    input  wire        io_master_rlast,
+    input  wire        io_master_rvalid,
+    output wire        io_master_rready,
+    output wire [31:0] io_master_awaddr,
+    output wire [ 3:0] io_master_awid,
+    output wire [ 7:0] io_master_awlen,
+    output wire [ 2:0] io_master_awsize,
+    output wire [ 1:0] io_master_awburst,
+    output wire        io_master_awvalid,
+    input  wire        io_master_awready,
+    output wire [31:0] io_master_wdata,
+    output wire [ 3:0] io_master_wstrb,
+    output wire        io_master_wlast,
+    output wire        io_master_wvalid,
+    input  wire        io_master_wready,
+    input  wire [ 3:0] io_master_bid,
+    input  wire [ 1:0] io_master_bresp,
+    input  wire        io_master_bvalid,
+    output wire        io_master_bready
 );
 
     localparam R_IDLE = 2'd0;
@@ -75,8 +75,6 @@ module ysyx_26030082_axi4lite_arbiter (
     reg [1:0] rd_state;
     reg       rd_owner;
 
-    wire req_lsu_rd;
-    wire req_ifu_rd;
     wire rd_sel_lsu;
     wire rd_sel_ifu;
     wire rd_data_lsu;
@@ -86,58 +84,56 @@ module ysyx_26030082_axi4lite_arbiter (
     wire ifu_ar_fire;
     wire ifu_r_fire;
 
-    assign req_lsu_rd = lsu_axi_arvalid;
-    assign req_ifu_rd = ifu_axi_arvalid;
-    assign rd_sel_lsu = ((rd_state == R_IDLE) && req_lsu_rd) ||
+    assign rd_sel_lsu = ((rd_state == R_IDLE) && lsu_master_arvalid) ||
                         ((rd_state == R_AR) && (rd_owner == R_OWNER_LSU));
-    assign rd_sel_ifu = ((rd_state == R_IDLE) && ~req_lsu_rd && req_ifu_rd) ||
+    assign rd_sel_ifu = ((rd_state == R_IDLE) && ~lsu_master_arvalid && ifu_master_arvalid) ||
                         ((rd_state == R_AR) && (rd_owner == R_OWNER_IFU));
     assign rd_data_lsu = (rd_state == R_DATA) && (rd_owner == R_OWNER_LSU);
     assign rd_data_ifu = (rd_state == R_DATA) && (rd_owner == R_OWNER_IFU);
 
-    assign lsu_ar_fire = rd_sel_lsu && lsu_axi_arvalid && mem_axi_arready;
-    assign ifu_ar_fire = rd_sel_ifu && ifu_axi_arvalid && mem_axi_arready;
-    assign lsu_r_fire = rd_data_lsu && mem_axi_rvalid && lsu_axi_rready;
-    assign ifu_r_fire = rd_data_ifu && mem_axi_rvalid && ifu_axi_rready;
+    assign lsu_ar_fire = rd_sel_lsu && lsu_master_arvalid && io_master_arready;
+    assign ifu_ar_fire = rd_sel_ifu && ifu_master_arvalid && io_master_arready;
+    assign lsu_r_fire = rd_data_lsu && io_master_rvalid && lsu_master_rready;
+    assign ifu_r_fire = rd_data_ifu && io_master_rvalid && ifu_master_rready;
 
-    assign ifu_axi_arready = rd_sel_ifu && mem_axi_arready;
-    assign ifu_axi_rdata = mem_axi_rdata;
-    assign ifu_axi_rresp = mem_axi_rresp;
-    assign ifu_axi_rlast = mem_axi_rlast;
-    assign ifu_axi_rvalid = rd_data_ifu && mem_axi_rvalid;
+    assign ifu_master_arready = rd_sel_ifu && io_master_arready;
+    assign ifu_master_rdata = io_master_rdata;
+    assign ifu_master_rresp = io_master_rresp;
+    assign ifu_master_rlast = io_master_rlast;
+    assign ifu_master_rvalid = rd_data_ifu && io_master_rvalid;
 
-    assign lsu_axi_arready = rd_sel_lsu && mem_axi_arready;
-    assign lsu_axi_rdata = mem_axi_rdata;
-    assign lsu_axi_rresp = mem_axi_rresp;
-    assign lsu_axi_rvalid = rd_data_lsu && mem_axi_rvalid;
+    assign lsu_master_arready = rd_sel_lsu && io_master_arready;
+    assign lsu_master_rdata = io_master_rdata;
+    assign lsu_master_rresp = io_master_rresp;
+    assign lsu_master_rvalid = rd_data_lsu && io_master_rvalid;
 
-    assign lsu_axi_awready = mem_axi_awready;
-    assign lsu_axi_wready = mem_axi_wready;
-    assign lsu_axi_bresp = mem_axi_bresp;
-    assign lsu_axi_bvalid = mem_axi_bvalid;
+    assign lsu_master_awready = io_master_awready;
+    assign lsu_master_wready = io_master_wready;
+    assign lsu_master_bresp = io_master_bresp;
+    assign lsu_master_bvalid = io_master_bvalid;
 
-    assign mem_axi_araddr = rd_sel_ifu ? ifu_axi_araddr : lsu_axi_araddr;
-    assign mem_axi_arid = rd_sel_ifu ? 4'h1 : 4'h0;
-    assign mem_axi_arlen = rd_sel_ifu ? ifu_axi_arlen : 8'h00;
-    assign mem_axi_arsize = rd_sel_ifu ? 3'b010 : lsu_axi_arsize;
-    assign mem_axi_arburst = rd_sel_ifu ? ifu_axi_arburst : 2'b00;
-    assign mem_axi_arvalid = (rd_sel_ifu && ifu_axi_arvalid) ||
-                             (rd_sel_lsu && lsu_axi_arvalid);
-    assign mem_axi_rready = (rd_owner == R_OWNER_IFU) ?
-                            (rd_data_ifu && ifu_axi_rready) :
-                            (rd_data_lsu && lsu_axi_rready);
+    assign io_master_araddr = rd_sel_ifu ? ifu_master_araddr : lsu_master_araddr;
+    assign io_master_arid = rd_sel_ifu ? 4'h1 : 4'h0;
+    assign io_master_arlen = rd_sel_ifu ? ifu_master_arlen : 8'h00;
+    assign io_master_arsize = rd_sel_ifu ? 3'b010 : lsu_master_arsize;
+    assign io_master_arburst = rd_sel_ifu ? ifu_master_arburst : 2'b00;
+    assign io_master_arvalid = (rd_sel_ifu && ifu_master_arvalid) ||
+                             (rd_sel_lsu && lsu_master_arvalid);
+    assign io_master_rready = (rd_owner == R_OWNER_IFU) ?
+                            (rd_data_ifu && ifu_master_rready) :
+                            (rd_data_lsu && lsu_master_rready);
 
-    assign mem_axi_awaddr = lsu_axi_awaddr;
-    assign mem_axi_awid = 4'h0;
-    assign mem_axi_awlen = 8'h00;
-    assign mem_axi_awsize = lsu_axi_awsize;
-    assign mem_axi_awburst = 2'b00;
-    assign mem_axi_awvalid = lsu_axi_awvalid;
-    assign mem_axi_wdata = lsu_axi_wdata;
-    assign mem_axi_wstrb = lsu_axi_wstrb;
-    assign mem_axi_wlast = 1'b1;
-    assign mem_axi_wvalid = lsu_axi_wvalid;
-    assign mem_axi_bready = lsu_axi_bready;
+    assign io_master_awaddr = lsu_master_awaddr;
+    assign io_master_awid = 4'h0;
+    assign io_master_awlen = 8'h00;
+    assign io_master_awsize = lsu_master_awsize;
+    assign io_master_awburst = 2'b00;
+    assign io_master_awvalid = lsu_master_awvalid;
+    assign io_master_wdata = lsu_master_wdata;
+    assign io_master_wstrb = lsu_master_wstrb;
+    assign io_master_wlast = 1'b1;
+    assign io_master_wvalid = lsu_master_wvalid;
+    assign io_master_bready = lsu_master_bready;
 
     always @(posedge clock) begin
         if (reset) begin
@@ -146,10 +142,10 @@ module ysyx_26030082_axi4lite_arbiter (
         end else begin
             case (rd_state)
                 R_IDLE: begin
-                    if (req_lsu_rd) begin
+                    if (lsu_master_arvalid) begin
                         rd_owner <= R_OWNER_LSU;
                         rd_state <= lsu_ar_fire ? R_DATA : R_AR;
-                    end else if (req_ifu_rd) begin
+                    end else if (ifu_master_arvalid) begin
                         rd_owner <= R_OWNER_IFU;
                         rd_state <= ifu_ar_fire ? R_DATA : R_AR;
                     end else begin
@@ -164,7 +160,7 @@ module ysyx_26030082_axi4lite_arbiter (
                 end
 
                 R_DATA: begin
-                    if ((lsu_r_fire || ifu_r_fire) && mem_axi_rlast) begin
+                    if ((lsu_r_fire || ifu_r_fire) && io_master_rlast) begin
                         rd_state <= R_IDLE;
                         rd_owner <= R_OWNER_NONE;
                     end
@@ -179,6 +175,6 @@ module ysyx_26030082_axi4lite_arbiter (
     end
 
     wire _unused_ok;
-    assign _unused_ok = &{1'b0, mem_axi_rid, mem_axi_bid};
+    assign _unused_ok = &{1'b0, io_master_rid, io_master_bid};
 
 endmodule

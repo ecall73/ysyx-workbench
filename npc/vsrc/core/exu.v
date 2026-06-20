@@ -7,25 +7,33 @@ module ysyx_26030082_exu (
     input  wire [31:0] ex_pc,
     input  wire [31:0] ex_inst,
 
-    input  wire        ex_out_ready,
     output wire        ex_out_valid,
 
-    input  wire        ls_out_valid,
-    input  wire        ls_rf_wen,
-    input  wire [ 4:0] ls_rf_waddr,
-    input  wire [31:0] ls_rf_wdata,
-    input  wire        ls_load_pending,
+    input  wire [63:0] ex_mtime,
 
-    output reg         ex_rf_wen,
-    output wire        ex_mem_ren,
-    output wire        ex_mem_wen,
-    output wire [ 2:0] ex_funct3,
-    output wire [ 4:0] ex_rf_waddr,
-    output wire [31:0] ex_mem_addr,
     output wire        ex_redirect,
     output reg  [31:0] ex_redirect_pc,
-    output reg  [31:0] ex_wdata,
-    output wire        ex_fence_i
+    output wire        ex_fence_i,
+
+    output wire [31:0] lsu_master_araddr,
+    output wire [ 2:0] lsu_master_arsize,
+    output wire        lsu_master_arvalid,
+    input  wire        lsu_master_arready,
+    input  wire [31:0] lsu_master_rdata,
+    input  wire [ 1:0] lsu_master_rresp,
+    input  wire        lsu_master_rvalid,
+    output wire        lsu_master_rready,
+    output wire [31:0] lsu_master_awaddr,
+    output wire [ 2:0] lsu_master_awsize,
+    output wire        lsu_master_awvalid,
+    input  wire        lsu_master_awready,
+    output wire [31:0] lsu_master_wdata,
+    output wire [ 3:0] lsu_master_wstrb,
+    output wire        lsu_master_wvalid,
+    input  wire        lsu_master_wready,
+    input  wire [ 1:0] lsu_master_bresp,
+    input  wire        lsu_master_bvalid,
+    output wire        lsu_master_bready
 );
 
     localparam [6:0] OPCODE_OP   = 7'b011_0011;
@@ -87,32 +95,44 @@ module ysyx_26030082_exu (
     localparam [2:0] F3_JALR    = 3'b000;
 
     localparam [31:0] CAUSE_ECALL = 32'd11;
+    localparam L_IDLE      = 3'd0;
+    localparam L_RD_AR     = 3'd1;
+    localparam L_RD_WAIT_R = 3'd2;
+    localparam L_WR_AW_W   = 3'd3;
+    localparam L_WR_AW     = 3'd4;
+    localparam L_WR_W      = 3'd5;
+    localparam L_WR_WAIT_B = 3'd6;
+    localparam [15:0] CLINT_BASE_HI     = 16'h0200;
+    localparam [13:0] MTIME_WORD_OFFSET  = 14'h2ffe;
+    localparam [13:0] MTIMEH_WORD_OFFSET = 14'h2fff;
 
     // Common decode fields.
     wire [6:0] opcode;
     wire       funct7_5;
+    wire [2:0] funct3;
     wire [4:0] rf_raddr1;
     wire [4:0] rf_raddr2;
+    wire [4:0] rf_waddr;
     wire [11:0] csr_addr;
-    wire       rs1_used;
-    wire       rs2_used;
-    wire       csr_rs1_used;
     reg        branch_redirect;
 
-    // RF + forward.
+    // RF.
     reg  [31:0] reg_bank [1:15];
-    wire        ls_rf_write;
+    reg         rf_wen;
+    wire [31:0] store_wdata;
+    wire        rf_write;
+    reg  [31:0] rf_wdata;
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
-    wire        load_use_hazard;
-    wire [31:0] rf_rdata1_forward;
-    wire [31:0] rf_rdata2_forward;
 
     // Immediate.
     wire [31:0] imm;
 
     // ALU.
-    wire [31:0] ex_pc4;
+    wire [31:0] pc4;
+    wire        mem_ren;
+    wire        mem_wen;
+    wire [31:0] mem_addr;
     reg  [31:0] bit_lhs;
     wire [31:0] bit_rhs;
     wire [31:0] addsub_lhs;
@@ -142,49 +162,45 @@ module ysyx_26030082_exu (
     wire [31:0] csr_write_data;
     wire        csr_wdata_or_sel;
     wire        csr_wdata_and_sel;
+
+    // Memory.
+    reg  [2:0]  mem_state;
+    wire        is_mem;
+    wire        is_load;
+    wire        is_clint;
+    wire        is_local;
+    wire        is_local_load;
+    wire        ext_load_req;
+    wire        ext_store_req;
+    wire        ready_go;
+    wire        fire;
+    wire        ar_fire;
+    wire        r_fire;
+    wire        aw_fire;
+    wire        w_fire;
+    wire        b_fire;
+    wire [1:0]  mem_offset;
+    reg  [31:0] local_rdata;
+    wire [31:0] load_raw_data;
+    reg  [3:0]  wmask_calc;
+    reg  [31:0] wdata_aligned;
+    reg  [31:0] rdata_decoded;
+    reg  [2:0]  mem_size;
+
     assign opcode = ex_inst[6:0];
-    assign ex_funct3 = ex_inst[14:12];
+    assign funct3 = ex_inst[14:12];
     assign funct7_5 = ex_inst[30];
     assign rf_raddr1 = ex_inst[19:15];
     assign rf_raddr2 = ex_inst[24:20];
     assign csr_addr = ex_inst[31:20];
 
-    // RF + forward.
-    assign ls_rf_write = ls_out_valid && ls_rf_wen && (ls_rf_waddr != 5'b0);
+    assign rf_waddr = ex_inst[11:7];
 
-    always @(posedge clock) begin
-        if (ls_rf_write & ~ls_rf_waddr[4]) begin
-            reg_bank[ls_rf_waddr[3:0]] <= ls_rf_wdata;
-        end
-    end
-
+/////////////////////////
+    // ID: RF read, imm gen, input mux.
     assign rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
     assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
-
-    assign rf_rdata1_forward = ((rf_raddr1 == ls_rf_waddr) && ls_rf_write) ? ls_rf_wdata : rf_rdata1;
-    assign rf_rdata2_forward = ((rf_raddr2 == ls_rf_waddr) && ls_rf_write) ? ls_rf_wdata : rf_rdata2;
-
-    assign csr_rs1_used = (opcode == OPCODE_SYSTEM) &&
-                          ~ex_funct3[2] &&
-                          (ex_funct3[1:0] != 2'b00);
-    assign rs2_used = (opcode == OPCODE_OP) ||
-                      (opcode == OPCODE_STORE) ||
-                      (opcode == OPCODE_BRANCH);
-    assign rs1_used = rs2_used ||
-                      (opcode == OPCODE_OP_IMM) ||
-                      (opcode == OPCODE_LOAD) ||
-                      (opcode == OPCODE_JALR) ||
-                      csr_rs1_used;
-
-    assign load_use_hazard = ls_load_pending &&
-                             ls_rf_write &&
-                             ((rs1_used && (rf_raddr1 == ls_rf_waddr)) ||
-                              (rs2_used && (rf_raddr2 == ls_rf_waddr)));
-
-    assign ex_in_ready = ~ex_in_valid || (~load_use_hazard && ex_out_ready);
-    assign ex_out_valid = ex_in_valid && ~load_use_hazard;
-
-    assign ex_rf_waddr = ex_inst[11:7];
+    assign store_wdata = rf_rdata2;
 
     assign imm = ({32{(opcode == OPCODE_OP_IMM) ||
                       (opcode == OPCODE_LOAD) ||
@@ -202,22 +218,27 @@ module ysyx_26030082_exu (
                  ({32{opcode == OPCODE_SYSTEM}} &
                   {27'b0, ex_inst[19:15]});
 
-    // CSR read.
+    assign pc4 = ex_pc + 32'd4;
+    assign csr_src_data = funct3[2] ? imm : rf_rdata1;
+    assign mem_ren = (opcode == OPCODE_LOAD);
+    assign mem_wen = (opcode == OPCODE_STORE);
+    assign ex_fence_i = (opcode == OPCODE_MISC_MEM) &&
+                        (funct3 == F3_FENCE_I);
+
     always @(*) begin
-        case (csr_addr)
-            CSR_MSTATUS:   csr_rdata = csr_mstatus;
-            CSR_MTVEC:     csr_rdata = csr_mtvec;
-            CSR_MEPC:      csr_rdata = csr_mepc;
-            CSR_MCAUSE:    csr_rdata = csr_mcause;
-            CSR_MVENDORID: csr_rdata = 32'h7973_7978;
-            CSR_MARCHID:   csr_rdata = 32'd26030082;
-            default:       csr_rdata = 32'b0;
+        case (opcode)
+            OPCODE_OP,
+            OPCODE_OP_IMM,
+            OPCODE_LUI,
+            OPCODE_AUIPC,
+            OPCODE_LOAD,
+            OPCODE_JAL,
+            OPCODE_JALR:   rf_wen = 1'b1;
+            OPCODE_SYSTEM: rf_wen = (funct3 != F3_PRIV);
+            default:       rf_wen = 1'b0;
         endcase
     end
 
-    // ALU.
-    assign ex_pc4 = ex_pc + 32'd4;
-    assign csr_src_data = ex_funct3[2] ? imm : rf_rdata1_forward;
     always @(*) begin
         addsub_rhs = 32'b0;
         addsub_sub = 1'bx;
@@ -227,17 +248,17 @@ module ysyx_26030082_exu (
 
         case (opcode)
             OPCODE_OP: begin
-                addsub_rhs = rf_rdata2_forward;
-                addsub_sub = (ex_funct3 == F3_ADD_SUB) && funct7_5;
-                bit_lhs = rf_rdata1_forward;
-                shift_shamt = rf_rdata2_forward[4:0];
-                cmp_rhs = rf_rdata2_forward;
+                addsub_rhs = rf_rdata2;
+                addsub_sub = (funct3 == F3_ADD_SUB) && funct7_5;
+                bit_lhs = rf_rdata1;
+                shift_shamt = rf_rdata2[4:0];
+                cmp_rhs = rf_rdata2;
             end
 
             OPCODE_OP_IMM: begin
                 addsub_rhs = imm;
                 addsub_sub = 1'b0;
-                bit_lhs = rf_rdata1_forward;
+                bit_lhs = rf_rdata1;
                 shift_shamt = imm[4:0];
                 cmp_rhs = imm;
             end
@@ -258,11 +279,11 @@ module ysyx_26030082_exu (
             OPCODE_BRANCH: begin
                 addsub_rhs = imm;
                 addsub_sub = 1'b0;
-                cmp_rhs = rf_rdata2_forward;
+                cmp_rhs = rf_rdata2;
             end
 
             OPCODE_SYSTEM: begin
-                case (ex_funct3)
+                case (funct3)
                     F3_CSRRS,
                     F3_CSRRSI: begin
                         bit_lhs = csr_rdata;
@@ -283,20 +304,52 @@ module ysyx_26030082_exu (
         endcase
     end
 
+    assign addsub_lhs = ({32{(opcode == OPCODE_OP) ||
+                              (opcode == OPCODE_OP_IMM) ||
+                              (opcode == OPCODE_LOAD) ||
+                              (opcode == OPCODE_STORE) ||
+                              (opcode == OPCODE_JALR)}} & rf_rdata1) |
+                        ({32{(opcode == OPCODE_AUIPC) ||
+                              (opcode == OPCODE_JAL) ||
+                              (opcode == OPCODE_BRANCH)}} & ex_pc);
+    assign csr_wdata_or_sel = (funct3 == F3_CSRRS) ||
+                              (funct3 == F3_CSRRSI);
+    assign csr_wdata_and_sel = (funct3 == F3_CSRRC) ||
+                               (funct3 == F3_CSRRCI);
+    assign bit_rhs = ({32{opcode == OPCODE_OP}} & rf_rdata2) |
+                     ({32{opcode == OPCODE_OP_IMM}} & imm) |
+                     ({32{(opcode == OPCODE_SYSTEM) && csr_wdata_or_sel}} & csr_src_data) |
+                     ({32{(opcode == OPCODE_SYSTEM) && csr_wdata_and_sel}} & ~csr_src_data);
+
+/////////////////////////
+    // EX: FU, CSR, redirect.
     assign addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
     assign addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
+    assign mem_addr = addsub_result;
     assign and_result = bit_lhs & bit_rhs;
     assign or_result = bit_lhs | bit_rhs;
     assign xor_result = bit_lhs ^ bit_rhs;
-    assign sll_result = rf_rdata1_forward << shift_shamt;
-    assign srl_result = rf_rdata1_forward >> shift_shamt;
-    assign sra_result = ($signed(rf_rdata1_forward)) >>> shift_shamt;
-    assign cmp_eq = (rf_rdata1_forward == cmp_rhs);
-    assign cmp_lt = ($signed(rf_rdata1_forward) < $signed(cmp_rhs));
-    assign cmp_ltu = (rf_rdata1_forward < cmp_rhs);
+    assign sll_result = rf_rdata1 << shift_shamt;
+    assign srl_result = rf_rdata1 >> shift_shamt;
+    assign sra_result = ($signed(rf_rdata1)) >>> shift_shamt;
+    assign cmp_eq = (rf_rdata1 == cmp_rhs);
+    assign cmp_lt = ($signed(rf_rdata1) < $signed(cmp_rhs));
+    assign cmp_ltu = (rf_rdata1 < cmp_rhs);
 
     always @(*) begin
-        case (ex_funct3)
+        case (csr_addr)
+            CSR_MSTATUS:   csr_rdata = csr_mstatus;
+            CSR_MTVEC:     csr_rdata = csr_mtvec;
+            CSR_MEPC:      csr_rdata = csr_mepc;
+            CSR_MCAUSE:    csr_rdata = csr_mcause;
+            CSR_MVENDORID: csr_rdata = 32'h7973_7978;
+            CSR_MARCHID:   csr_rdata = 32'd26030082;
+            default:       csr_rdata = 32'b0;
+        endcase
+    end
+
+    always @(*) begin
+        case (funct3)
             F3_BEQ:  branch_redirect = cmp_eq;
             F3_BNE:  branch_redirect = ~cmp_eq;
             F3_BLT:  branch_redirect = cmp_lt;
@@ -310,132 +363,28 @@ module ysyx_26030082_exu (
     assign ex_redirect = ((opcode == OPCODE_BRANCH) && branch_redirect) ||
                          (opcode == OPCODE_JAL) ||
                          (opcode == OPCODE_JALR) ||
-                         ((opcode == OPCODE_SYSTEM) && (ex_funct3 == F3_PRIV)) ||
+                         ((opcode == OPCODE_SYSTEM) && (funct3 == F3_PRIV)) ||
                          ex_fence_i;
-    assign ex_mem_ren = (opcode == OPCODE_LOAD);
-    assign ex_mem_wen = (opcode == OPCODE_STORE);
-    assign ex_fence_i = (opcode == OPCODE_MISC_MEM) &&
-                        (ex_funct3 == F3_FENCE_I);
-    assign addsub_lhs = ({32{(opcode == OPCODE_OP) ||
-                              (opcode == OPCODE_OP_IMM) ||
-                              (opcode == OPCODE_LOAD) ||
-                              (opcode == OPCODE_STORE) ||
-                              (opcode == OPCODE_JALR)}} & rf_rdata1_forward) |
-                        ({32{(opcode == OPCODE_AUIPC) ||
-                              (opcode == OPCODE_JAL) ||
-                              (opcode == OPCODE_BRANCH)}} & ex_pc);
-    assign csr_wdata_or_sel = (ex_funct3 == F3_CSRRS) ||
-                              (ex_funct3 == F3_CSRRSI);
-    assign csr_wdata_and_sel = (ex_funct3 == F3_CSRRC) ||
-                               (ex_funct3 == F3_CSRRCI);
-    assign bit_rhs = ({32{opcode == OPCODE_OP}} & rf_rdata2_forward) |
-                     ({32{opcode == OPCODE_OP_IMM}} & imm) |
-                     ({32{(opcode == OPCODE_SYSTEM) && csr_wdata_or_sel}} & csr_src_data) |
-                     ({32{(opcode == OPCODE_SYSTEM) && csr_wdata_and_sel}} & ~csr_src_data);
-    assign csr_write_data = ({32{csr_wdata_or_sel}} & or_result) |
-                            ({32{csr_wdata_and_sel}} & and_result) |
-                            ({32{~csr_wdata_or_sel && ~csr_wdata_and_sel}} & csr_src_data);
-    assign ex_mem_addr = addsub_result;
 
-    always @(*) begin
-        case (opcode)
-            OPCODE_OP,
-            OPCODE_OP_IMM,
-            OPCODE_LUI,
-            OPCODE_AUIPC,
-            OPCODE_LOAD,
-            OPCODE_JAL,
-            OPCODE_JALR:   ex_rf_wen = 1'b1;
-            OPCODE_SYSTEM: ex_rf_wen = (ex_funct3 != F3_PRIV);
-            default:       ex_rf_wen = 1'b0;
-        endcase
-    end
-
-    // Output mux.
+    // Redirect mux.
     always @(*) begin
         ex_redirect_pc = 32'bx;
-        ex_wdata = 32'bx;
 
         case (opcode)
-            OPCODE_OP,
-            OPCODE_OP_IMM: begin
-                case (ex_funct3)
-                    F3_ADD_SUB: begin
-                        ex_wdata = addsub_result;
-                    end
-
-                    F3_SLL: begin
-                        ex_wdata = sll_result;
-                    end
-
-                    F3_SLT: begin
-                        ex_wdata = {31'b0, cmp_lt};
-                    end
-
-                    F3_SLTU: begin
-                        ex_wdata = {31'b0, cmp_ltu};
-                    end
-
-                    F3_XOR: begin
-                        ex_wdata = xor_result;
-                    end
-
-                    F3_SRL_SRA: begin
-                        case (funct7_5)
-                            1'b0: begin
-                                ex_wdata = srl_result;
-                            end
-
-                            1'b1: begin
-                                ex_wdata = sra_result;
-                            end
-                        endcase
-                    end
-
-                    F3_OR: begin
-                        ex_wdata = or_result;
-                    end
-
-                    F3_AND: begin
-                        ex_wdata = and_result;
-                    end
-
-                    default: begin
-                    end
-                endcase
-            end
-
-            OPCODE_LUI: begin
-                ex_wdata = imm;
-            end
-
-            OPCODE_AUIPC: begin
-                ex_wdata = addsub_result;
-            end
-
-            OPCODE_STORE: begin
-                ex_wdata = rf_rdata2_forward;
-            end
-
-            OPCODE_LOAD: begin
-            end
-
             OPCODE_BRANCH: begin
                 ex_redirect_pc = addsub_result;
             end
 
             OPCODE_JAL: begin
                 ex_redirect_pc = addsub_result;
-                ex_wdata = ex_pc4;
             end
 
             OPCODE_JALR: begin
                 ex_redirect_pc = {addsub_result[31:1], 1'b0};
-                ex_wdata = ex_pc4;
             end
 
             OPCODE_SYSTEM: begin
-                case (ex_funct3)
+                case (funct3)
                     F3_PRIV: begin
                         case (csr_addr)
                             F12_ECALL: begin
@@ -451,30 +400,15 @@ module ysyx_26030082_exu (
                         endcase
                     end
 
-                    F3_CSRRW,
-                    F3_CSRRWI: begin
-                        ex_wdata = csr_rdata;
-                    end
-
-                    F3_CSRRS,
-                    F3_CSRRSI: begin
-                        ex_wdata = csr_rdata;
-                    end
-
-                    F3_CSRRC,
-                    F3_CSRRCI: begin
-                        ex_wdata = csr_rdata;
-                    end
-
                     default: begin
                     end
                 endcase
             end
 
             OPCODE_MISC_MEM: begin
-                case (ex_funct3)
+                case (funct3)
                     F3_FENCE_I: begin
-                        ex_redirect_pc = ex_pc4;
+                        ex_redirect_pc = pc4;
                     end
 
                     default: begin
@@ -487,14 +421,18 @@ module ysyx_26030082_exu (
         endcase
     end
 
+    assign csr_write_data = ({32{csr_wdata_or_sel}} & or_result) |
+                            ({32{csr_wdata_and_sel}} & and_result) |
+                            ({32{~csr_wdata_or_sel && ~csr_wdata_and_sel}} & csr_src_data);
+
     always @(posedge clock) begin
         if (reset) begin
             csr_mstatus <= 32'h1800;
             csr_mtvec   <= 32'h1;
             csr_mepc    <= 32'h0;
             csr_mcause  <= 32'h0;
-        end else if (ex_out_valid && ex_out_ready && (opcode == OPCODE_SYSTEM)) begin
-            case (ex_funct3)
+        end else if (fire && (opcode == OPCODE_SYSTEM)) begin
+            case (funct3)
                 F3_PRIV: begin
                     case (csr_addr)
                         F12_ECALL: begin
@@ -507,30 +445,269 @@ module ysyx_26030082_exu (
                         F12_MRET: begin
                             csr_mstatus[3] <= csr_mstatus[7];
                         end
-                        default: begin
-                        end
+                        default:;
                     endcase
                 end
 
-                F3_CSRRW,
-                F3_CSRRS,
-                F3_CSRRC,
-                F3_CSRRWI,
-                F3_CSRRSI,
-                F3_CSRRCI: begin
+                F3_CSRRW, F3_CSRRS, F3_CSRRC, F3_CSRRWI, F3_CSRRSI, F3_CSRRCI: begin
                     case (csr_addr)
                         CSR_MSTATUS: csr_mstatus <= csr_write_data;
                         CSR_MTVEC:   csr_mtvec   <= csr_write_data;
                         CSR_MEPC:    csr_mepc    <= csr_write_data;
                         CSR_MCAUSE:  csr_mcause  <= csr_write_data;
-                        default: begin
-                        end
+                        default:;
                     endcase
                 end
 
                 default: begin
                 end
             endcase
+        end
+    end
+
+/////////////////////////
+    // LS: lsu_master.
+    assign is_mem = mem_ren || mem_wen;
+    assign is_load = mem_ren && ~mem_wen;
+    assign is_clint = (mem_addr[31:16] == CLINT_BASE_HI);
+    assign is_local = is_mem && is_clint;
+    assign is_local_load = is_load && is_clint;
+    assign ext_load_req = ex_in_valid && is_load && ~is_local;
+    assign ext_store_req = ex_in_valid && mem_wen && ~is_local;
+    assign ar_fire = lsu_master_arvalid && lsu_master_arready;
+    assign r_fire = lsu_master_rvalid && lsu_master_rready;
+    assign aw_fire = lsu_master_awvalid && lsu_master_awready;
+    assign w_fire = lsu_master_wvalid && lsu_master_wready;
+    assign b_fire = lsu_master_bvalid && lsu_master_bready;
+    assign mem_offset = mem_addr[1:0];
+    assign load_raw_data = is_local_load ? local_rdata : lsu_master_rdata;
+    assign ready_go = (mem_state == L_IDLE) ? ~(ex_in_valid && is_mem && ~is_local) :
+                         (mem_state == L_RD_WAIT_R) ? lsu_master_rvalid :
+                         (mem_state == L_WR_WAIT_B) ? lsu_master_bvalid : 1'b0;
+    assign ex_in_ready = ~ex_in_valid || ready_go;
+    assign fire = ex_in_valid && ready_go;
+    assign ex_out_valid = fire;
+
+    assign lsu_master_araddr = mem_addr;
+    assign lsu_master_arsize = mem_size;
+    assign lsu_master_arvalid = ((mem_state == L_IDLE) && ext_load_req) ||
+                             (mem_state == L_RD_AR);
+    assign lsu_master_rready = (mem_state == L_RD_WAIT_R);
+    assign lsu_master_awaddr = mem_addr;
+    assign lsu_master_awsize = mem_size;
+    assign lsu_master_awvalid = ((mem_state == L_IDLE) && ext_store_req) ||
+                             (mem_state == L_WR_AW_W) ||
+                             (mem_state == L_WR_AW);
+    assign lsu_master_wdata = wdata_aligned;
+    assign lsu_master_wstrb = wmask_calc;
+    assign lsu_master_wvalid = ((mem_state == L_IDLE) && ext_store_req) ||
+                            (mem_state == L_WR_AW_W) ||
+                            (mem_state == L_WR_W);
+    assign lsu_master_bready = (mem_state == L_WR_WAIT_B);
+
+    always @(*) begin
+        case (mem_addr[15:2])
+            MTIME_WORD_OFFSET:  local_rdata = ex_mtime[31:0];
+            MTIMEH_WORD_OFFSET: local_rdata = ex_mtime[63:32];
+            default:            local_rdata = 32'b0;
+        endcase
+    end
+
+    always @(*) begin
+        wmask_calc = 4'b0000;
+        wdata_aligned = store_wdata;
+        mem_size = 3'b010;
+        case (funct3)
+            F3_SB: begin
+                mem_size = 3'b000;
+                case (mem_offset)
+                    2'b00: begin
+                        wmask_calc = 4'b0001;
+                        wdata_aligned = {24'b0, store_wdata[7:0]};
+                    end
+                    2'b01: begin
+                        wmask_calc = 4'b0010;
+                        wdata_aligned = {16'b0, store_wdata[7:0], 8'b0};
+                    end
+                    2'b10: begin
+                        wmask_calc = 4'b0100;
+                        wdata_aligned = {8'b0, store_wdata[7:0], 16'b0};
+                    end
+                    2'b11: begin
+                        wmask_calc = 4'b1000;
+                        wdata_aligned = {store_wdata[7:0], 24'b0};
+                    end
+                endcase
+            end
+            F3_SH: begin
+                mem_size = 3'b001;
+                case (mem_offset[1])
+                    1'b0: begin
+                        wmask_calc = 4'b0011;
+                        wdata_aligned = {16'b0, store_wdata[15:0]};
+                    end
+                    1'b1: begin
+                        wmask_calc = 4'b1100;
+                        wdata_aligned = {store_wdata[15:0], 16'b0};
+                    end
+                endcase
+            end
+            F3_LBU: begin
+                mem_size = 3'b000;
+            end
+            F3_LHU: begin
+                mem_size = 3'b001;
+            end
+            default: begin
+                wmask_calc = 4'b1111;
+                wdata_aligned = store_wdata;
+            end
+        endcase
+    end
+
+    always @(*) begin
+        rdata_decoded = load_raw_data;
+        case (funct3)
+            F3_LB: begin
+                case (mem_offset)
+                    2'b00: rdata_decoded = {{24{load_raw_data[7]}}, load_raw_data[7:0]};
+                    2'b01: rdata_decoded = {{24{load_raw_data[15]}}, load_raw_data[15:8]};
+                    2'b10: rdata_decoded = {{24{load_raw_data[23]}}, load_raw_data[23:16]};
+                    2'b11: rdata_decoded = {{24{load_raw_data[31]}}, load_raw_data[31:24]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LH: begin
+                case (mem_offset[1])
+                    1'b0: rdata_decoded = {{16{load_raw_data[15]}}, load_raw_data[15:0]};
+                    1'b1: rdata_decoded = {{16{load_raw_data[31]}}, load_raw_data[31:16]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LBU: begin
+                case (mem_offset)
+                    2'b00: rdata_decoded = {24'b0, load_raw_data[7:0]};
+                    2'b01: rdata_decoded = {24'b0, load_raw_data[15:8]};
+                    2'b10: rdata_decoded = {24'b0, load_raw_data[23:16]};
+                    2'b11: rdata_decoded = {24'b0, load_raw_data[31:24]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LHU: begin
+                case (mem_offset[1])
+                    1'b0: rdata_decoded = {16'b0, load_raw_data[15:0]};
+                    1'b1: rdata_decoded = {16'b0, load_raw_data[31:16]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            default: rdata_decoded = load_raw_data;
+        endcase
+    end
+
+    always @(posedge clock) begin
+        if (reset) begin
+            mem_state <= L_IDLE;
+        end else begin
+            case (mem_state)
+                L_IDLE: begin
+                    if (ext_load_req) begin
+                        if (ar_fire) begin
+                            mem_state <= L_RD_WAIT_R;
+                        end else begin
+                            mem_state <= L_RD_AR;
+                        end
+                    end else if (ext_store_req) begin
+                        if (aw_fire && w_fire) begin
+                            mem_state <= L_WR_WAIT_B;
+                        end else if (aw_fire) begin
+                            mem_state <= L_WR_W;
+                        end else if (w_fire) begin
+                            mem_state <= L_WR_AW;
+                        end else begin
+                            mem_state <= L_WR_AW_W;
+                        end
+                    end
+                end
+
+                L_RD_AR: begin
+                    if (ar_fire) begin
+                        mem_state <= L_RD_WAIT_R;
+                    end
+                end
+
+                L_RD_WAIT_R: begin
+                    if (r_fire) begin
+                        mem_state <= L_IDLE;
+                    end
+                end
+
+                L_WR_AW_W: begin
+                    if (aw_fire && w_fire) begin
+                        mem_state <= L_WR_WAIT_B;
+                    end else if (aw_fire) begin
+                        mem_state <= L_WR_W;
+                    end else if (w_fire) begin
+                        mem_state <= L_WR_AW;
+                    end
+                end
+
+                L_WR_AW: begin
+                    if (aw_fire) begin
+                        mem_state <= L_WR_WAIT_B;
+                    end
+                end
+
+                L_WR_W: begin
+                    if (w_fire) begin
+                        mem_state <= L_WR_WAIT_B;
+                    end
+                end
+
+                L_WR_WAIT_B: begin
+                    if (b_fire) begin
+                        mem_state <= L_IDLE;
+                    end
+                end
+
+                default: begin
+                    mem_state <= L_IDLE;
+                end
+            endcase
+        end
+    end
+
+/////////////////////////
+    // WB: output mux and RF write.
+    assign rf_write = fire && rf_wen && (rf_waddr != 5'b0);
+
+    always @(*) begin
+        rf_wdata = 32'bx;
+        case (opcode)
+            OPCODE_OP, OPCODE_OP_IMM: begin
+                case (funct3)
+                    F3_ADD_SUB:         rf_wdata = addsub_result;
+                    F3_SLL:             rf_wdata = sll_result;
+                    F3_SLT:             rf_wdata = {31'b0, cmp_lt};
+                    F3_SLTU:            rf_wdata = {31'b0, cmp_ltu};
+                    F3_XOR:             rf_wdata = xor_result;
+                    F3_SRL_SRA:         rf_wdata = funct7_5 ? sra_result : srl_result;
+                    F3_OR:              rf_wdata = or_result;
+                    F3_AND:             rf_wdata = and_result;
+                    default:;
+                endcase
+            end
+            OPCODE_LUI:                 rf_wdata = imm;
+            OPCODE_AUIPC:               rf_wdata = addsub_result;
+            OPCODE_LOAD:                rf_wdata = rdata_decoded;
+            OPCODE_JAL, OPCODE_JALR:    rf_wdata = pc4;
+            OPCODE_SYSTEM:              rf_wdata = csr_rdata;
+            default:;
+        endcase
+    end
+
+    always @(posedge clock) begin
+        if (rf_write & ~rf_waddr[4]) begin
+            reg_bank[rf_waddr[3:0]] <= rf_wdata;
         end
     end
 

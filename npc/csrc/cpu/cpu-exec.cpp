@@ -12,7 +12,7 @@
 
 // PMU report uses magenta so it can be visually separated from normal logs.
 #define PmuLog(format, ...) \
-    _Log(ANSI_FMT("[PMU] " format, ANSI_FG_MAGENTA) "\n", ##__VA_ARGS__)
+    _Log(ANSI_FMT(format, ANSI_FG_MAGENTA) "\n", ##__VA_ARGS__)
 
 static bool g_commit_valid = false;
 static uint32_t g_commit_pc = 0;
@@ -44,20 +44,14 @@ static const char *kPmuClassName[PMU_CLASS_COUNT] = {
 };
 
 struct PmuCounters {
-    uint64_t ifu_r_fire;
-    uint64_t ifu_nosupply_total;
-    uint64_t ifu_wait_arready;
-    uint64_t ifu_wait_rvalid;
-    uint64_t ifu_id_backpressure;
-    uint64_t ifu_redirect_drop;
-    uint64_t lsu_r_fire;
-    uint64_t lsu_load_req;
-    uint64_t lsu_load_pending_cycle;
-    uint64_t exu_done_fire;
-    uint64_t dec_total;
-    uint64_t icache_hit;
+    uint64_t ifetch_fire;
     uint64_t icache_miss;
-    uint64_t icache_miss_refill_cycle;
+    uint64_t icache_miss_cycle;
+    uint64_t dcache_access;
+    uint64_t dcache_store;
+    uint64_t dcache_miss;
+    uint64_t dcache_miss_cycle;
+    uint64_t redirect;
 };
 
 static PmuCounters g_pmu = {};
@@ -102,20 +96,14 @@ extern "C" void npc_pmu_event(int event_mask) {
     }
 
     uint32_t mask = (uint32_t)event_mask;
-    if (mask & NPC_PMU_EVT_IFU_R_FIRE) g_pmu.ifu_r_fire++;
-    if (mask & NPC_PMU_EVT_IFU_NOSUPPLY_TOTAL) g_pmu.ifu_nosupply_total++;
-    if (mask & NPC_PMU_EVT_IFU_WAIT_ARREADY) g_pmu.ifu_wait_arready++;
-    if (mask & NPC_PMU_EVT_IFU_WAIT_RVALID) g_pmu.ifu_wait_rvalid++;
-    if (mask & NPC_PMU_EVT_IFU_ID_BACKPRESSURE) g_pmu.ifu_id_backpressure++;
-    if (mask & NPC_PMU_EVT_IFU_REDIRECT_DROP) g_pmu.ifu_redirect_drop++;
-    if (mask & NPC_PMU_EVT_LSU_R_FIRE) g_pmu.lsu_r_fire++;
-    if (mask & NPC_PMU_EVT_LSU_LOAD_REQ) g_pmu.lsu_load_req++;
-    if (mask & NPC_PMU_EVT_LSU_LOAD_PENDING_CYCLE) g_pmu.lsu_load_pending_cycle++;
-    if (mask & NPC_PMU_EVT_EXU_DONE_FIRE) g_pmu.exu_done_fire++;
-    if (mask & NPC_PMU_EVT_DEC_TOTAL) g_pmu.dec_total++;
-    if (mask & NPC_PMU_EVT_ICACHE_HIT) g_pmu.icache_hit++;
+    if (mask & NPC_PMU_EVT_IFETCH_FIRE) g_pmu.ifetch_fire++;
     if (mask & NPC_PMU_EVT_ICACHE_MISS) g_pmu.icache_miss++;
-    if (mask & NPC_PMU_EVT_ICACHE_MISS_REFILL_CYCLE) g_pmu.icache_miss_refill_cycle++;
+    if (mask & NPC_PMU_EVT_ICACHE_MISS_CYCLE) g_pmu.icache_miss_cycle++;
+    if (mask & NPC_PMU_EVT_DCACHE_ACCESS) g_pmu.dcache_access++;
+    if (mask & NPC_PMU_EVT_DCACHE_STORE) g_pmu.dcache_store++;
+    if (mask & NPC_PMU_EVT_DCACHE_MISS) g_pmu.dcache_miss++;
+    if (mask & NPC_PMU_EVT_DCACHE_MISS_CYCLE) g_pmu.dcache_miss_cycle++;
+    if (mask & NPC_PMU_EVT_REDIRECT) g_pmu.redirect++;
 }
 
 static uint64_t get_time_us() {
@@ -145,85 +133,90 @@ static void statistic() {
         Log("Finish running in less than 1 us and can not calculate the simulation frequency");
     }
 
-    uint64_t dec_total = g_pmu.dec_total;
-    uint64_t ifu_reason_known = g_pmu.ifu_wait_arready + g_pmu.ifu_wait_rvalid +
-                                g_pmu.ifu_id_backpressure + g_pmu.ifu_redirect_drop;
-    uint64_t ifu_reason_unknown = (g_pmu.ifu_nosupply_total >= ifu_reason_known)
-                                      ? (g_pmu.ifu_nosupply_total - ifu_reason_known)
-                                      : 0;
+    uint64_t icache_hit = g_pmu.ifetch_fire;
+    uint64_t icache_access = icache_hit + g_pmu.icache_miss;
+    double icache_miss_rate = ratio(g_pmu.icache_miss, icache_access);
+    double icache_miss_penalty = ratio(g_pmu.icache_miss_cycle, g_pmu.icache_miss);
+    double icache_amat = 1.0 + icache_miss_rate * icache_miss_penalty;
+    uint64_t dcache_load = (g_pmu.dcache_access >= g_pmu.dcache_store)
+                               ? (g_pmu.dcache_access - g_pmu.dcache_store)
+                               : 0;
+    double dcache_miss_penalty = ratio(g_pmu.dcache_miss_cycle, g_pmu.dcache_miss);
+    uint64_t control_flow =
+        g_ret_class_cnt[PMU_CLASS_BRANCH] +
+        g_ret_class_cnt[PMU_CLASS_JAL] +
+        g_ret_class_cnt[PMU_CLASS_JALR] +
+        g_ret_class_cnt[PMU_CLASS_SYSTEM] +
+        g_ret_class_cnt[PMU_CLASS_MISC_MEM];
 
-    PmuLog("=== PMU counters (simulation-only) ===");
-    PmuLog("ifu_r_fire      = %" PRIu64, g_pmu.ifu_r_fire);
-    PmuLog("ifu_nosupply_total   = %" PRIu64, g_pmu.ifu_nosupply_total);
-    PmuLog("ifu_wait_arready     = %" PRIu64, g_pmu.ifu_wait_arready);
-    PmuLog("ifu_wait_rvalid      = %" PRIu64, g_pmu.ifu_wait_rvalid);
-    PmuLog("ifu_id_backpressure  = %" PRIu64, g_pmu.ifu_id_backpressure);
-    PmuLog("ifu_redirect_drop    = %" PRIu64, g_pmu.ifu_redirect_drop);
-    PmuLog("lsu_r_fire      = %" PRIu64, g_pmu.lsu_r_fire);
-    PmuLog("lsu_load_req    = %" PRIu64, g_pmu.lsu_load_req);
-    PmuLog("lsu_load_pending_cycle = %" PRIu64, g_pmu.lsu_load_pending_cycle);
-    PmuLog("exu_done_fire   = %" PRIu64, g_pmu.exu_done_fire);
-    PmuLog("dec_total       = %" PRIu64, dec_total);
-    PmuLog("icache_hit      = %" PRIu64, g_pmu.icache_hit);
-    PmuLog("icache_miss     = %" PRIu64, g_pmu.icache_miss);
-    PmuLog("icache_miss_refill_cycle = %" PRIu64, g_pmu.icache_miss_refill_cycle);
+    PmuLog("\n=============== PMU IFU-ICache ===============");
+    PmuLog("+------------------+-------------+-----------+");
+    PmuLog("| %-16s | %11s | %9s |", "item", "count/value", "ratio");
+    PmuLog("+------------------+-------------+-----------+");
+    PmuLog("| %-16s | %11" PRIu64 " | %8.4f%% |",
+        "access", icache_access, 100.0 * ratio(icache_access, g_nr_sim_cycle));
+    PmuLog("| %-16s | %11" PRIu64 " | %8.4f%% |",
+        "miss", g_pmu.icache_miss, 100.0 * ratio(g_pmu.icache_miss, g_nr_sim_cycle));
+    PmuLog("| %-16s | %11" PRIu64 " | %8.4f%% |",
+        "miss_cycle", g_pmu.icache_miss_cycle, 100.0 * ratio(g_pmu.icache_miss_cycle, g_nr_sim_cycle));
+    PmuLog("| %-16s | %11s | %8.4f%% |",
+        "hit_rate", "-", 100.0 * ratio(icache_hit, icache_access));
+    PmuLog("| %-16s | %11s | %8.4f%% |",
+        "miss_rate", "-", 100.0 * icache_miss_rate);
+    PmuLog("| %-16s | %11.4f | %9s |",
+        "avg_miss_penalty", icache_miss_penalty, "-");
+    PmuLog("| %-16s | %11.4f | %9s |",
+        "AMAT", icache_amat, "-");
+    PmuLog("| %-16s | %11s | %9.4f |",
+        "access / cycle", "-", ratio(icache_access, g_nr_sim_cycle));
+    PmuLog("+------------------+-------------+-----------+\n");
 
-    if (g_nr_sim_cycle > 0) {
-        PmuLog("rate.ifu_r/cycle      = %.4f", ratio(g_pmu.ifu_r_fire, g_nr_sim_cycle));
-        PmuLog("rate.ifu_nosupply/cycle = %.4f", ratio(g_pmu.ifu_nosupply_total, g_nr_sim_cycle));
-        PmuLog("rate.exu_done/cycle   = %.4f", ratio(g_pmu.exu_done_fire, g_nr_sim_cycle));
-        PmuLog("rate.instret/cycle    = %.4f", ratio(g_nr_guest_inst, g_nr_sim_cycle));
-    }
+    PmuLog("=============== PMU LSU-DCache ===============");
+    PmuLog("+------------------+-------------+-----------+");
+    PmuLog("| %-16s | %11s | %9s |", "item", "count/value", "ratio");
+    PmuLog("+------------------+-------------+-----------+");
+    PmuLog("| %-16s | %11" PRIu64 " | %8.4f%% |",
+        "access", g_pmu.dcache_access, 100.0 * ratio(g_pmu.dcache_access, g_nr_sim_cycle));
+    PmuLog("| %-16s | %11" PRIu64 " | %8.4f%% |",
+        "load", dcache_load, 100.0 * ratio(dcache_load, g_nr_sim_cycle));
+    PmuLog("| %-16s | %11" PRIu64 " | %8.4f%% |",
+        "store", g_pmu.dcache_store, 100.0 * ratio(g_pmu.dcache_store, g_nr_sim_cycle));
+    PmuLog("| %-16s | %11" PRIu64 " | %8.4f%% |",
+        "miss", g_pmu.dcache_miss, 100.0 * ratio(g_pmu.dcache_miss, g_nr_sim_cycle));
+    PmuLog("| %-16s | %11" PRIu64 " | %8.4f%% |",
+        "miss_cycle", g_pmu.dcache_miss_cycle, 100.0 * ratio(g_pmu.dcache_miss_cycle, g_nr_sim_cycle));
+    PmuLog("| %-16s | %11s | %8.4f%% |",
+        "store_ratio", "-", 100.0 * ratio(g_pmu.dcache_store, g_pmu.dcache_access));
+    PmuLog("| %-16s | %11s | %8.4f%% |",
+        "miss_rate", "-", 100.0 * ratio(g_pmu.dcache_miss, g_pmu.dcache_access));
+    PmuLog("| %-16s | %11.4f | %9s |",
+        "avg_miss_penalty", dcache_miss_penalty, "-");
+    PmuLog("| %-16s | %11s | %9.4f |",
+        "access / cycle", "-", ratio(g_pmu.dcache_access, g_nr_sim_cycle));
+    PmuLog("+------------------+-------------+-----------+\n");
 
-    if (g_pmu.icache_hit + g_pmu.icache_miss > 0) {
-        uint64_t cacheable_lookup = g_pmu.icache_hit + g_pmu.icache_miss;
-        double hit_rate = ratio(g_pmu.icache_hit, cacheable_lookup);
-        double miss_rate = ratio(g_pmu.icache_miss, cacheable_lookup);
-        double miss_penalty = ratio(g_pmu.icache_miss_refill_cycle, g_pmu.icache_miss);
-        double access_time = 1.0;
-        double amat = access_time + miss_rate * miss_penalty;
+    PmuLog("================ PMU Redirect ================");
+    PmuLog("+------------------+-------------+-----------+");
+    PmuLog("| %-16s | %11s | %9s |", "item", "count/value", "ratio");
+    PmuLog("+------------------+-------------+-----------+");
+    PmuLog("| %-16s | %11" PRIu64 " | %8.4f%% |",
+        "redirect", g_pmu.redirect, 100.0 * ratio(g_pmu.redirect, g_nr_sim_cycle));
+    PmuLog("| %-16s | %11s | %8.4f%% |",
+        "redirect / inst", "-", 100.0 * ratio(g_pmu.redirect, g_nr_guest_inst));
+    PmuLog("| %-16s | %11s | %8.4f%% |",
+        "redirect / ctrl", "-", 100.0 * ratio(g_pmu.redirect, control_flow));
+    PmuLog("+------------------+-------------+-----------+\n");
 
-        PmuLog("=== PMU ICache AMAT ===");
-        PmuLog("icache.cacheable_lookup = %" PRIu64, cacheable_lookup);
-        PmuLog("icache.hit_rate(cacheable lookup) = %.2f%%", 100.0 * hit_rate);
-        PmuLog("icache.miss_rate(cacheable lookup) = %.2f%%", 100.0 * miss_rate);
-        PmuLog("icache.access_time(cycle) = %.3f", access_time);
-        PmuLog("icache.avg_miss_penalty(cycle) = %.3f", miss_penalty);
-        PmuLog("icache.AMAT(cycle/cacheable_access) = %.3f", amat);
-    }
-
-    PmuLog("=== PMU IFU no-supply breakdown ===");
-    PmuLog("ifu.reason.wait_arready: P(reason|nosupply)=%.2f%%, P(reason)=%.2f%%",
-        100.0 * ratio(g_pmu.ifu_wait_arready, g_pmu.ifu_nosupply_total),
-        100.0 * ratio(g_pmu.ifu_wait_arready, g_nr_sim_cycle));
-    PmuLog("ifu.reason.wait_rvalid: P(reason|nosupply)=%.2f%%, P(reason)=%.2f%%",
-        100.0 * ratio(g_pmu.ifu_wait_rvalid, g_pmu.ifu_nosupply_total),
-        100.0 * ratio(g_pmu.ifu_wait_rvalid, g_nr_sim_cycle));
-    PmuLog("ifu.reason.id_backpressure: P(reason|nosupply)=%.2f%%, P(reason)=%.2f%%",
-        100.0 * ratio(g_pmu.ifu_id_backpressure, g_pmu.ifu_nosupply_total),
-        100.0 * ratio(g_pmu.ifu_id_backpressure, g_nr_sim_cycle));
-    PmuLog("ifu.reason.redirect_drop: P(reason|nosupply)=%.2f%%, P(reason)=%.2f%%",
-        100.0 * ratio(g_pmu.ifu_redirect_drop, g_pmu.ifu_nosupply_total),
-        100.0 * ratio(g_pmu.ifu_redirect_drop, g_nr_sim_cycle));
-    PmuLog("ifu.reason.unclassified: P(reason|nosupply)=%.2f%%, P(reason)=%.2f%%",
-        100.0 * ratio(ifu_reason_unknown, g_pmu.ifu_nosupply_total),
-        100.0 * ratio(ifu_reason_unknown, g_nr_sim_cycle));
-
-    PmuLog("=== PMU LSU load latency ===");
-    PmuLog("lsu.avg_load_latency(cycle) = %.3f (pending=%" PRIu64 ", load_req=%" PRIu64 ")",
-        ratio(g_pmu.lsu_load_pending_cycle, g_pmu.lsu_load_req),
-        g_pmu.lsu_load_pending_cycle, g_pmu.lsu_load_req);
-
-    PmuLog("=== PMU commit table (type/count/percentage) ===");
-    PmuLog("+----------+--------------+------------+");
-    PmuLog("| %-8s | %12s | %10s |", "type", "count", "percentage");
-    PmuLog("+----------+--------------+------------+");
+    PmuLog("============== PMU commit table ==============");
+    PmuLog("+------------------+-------------+-----------+");
+    PmuLog("| %-16s | %11s | %9s |", "type", "count", "ratio");
+    PmuLog("+------------------+-------------+-----------+");
     for (int i = 0; i < PMU_CLASS_COUNT; i++) {
         double retire_mix = 100.0 * ratio(g_ret_class_cnt[i], g_nr_guest_inst);
-        PmuLog("| %-8s | %12" PRIu64 " | %9.5f%% |",
+        PmuLog("| %-16s | %11" PRIu64 " | %8.4f%% |",
             kPmuClassName[i], g_ret_class_cnt[i], retire_mix);
     }
-    PmuLog("+----------+--------------+------------+");
+    PmuLog("+------------------+-------------+-----------+\n");
 }
 
 void cpu_exec(uint64_t n) {

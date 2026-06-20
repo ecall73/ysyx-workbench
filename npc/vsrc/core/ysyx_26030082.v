@@ -129,78 +129,44 @@ module ysyx_26030082 #(
     reg  [31:0] ex_inst;
 
     // EX
-    wire        ex_rf_wen;
-    wire        ex_mem_ren;
-    wire        ex_mem_wen;
-    wire [ 2:0] ex_funct3;
-    wire [ 4:0] ex_rf_waddr;
-    wire [31:0] ex_mem_addr;
     wire        ex_redirect;
     wire [31:0] ex_redirect_pc;
-    wire [31:0] ex_wdata;
     wire        ex_fence_i;
     wire        ex_out_valid;
-    wire        ex_out_ready;
-
-    // LS
-    reg         ls_in_valid;
-    reg         ls_rf_wen;
-    reg         ls_mem_ren;
-    reg         ls_mem_wen;
-    reg  [ 2:0] ls_funct3;
-    reg  [ 4:0] ls_rf_waddr;
-    reg  [31:0] ls_mem_addr;
-    reg  [31:0] ls_wdata;
-    wire        ls_in_ready;
-    wire        ls_out_valid;
-    wire [31:0] ls_rf_wdata;
-
-`ifndef SYNTHESIS
-    assign pc_ex = ex_pc;
-    assign inst_ex = ex_inst;
-`endif
 
     // IFU AXI4 (read-only in practice)
-    wire [31:0] ifu_axi_araddr;
-    wire [ 7:0] ifu_axi_arlen;
-    wire [ 1:0] ifu_axi_arburst;
-    wire        ifu_axi_arvalid;
-    wire        ifu_axi_arready;
-    wire [31:0] ifu_axi_rdata;
-    wire [ 1:0] ifu_axi_rresp;
-    wire        ifu_axi_rlast;
-    wire        ifu_axi_rvalid;
-    wire        ifu_axi_rready;
+    wire [31:0] ifu_master_araddr;
+    wire [ 7:0] ifu_master_arlen;
+    wire [ 1:0] ifu_master_arburst;
+    wire        ifu_master_arvalid;
+    wire        ifu_master_arready;
+    wire [31:0] ifu_master_rdata;
+    wire [ 1:0] ifu_master_rresp;
+    wire        ifu_master_rlast;
+    wire        ifu_master_rvalid;
+    wire        ifu_master_rready;
 
-    // LSU AXI4-Lite (internal master)
-    wire [31:0] lsu_axi_araddr;
-    wire [ 2:0] lsu_axi_arsize;
-    wire        lsu_axi_arvalid;
-    wire        lsu_axi_arready;
-    wire [31:0] lsu_axi_rdata;
-    wire [ 1:0] lsu_axi_rresp;
-    wire        lsu_axi_rvalid;
-    wire        lsu_axi_rready;
-    wire [31:0] lsu_axi_awaddr;
-    wire [ 2:0] lsu_axi_awsize;
-    wire        lsu_axi_awvalid;
-    wire        lsu_axi_awready;
-    wire [31:0] lsu_axi_wdata;
-    wire [ 3:0] lsu_axi_wstrb;
-    wire        lsu_axi_wvalid;
-    wire        lsu_axi_wready;
-    wire [ 1:0] lsu_axi_bresp;
-    wire        lsu_axi_bvalid;
-    wire        lsu_axi_bready;
+    // EXU LSU AXI4-Lite master
+    wire [31:0] lsu_master_araddr;
+    wire [ 2:0] lsu_master_arsize;
+    wire        lsu_master_arvalid;
+    wire        lsu_master_arready;
+    wire [31:0] lsu_master_rdata;
+    wire [ 1:0] lsu_master_rresp;
+    wire        lsu_master_rvalid;
+    wire        lsu_master_rready;
+    wire [31:0] lsu_master_awaddr;
+    wire [ 2:0] lsu_master_awsize;
+    wire        lsu_master_awvalid;
+    wire        lsu_master_awready;
+    wire [31:0] lsu_master_wdata;
+    wire [ 3:0] lsu_master_wstrb;
+    wire        lsu_master_wvalid;
+    wire        lsu_master_wready;
+    wire [ 1:0] lsu_master_bresp;
+    wire        lsu_master_bvalid;
+    wire        lsu_master_bready;
     reg  [63:0] mtime;
-
-    // Debug Interface
-    `ifndef SYNTHESIS
-        wire [31:0] pc_ex;
-        reg  [31:0] pc_ls;
-        wire [31:0] inst_ex;
-        reg  [31:0] inst_ls;
-    `endif
 
 ////////////////////////////////////////////////////////////////
 
@@ -220,7 +186,6 @@ module ysyx_26030082 #(
         .reset                  (reset),
 
         .ex_out_valid           (ex_out_valid),
-        .ex_out_ready           (ex_out_ready),
         .ex_redirect            (ex_redirect),
         .ex_redirect_pc         (ex_redirect_pc),
         .ex_fence_i             (ex_fence_i),
@@ -230,16 +195,16 @@ module ysyx_26030082 #(
         .if_pc                  (if_pc),
         .if_inst                (if_inst),
 
-        .ifu_axi_araddr         (ifu_axi_araddr),
-        .ifu_axi_arlen          (ifu_axi_arlen),
-        .ifu_axi_arburst        (ifu_axi_arburst),
-        .ifu_axi_arvalid        (ifu_axi_arvalid),
-        .ifu_axi_arready        (ifu_axi_arready),
-        .ifu_axi_rdata          (ifu_axi_rdata),
-        .ifu_axi_rresp          (ifu_axi_rresp),
-        .ifu_axi_rlast          (ifu_axi_rlast),
-        .ifu_axi_rvalid         (ifu_axi_rvalid),
-        .ifu_axi_rready         (ifu_axi_rready)
+        .ifu_master_araddr         (ifu_master_araddr),
+        .ifu_master_arlen          (ifu_master_arlen),
+        .ifu_master_arburst        (ifu_master_arburst),
+        .ifu_master_arvalid        (ifu_master_arvalid),
+        .ifu_master_arready        (ifu_master_arready),
+        .ifu_master_rdata          (ifu_master_rdata),
+        .ifu_master_rresp          (ifu_master_rresp),
+        .ifu_master_rlast          (ifu_master_rlast),
+        .ifu_master_rvalid         (ifu_master_rvalid),
+        .ifu_master_rready         (ifu_master_rready)
     );
     
     assign if_out_ready = ex_in_ready;
@@ -252,7 +217,7 @@ module ysyx_26030082 #(
             ex_in_valid <= 1'b0;
             ex_pc <= 32'b0;
             ex_inst <= 32'b0;
-        end else if (ex_redirect && ex_out_valid && ex_out_ready) begin
+        end else if (ex_redirect && ex_out_valid) begin
             ex_in_valid <= 1'b0;
             ex_pc <= 32'b0;
             ex_inst <= 32'b0;
@@ -272,174 +237,105 @@ module ysyx_26030082 #(
         .ex_inst                (ex_inst),
 
         .ex_out_valid           (ex_out_valid),
-        .ex_out_ready           (ex_out_ready),
 
-        .ls_out_valid           (ls_out_valid),
-        .ls_rf_wen              (ls_rf_wen),
-        .ls_rf_waddr            (ls_rf_waddr),
-        .ls_rf_wdata            (ls_rf_wdata),
-        .ls_load_pending        (ls_in_valid && ls_mem_ren && ~ls_out_valid),
+        .ex_mtime               (mtime),
 
-        .ex_rf_wen              (ex_rf_wen),
-        .ex_mem_ren             (ex_mem_ren),
-        .ex_mem_wen             (ex_mem_wen),
-        .ex_funct3              (ex_funct3),
-        .ex_rf_waddr            (ex_rf_waddr),
-        .ex_mem_addr            (ex_mem_addr),
         .ex_redirect            (ex_redirect),
         .ex_redirect_pc         (ex_redirect_pc),
-        .ex_wdata               (ex_wdata),
-        .ex_fence_i             (ex_fence_i)
-    );
+        .ex_fence_i             (ex_fence_i),
 
-    // EX -> LS handshake coupling
-    assign ex_out_ready = ls_in_ready;
-
-    // ================================================================
-    // EX -> LS
-    // ================================================================
-    always @(posedge clock) begin
-        if (reset) begin
-            ls_in_valid <= 1'b0;
-        end else if (ex_out_ready) begin
-            ls_in_valid <= ex_out_valid;
-            ls_rf_wen <= ex_rf_wen;
-            ls_mem_wen <= ex_mem_wen;
-            ls_mem_addr <= ex_mem_addr;
-            ls_funct3 <= ex_funct3;
-            ls_rf_waddr <= ex_rf_waddr;
-            ls_wdata <= ex_wdata;
-            ls_mem_ren <= ex_mem_ren;
-        end
-    end
-
-    //trace
-    `ifndef SYNTHESIS
-        always @(posedge clock) begin
-            if (reset) begin
-                pc_ls <= 32'b0;
-                inst_ls <= 32'b0;
-            end else if (ex_out_ready) begin
-                if (ex_out_valid) begin
-                    pc_ls <= pc_ex;
-                    inst_ls <= inst_ex;
-                end else begin
-                    pc_ls <= 32'b0;
-                    inst_ls <= 32'b0;
-                end
-            end
-        end
-    `endif
-
-    ysyx_26030082_lsu lsu (
-        .clock                  (clock),
-        .reset                  (reset),
-        .ls_in_valid            (ls_in_valid),
-        .ls_in_ready            (ls_in_ready),
-        .ls_out_valid           (ls_out_valid),
-
-        .ls_mem_addr            (ls_mem_addr),
-        .ls_funct3              (ls_funct3),
-        .ls_mem_wen             (ls_mem_wen),
-        .ls_mem_ren             (ls_mem_ren),
-        .ls_wdata               (ls_wdata),
-
-        .ls_mtime               (mtime),
-
-        .lsu_axi_araddr         (lsu_axi_araddr),
-        .lsu_axi_arsize         (lsu_axi_arsize),
-        .lsu_axi_arvalid        (lsu_axi_arvalid),
-        .lsu_axi_arready        (lsu_axi_arready),
-        .lsu_axi_rdata          (lsu_axi_rdata),
-        .lsu_axi_rresp          (lsu_axi_rresp),
-        .lsu_axi_rvalid         (lsu_axi_rvalid),
-        .lsu_axi_rready         (lsu_axi_rready),
-        .lsu_axi_awaddr         (lsu_axi_awaddr),
-        .lsu_axi_awsize         (lsu_axi_awsize),
-        .lsu_axi_awvalid        (lsu_axi_awvalid),
-        .lsu_axi_awready        (lsu_axi_awready),
-        .lsu_axi_wdata          (lsu_axi_wdata),
-        .lsu_axi_wstrb          (lsu_axi_wstrb),
-        .lsu_axi_wvalid         (lsu_axi_wvalid),
-        .lsu_axi_wready         (lsu_axi_wready),
-        .lsu_axi_bresp          (lsu_axi_bresp),
-        .lsu_axi_bvalid         (lsu_axi_bvalid),
-        .lsu_axi_bready         (lsu_axi_bready),
-
-        .ls_rf_wdata            (ls_rf_wdata)
+        .lsu_master_araddr         (lsu_master_araddr),
+        .lsu_master_arsize         (lsu_master_arsize),
+        .lsu_master_arvalid        (lsu_master_arvalid),
+        .lsu_master_arready        (lsu_master_arready),
+        .lsu_master_rdata          (lsu_master_rdata),
+        .lsu_master_rresp          (lsu_master_rresp),
+        .lsu_master_rvalid         (lsu_master_rvalid),
+        .lsu_master_rready         (lsu_master_rready),
+        .lsu_master_awaddr         (lsu_master_awaddr),
+        .lsu_master_awsize         (lsu_master_awsize),
+        .lsu_master_awvalid        (lsu_master_awvalid),
+        .lsu_master_awready        (lsu_master_awready),
+        .lsu_master_wdata          (lsu_master_wdata),
+        .lsu_master_wstrb          (lsu_master_wstrb),
+        .lsu_master_wvalid         (lsu_master_wvalid),
+        .lsu_master_wready         (lsu_master_wready),
+        .lsu_master_bresp          (lsu_master_bresp),
+        .lsu_master_bvalid         (lsu_master_bvalid),
+        .lsu_master_bready         (lsu_master_bready)
     );
 
     ysyx_26030082_axi4lite_arbiter axi4lite_arbiter (
         .clock                  (clock),
         .reset                  (reset),
 
-        .ifu_axi_araddr         (ifu_axi_araddr),
-        .ifu_axi_arlen          (ifu_axi_arlen),
-        .ifu_axi_arburst        (ifu_axi_arburst),
-        .ifu_axi_arvalid        (ifu_axi_arvalid),
-        .ifu_axi_arready        (ifu_axi_arready),
-        .ifu_axi_rdata          (ifu_axi_rdata),
-        .ifu_axi_rresp          (ifu_axi_rresp),
-        .ifu_axi_rlast          (ifu_axi_rlast),
-        .ifu_axi_rvalid         (ifu_axi_rvalid),
-        .ifu_axi_rready         (ifu_axi_rready),
+        .ifu_master_araddr         (ifu_master_araddr),
+        .ifu_master_arlen          (ifu_master_arlen),
+        .ifu_master_arburst        (ifu_master_arburst),
+        .ifu_master_arvalid        (ifu_master_arvalid),
+        .ifu_master_arready        (ifu_master_arready),
+        .ifu_master_rdata          (ifu_master_rdata),
+        .ifu_master_rresp          (ifu_master_rresp),
+        .ifu_master_rlast          (ifu_master_rlast),
+        .ifu_master_rvalid         (ifu_master_rvalid),
+        .ifu_master_rready         (ifu_master_rready),
 
-        .lsu_axi_araddr         (lsu_axi_araddr),
-        .lsu_axi_arsize         (lsu_axi_arsize),
-        .lsu_axi_arvalid        (lsu_axi_arvalid),
-        .lsu_axi_arready        (lsu_axi_arready),
-        .lsu_axi_rdata          (lsu_axi_rdata),
-        .lsu_axi_rresp          (lsu_axi_rresp),
-        .lsu_axi_rvalid         (lsu_axi_rvalid),
-        .lsu_axi_rready         (lsu_axi_rready),
-        .lsu_axi_awaddr         (lsu_axi_awaddr),
-        .lsu_axi_awsize         (lsu_axi_awsize),
-        .lsu_axi_awvalid        (lsu_axi_awvalid),
-        .lsu_axi_awready        (lsu_axi_awready),
-        .lsu_axi_wdata          (lsu_axi_wdata),
-        .lsu_axi_wstrb          (lsu_axi_wstrb),
-        .lsu_axi_wvalid         (lsu_axi_wvalid),
-        .lsu_axi_wready         (lsu_axi_wready),
-        .lsu_axi_bresp          (lsu_axi_bresp),
-        .lsu_axi_bvalid         (lsu_axi_bvalid),
-        .lsu_axi_bready         (lsu_axi_bready),
+        .lsu_master_araddr         (lsu_master_araddr),
+        .lsu_master_arsize         (lsu_master_arsize),
+        .lsu_master_arvalid        (lsu_master_arvalid),
+        .lsu_master_arready        (lsu_master_arready),
+        .lsu_master_rdata          (lsu_master_rdata),
+        .lsu_master_rresp          (lsu_master_rresp),
+        .lsu_master_rvalid         (lsu_master_rvalid),
+        .lsu_master_rready         (lsu_master_rready),
+        .lsu_master_awaddr         (lsu_master_awaddr),
+        .lsu_master_awsize         (lsu_master_awsize),
+        .lsu_master_awvalid        (lsu_master_awvalid),
+        .lsu_master_awready        (lsu_master_awready),
+        .lsu_master_wdata          (lsu_master_wdata),
+        .lsu_master_wstrb          (lsu_master_wstrb),
+        .lsu_master_wvalid         (lsu_master_wvalid),
+        .lsu_master_wready         (lsu_master_wready),
+        .lsu_master_bresp          (lsu_master_bresp),
+        .lsu_master_bvalid         (lsu_master_bvalid),
+        .lsu_master_bready         (lsu_master_bready),
 
-        .mem_axi_araddr          (io_master_araddr),
-        .mem_axi_arid            (io_master_arid),
-        .mem_axi_arlen           (io_master_arlen),
-        .mem_axi_arsize          (io_master_arsize),
-        .mem_axi_arburst         (io_master_arburst),
-        .mem_axi_arvalid         (io_master_arvalid),
-        .mem_axi_arready         (io_master_arready),
-        .mem_axi_rdata           (io_master_rdata),
-        .mem_axi_rid             (io_master_rid),
-        .mem_axi_rresp           (io_master_rresp),
-        .mem_axi_rlast           (io_master_rlast),
-        .mem_axi_rvalid          (io_master_rvalid),
-        .mem_axi_rready          (io_master_rready),
-        .mem_axi_awaddr          (io_master_awaddr),
-        .mem_axi_awid            (io_master_awid),
-        .mem_axi_awlen           (io_master_awlen),
-        .mem_axi_awsize          (io_master_awsize),
-        .mem_axi_awburst         (io_master_awburst),
-        .mem_axi_awvalid         (io_master_awvalid),
-        .mem_axi_awready         (io_master_awready),
-        .mem_axi_wdata           (io_master_wdata),
-        .mem_axi_wstrb           (io_master_wstrb),
-        .mem_axi_wlast           (io_master_wlast),
-        .mem_axi_wvalid          (io_master_wvalid),
-        .mem_axi_wready          (io_master_wready),
-        .mem_axi_bid             (io_master_bid),
-        .mem_axi_bresp           (io_master_bresp),
-        .mem_axi_bvalid          (io_master_bvalid),
-        .mem_axi_bready          (io_master_bready)
+        .io_master_araddr           (io_master_araddr),
+        .io_master_arid             (io_master_arid),
+        .io_master_arlen            (io_master_arlen),
+        .io_master_arsize           (io_master_arsize),
+        .io_master_arburst          (io_master_arburst),
+        .io_master_arvalid          (io_master_arvalid),
+        .io_master_arready          (io_master_arready),
+        .io_master_rdata            (io_master_rdata),
+        .io_master_rid              (io_master_rid),
+        .io_master_rresp            (io_master_rresp),
+        .io_master_rlast            (io_master_rlast),
+        .io_master_rvalid           (io_master_rvalid),
+        .io_master_rready           (io_master_rready),
+        .io_master_awaddr           (io_master_awaddr),
+        .io_master_awid             (io_master_awid),
+        .io_master_awlen            (io_master_awlen),
+        .io_master_awsize           (io_master_awsize),
+        .io_master_awburst          (io_master_awburst),
+        .io_master_awvalid          (io_master_awvalid),
+        .io_master_awready          (io_master_awready),
+        .io_master_wdata            (io_master_wdata),
+        .io_master_wstrb            (io_master_wstrb),
+        .io_master_wlast            (io_master_wlast),
+        .io_master_wvalid           (io_master_wvalid),
+        .io_master_wready           (io_master_wready),
+        .io_master_bid              (io_master_bid),
+        .io_master_bresp            (io_master_bresp),
+        .io_master_bvalid           (io_master_bvalid),
+        .io_master_bready           (io_master_bready)
     );
 
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
     always @(posedge clock) begin
-        if (!reset && ls_out_valid) begin
-            npc_commit(pc_ls, inst_ls);
+        if (!reset && ex_out_valid) begin
+            npc_commit(ex_pc, ex_inst);
         end
     end
 `endif
@@ -450,94 +346,69 @@ module ysyx_26030082 #(
     // ================================================================
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
-    localparam [31:0] PMU_EVT_IFU_R_FIRE      = 32'h0000_0001;
-    localparam [31:0] PMU_EVT_LSU_R_FIRE      = 32'h0000_0004;
-    localparam [31:0] PMU_EVT_EXU_DONE_FIRE   = 32'h0000_0008;
-    localparam [31:0] PMU_EVT_DEC_TOTAL       = 32'h0000_0010;
-    localparam [31:0] PMU_EVT_IFU_NOSUPPLY_TOTAL  = 32'h0000_0800;
-    localparam [31:0] PMU_EVT_IFU_WAIT_ARREADY    = 32'h0000_1000;
-    localparam [31:0] PMU_EVT_IFU_WAIT_RVALID     = 32'h0000_2000;
-    localparam [31:0] PMU_EVT_IFU_ID_BACKPRESSURE = 32'h0000_4000;
-    localparam [31:0] PMU_EVT_IFU_REDIRECT_DROP   = 32'h0000_8000;
-    localparam [31:0] PMU_EVT_LSU_LOAD_REQ        = 32'h0004_0000;
-    localparam [31:0] PMU_EVT_LSU_LOAD_PENDING_CYCLE = 32'h0020_0000;
-    localparam [31:0] PMU_EVT_ICACHE_HIT          = 32'h0040_0000;
-    localparam [31:0] PMU_EVT_ICACHE_MISS         = 32'h0080_0000;
-    localparam [31:0] PMU_EVT_ICACHE_MISS_REFILL_CYCLE = 32'h0100_0000;
+    localparam [31:0] PMU_EVT_IFETCH_FIRE       = 32'h0000_0001;
+    localparam [31:0] PMU_EVT_ICACHE_MISS       = 32'h0000_0002;
+    localparam [31:0] PMU_EVT_ICACHE_MISS_CYCLE = 32'h0000_0004;
+    localparam [31:0] PMU_EVT_DCACHE_ACCESS     = 32'h0000_0008;
+    localparam [31:0] PMU_EVT_DCACHE_STORE      = 32'h0000_0010;
+    localparam [31:0] PMU_EVT_DCACHE_MISS       = 32'h0000_0020;
+    localparam [31:0] PMU_EVT_DCACHE_MISS_CYCLE = 32'h0000_0040;
+    localparam [31:0] PMU_EVT_REDIRECT          = 32'h0000_0080;
 
     localparam [1:0] PMU_ICACHE_LOOKUP  = 2'd0;
     localparam [1:0] PMU_ICACHE_MISS_AR = 2'd1;
     localparam [1:0] PMU_ICACHE_MISS_R  = 2'd2;
 
-    localparam [2:0] PMU_LSU_IDLE       = 3'd0;
-    localparam [2:0] PMU_LSU_RD_AR      = 3'd1;
-    localparam [2:0] PMU_LSU_RD_WAIT_R  = 3'd2;
+    localparam [2:0] PMU_LSU_IDLE = 3'd0;
 
-    wire        pmu_ifu_r_fire;
-    wire        pmu_ifu_nosupply;
-    wire        pmu_lsu_r_fire;
-    wire        pmu_lsu_load_req;
-    wire        pmu_lsu_load_pending;
-    wire        pmu_exu_done_fire;
-    wire        pmu_dec_total;
-    wire        pmu_icache_miss_refill_busy;
+    wire        pmu_ifetch_fire;
+    wire        pmu_icache_miss;
+    wire        pmu_icache_miss_cycle;
+    wire        pmu_dcache_access;
+    wire        pmu_dcache_store;
+    wire        pmu_dcache_miss_cycle;
+    wire        pmu_redirect;
     reg  [31:0] pmu_event_mask;
 
     // Direct hierarchical reads: simulation-only, no extra submodule ports.
-    assign pmu_ifu_r_fire = if_out_valid && if_out_ready;
-    assign pmu_ifu_nosupply = !pmu_ifu_r_fire;
-    assign pmu_lsu_r_fire = lsu.r_fire;
-    assign pmu_lsu_load_req = (lsu.state == PMU_LSU_IDLE) && ls_in_valid && lsu.ls_is_load;
-    assign pmu_lsu_load_pending = (lsu.state == PMU_LSU_RD_AR) || (lsu.state == PMU_LSU_RD_WAIT_R);
-    assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
-    assign pmu_dec_total = !ifu.flush && ex_out_valid && ex_out_ready;
-    assign pmu_icache_miss_refill_busy =
+    assign pmu_ifetch_fire = if_out_valid && if_out_ready;
+    assign pmu_icache_miss = (ifu.state == PMU_ICACHE_LOOKUP) && ifu.cache_miss;
+    assign pmu_icache_miss_cycle =
         (ifu.state == PMU_ICACHE_MISS_AR) ||
         (ifu.state == PMU_ICACHE_MISS_R);
+    assign pmu_dcache_access = (exu.mem_state == PMU_LSU_IDLE) &&
+                               ex_in_valid && exu.is_mem && !exu.is_local;
+    assign pmu_dcache_store = pmu_dcache_access && exu.mem_wen;
+    assign pmu_dcache_miss_cycle = ex_in_valid && !ex_in_ready &&
+                                   exu.is_mem && !exu.is_local;
+    assign pmu_redirect = ex_out_valid && ex_redirect;
 
     always @(*) begin
         pmu_event_mask = 32'b0;
 
         if (!reset) begin
-            if (pmu_ifu_r_fire) begin
-                pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_R_FIRE;
+            if (pmu_ifetch_fire) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_IFETCH_FIRE;
             end
-            if (pmu_ifu_nosupply) begin
-                pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_NOSUPPLY_TOTAL;
-                if (ifu.flush) begin
-                    pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_REDIRECT_DROP;
-                end else if (if_out_valid && !if_out_ready) begin
-                    pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_ID_BACKPRESSURE;
-                end else if (ifu_axi_arvalid && !ifu_axi_arready) begin
-                    pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_ARREADY;
-                end else begin
-                    pmu_event_mask = pmu_event_mask | PMU_EVT_IFU_WAIT_RVALID;
-                end
-            end
-            if (if_out_valid) begin
-                pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_HIT;
-            end
-            if ((ifu.state == PMU_ICACHE_LOOKUP) && ifu.cache_miss) begin
+            if (pmu_icache_miss) begin
                 pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_MISS;
             end
-            if (pmu_icache_miss_refill_busy) begin
-                pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_MISS_REFILL_CYCLE;
+            if (pmu_icache_miss_cycle) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_ICACHE_MISS_CYCLE;
             end
-            if (pmu_lsu_r_fire) begin
-                pmu_event_mask = pmu_event_mask | PMU_EVT_LSU_R_FIRE;
+            if (pmu_dcache_access) begin
+                pmu_event_mask = pmu_event_mask |
+                                 PMU_EVT_DCACHE_ACCESS |
+                                 PMU_EVT_DCACHE_MISS;
             end
-            if (pmu_lsu_load_req) begin
-                pmu_event_mask = pmu_event_mask | PMU_EVT_LSU_LOAD_REQ;
+            if (pmu_dcache_store) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_DCACHE_STORE;
             end
-            if (pmu_lsu_load_pending) begin
-                pmu_event_mask = pmu_event_mask | PMU_EVT_LSU_LOAD_PENDING_CYCLE;
+            if (pmu_dcache_miss_cycle) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_DCACHE_MISS_CYCLE;
             end
-            if (pmu_exu_done_fire) begin
-                pmu_event_mask = pmu_event_mask | PMU_EVT_EXU_DONE_FIRE;
-            end
-
-            if (pmu_dec_total) begin
-                pmu_event_mask = pmu_event_mask | PMU_EVT_DEC_TOTAL;
+            if (pmu_redirect) begin
+                pmu_event_mask = pmu_event_mask | PMU_EVT_REDIRECT;
             end
         end
     end
