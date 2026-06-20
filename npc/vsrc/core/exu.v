@@ -7,7 +7,6 @@ module ysyx_26030082_exu (
     input  wire [31:0] ex_pc,
     input  wire [31:0] ex_inst,
 
-    output wire        ex_out_ready,
     output wire        ex_out_valid,
 
     input  wire [63:0] ex_mtime,
@@ -432,7 +431,7 @@ module ysyx_26030082_exu (
             csr_mtvec   <= 32'h1;
             csr_mepc    <= 32'h0;
             csr_mcause  <= 32'h0;
-        end else if (ex_out_valid && ex_out_ready && (opcode == OPCODE_SYSTEM)) begin
+        end else if (fire && (opcode == OPCODE_SYSTEM)) begin
             case (funct3)
                 F3_PRIV: begin
                     case (csr_addr)
@@ -446,24 +445,17 @@ module ysyx_26030082_exu (
                         F12_MRET: begin
                             csr_mstatus[3] <= csr_mstatus[7];
                         end
-                        default: begin
-                        end
+                        default:;
                     endcase
                 end
 
-                F3_CSRRW,
-                F3_CSRRS,
-                F3_CSRRC,
-                F3_CSRRWI,
-                F3_CSRRSI,
-                F3_CSRRCI: begin
+                F3_CSRRW, F3_CSRRS, F3_CSRRC, F3_CSRRWI, F3_CSRRSI, F3_CSRRCI: begin
                     case (csr_addr)
                         CSR_MSTATUS: csr_mstatus <= csr_write_data;
                         CSR_MTVEC:   csr_mtvec   <= csr_write_data;
                         CSR_MEPC:    csr_mepc    <= csr_write_data;
                         CSR_MCAUSE:  csr_mcause  <= csr_write_data;
-                        default: begin
-                        end
+                        default:;
                     endcase
                 end
 
@@ -493,9 +485,8 @@ module ysyx_26030082_exu (
                          (mem_state == L_RD_WAIT_R) ? mem_axi_rvalid :
                          (mem_state == L_WR_WAIT_B) ? mem_axi_bvalid : 1'b0;
     assign ex_in_ready = ~ex_in_valid || ready_go;
-    assign ex_out_valid = ex_in_valid;
-    assign ex_out_ready = ready_go;
-    assign fire = ex_out_valid && ex_out_ready;
+    assign fire = ex_in_valid && ready_go;
+    assign ex_out_valid = fire;
 
     assign mem_axi_araddr = mem_addr;
     assign mem_axi_arsize = mem_size;

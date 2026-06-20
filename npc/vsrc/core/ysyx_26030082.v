@@ -133,7 +133,6 @@ module ysyx_26030082 #(
     wire [31:0] ex_redirect_pc;
     wire        ex_fence_i;
     wire        ex_out_valid;
-    wire        ex_out_ready;
 
 `ifndef SYNTHESIS
     assign pc_ex = ex_pc;
@@ -198,7 +197,6 @@ module ysyx_26030082 #(
         .reset                  (reset),
 
         .ex_out_valid           (ex_out_valid),
-        .ex_out_ready           (ex_out_ready),
         .ex_redirect            (ex_redirect),
         .ex_redirect_pc         (ex_redirect_pc),
         .ex_fence_i             (ex_fence_i),
@@ -230,7 +228,7 @@ module ysyx_26030082 #(
             ex_in_valid <= 1'b0;
             ex_pc <= 32'b0;
             ex_inst <= 32'b0;
-        end else if (ex_redirect && ex_out_valid && ex_out_ready) begin
+        end else if (ex_redirect && ex_out_valid) begin
             ex_in_valid <= 1'b0;
             ex_pc <= 32'b0;
             ex_inst <= 32'b0;
@@ -249,7 +247,6 @@ module ysyx_26030082 #(
         .ex_pc                  (ex_pc),
         .ex_inst                (ex_inst),
 
-        .ex_out_ready           (ex_out_ready),
         .ex_out_valid           (ex_out_valid),
 
         .ex_mtime               (mtime),
@@ -348,7 +345,7 @@ module ysyx_26030082 #(
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
     always @(posedge clock) begin
-        if (!reset && ex_out_valid && ex_out_ready) begin
+        if (!reset && ex_out_valid) begin
             npc_commit(pc_ex, inst_ex);
         end
     end
@@ -401,8 +398,8 @@ module ysyx_26030082 #(
                               ex_in_valid && exu.is_load;
     assign pmu_lsu_load_pending = (exu.mem_state == PMU_LSU_RD_AR) ||
                                   (exu.mem_state == PMU_LSU_RD_WAIT_R);
-    assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
-    assign pmu_dec_total = !ifu.flush && ex_out_valid && ex_out_ready;
+    assign pmu_exu_done_fire = ex_out_valid;
+    assign pmu_dec_total = !ifu.flush && ex_out_valid;
     assign pmu_icache_miss_refill_busy =
         (ifu.state == PMU_ICACHE_MISS_AR) ||
         (ifu.state == PMU_ICACHE_MISS_R);

@@ -8,7 +8,6 @@ module ysyx_26030082_ifu #(
 
     // EX retire feedback
     input  wire        ex_out_valid,
-    input  wire        ex_out_ready,
     input  wire        ex_redirect,
     input  wire [31:0] ex_redirect_pc,
     input  wire        ex_fence_i,
@@ -79,7 +78,7 @@ module ysyx_26030082_ifu #(
     assign cache_hit = valid_array[lookup_index] && (tag_array[lookup_index] == lookup_tag);
     assign cache_miss = (state == S_LOOKUP) && !cache_hit;
 
-    assign commit_fire = ex_out_valid && ex_out_ready;
+    assign commit_fire = ex_out_valid;
     assign flush = commit_fire && ex_redirect;
     assign invalidate = commit_fire && ex_fence_i;
     assign if_out_valid = (state == S_LOOKUP) && cache_hit;
