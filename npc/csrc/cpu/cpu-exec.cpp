@@ -168,7 +168,7 @@ static void statistic() {
     PmuLog("| %-17s | %11.4f | %9s |",
         "AMAT", icache_amat, "-");
     PmuLog("| %-17s | %11s | %9.4f |",
-        "access_per_cycle", "-", ratio(icache_access, g_nr_sim_cycle));
+        "access / cycle", "-", ratio(icache_access, g_nr_sim_cycle));
     PmuLog("+-------------------+-------------+-----------+");
 
     PmuLog("================ PMU LSU-DCache ================");
@@ -192,7 +192,7 @@ static void statistic() {
     PmuLog("| %-17s | %11.4f | %9s |",
         "avg_miss_penalty", dcache_miss_penalty, "-");
     PmuLog("| %-17s | %11s | %9.4f |",
-        "access_per_cycle", "-", ratio(g_pmu.dcache_access, g_nr_sim_cycle));
+        "access / cycle", "-", ratio(g_pmu.dcache_access, g_nr_sim_cycle));
     PmuLog("+-------------------+-------------+-----------+");
 
     PmuLog("================= PMU Redirect =================");
@@ -202,9 +202,9 @@ static void statistic() {
     PmuLog("| %-17s | %11" PRIu64 " | %8.4f%% |",
         "redirect", g_pmu.redirect, 100.0 * ratio(g_pmu.redirect, g_nr_sim_cycle));
     PmuLog("| %-17s | %11s | %8.4f%% |",
-        "redirect_per_inst", "-", 100.0 * ratio(g_pmu.redirect, g_nr_guest_inst));
+        "redirect / inst", "-", 100.0 * ratio(g_pmu.redirect, g_nr_guest_inst));
     PmuLog("| %-17s | %11s | %8.4f%% |",
-        "redirect_per_ctrl", "-", 100.0 * ratio(g_pmu.redirect, control_flow));
+        "redirect / ctrl", "-", 100.0 * ratio(g_pmu.redirect, control_flow));
     PmuLog("+-------------------+-------------+-----------+");
 
     PmuLog("=== PMU commit table (type/count/ratio) ===");
