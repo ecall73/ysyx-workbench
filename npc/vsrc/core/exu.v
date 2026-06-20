@@ -95,13 +95,11 @@ module ysyx_26030082_exu (
     localparam [2:0] F3_JALR    = 3'b000;
 
     localparam [31:0] CAUSE_ECALL = 32'd11;
-    localparam L_IDLE      = 3'd0;
-    localparam L_RD_AR     = 3'd1;
-    localparam L_RD_WAIT_R = 3'd2;
-    localparam L_WR_AW_W   = 3'd3;
-    localparam L_WR_AW     = 3'd4;
-    localparam L_WR_W      = 3'd5;
-    localparam L_WR_WAIT_B = 3'd6;
+    localparam L_IDLE    = 3'd0;
+    localparam L_WAIT_R  = 3'd1;
+    localparam L_WAIT_AW = 3'd2;
+    localparam L_WAIT_W  = 3'd3;
+    localparam L_WAIT_B  = 3'd4;
     localparam [15:0] CLINT_BASE_HI     = 16'h0200;
     localparam [13:0] MTIME_WORD_OFFSET  = 14'h2ffe;
     localparam [13:0] MTIMEH_WORD_OFFSET = 14'h2fff;
@@ -533,28 +531,25 @@ module ysyx_26030082_exu (
     assign b_fire = lsu_master_bvalid && lsu_master_bready;
     assign mem_offset = mem_addr[1:0];
     assign load_raw_data = is_local_load ? local_rdata : lsu_master_rdata;
-    assign ready_go = (mem_state == L_IDLE) ? ~(ex_in_valid && is_mem && ~is_local) :
-                         (mem_state == L_RD_WAIT_R) ? lsu_master_rvalid :
-                         (mem_state == L_WR_WAIT_B) ? lsu_master_bvalid : 1'b0;
+    assign ready_go = ((mem_state == L_IDLE) && ~(ex_in_valid && is_mem && ~is_local)) ||
+                      ((mem_state == L_WAIT_R) && r_fire) ||
+                      ((mem_state == L_WAIT_B) && b_fire);
     assign ex_in_ready = ~ex_in_valid || ready_go;
     assign fire = ex_in_valid && ready_go;
     assign ex_out_valid = fire;
 
     assign lsu_master_araddr = mem_addr;
     assign lsu_master_arsize = mem_size;
-    assign lsu_master_arvalid = ((mem_state == L_IDLE) && ext_load_req) ||
-                             (mem_state == L_RD_AR);
-    assign lsu_master_rready = (mem_state == L_RD_WAIT_R);
+    assign lsu_master_arvalid = (mem_state == L_IDLE) && ext_load_req;
+    assign lsu_master_rready = (mem_state == L_WAIT_R);
     assign lsu_master_awaddr = mem_addr;
     assign lsu_master_awsize = mem_size;
     assign lsu_master_awvalid = ((mem_state == L_IDLE) && ext_store_req) ||
-                             (mem_state == L_WR_AW_W) ||
-                             (mem_state == L_WR_AW);
+                             (mem_state == L_WAIT_AW);
     assign lsu_master_wstrb = wmask_calc;
     assign lsu_master_wvalid = ((mem_state == L_IDLE) && ext_store_req) ||
-                            (mem_state == L_WR_AW_W) ||
-                            (mem_state == L_WR_W);
-    assign lsu_master_bready = (mem_state == L_WR_WAIT_B);
+                            (mem_state == L_WAIT_W);
+    assign lsu_master_bready = (mem_state == L_WAIT_B);
 
     always @(*) begin
         case (mem_addr[15:2])
@@ -574,58 +569,38 @@ module ysyx_26030082_exu (
                 L_IDLE: begin
                     if (ext_load_req) begin
                         if (ar_fire) begin
-                            mem_state <= L_RD_WAIT_R;
-                        end else begin
-                            mem_state <= L_RD_AR;
+                            mem_state <= L_WAIT_R;
                         end
                     end else if (ext_store_req) begin
                         if (aw_fire && w_fire) begin
-                            mem_state <= L_WR_WAIT_B;
+                            mem_state <= L_WAIT_B;
                         end else if (aw_fire) begin
-                            mem_state <= L_WR_W;
+                            mem_state <= L_WAIT_W;
                         end else if (w_fire) begin
-                            mem_state <= L_WR_AW;
-                        end else begin
-                            mem_state <= L_WR_AW_W;
+                            mem_state <= L_WAIT_AW;
                         end
                     end
                 end
 
-                L_RD_AR: begin
-                    if (ar_fire) begin
-                        mem_state <= L_RD_WAIT_R;
-                    end
-                end
-
-                L_RD_WAIT_R: begin
+                L_WAIT_R: begin
                     if (r_fire) begin
                         mem_state <= L_IDLE;
                     end
                 end
 
-                L_WR_AW_W: begin
-                    if (aw_fire && w_fire) begin
-                        mem_state <= L_WR_WAIT_B;
-                    end else if (aw_fire) begin
-                        mem_state <= L_WR_W;
-                    end else if (w_fire) begin
-                        mem_state <= L_WR_AW;
-                    end
-                end
-
-                L_WR_AW: begin
+                L_WAIT_AW: begin
                     if (aw_fire) begin
-                        mem_state <= L_WR_WAIT_B;
+                        mem_state <= L_WAIT_B;
                     end
                 end
 
-                L_WR_W: begin
+                L_WAIT_W: begin
                     if (w_fire) begin
-                        mem_state <= L_WR_WAIT_B;
+                        mem_state <= L_WAIT_B;
                     end
                 end
 
-                L_WR_WAIT_B: begin
+                L_WAIT_B: begin
                     if (b_fire) begin
                         mem_state <= L_IDLE;
                     end
