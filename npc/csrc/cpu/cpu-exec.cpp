@@ -151,7 +151,7 @@ static void statistic() {
 
     PmuLog("=== PMU IFU-ICache ===");
     PmuLog("+---------------------+--------------+-----------+");
-    PmuLog("| %-19s | %12s | %10s |", "item", "count/value", "ratio");
+    PmuLog("| %-19s | %12s | %9s |", "item", "count/value", "ratio");
     PmuLog("+---------------------+--------------+-----------+");
     PmuLog("| %-19s | %12" PRIu64 " | %8.4f%% |",
         "access", icache_access, 100.0 * ratio(icache_access, g_nr_sim_cycle));
@@ -173,7 +173,7 @@ static void statistic() {
 
     PmuLog("=== PMU LSU-DCache ===");
     PmuLog("+---------------------+--------------+-----------+");
-    PmuLog("| %-19s | %12s | %10s |", "item", "count/value", "ratio");
+    PmuLog("| %-19s | %12s | %9s |", "item", "count/value", "ratio");
     PmuLog("+---------------------+--------------+-----------+");
     PmuLog("| %-19s | %12" PRIu64 " | %8.4f%% |",
         "access", g_pmu.dcache_access, 100.0 * ratio(g_pmu.dcache_access, g_nr_sim_cycle));
@@ -197,7 +197,7 @@ static void statistic() {
 
     PmuLog("=== PMU Redirect ===");
     PmuLog("+---------------------+--------------+-----------+");
-    PmuLog("| %-19s | %12s | %10s |", "item", "count/value", "ratio");
+    PmuLog("| %-19s | %12s | %9s |", "item", "count/value", "ratio");
     PmuLog("+---------------------+--------------+-----------+");
     PmuLog("| %-19s | %12" PRIu64 " | %8.4f%% |",
         "redirect", g_pmu.redirect, 100.0 * ratio(g_pmu.redirect, g_nr_sim_cycle));
