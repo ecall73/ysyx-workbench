@@ -59,22 +59,14 @@ void init_log(const char *log_file);
 #define NPC_RESET_PC_YSYXSOC NPC_FLASH_BASE
 
 // PMU event bit definitions shared by RTL (DPI producer) and C++ (counter consumer).
-#define NPC_PMU_EVT_IFU_R_FIRE      (1u << 0)
-#define NPC_PMU_EVT_LSU_R_FIRE      (1u << 2)
-#define NPC_PMU_EVT_EXU_DONE_FIRE   (1u << 3)
-#define NPC_PMU_EVT_DEC_TOTAL       (1u << 4)
-#define NPC_PMU_EVT_IFU_NOSUPPLY_TOTAL   (1u << 11)
-#define NPC_PMU_EVT_IFU_WAIT_ARREADY     (1u << 12)
-#define NPC_PMU_EVT_IFU_WAIT_RVALID      (1u << 13)
-#define NPC_PMU_EVT_IFU_ID_BACKPRESSURE  (1u << 14)
-#define NPC_PMU_EVT_IFU_REDIRECT_DROP    (1u << 15)
-#define NPC_PMU_EVT_LSU_LOAD_REQ         (1u << 18)
-#define NPC_PMU_EVT_LSU_STORE_REQ        (1u << 19)
-#define NPC_PMU_EVT_LSU_LOAD_PENDING_CYCLE (1u << 21)
-#define NPC_PMU_EVT_LSU_STORE_PENDING_CYCLE (1u << 25)
-#define NPC_PMU_EVT_ICACHE_HIT           (1u << 22)
-#define NPC_PMU_EVT_ICACHE_MISS          (1u << 23)
-#define NPC_PMU_EVT_ICACHE_MISS_REFILL_CYCLE (1u << 24)
+#define NPC_PMU_EVT_IFETCH_FIRE        (1u << 0)
+#define NPC_PMU_EVT_ICACHE_MISS        (1u << 1)
+#define NPC_PMU_EVT_ICACHE_MISS_CYCLE  (1u << 2)
+#define NPC_PMU_EVT_DCACHE_ACCESS      (1u << 3)
+#define NPC_PMU_EVT_DCACHE_STORE       (1u << 4)
+#define NPC_PMU_EVT_DCACHE_MISS        (1u << 5)
+#define NPC_PMU_EVT_DCACHE_MISS_CYCLE  (1u << 6)
+#define NPC_PMU_EVT_REDIRECT           (1u << 7)
 
 extern bool is_finished;
 extern int trap_a0;
