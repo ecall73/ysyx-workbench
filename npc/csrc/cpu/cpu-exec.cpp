@@ -213,7 +213,7 @@ static void statistic() {
     PmuLog("+----------+-----------+-----------+");
     for (int i = 0; i < PMU_CLASS_COUNT; i++) {
         double retire_mix = 100.0 * ratio(g_ret_class_cnt[i], g_nr_guest_inst);
-        PmuLog("| %-8s | %12" PRIu64 " | %8.4f%% |",
+        PmuLog("| %-8s | %9" PRIu64 " | %8.4f%% |",
             kPmuClassName[i], g_ret_class_cnt[i], retire_mix);
     }
     PmuLog("+----------+-----------+-----------+");
