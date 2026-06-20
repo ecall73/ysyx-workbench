@@ -75,8 +75,6 @@ module ysyx_26030082_axi4lite_arbiter (
     reg [1:0] rd_state;
     reg       rd_owner;
 
-    wire req_lsu_rd;
-    wire req_ifu_rd;
     wire rd_sel_lsu;
     wire rd_sel_ifu;
     wire rd_data_lsu;
@@ -86,11 +84,9 @@ module ysyx_26030082_axi4lite_arbiter (
     wire ifu_ar_fire;
     wire ifu_r_fire;
 
-    assign req_lsu_rd = lsu_master_arvalid;
-    assign req_ifu_rd = ifu_master_arvalid;
-    assign rd_sel_lsu = ((rd_state == R_IDLE) && req_lsu_rd) ||
+    assign rd_sel_lsu = ((rd_state == R_IDLE) && lsu_master_arvalid) ||
                         ((rd_state == R_AR) && (rd_owner == R_OWNER_LSU));
-    assign rd_sel_ifu = ((rd_state == R_IDLE) && ~req_lsu_rd && req_ifu_rd) ||
+    assign rd_sel_ifu = ((rd_state == R_IDLE) && ~lsu_master_arvalid && ifu_master_arvalid) ||
                         ((rd_state == R_AR) && (rd_owner == R_OWNER_IFU));
     assign rd_data_lsu = (rd_state == R_DATA) && (rd_owner == R_OWNER_LSU);
     assign rd_data_ifu = (rd_state == R_DATA) && (rd_owner == R_OWNER_IFU);
@@ -146,10 +142,10 @@ module ysyx_26030082_axi4lite_arbiter (
         end else begin
             case (rd_state)
                 R_IDLE: begin
-                    if (req_lsu_rd) begin
+                    if (lsu_master_arvalid) begin
                         rd_owner <= R_OWNER_LSU;
                         rd_state <= lsu_ar_fire ? R_DATA : R_AR;
-                    end else if (req_ifu_rd) begin
+                    end else if (ifu_master_arvalid) begin
                         rd_owner <= R_OWNER_IFU;
                         rd_state <= ifu_ar_fire ? R_DATA : R_AR;
                     end else begin
