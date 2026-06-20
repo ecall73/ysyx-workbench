@@ -134,7 +134,6 @@ module ysyx_26030082 #(
     wire        ex_fence_i;
     wire        ex_out_valid;
     wire        ex_out_ready;
-    wire        ls_out_valid;
 
 `ifndef SYNTHESIS
     assign pc_ex = ex_pc;
@@ -153,34 +152,32 @@ module ysyx_26030082 #(
     wire        ifu_axi_rvalid;
     wire        ifu_axi_rready;
 
-    // LSU AXI4-Lite (internal master)
-    wire [31:0] lsu_axi_araddr;
-    wire [ 2:0] lsu_axi_arsize;
-    wire        lsu_axi_arvalid;
-    wire        lsu_axi_arready;
-    wire [31:0] lsu_axi_rdata;
-    wire [ 1:0] lsu_axi_rresp;
-    wire        lsu_axi_rvalid;
-    wire        lsu_axi_rready;
-    wire [31:0] lsu_axi_awaddr;
-    wire [ 2:0] lsu_axi_awsize;
-    wire        lsu_axi_awvalid;
-    wire        lsu_axi_awready;
-    wire [31:0] lsu_axi_wdata;
-    wire [ 3:0] lsu_axi_wstrb;
-    wire        lsu_axi_wvalid;
-    wire        lsu_axi_wready;
-    wire [ 1:0] lsu_axi_bresp;
-    wire        lsu_axi_bvalid;
-    wire        lsu_axi_bready;
+    // EXU memory AXI4-Lite (internal master)
+    wire [31:0] mem_axi_araddr;
+    wire [ 2:0] mem_axi_arsize;
+    wire        mem_axi_arvalid;
+    wire        mem_axi_arready;
+    wire [31:0] mem_axi_rdata;
+    wire [ 1:0] mem_axi_rresp;
+    wire        mem_axi_rvalid;
+    wire        mem_axi_rready;
+    wire [31:0] mem_axi_awaddr;
+    wire [ 2:0] mem_axi_awsize;
+    wire        mem_axi_awvalid;
+    wire        mem_axi_awready;
+    wire [31:0] mem_axi_wdata;
+    wire [ 3:0] mem_axi_wstrb;
+    wire        mem_axi_wvalid;
+    wire        mem_axi_wready;
+    wire [ 1:0] mem_axi_bresp;
+    wire        mem_axi_bvalid;
+    wire        mem_axi_bready;
     reg  [63:0] mtime;
 
     // Debug Interface
 `ifndef SYNTHESIS
         wire [31:0] pc_ex;
-        wire [31:0] pc_ls;
         wire [31:0] inst_ex;
-        wire [31:0] inst_ls;
 `endif
 
 ////////////////////////////////////////////////////////////////
@@ -254,7 +251,6 @@ module ysyx_26030082 #(
 
         .ex_out_ready           (ex_out_ready),
         .ex_out_valid           (ex_out_valid),
-        .ls_out_valid           (ls_out_valid),
 
         .ex_mtime               (mtime),
 
@@ -262,32 +258,26 @@ module ysyx_26030082 #(
         .ex_redirect_pc         (ex_redirect_pc),
         .ex_fence_i             (ex_fence_i),
 
-        .lsu_axi_araddr         (lsu_axi_araddr),
-        .lsu_axi_arsize         (lsu_axi_arsize),
-        .lsu_axi_arvalid        (lsu_axi_arvalid),
-        .lsu_axi_arready        (lsu_axi_arready),
-        .lsu_axi_rdata          (lsu_axi_rdata),
-        .lsu_axi_rresp          (lsu_axi_rresp),
-        .lsu_axi_rvalid         (lsu_axi_rvalid),
-        .lsu_axi_rready         (lsu_axi_rready),
-        .lsu_axi_awaddr         (lsu_axi_awaddr),
-        .lsu_axi_awsize         (lsu_axi_awsize),
-        .lsu_axi_awvalid        (lsu_axi_awvalid),
-        .lsu_axi_awready        (lsu_axi_awready),
-        .lsu_axi_wdata          (lsu_axi_wdata),
-        .lsu_axi_wstrb          (lsu_axi_wstrb),
-        .lsu_axi_wvalid         (lsu_axi_wvalid),
-        .lsu_axi_wready         (lsu_axi_wready),
-        .lsu_axi_bresp          (lsu_axi_bresp),
-        .lsu_axi_bvalid         (lsu_axi_bvalid),
-        .lsu_axi_bready         (lsu_axi_bready)
+        .mem_axi_araddr         (mem_axi_araddr),
+        .mem_axi_arsize         (mem_axi_arsize),
+        .mem_axi_arvalid        (mem_axi_arvalid),
+        .mem_axi_arready        (mem_axi_arready),
+        .mem_axi_rdata          (mem_axi_rdata),
+        .mem_axi_rresp          (mem_axi_rresp),
+        .mem_axi_rvalid         (mem_axi_rvalid),
+        .mem_axi_rready         (mem_axi_rready),
+        .mem_axi_awaddr         (mem_axi_awaddr),
+        .mem_axi_awsize         (mem_axi_awsize),
+        .mem_axi_awvalid        (mem_axi_awvalid),
+        .mem_axi_awready        (mem_axi_awready),
+        .mem_axi_wdata          (mem_axi_wdata),
+        .mem_axi_wstrb          (mem_axi_wstrb),
+        .mem_axi_wvalid         (mem_axi_wvalid),
+        .mem_axi_wready         (mem_axi_wready),
+        .mem_axi_bresp          (mem_axi_bresp),
+        .mem_axi_bvalid         (mem_axi_bvalid),
+        .mem_axi_bready         (mem_axi_bready)
     );
-
-    //trace
-    `ifndef SYNTHESIS
-        assign pc_ls = pc_ex;
-        assign inst_ls = inst_ex;
-    `endif
 
     ysyx_26030082_axi4lite_arbiter axi4lite_arbiter (
         .clock                  (clock),
@@ -304,62 +294,62 @@ module ysyx_26030082 #(
         .ifu_axi_rvalid         (ifu_axi_rvalid),
         .ifu_axi_rready         (ifu_axi_rready),
 
-        .lsu_axi_araddr         (lsu_axi_araddr),
-        .lsu_axi_arsize         (lsu_axi_arsize),
-        .lsu_axi_arvalid        (lsu_axi_arvalid),
-        .lsu_axi_arready        (lsu_axi_arready),
-        .lsu_axi_rdata          (lsu_axi_rdata),
-        .lsu_axi_rresp          (lsu_axi_rresp),
-        .lsu_axi_rvalid         (lsu_axi_rvalid),
-        .lsu_axi_rready         (lsu_axi_rready),
-        .lsu_axi_awaddr         (lsu_axi_awaddr),
-        .lsu_axi_awsize         (lsu_axi_awsize),
-        .lsu_axi_awvalid        (lsu_axi_awvalid),
-        .lsu_axi_awready        (lsu_axi_awready),
-        .lsu_axi_wdata          (lsu_axi_wdata),
-        .lsu_axi_wstrb          (lsu_axi_wstrb),
-        .lsu_axi_wvalid         (lsu_axi_wvalid),
-        .lsu_axi_wready         (lsu_axi_wready),
-        .lsu_axi_bresp          (lsu_axi_bresp),
-        .lsu_axi_bvalid         (lsu_axi_bvalid),
-        .lsu_axi_bready         (lsu_axi_bready),
+        .mem_axi_araddr         (mem_axi_araddr),
+        .mem_axi_arsize         (mem_axi_arsize),
+        .mem_axi_arvalid        (mem_axi_arvalid),
+        .mem_axi_arready        (mem_axi_arready),
+        .mem_axi_rdata          (mem_axi_rdata),
+        .mem_axi_rresp          (mem_axi_rresp),
+        .mem_axi_rvalid         (mem_axi_rvalid),
+        .mem_axi_rready         (mem_axi_rready),
+        .mem_axi_awaddr         (mem_axi_awaddr),
+        .mem_axi_awsize         (mem_axi_awsize),
+        .mem_axi_awvalid        (mem_axi_awvalid),
+        .mem_axi_awready        (mem_axi_awready),
+        .mem_axi_wdata          (mem_axi_wdata),
+        .mem_axi_wstrb          (mem_axi_wstrb),
+        .mem_axi_wvalid         (mem_axi_wvalid),
+        .mem_axi_wready         (mem_axi_wready),
+        .mem_axi_bresp          (mem_axi_bresp),
+        .mem_axi_bvalid         (mem_axi_bvalid),
+        .mem_axi_bready         (mem_axi_bready),
 
-        .mem_axi_araddr          (io_master_araddr),
-        .mem_axi_arid            (io_master_arid),
-        .mem_axi_arlen           (io_master_arlen),
-        .mem_axi_arsize          (io_master_arsize),
-        .mem_axi_arburst         (io_master_arburst),
-        .mem_axi_arvalid         (io_master_arvalid),
-        .mem_axi_arready         (io_master_arready),
-        .mem_axi_rdata           (io_master_rdata),
-        .mem_axi_rid             (io_master_rid),
-        .mem_axi_rresp           (io_master_rresp),
-        .mem_axi_rlast           (io_master_rlast),
-        .mem_axi_rvalid          (io_master_rvalid),
-        .mem_axi_rready          (io_master_rready),
-        .mem_axi_awaddr          (io_master_awaddr),
-        .mem_axi_awid            (io_master_awid),
-        .mem_axi_awlen           (io_master_awlen),
-        .mem_axi_awsize          (io_master_awsize),
-        .mem_axi_awburst         (io_master_awburst),
-        .mem_axi_awvalid         (io_master_awvalid),
-        .mem_axi_awready         (io_master_awready),
-        .mem_axi_wdata           (io_master_wdata),
-        .mem_axi_wstrb           (io_master_wstrb),
-        .mem_axi_wlast           (io_master_wlast),
-        .mem_axi_wvalid          (io_master_wvalid),
-        .mem_axi_wready          (io_master_wready),
-        .mem_axi_bid             (io_master_bid),
-        .mem_axi_bresp           (io_master_bresp),
-        .mem_axi_bvalid          (io_master_bvalid),
-        .mem_axi_bready          (io_master_bready)
+        .io_axi_araddr           (io_master_araddr),
+        .io_axi_arid             (io_master_arid),
+        .io_axi_arlen            (io_master_arlen),
+        .io_axi_arsize           (io_master_arsize),
+        .io_axi_arburst          (io_master_arburst),
+        .io_axi_arvalid          (io_master_arvalid),
+        .io_axi_arready          (io_master_arready),
+        .io_axi_rdata            (io_master_rdata),
+        .io_axi_rid              (io_master_rid),
+        .io_axi_rresp            (io_master_rresp),
+        .io_axi_rlast            (io_master_rlast),
+        .io_axi_rvalid           (io_master_rvalid),
+        .io_axi_rready           (io_master_rready),
+        .io_axi_awaddr           (io_master_awaddr),
+        .io_axi_awid             (io_master_awid),
+        .io_axi_awlen            (io_master_awlen),
+        .io_axi_awsize           (io_master_awsize),
+        .io_axi_awburst          (io_master_awburst),
+        .io_axi_awvalid          (io_master_awvalid),
+        .io_axi_awready          (io_master_awready),
+        .io_axi_wdata            (io_master_wdata),
+        .io_axi_wstrb            (io_master_wstrb),
+        .io_axi_wlast            (io_master_wlast),
+        .io_axi_wvalid           (io_master_wvalid),
+        .io_axi_wready           (io_master_wready),
+        .io_axi_bid              (io_master_bid),
+        .io_axi_bresp            (io_master_bresp),
+        .io_axi_bvalid           (io_master_bvalid),
+        .io_axi_bready           (io_master_bready)
     );
 
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
     always @(posedge clock) begin
-        if (!reset && ls_out_valid) begin
-            npc_commit(pc_ls, inst_ls);
+        if (!reset && ex_out_valid && ex_out_ready) begin
+            npc_commit(pc_ex, inst_ex);
         end
     end
 `endif
@@ -407,10 +397,10 @@ module ysyx_26030082 #(
     assign pmu_ifu_r_fire = if_out_valid && if_out_ready;
     assign pmu_ifu_nosupply = !pmu_ifu_r_fire;
     assign pmu_lsu_r_fire = exu.r_fire;
-    assign pmu_lsu_load_req = (exu.lsu_state == PMU_LSU_IDLE) &&
-                              ex_in_valid && exu.lsu_is_load;
-    assign pmu_lsu_load_pending = (exu.lsu_state == PMU_LSU_RD_AR) ||
-                                  (exu.lsu_state == PMU_LSU_RD_WAIT_R);
+    assign pmu_lsu_load_req = (exu.mem_state == PMU_LSU_IDLE) &&
+                              ex_in_valid && exu.is_load;
+    assign pmu_lsu_load_pending = (exu.mem_state == PMU_LSU_RD_AR) ||
+                                  (exu.mem_state == PMU_LSU_RD_WAIT_R);
     assign pmu_exu_done_fire = ex_out_valid && ex_out_ready;
     assign pmu_dec_total = !ifu.flush && ex_out_valid && ex_out_ready;
     assign pmu_icache_miss_refill_busy =
