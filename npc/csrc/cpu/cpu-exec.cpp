@@ -150,9 +150,9 @@ static void statistic() {
         g_ret_class_cnt[PMU_CLASS_MISC_MEM];
 
     PmuLog("=== PMU IFU-ICache ===");
-    PmuLog("+---------------------+--------------+------------+");
+    PmuLog("+---------------------+--------------+-----------+");
     PmuLog("| %-19s | %12s | %10s |", "item", "count/value", "ratio");
-    PmuLog("+---------------------+--------------+------------+");
+    PmuLog("+---------------------+--------------+-----------+");
     PmuLog("| %-19s | %12" PRIu64 " | %8.4f%% |",
         "access", icache_access, 100.0 * ratio(icache_access, g_nr_sim_cycle));
     PmuLog("| %-19s | %12" PRIu64 " | %8.4f%% |",
@@ -169,12 +169,12 @@ static void statistic() {
         "AMAT", icache_amat, "-");
     PmuLog("| %-19s | %12s | %9.4f |",
         "access_per_cycle", "-", ratio(icache_access, g_nr_sim_cycle));
-    PmuLog("+---------------------+--------------+------------+");
+    PmuLog("+---------------------+--------------+-----------+");
 
     PmuLog("=== PMU LSU-DCache ===");
-    PmuLog("+---------------------+--------------+------------+");
+    PmuLog("+---------------------+--------------+-----------+");
     PmuLog("| %-19s | %12s | %10s |", "item", "count/value", "ratio");
-    PmuLog("+---------------------+--------------+------------+");
+    PmuLog("+---------------------+--------------+-----------+");
     PmuLog("| %-19s | %12" PRIu64 " | %8.4f%% |",
         "access", g_pmu.dcache_access, 100.0 * ratio(g_pmu.dcache_access, g_nr_sim_cycle));
     PmuLog("| %-19s | %12" PRIu64 " | %8.4f%% |",
@@ -193,19 +193,19 @@ static void statistic() {
         "avg_miss_penalty", dcache_miss_penalty, "-");
     PmuLog("| %-19s | %12s | %9.4f |",
         "access_per_cycle", "-", ratio(g_pmu.dcache_access, g_nr_sim_cycle));
-    PmuLog("+---------------------+--------------+------------+");
+    PmuLog("+---------------------+--------------+-----------+");
 
     PmuLog("=== PMU Redirect ===");
-    PmuLog("+---------------------+--------------+------------+");
+    PmuLog("+---------------------+--------------+-----------+");
     PmuLog("| %-19s | %12s | %10s |", "item", "count/value", "ratio");
-    PmuLog("+---------------------+--------------+------------+");
+    PmuLog("+---------------------+--------------+-----------+");
     PmuLog("| %-19s | %12" PRIu64 " | %8.4f%% |",
         "redirect", g_pmu.redirect, 100.0 * ratio(g_pmu.redirect, g_nr_sim_cycle));
     PmuLog("| %-19s | %12s | %8.4f%% |",
         "redirect_per_commit", "-", 100.0 * ratio(g_pmu.redirect, g_nr_guest_inst));
     PmuLog("| %-19s | %12s | %8.4f%% |",
         "redirect_per_ctrl", "-", 100.0 * ratio(g_pmu.redirect, control_flow));
-    PmuLog("+---------------------+--------------+------------+");
+    PmuLog("+---------------------+--------------+-----------+");
 
     PmuLog("=== PMU commit table (type/count/ratio) ===");
     PmuLog("+----------+-----------+-----------+");
