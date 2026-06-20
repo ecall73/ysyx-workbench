@@ -149,7 +149,7 @@ static void statistic() {
         g_ret_class_cnt[PMU_CLASS_SYSTEM] +
         g_ret_class_cnt[PMU_CLASS_MISC_MEM];
 
-    PmuLog("================ PMU IFU-ICache ================");
+    PmuLog("=============== PMU IFU-ICache ===============");
     PmuLog("+------------------+-------------+-----------+");
     PmuLog("| %-16s | %11s | %9s |", "item", "count/value", "ratio");
     PmuLog("+------------------+-------------+-----------+");
@@ -171,7 +171,7 @@ static void statistic() {
         "access / cycle", "-", ratio(icache_access, g_nr_sim_cycle));
     PmuLog("+------------------+-------------+-----------+");
 
-    PmuLog("================ PMU LSU-DCache ================");
+    PmuLog("=============== PMU LSU-DCache ===============");
     PmuLog("+------------------+-------------+-----------+");
     PmuLog("| %-16s | %11s | %9s |", "item", "count/value", "ratio");
     PmuLog("+------------------+-------------+-----------+");
@@ -195,7 +195,7 @@ static void statistic() {
         "access / cycle", "-", ratio(g_pmu.dcache_access, g_nr_sim_cycle));
     PmuLog("+------------------+-------------+-----------+");
 
-    PmuLog("================= PMU Redirect =================");
+    PmuLog("================ PMU Redirect ================");
     PmuLog("+------------------+-------------+-----------+");
     PmuLog("| %-16s | %11s | %9s |", "item", "count/value", "ratio");
     PmuLog("+------------------+-------------+-----------+");
