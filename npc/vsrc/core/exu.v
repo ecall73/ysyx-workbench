@@ -15,25 +15,25 @@ module ysyx_26030082_exu (
     output reg  [31:0] ex_redirect_pc,
     output wire        ex_fence_i,
 
-    output wire [31:0] mem_axi_araddr,
-    output wire [ 2:0] mem_axi_arsize,
-    output wire        mem_axi_arvalid,
-    input  wire        mem_axi_arready,
-    input  wire [31:0] mem_axi_rdata,
-    input  wire [ 1:0] mem_axi_rresp,
-    input  wire        mem_axi_rvalid,
-    output wire        mem_axi_rready,
-    output wire [31:0] mem_axi_awaddr,
-    output wire [ 2:0] mem_axi_awsize,
-    output wire        mem_axi_awvalid,
-    input  wire        mem_axi_awready,
-    output wire [31:0] mem_axi_wdata,
-    output wire [ 3:0] mem_axi_wstrb,
-    output wire        mem_axi_wvalid,
-    input  wire        mem_axi_wready,
-    input  wire [ 1:0] mem_axi_bresp,
-    input  wire        mem_axi_bvalid,
-    output wire        mem_axi_bready
+    output wire [31:0] lsu_master_araddr,
+    output wire [ 2:0] lsu_master_arsize,
+    output wire        lsu_master_arvalid,
+    input  wire        lsu_master_arready,
+    input  wire [31:0] lsu_master_rdata,
+    input  wire [ 1:0] lsu_master_rresp,
+    input  wire        lsu_master_rvalid,
+    output wire        lsu_master_rready,
+    output wire [31:0] lsu_master_awaddr,
+    output wire [ 2:0] lsu_master_awsize,
+    output wire        lsu_master_awvalid,
+    input  wire        lsu_master_awready,
+    output wire [31:0] lsu_master_wdata,
+    output wire [ 3:0] lsu_master_wstrb,
+    output wire        lsu_master_wvalid,
+    input  wire        lsu_master_wready,
+    input  wire [ 1:0] lsu_master_bresp,
+    input  wire        lsu_master_bvalid,
+    output wire        lsu_master_bready
 );
 
     localparam [6:0] OPCODE_OP   = 7'b011_0011;
@@ -466,7 +466,7 @@ module ysyx_26030082_exu (
     end
 
 /////////////////////////
-    // LS: mem_axi.
+    // LS: lsu_master.
     assign is_mem = mem_ren || mem_wen;
     assign is_load = mem_ren && ~mem_wen;
     assign is_clint = (mem_addr[31:16] == CLINT_BASE_HI);
@@ -474,36 +474,36 @@ module ysyx_26030082_exu (
     assign is_local_load = is_load && is_clint;
     assign ext_load_req = ex_in_valid && is_load && ~is_local;
     assign ext_store_req = ex_in_valid && mem_wen && ~is_local;
-    assign ar_fire = mem_axi_arvalid && mem_axi_arready;
-    assign r_fire = mem_axi_rvalid && mem_axi_rready;
-    assign aw_fire = mem_axi_awvalid && mem_axi_awready;
-    assign w_fire = mem_axi_wvalid && mem_axi_wready;
-    assign b_fire = mem_axi_bvalid && mem_axi_bready;
+    assign ar_fire = lsu_master_arvalid && lsu_master_arready;
+    assign r_fire = lsu_master_rvalid && lsu_master_rready;
+    assign aw_fire = lsu_master_awvalid && lsu_master_awready;
+    assign w_fire = lsu_master_wvalid && lsu_master_wready;
+    assign b_fire = lsu_master_bvalid && lsu_master_bready;
     assign mem_offset = mem_addr[1:0];
-    assign load_raw_data = is_local_load ? local_rdata : mem_axi_rdata;
+    assign load_raw_data = is_local_load ? local_rdata : lsu_master_rdata;
     assign ready_go = (mem_state == L_IDLE) ? ~(ex_in_valid && is_mem && ~is_local) :
-                         (mem_state == L_RD_WAIT_R) ? mem_axi_rvalid :
-                         (mem_state == L_WR_WAIT_B) ? mem_axi_bvalid : 1'b0;
+                         (mem_state == L_RD_WAIT_R) ? lsu_master_rvalid :
+                         (mem_state == L_WR_WAIT_B) ? lsu_master_bvalid : 1'b0;
     assign ex_in_ready = ~ex_in_valid || ready_go;
     assign fire = ex_in_valid && ready_go;
     assign ex_out_valid = fire;
 
-    assign mem_axi_araddr = mem_addr;
-    assign mem_axi_arsize = mem_size;
-    assign mem_axi_arvalid = ((mem_state == L_IDLE) && ext_load_req) ||
+    assign lsu_master_araddr = mem_addr;
+    assign lsu_master_arsize = mem_size;
+    assign lsu_master_arvalid = ((mem_state == L_IDLE) && ext_load_req) ||
                              (mem_state == L_RD_AR);
-    assign mem_axi_rready = (mem_state == L_RD_WAIT_R);
-    assign mem_axi_awaddr = mem_addr;
-    assign mem_axi_awsize = mem_size;
-    assign mem_axi_awvalid = ((mem_state == L_IDLE) && ext_store_req) ||
+    assign lsu_master_rready = (mem_state == L_RD_WAIT_R);
+    assign lsu_master_awaddr = mem_addr;
+    assign lsu_master_awsize = mem_size;
+    assign lsu_master_awvalid = ((mem_state == L_IDLE) && ext_store_req) ||
                              (mem_state == L_WR_AW_W) ||
                              (mem_state == L_WR_AW);
-    assign mem_axi_wdata = wdata_aligned;
-    assign mem_axi_wstrb = wmask_calc;
-    assign mem_axi_wvalid = ((mem_state == L_IDLE) && ext_store_req) ||
+    assign lsu_master_wdata = wdata_aligned;
+    assign lsu_master_wstrb = wmask_calc;
+    assign lsu_master_wvalid = ((mem_state == L_IDLE) && ext_store_req) ||
                             (mem_state == L_WR_AW_W) ||
                             (mem_state == L_WR_W);
-    assign mem_axi_bready = (mem_state == L_WR_WAIT_B);
+    assign lsu_master_bready = (mem_state == L_WR_WAIT_B);
 
     always @(*) begin
         case (mem_addr[15:2])

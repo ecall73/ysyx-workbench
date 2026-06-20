@@ -19,16 +19,16 @@ module ysyx_26030082_ifu #(
     output wire [31:0] if_inst,
 
     // AXI4 read master interface
-    output wire [31:0] ifu_axi_araddr,
-    output wire [ 7:0] ifu_axi_arlen,
-    output wire [ 1:0] ifu_axi_arburst,
-    output wire        ifu_axi_arvalid,
-    input  wire        ifu_axi_arready,
-    input  wire [31:0] ifu_axi_rdata,
-    input  wire [ 1:0] ifu_axi_rresp,
-    input  wire        ifu_axi_rlast,
-    input  wire        ifu_axi_rvalid,
-    output wire        ifu_axi_rready
+    output wire [31:0] ifu_master_araddr,
+    output wire [ 7:0] ifu_master_arlen,
+    output wire [ 1:0] ifu_master_arburst,
+    output wire        ifu_master_arvalid,
+    input  wire        ifu_master_arready,
+    input  wire [31:0] ifu_master_rdata,
+    input  wire [ 1:0] ifu_master_rresp,
+    input  wire        ifu_master_rlast,
+    input  wire        ifu_master_rvalid,
+    output wire        ifu_master_rready
 );
     localparam integer WORD_OFF_W      = 2;
     localparam integer LINE_ADDR_OFF_W = $clog2(LINE_WORDS);
@@ -88,13 +88,13 @@ module ysyx_26030082_ifu #(
     assign req_fire = if_out_valid && if_out_ready;
 
     assign miss_line_base = {miss_tag, miss_index, {OFFSET_W{1'b0}}};
-    assign ifu_axi_araddr = miss_line_base;
-    assign ifu_axi_arlen = LINE_WORDS[7:0] - 8'd1;
-    assign ifu_axi_arburst = 2'b01;
-    assign ifu_axi_arvalid = (state == S_MISS_AR);
-    assign ifu_axi_rready = (state == S_MISS_R);
-    assign ar_fire = ifu_axi_arvalid && ifu_axi_arready;
-    assign r_fire = ifu_axi_rvalid && ifu_axi_rready;
+    assign ifu_master_araddr = miss_line_base;
+    assign ifu_master_arlen = LINE_WORDS[7:0] - 8'd1;
+    assign ifu_master_arburst = 2'b01;
+    assign ifu_master_arvalid = (state == S_MISS_AR);
+    assign ifu_master_rready = (state == S_MISS_R);
+    assign ar_fire = ifu_master_arvalid && ifu_master_arready;
+    assign r_fire = ifu_master_rvalid && ifu_master_rready;
 
     always @(posedge clock) begin
         if (reset) begin
@@ -153,8 +153,8 @@ module ysyx_26030082_ifu #(
                     end
 
                     if (r_fire) begin
-                        data_array[miss_index][{refill_word_idx, 5'b0} +: 32] <= ifu_axi_rdata;
-                        if (ifu_axi_rlast) begin
+                        data_array[miss_index][{refill_word_idx, 5'b0} +: 32] <= ifu_master_rdata;
+                        if (ifu_master_rlast) begin
                             if (!drop_fill && !invalidate) begin
                                 tag_array[miss_index] <= miss_tag;
                                 valid_array[miss_index] <= 1'b1;
@@ -202,10 +202,10 @@ module ysyx_26030082_ifu #(
             $fatal(1, "unaligned ifu fetch pc=%08x", pc_r);
         end
         if (!reset && (state == S_MISS_R) && r_fire) begin
-            if ((refill_word_idx == (LINE_WORDS - 1)) && !ifu_axi_rlast) begin
+            if ((refill_word_idx == (LINE_WORDS - 1)) && !ifu_master_rlast) begin
                 $fatal(1, "ifu burst refill missing rlast on final beat line=%08x", miss_line_base);
             end
-            if ((refill_word_idx != (LINE_WORDS - 1)) && ifu_axi_rlast) begin
+            if ((refill_word_idx != (LINE_WORDS - 1)) && ifu_master_rlast) begin
                 $fatal(1, "ifu burst refill saw early rlast line=%08x beat=%0d", miss_line_base, refill_word_idx);
             end
         end
@@ -213,6 +213,6 @@ module ysyx_26030082_ifu #(
 `endif
 
     wire _unused_ok;
-    assign _unused_ok = &{1'b0, ifu_axi_rresp};
+    assign _unused_ok = &{1'b0, ifu_master_rresp};
 
 endmodule
