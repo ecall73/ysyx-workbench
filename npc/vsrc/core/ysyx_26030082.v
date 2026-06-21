@@ -373,7 +373,7 @@ module ysyx_26030082 #(
     assign pmu_ifetch_fire = if_out_valid && if_out_ready;
     assign pmu_icache_miss = (ifu.state == PMU_ICACHE_LOOKUP) && ifu.cache_miss;
     assign pmu_icache_miss_cycle =
-        ((ifu.state == PMU_ICACHE_LOOKUP) && (ifu.cache_miss || ifu.ar_pending)) ||
+        ((ifu.state == PMU_ICACHE_LOOKUP) && ifu.cache_miss) ||
         (ifu.state == PMU_ICACHE_MISS_R);
     assign pmu_dcache_access = (exu.mem_state == PMU_LSU_IDLE) &&
                                ex_in_valid && exu.is_mem && !exu.is_local;

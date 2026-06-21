@@ -51,7 +51,6 @@ module ysyx_26030082_ifu #(
     reg [INDEX_W-1:0] miss_index;
     reg [TAG_W-1:0]   miss_tag;
     reg [LINE_WORD_OFF_W-1:0] refill_word_idx;
-    reg         ar_pending;
     reg         drop_fill;
 
     wire [LINE_WORD_OFF_W-1:0] lookup_word_offset;
@@ -68,7 +67,7 @@ module ysyx_26030082_ifu #(
     wire               flush;
     wire               invalidate;
     wire [31:0] miss_line_base;
-    wire [31:0] ar_line_base;
+    wire [31:0] lookup_line_base;
 
     assign lookup_word_offset =
         pc_r[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
@@ -77,24 +76,23 @@ module ysyx_26030082_ifu #(
     assign lookup_line = data_array[lookup_index];
 
     assign cache_hit = valid_array[lookup_index] && (tag_array[lookup_index] == lookup_tag);
-    assign cache_miss = (state == S_LOOKUP) && !ar_pending && !cache_hit;
+    assign cache_miss = (state == S_LOOKUP) && !cache_hit;
 
     assign commit_fire = ex_out_valid;
     assign flush = commit_fire && ex_redirect;
     assign invalidate = commit_fire && ex_fence_i;
-    assign if_out_valid = (state == S_LOOKUP) && !ar_pending && cache_hit;
+    assign if_out_valid = (state == S_LOOKUP) && cache_hit;
     assign if_pc = pc_r;
     assign if_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
 
     assign req_fire = if_out_valid && if_out_ready;
 
     assign miss_line_base = {miss_tag, miss_index, {OFFSET_W{1'b0}}};
-    assign ar_line_base = ar_pending ? miss_line_base :
-                                       {lookup_tag, lookup_index, {OFFSET_W{1'b0}}};
-    assign ifu_master_araddr = ar_line_base;
+    assign lookup_line_base = {lookup_tag, lookup_index, {OFFSET_W{1'b0}}};
+    assign ifu_master_araddr = lookup_line_base;
     assign ifu_master_arlen = LINE_WORDS[7:0] - 8'd1;
     assign ifu_master_arburst = 2'b01;
-    assign ifu_master_arvalid = (state == S_LOOKUP) && (ar_pending || cache_miss);
+    assign ifu_master_arvalid = cache_miss;
     assign ifu_master_rready = (state == S_MISS_R);
     assign ar_fire = ifu_master_arvalid && ifu_master_arready;
     assign r_fire = ifu_master_rvalid && ifu_master_rready;
@@ -106,7 +104,6 @@ module ysyx_26030082_ifu #(
             miss_index <= {INDEX_W{1'b0}};
             miss_tag <= {TAG_W{1'b0}};
             refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
-            ar_pending <= 1'b0;
             drop_fill <= 1'b0;
             valid_array <= {LINE_COUNT{1'b0}};
         end else begin
@@ -122,30 +119,12 @@ module ysyx_26030082_ifu #(
 
             case (state)
                 S_LOOKUP: begin
-                    if (ar_pending) begin
-                        if (invalidate) begin
-                            if (ar_fire) begin
-                                ar_pending <= 1'b0;
-                                drop_fill <= 1'b1;
-                                state <= S_MISS_R;
-                            end else begin
-                                ar_pending <= 1'b0;
-                                drop_fill <= 1'b0;
-                            end
-                        end else if (ar_fire) begin
-                            ar_pending <= 1'b0;
-                            state <= S_MISS_R;
-                        end
-                    end else if (cache_miss) begin
+                    if (cache_miss && ar_fire) begin
                         miss_index <= lookup_index;
                         miss_tag <= lookup_tag;
                         refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
-                        drop_fill <= 1'b0;
-                        if (ar_fire) begin
-                            state <= S_MISS_R;
-                        end else begin
-                            ar_pending <= 1'b1;
-                        end
+                        drop_fill <= invalidate;
+                        state <= S_MISS_R;
                     end
                 end
 
@@ -172,7 +151,6 @@ module ysyx_26030082_ifu #(
 
                 default: begin
                     state <= S_LOOKUP;
-                    ar_pending <= 1'b0;
                     drop_fill <= 1'b0;
                 end
             endcase
