@@ -53,7 +53,6 @@ module ysyx_26030082_ifu #(
     reg [TAG_W-1:0]   miss_tag;
     reg [LINE_WORD_OFF_W-1:0] refill_word_idx;
     reg         drop_fill;
-    reg [LINE_COUNT-1:0] valid_next;
 
     wire [LINE_WORD_OFF_W-1:0] lookup_word_offset;
     wire [INDEX_W-1:0]         lookup_index;
@@ -97,13 +96,13 @@ module ysyx_26030082_ifu #(
     assign ar_fire = ifu_master_arvalid && ifu_master_arready;
     assign r_fire = ifu_master_rvalid && ifu_master_rready;
 
-    always @(*) begin
-        valid_next = valid_array;
-        if ((state == S_MISS_R) && r_fire && ifu_master_rlast && !drop_fill && !flush) begin
-            valid_next[miss_index] = 1'b1;
-        end
-        if (invalidate) begin
-            valid_next = {LINE_COUNT{1'b0}};
+    always @(posedge clock) begin
+        if (reset) begin
+            valid_array <= {LINE_COUNT{1'b0}};
+        end else if (invalidate) begin
+            valid_array <= {LINE_COUNT{1'b0}};
+        end else if ((state == S_MISS_R) && r_fire && ifu_master_rlast && !drop_fill && !flush) begin
+            valid_array[miss_index] <= 1'b1;
         end
     end
 
@@ -115,7 +114,6 @@ module ysyx_26030082_ifu #(
             miss_tag <= {TAG_W{1'b0}};
             refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
             drop_fill <= 1'b0;
-            valid_array <= {LINE_COUNT{1'b0}};
         end else begin
             if (flush) begin
                 pc_r <= ex_redirect_pc;
@@ -168,8 +166,6 @@ module ysyx_26030082_ifu #(
                     drop_fill <= 1'b0;
                 end
             endcase
-
-            valid_array <= valid_next;
         end
     end
 
