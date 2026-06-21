@@ -37,10 +37,11 @@ module ysyx_26030082_ifu #(
     localparam integer OFFSET_W        = WORD_OFF_W + LINE_ADDR_OFF_W;
     localparam integer TAG_W           = 32 - INDEX_W - OFFSET_W;
 
-    localparam S_LOOKUP = 1'b0;
-    localparam S_MISS_R = 1'b1;
+    localparam [1:0] S_LOOKUP  = 2'd0;
+    localparam [1:0] S_MISS_AR = 2'd1;
+    localparam [1:0] S_MISS_R  = 2'd2;
 
-    reg state;
+    reg [1:0] state;
     reg [31:0] pc_r;
 
     localparam integer LINE_DATA_W = LINE_WORDS * 32;
@@ -66,9 +67,7 @@ module ysyx_26030082_ifu #(
     wire               commit_fire;
     wire               flush;
     wire               invalidate;
-    wire               miss_req;
     wire [31:0] miss_line_base;
-    wire [31:0] lookup_line_base;
 
     assign lookup_word_offset =
         pc_r[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
@@ -89,12 +88,10 @@ module ysyx_26030082_ifu #(
     assign req_fire = if_out_valid && if_out_ready;
 
     assign miss_line_base = {miss_tag, miss_index, {OFFSET_W{1'b0}}};
-    assign lookup_line_base = {lookup_tag, lookup_index, {OFFSET_W{1'b0}}};
-    assign miss_req = cache_miss && !flush && !invalidate;
-    assign ifu_master_araddr = lookup_line_base;
+    assign ifu_master_araddr = miss_line_base;
     assign ifu_master_arlen = LINE_WORDS[7:0] - 8'd1;
     assign ifu_master_arburst = 2'b01;
-    assign ifu_master_arvalid = miss_req;
+    assign ifu_master_arvalid = (state == S_MISS_AR);
     assign ifu_master_rready = (state == S_MISS_R);
     assign ar_fire = ifu_master_arvalid && ifu_master_arready;
     assign r_fire = ifu_master_rvalid && ifu_master_rready;
@@ -121,12 +118,32 @@ module ysyx_26030082_ifu #(
 
             case (state)
                 S_LOOKUP: begin
-                    if (miss_req && ar_fire) begin
+                    if (cache_miss) begin
                         miss_index <= lookup_index;
                         miss_tag <= lookup_tag;
                         refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
                         drop_fill <= 1'b0;
-                        state <= S_MISS_R;
+                        state <= S_MISS_AR;
+                    end
+                end
+
+                S_MISS_AR: begin
+                    if (invalidate) begin
+                        if (ar_fire) begin
+                            drop_fill <= 1'b1;
+                            state <= S_MISS_R;
+                        end else begin
+                            drop_fill <= 1'b0;
+                            state <= S_LOOKUP;
+                        end
+                    end else begin
+                        if (ar_fire) begin
+                            drop_fill <= flush;
+                            state <= S_MISS_R;
+                        end else if (flush) begin
+                            drop_fill <= 1'b0;
+                            state <= S_LOOKUP;
+                        end
                     end
                 end
 
@@ -134,6 +151,7 @@ module ysyx_26030082_ifu #(
                     if (invalidate) begin
                         drop_fill <= 1'b1;
                     end else if (flush) begin
+                        drop_fill <= 1'b1;
                     end
 
                     if (r_fire) begin
