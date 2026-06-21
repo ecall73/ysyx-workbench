@@ -90,7 +90,7 @@ module ysyx_26030082_ifu #(
     assign ifu_master_arlen = LINE_WORDS[7:0] - 8'd1;
     assign ifu_master_arburst = 2'b01;
     assign ifu_master_arvalid = (state == S_MISS_AR);
-    assign ifu_master_rready = state[1];
+    assign ifu_master_rready = (state == S_MISS_R) || (state == S_DROP_R);
     assign ar_fire = ifu_master_arvalid && ifu_master_arready;
     assign r_fire = ifu_master_rvalid && ifu_master_rready;
 
@@ -101,7 +101,7 @@ module ysyx_26030082_ifu #(
             valid_array <= {LINE_COUNT{1'b0}};
         end else if ((state == S_MISS_R) && flush) begin
             valid_array[lookup_index] <= 1'b0;
-        end else if ((state == S_MISS_R) && r_fire && ifu_master_rlast && !flush) begin
+        end else if ((state == S_MISS_R) && r_fire && ifu_master_rlast) begin
             valid_array[lookup_index] <= 1'b1;
         end
     end
@@ -135,24 +135,16 @@ module ysyx_26030082_ifu #(
                 end
 
                 S_MISS_R: begin
-                    if (r_fire && !flush) begin
+                    if (flush) begin
+                        state <= (r_fire && ifu_master_rlast) ? S_LOOKUP : S_DROP_R;
+                    end else if (r_fire) begin
                         data_array[lookup_index][{refill_word_idx, 5'b0} +: 32] <= ifu_master_rdata;
-                    end
-
-                    if (r_fire) begin
                         if (ifu_master_rlast) begin
-                            if (!flush) begin
-                                tag_array[lookup_index] <= lookup_tag;
-                            end
+                            tag_array[lookup_index] <= lookup_tag;
                             state <= S_LOOKUP;
                         end else begin
                             refill_word_idx <= refill_word_idx + 1'b1;
-                            if (flush) begin
-                                state <= S_DROP_R;
-                            end
                         end
-                    end else if (flush) begin
-                        state <= S_DROP_R;
                     end
                 end
 
