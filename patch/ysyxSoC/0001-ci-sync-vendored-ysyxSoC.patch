@@ -1,26 +1,26 @@
-From bda0e4b1ff2c2659d85025e8649728d82db5917d Mon Sep 17 00:00:00 2001
+From 04c1473b8ec074a789c4323b2e3c2a6e1a2e9e00 Mon Sep 17 00:00:00 2001
 From: ysyx-ci-local <ci-local@ysyx.org>
-Date: Thu, 11 Jun 2026 17:02:23 +0800
+Date: Sun, 21 Jun 2026 21:20:04 +0800
 Subject: [PATCH] ci: sync vendored ysyxSoC
 
 ---
  .gitignore                              |   2 +-
  patch/rocket-chip.patch                 |   2 +-
- perip/amba/apb_delayer.v                | 151 ++++++++-
- perip/amba/axi4_delayer.v               | 434 ++++++++++++++++++++++--
- perip/bitrev/bitrev.v                   |  39 ++-
+ perip/amba/apb_delayer.v                | 172 +++++++++
+ perip/amba/axi4_delayer.v               | 475 ++++++++++++++++++++++++
+ perip/bitrev/bitrev.v                   |  39 +-
  perip/gpio/gpio_top_apb.v               |  86 +++++
- perip/ps2/ps2_top_apb.v                 |  98 ++++++
- perip/psram/efabless/EF_PSRAM_CTRL.v    | 137 ++++++--
+ perip/ps2/ps2_top_apb.v                 |  98 +++++
+ perip/psram/efabless/EF_PSRAM_CTRL.v    | 137 +++++--
  perip/psram/efabless/EF_PSRAM_CTRL_wb.v |  49 ++-
- perip/psram/psram.v                     | 198 ++++++++++-
- perip/sdram/sdram.v                     | 293 +++++++++++++++-
- perip/spi/rtl/spi_top_apb.v             | 233 ++++++++++++-
+ perip/psram/psram.v                     | 198 +++++++++-
+ perip/sdram/sdram.v                     | 293 ++++++++++++++-
+ perip/spi/rtl/spi_top_apb.v             | 233 +++++++++++-
  perip/uart16550/rtl/uart_tfifo.v        |   4 +
  perip/vga/vga_top_apb.v                 | 110 ++++++
  src/CPU.scala                           |   4 +-
  src/Top.scala                           |   2 +-
- 16 files changed, 1748 insertions(+), 94 deletions(-)
+ 16 files changed, 1849 insertions(+), 55 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 3c0160d..606c84a 100644
@@ -42,23 +42,41 @@ index 9d46875..6483245 100644
  +++ b/src/main/scala/amba/axi4/Parameters.scala
  @@ -127,10 +127,10 @@ case class AXI4BundleParameters(
 diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
-index c0d2076..a34ada4 100644
+index c0d2076..c531818 100644
 --- a/perip/amba/apb_delayer.v
 +++ b/perip/amba/apb_delayer.v
-@@ -24,15 +24,146 @@ module apb_delayer(
-   input         out_pslverr
- );
+@@ -36,3 +36,175 @@ module apb_delayer(
+   assign in_pslverr  = out_pslverr;
  
--  assign out_paddr   = in_paddr;
--  assign out_psel    = in_psel;
--  assign out_penable = in_penable;
--  assign out_pprot   = in_pprot;
--  assign out_pwrite  = in_pwrite;
--  assign out_pwdata  = in_pwdata;
--  assign out_pstrb   = in_pstrb;
--  assign in_pready   = out_pready;
--  assign in_prdata   = out_prdata;
--  assign in_pslverr  = out_pslverr;
+ endmodule
++
++/*
++module apb_delayer(
++  input         clock,
++  input         reset,
++  input  [31:0] in_paddr,
++  input         in_psel,
++  input         in_penable,
++  input  [2:0]  in_pprot,
++  input         in_pwrite,
++  input  [31:0] in_pwdata,
++  input  [3:0]  in_pstrb,
++  output        in_pready,
++  output [31:0] in_prdata,
++  output        in_pslverr,
++
++  output [31:0] out_paddr,
++  output        out_psel,
++  output        out_penable,
++  output [2:0]  out_pprot,
++  output        out_pwrite,
++  output [31:0] out_pwdata,
++  output [3:0]  out_pstrb,
++  input         out_pready,
++  input  [31:0] out_prdata,
++  input         out_pslverr
++);
++
 +  // CPU_MHZ can be edited to 100/200/400 when validating calibration.
 +  localparam integer CPU_MHZ  = 100;
 +  localparam integer DEV_MHZ  = 100;
@@ -200,45 +218,84 @@ index c0d2076..a34ada4 100644
 +      end
 +    end
 +  end
- 
- endmodule
++
++endmodule
++*/
 diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
-index f692803..e3045e3 100644
+index f692803..9485e64 100644
 --- a/perip/amba/axi4_delayer.v
 +++ b/perip/amba/axi4_delayer.v
-@@ -63,34 +63,410 @@ module axi4_delayer(
-   input  [1:0]  out_bresp
- );
+@@ -94,3 +94,478 @@ module axi4_delayer(
+   assign in_bresp = out_bresp;
  
--  assign in_arready = out_arready;
--  assign out_arvalid = in_arvalid;
--  assign out_arid = in_arid;
--  assign out_araddr = in_araddr;
--  assign out_arlen = in_arlen;
--  assign out_arsize = in_arsize;
--  assign out_arburst = in_arburst;
--  assign out_rready = in_rready;
--  assign in_rvalid = out_rvalid;
--  assign in_rid = out_rid;
--  assign in_rdata = out_rdata;
--  assign in_rresp = out_rresp;
--  assign in_rlast = out_rlast;
--  assign in_awready = out_awready;
--  assign out_awvalid = in_awvalid;
--  assign out_awid = in_awid;
--  assign out_awaddr = in_awaddr;
--  assign out_awlen = in_awlen;
--  assign out_awsize = in_awsize;
--  assign out_awburst = in_awburst;
--  assign in_wready = out_wready;
--  assign out_wvalid = in_wvalid;
--  assign out_wdata = in_wdata;
--  assign out_wstrb = in_wstrb;
--  assign out_wlast = in_wlast;
--  assign out_bready = in_bready;
--  assign in_bvalid = out_bvalid;
--  assign in_bid = out_bid;
--  assign in_bresp = out_bresp;
+ endmodule
++
++/*
++module axi4_delayer(
++  input         clock,
++  input         reset,
++
++  output        in_arready,
++  input         in_arvalid,
++  input  [3:0]  in_arid,
++  input  [31:0] in_araddr,
++  input  [7:0]  in_arlen,
++  input  [2:0]  in_arsize,
++  input  [1:0]  in_arburst,
++  input         in_rready,
++  output        in_rvalid,
++  output [3:0]  in_rid,
++  output [31:0] in_rdata,
++  output [1:0]  in_rresp,
++  output        in_rlast,
++  output        in_awready,
++  input         in_awvalid,
++  input  [3:0]  in_awid,
++  input  [31:0] in_awaddr,
++  input  [7:0]  in_awlen,
++  input  [2:0]  in_awsize,
++  input  [1:0]  in_awburst,
++  output        in_wready,
++  input         in_wvalid,
++  input  [31:0] in_wdata,
++  input  [3:0]  in_wstrb,
++  input         in_wlast,
++                in_bready,
++  output        in_bvalid,
++  output [3:0]  in_bid,
++  output [1:0]  in_bresp,
++
++  input         out_arready,
++  output        out_arvalid,
++  output [3:0]  out_arid,
++  output [31:0] out_araddr,
++  output [7:0]  out_arlen,
++  output [2:0]  out_arsize,
++  output [1:0]  out_arburst,
++  output        out_rready,
++  input         out_rvalid,
++  input  [3:0]  out_rid,
++  input  [31:0] out_rdata,
++  input  [1:0]  out_rresp,
++  input         out_rlast,
++  input         out_awready,
++  output        out_awvalid,
++  output [3:0]  out_awid,
++  output [31:0] out_awaddr,
++  output [7:0]  out_awlen,
++  output [2:0]  out_awsize,
++  output [1:0]  out_awburst,
++  input         out_wready,
++  output        out_wvalid,
++  output [31:0] out_wdata,
++  output [3:0]  out_wstrb,
++  output        out_wlast,
++                out_bready,
++  input         out_bvalid,
++  input  [3:0]  out_bid,
++  input  [1:0]  out_bresp
++);
++
 +  // CPU_MHZ can be edited to 100/200/400 when validating calibration.
 +  localparam integer CPU_MHZ       = 100;
 +  localparam integer DEV_MHZ       = 100;
@@ -644,8 +701,10 @@ index f692803..e3045e3 100644
 +    end
 +  end
 +`endif
- 
- endmodule
++
++endmodule
++*/
+\ No newline at end of file
 diff --git a/perip/bitrev/bitrev.v b/perip/bitrev/bitrev.v
 index f1c3b36..1e7f1a4 100644
 --- a/perip/bitrev/bitrev.v

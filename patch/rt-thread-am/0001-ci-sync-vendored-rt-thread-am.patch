@@ -1,6 +1,6 @@
-From 5f096671ff820e2c879603b1e65b856d2d304490 Mon Sep 17 00:00:00 2001
+From 13ef68db7d73e2e889dcf7f150ca93e82a285e98 Mon Sep 17 00:00:00 2001
 From: ysyx-ci-local <ci-local@ysyx.org>
-Date: Wed, 10 Jun 2026 19:57:13 +0800
+Date: Sun, 21 Jun 2026 21:20:02 +0800
 Subject: [PATCH] ci: sync vendored rt-thread-am
 
 ---
