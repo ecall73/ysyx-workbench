@@ -144,8 +144,6 @@ module ysyx_26030082_axi4lite_arbiter (
                     end else if (ifu_master_arvalid) begin
                         rd_owner_ifu <= 1'b1;
                         rd_state <= ifu_ar_fire ? R_DATA : R_AR;
-                    end else begin
-                        rd_owner_ifu <= 1'b0;
                     end
                 end
 
