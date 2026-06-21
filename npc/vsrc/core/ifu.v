@@ -66,6 +66,7 @@ module ysyx_26030082_ifu #(
     wire               commit_fire;
     wire               flush;
     wire               invalidate;
+    wire               miss_req;
     wire [31:0] miss_line_base;
     wire [31:0] lookup_line_base;
 
@@ -89,10 +90,11 @@ module ysyx_26030082_ifu #(
 
     assign miss_line_base = {miss_tag, miss_index, {OFFSET_W{1'b0}}};
     assign lookup_line_base = {lookup_tag, lookup_index, {OFFSET_W{1'b0}}};
+    assign miss_req = cache_miss && !flush && !invalidate;
     assign ifu_master_araddr = lookup_line_base;
     assign ifu_master_arlen = LINE_WORDS[7:0] - 8'd1;
     assign ifu_master_arburst = 2'b01;
-    assign ifu_master_arvalid = cache_miss;
+    assign ifu_master_arvalid = miss_req;
     assign ifu_master_rready = (state == S_MISS_R);
     assign ar_fire = ifu_master_arvalid && ifu_master_arready;
     assign r_fire = ifu_master_rvalid && ifu_master_rready;
@@ -119,11 +121,11 @@ module ysyx_26030082_ifu #(
 
             case (state)
                 S_LOOKUP: begin
-                    if (cache_miss && ar_fire) begin
+                    if (miss_req && ar_fire) begin
                         miss_index <= lookup_index;
                         miss_tag <= lookup_tag;
                         refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
-                        drop_fill <= invalidate;
+                        drop_fill <= 1'b0;
                         state <= S_MISS_R;
                     end
                 end
