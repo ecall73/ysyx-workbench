@@ -1,39 +1,39 @@
 module ysyx_26030082_exu (
-    input  wire        clock,
-    input  wire        reset,
+    input             clock,
+    input             reset,
 
-    input  wire        ex_in_valid,
-    output wire        ex_in_ready,
-    input  wire [31:0] ex_pc,
-    input  wire [31:0] ex_inst,
+    input             ex_in_valid,
+    output            ex_in_ready,
+    input      [31:0] ex_pc,
+    input      [31:0] ex_inst,
 
-    output wire        ex_out_valid,
+    output            ex_out_valid,
 
-    input  wire [63:0] ex_mtime,
+    input      [63:0] ex_mtime,
 
-    output wire        ex_redirect,
-    output reg  [31:0] ex_redirect_pc,
-    output wire        ex_fence_i,
+    output            ex_redirect,
+    output reg [31:0] ex_redirect_pc,
+    output            ex_fence_i,
 
-    output wire [31:0] lsu_master_araddr,
-    output wire [ 2:0] lsu_master_arsize,
-    output wire        lsu_master_arvalid,
-    input  wire        lsu_master_arready,
-    input  wire [31:0] lsu_master_rdata,
-    input  wire [ 1:0] lsu_master_rresp,
-    input  wire        lsu_master_rvalid,
-    output wire        lsu_master_rready,
-    output wire [31:0] lsu_master_awaddr,
-    output wire [ 2:0] lsu_master_awsize,
-    output wire        lsu_master_awvalid,
-    input  wire        lsu_master_awready,
-    output reg  [31:0] lsu_master_wdata,
-    output wire [ 3:0] lsu_master_wstrb,
-    output wire        lsu_master_wvalid,
-    input  wire        lsu_master_wready,
-    input  wire [ 1:0] lsu_master_bresp,
-    input  wire        lsu_master_bvalid,
-    output wire        lsu_master_bready
+    output     [31:0] lsu_master_araddr,
+    output     [ 2:0] lsu_master_arsize,
+    output            lsu_master_arvalid,
+    input             lsu_master_arready,
+    input      [31:0] lsu_master_rdata,
+    input      [ 1:0] lsu_master_rresp,
+    input             lsu_master_rvalid,
+    output            lsu_master_rready,
+    output     [31:0] lsu_master_awaddr,
+    output     [ 2:0] lsu_master_awsize,
+    output            lsu_master_awvalid,
+    input             lsu_master_awready,
+    output reg [31:0] lsu_master_wdata,
+    output     [ 3:0] lsu_master_wstrb,
+    output            lsu_master_wvalid,
+    input             lsu_master_wready,
+    input      [ 1:0] lsu_master_bresp,
+    input             lsu_master_bvalid,
+    output            lsu_master_bready
 );
 
     localparam [6:0] OPCODE_OP   = 7'b011_0011;
@@ -58,7 +58,7 @@ module ysyx_26030082_exu (
     localparam [11:0] F12_ECALL = 12'h000;
     localparam [11:0] F12_MRET  = 12'h302;
 
-    localparam [2:0] F3_PRIV = 3'b000;
+    localparam [2:0] F3_PRIV   = 3'b000;
     localparam [2:0] F3_CSRRW  = 3'b001;
     localparam [2:0] F3_CSRRS  = 3'b010;
     localparam [2:0] F3_CSRRC  = 3'b011;

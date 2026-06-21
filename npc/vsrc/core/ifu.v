@@ -3,32 +3,32 @@ module ysyx_26030082_ifu #(
     parameter integer LINE_WORDS = 4,
     parameter integer LINE_COUNT = 4
 ) (
-    input  wire        clock,
-    input  wire        reset,
+    input             clock,
+    input             reset,
 
     // EX retire feedback
-    input  wire        ex_out_valid,
-    input  wire        ex_redirect,
-    input  wire [31:0] ex_redirect_pc,
-    input  wire        ex_fence_i,
+    input             ex_out_valid,
+    input             ex_redirect,
+    input      [31:0] ex_redirect_pc,
+    input             ex_fence_i,
 
     // IF output interface
-    output wire        if_out_valid,
-    input  wire        if_out_ready,
-    output wire [31:0] if_pc,
-    output wire [31:0] if_inst,
+    output            if_out_valid,
+    input             if_out_ready,
+    output reg [31:0] if_pc,
+    output     [31:0] if_inst,
 
     // AXI4 read master interface
-    output wire [31:0] ifu_master_araddr,
-    output wire [ 7:0] ifu_master_arlen,
-    output wire [ 1:0] ifu_master_arburst,
-    output wire        ifu_master_arvalid,
-    input  wire        ifu_master_arready,
-    input  wire [31:0] ifu_master_rdata,
-    input  wire [ 1:0] ifu_master_rresp,
-    input  wire        ifu_master_rlast,
-    input  wire        ifu_master_rvalid,
-    output wire        ifu_master_rready
+    output     [31:0] ifu_master_araddr,
+    output     [ 7:0] ifu_master_arlen,
+    output     [ 1:0] ifu_master_arburst,
+    output            ifu_master_arvalid,
+    input             ifu_master_arready,
+    input      [31:0] ifu_master_rdata,
+    input      [ 1:0] ifu_master_rresp,
+    input             ifu_master_rlast,
+    input             ifu_master_rvalid,
+    output            ifu_master_rready
 );
     localparam integer WORD_OFF_W      = 2;
     localparam integer LINE_ADDR_OFF_W = $clog2(LINE_WORDS);
@@ -43,7 +43,6 @@ module ysyx_26030082_ifu #(
     localparam [1:0] S_DROP_R  = 2'd3;
 
     reg [1:0] state;
-    reg [31:0] pc_r;
 
     localparam integer LINE_DATA_W = LINE_WORDS * 32;
     reg [LINE_DATA_W-1:0] data_array [0:LINE_COUNT-1];
@@ -62,30 +61,27 @@ module ysyx_26030082_ifu #(
     wire               req_fire;
     wire               ar_fire;
     wire               r_fire;
-    wire               commit_fire;
     wire               flush;
     wire               invalidate;
     wire [31:0] miss_line_base;
 
     assign lookup_word_offset =
-        pc_r[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
-    assign lookup_index = pc_r[OFFSET_W + INDEX_W - 1 : OFFSET_W];
-    assign lookup_tag = pc_r[31 : OFFSET_W + INDEX_W];
+        if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
+    assign lookup_index = if_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
+    assign lookup_tag = if_pc[31 : OFFSET_W + INDEX_W];
     assign lookup_line = data_array[lookup_index];
 
     assign cache_hit = valid_array[lookup_index] && (tag_array[lookup_index] == lookup_tag);
     assign cache_miss = (state == S_LOOKUP) && !cache_hit;
 
-    assign commit_fire = ex_out_valid;
-    assign flush = commit_fire && ex_redirect;
-    assign invalidate = commit_fire && ex_fence_i;
+    assign flush = ex_out_valid && ex_redirect;
+    assign invalidate = ex_out_valid && ex_fence_i;
     assign if_out_valid = (state == S_LOOKUP) && cache_hit;
-    assign if_pc = pc_r;
     assign if_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
 
     assign req_fire = if_out_valid && if_out_ready;
 
-    assign miss_line_base = {pc_r[31:OFFSET_W], {OFFSET_W{1'b0}}};
+    assign miss_line_base = {if_pc[31:OFFSET_W], {OFFSET_W{1'b0}}};
     assign ifu_master_araddr = miss_line_base;
     assign ifu_master_arlen = LINE_WORDS[7:0] - 8'd1;
     assign ifu_master_arburst = 2'b01;
@@ -109,13 +105,13 @@ module ysyx_26030082_ifu #(
     always @(posedge clock) begin
         if (reset) begin
             state <= S_LOOKUP;
-            pc_r <= RESET_PC;
+            if_pc <= RESET_PC;
             refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
         end else begin
             if (flush) begin
-                pc_r <= ex_redirect_pc;
+                if_pc <= ex_redirect_pc;
             end else if (req_fire) begin
-                pc_r <= pc_r + 32'd4;
+                if_pc <= if_pc + 32'd4;
             end
 
             case (state)
@@ -184,8 +180,8 @@ module ysyx_26030082_ifu #(
     end
 
     always @(posedge clock) begin
-        if (!reset && req_fire && (pc_r[1:0] != 2'b00)) begin
-            $fatal(1, "unaligned ifu fetch pc=%08x", pc_r);
+        if (!reset && req_fire && (if_pc[1:0] != 2'b00)) begin
+            $fatal(1, "unaligned ifu fetch pc=%08x", if_pc);
         end
         if (!reset && (state == S_MISS_R) && r_fire) begin
             if ((refill_word_idx == (LINE_WORDS - 1)) && !ifu_master_rlast) begin
