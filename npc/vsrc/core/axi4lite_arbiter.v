@@ -109,7 +109,7 @@ module ysyx_26030082_axi4lite_arbiter (
     assign lsu_master_bvalid = io_master_bvalid;
 
     assign io_master_araddr = rd_sel_ifu ? ifu_master_araddr : lsu_master_araddr;
-    assign io_master_arid = rd_sel_ifu ? 4'h1 : 4'h0;
+    assign io_master_arid = 4'h0;
     assign io_master_arlen = rd_sel_ifu ? ifu_master_arlen : 8'h00;
     assign io_master_arsize = rd_sel_ifu ? 3'b010 : lsu_master_arsize;
     assign io_master_arburst = rd_sel_ifu ? ifu_master_arburst : 2'b00;
