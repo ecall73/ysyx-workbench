@@ -112,13 +112,9 @@ module ysyx_26030082_ifu #(
                 pc_r <= pc_r + 32'd4;
             end
 
-            if (invalidate) begin
-                valid_array <= {LINE_COUNT{1'b0}};
-            end
-
             case (state)
                 S_LOOKUP: begin
-                    if (cache_miss) begin
+                    if (cache_miss && !flush) begin
                         miss_index <= lookup_index;
                         miss_tag <= lookup_tag;
                         refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
@@ -128,36 +124,24 @@ module ysyx_26030082_ifu #(
                 end
 
                 S_MISS_AR: begin
-                    if (invalidate) begin
-                        if (ar_fire) begin
-                            drop_fill <= 1'b1;
-                            state <= S_MISS_R;
-                        end else begin
-                            drop_fill <= 1'b0;
-                            state <= S_LOOKUP;
-                        end
-                    end else begin
-                        if (ar_fire) begin
-                            drop_fill <= flush;
-                            state <= S_MISS_R;
-                        end else if (flush) begin
-                            drop_fill <= 1'b0;
-                            state <= S_LOOKUP;
-                        end
+                    if (ar_fire) begin
+                        drop_fill <= flush;
+                        state <= S_MISS_R;
+                    end else if (flush) begin
+                        drop_fill <= 1'b0;
+                        state <= S_LOOKUP;
                     end
                 end
 
                 S_MISS_R: begin
-                    if (invalidate) begin
-                        drop_fill <= 1'b1;
-                    end else if (flush) begin
+                    if (flush) begin
                         drop_fill <= 1'b1;
                     end
 
                     if (r_fire) begin
                         data_array[miss_index][{refill_word_idx, 5'b0} +: 32] <= ifu_master_rdata;
                         if (ifu_master_rlast) begin
-                            if (!drop_fill && !invalidate) begin
+                            if (!drop_fill && !flush) begin
                                 tag_array[miss_index] <= miss_tag;
                                 valid_array[miss_index] <= 1'b1;
                             end
@@ -174,6 +158,10 @@ module ysyx_26030082_ifu #(
                     drop_fill <= 1'b0;
                 end
             endcase
+
+            if (invalidate) begin
+                valid_array <= {LINE_COUNT{1'b0}};
+            end
         end
     end
 
