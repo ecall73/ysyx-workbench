@@ -71,9 +71,6 @@ module ysyx_26030082_axi4lite_arbiter (
     reg [1:0] rd_state;
     reg       rd_owner_ifu;
 
-    wire rd_idle;
-    wire rd_ar;
-    wire rd_data;
     wire rd_sel_lsu;
     wire rd_sel_ifu;
     wire rd_data_lsu;
@@ -83,16 +80,12 @@ module ysyx_26030082_axi4lite_arbiter (
     wire ifu_ar_fire;
     wire ifu_r_fire;
 
-    assign rd_idle = (rd_state == R_IDLE);
-    assign rd_ar = (rd_state == R_AR);
-    assign rd_data = (rd_state == R_DATA);
-
-    assign rd_sel_lsu = (rd_idle && lsu_master_arvalid) ||
-                        (rd_ar && ~rd_owner_ifu);
-    assign rd_sel_ifu = (rd_idle && ~lsu_master_arvalid && ifu_master_arvalid) ||
-                        (rd_ar && rd_owner_ifu);
-    assign rd_data_lsu = rd_data && ~rd_owner_ifu;
-    assign rd_data_ifu = rd_data && rd_owner_ifu;
+    assign rd_sel_lsu = ((rd_state == R_IDLE) && lsu_master_arvalid) ||
+                        ((rd_state == R_AR) && ~rd_owner_ifu);
+    assign rd_sel_ifu = ((rd_state == R_IDLE) && ~lsu_master_arvalid && ifu_master_arvalid) ||
+                        ((rd_state == R_AR) && rd_owner_ifu);
+    assign rd_data_lsu = (rd_state == R_DATA) && ~rd_owner_ifu;
+    assign rd_data_ifu = (rd_state == R_DATA) && rd_owner_ifu;
 
     assign lsu_ar_fire = rd_sel_lsu && lsu_master_arvalid && io_master_arready;
     assign ifu_ar_fire = rd_sel_ifu && ifu_master_arvalid && io_master_arready;
