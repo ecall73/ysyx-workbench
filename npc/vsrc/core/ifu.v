@@ -90,7 +90,7 @@ module ysyx_26030082_ifu #(
     assign ifu_master_arlen = LINE_WORDS[7:0] - 8'd1;
     assign ifu_master_arburst = 2'b01;
     assign ifu_master_arvalid = (state == S_MISS_AR);
-    assign ifu_master_rready = (state == S_MISS_R) || (state == S_DROP_R);
+    assign ifu_master_rready = state[1];
     assign ar_fire = ifu_master_arvalid && ifu_master_arready;
     assign r_fire = ifu_master_rvalid && ifu_master_rready;
 
