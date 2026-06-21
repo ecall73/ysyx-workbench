@@ -40,6 +40,7 @@ module ysyx_26030082_ifu #(
     localparam [1:0] S_LOOKUP  = 2'd0;
     localparam [1:0] S_MISS_AR = 2'd1;
     localparam [1:0] S_MISS_R  = 2'd2;
+    localparam [1:0] S_DROP_R  = 2'd3;
 
     reg [1:0] state;
     reg [31:0] pc_r;
@@ -50,7 +51,6 @@ module ysyx_26030082_ifu #(
     reg [LINE_COUNT-1:0] valid_array;
 
     reg [LINE_WORD_OFF_W-1:0] refill_word_idx;
-    reg         drop_fill;
 
     wire [LINE_WORD_OFF_W-1:0] lookup_word_offset;
     wire [INDEX_W-1:0]         lookup_index;
@@ -90,7 +90,7 @@ module ysyx_26030082_ifu #(
     assign ifu_master_arlen = LINE_WORDS[7:0] - 8'd1;
     assign ifu_master_arburst = 2'b01;
     assign ifu_master_arvalid = (state == S_MISS_AR);
-    assign ifu_master_rready = (state == S_MISS_R);
+    assign ifu_master_rready = (state == S_MISS_R) || (state == S_DROP_R);
     assign ar_fire = ifu_master_arvalid && ifu_master_arready;
     assign r_fire = ifu_master_rvalid && ifu_master_rready;
 
@@ -101,7 +101,7 @@ module ysyx_26030082_ifu #(
             valid_array <= {LINE_COUNT{1'b0}};
         end else if ((state == S_MISS_R) && flush) begin
             valid_array[lookup_index] <= 1'b0;
-        end else if ((state == S_MISS_R) && r_fire && ifu_master_rlast && !drop_fill && !flush) begin
+        end else if ((state == S_MISS_R) && r_fire && ifu_master_rlast && !flush) begin
             valid_array[lookup_index] <= 1'b1;
         end
     end
@@ -111,7 +111,6 @@ module ysyx_26030082_ifu #(
             state <= S_LOOKUP;
             pc_r <= RESET_PC;
             refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
-            drop_fill <= 1'b0;
         end else begin
             if (flush) begin
                 pc_r <= ex_redirect_pc;
@@ -123,46 +122,48 @@ module ysyx_26030082_ifu #(
                 S_LOOKUP: begin
                     if (cache_miss && !flush) begin
                         refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
-                        drop_fill <= 1'b0;
                         state <= S_MISS_AR;
                     end
                 end
 
                 S_MISS_AR: begin
                     if (ar_fire) begin
-                        drop_fill <= flush;
-                        state <= S_MISS_R;
+                        state <= flush ? S_DROP_R : S_MISS_R;
                     end else if (flush) begin
-                        drop_fill <= 1'b0;
                         state <= S_LOOKUP;
                     end
                 end
 
                 S_MISS_R: begin
-                    if (flush) begin
-                        drop_fill <= 1'b1;
-                    end
-
-                    if (r_fire && !drop_fill && !flush) begin
+                    if (r_fire && !flush) begin
                         data_array[lookup_index][{refill_word_idx, 5'b0} +: 32] <= ifu_master_rdata;
                     end
 
                     if (r_fire) begin
                         if (ifu_master_rlast) begin
-                            if (!drop_fill && !flush) begin
+                            if (!flush) begin
                                 tag_array[lookup_index] <= lookup_tag;
                             end
-                            drop_fill <= 1'b0;
                             state <= S_LOOKUP;
                         end else begin
                             refill_word_idx <= refill_word_idx + 1'b1;
+                            if (flush) begin
+                                state <= S_DROP_R;
+                            end
                         end
+                    end else if (flush) begin
+                        state <= S_DROP_R;
+                    end
+                end
+
+                S_DROP_R: begin
+                    if (r_fire && ifu_master_rlast) begin
+                        state <= S_LOOKUP;
                     end
                 end
 
                 default: begin
                     state <= S_LOOKUP;
-                    drop_fill <= 1'b0;
                 end
             endcase
         end
