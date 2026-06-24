@@ -539,47 +539,19 @@ module ysyx_26030082_exu (
             case (mem_state)
                 L_IDLE: begin
                     if (ext_load_req) begin
-                        if (ar_fire) begin
-                            mem_state <= L_WAIT_R;
-                        end
+                        if (ar_fire) mem_state <= L_WAIT_R;
                     end else if (ext_store_req) begin
-                        if (aw_fire && w_fire) begin
-                            mem_state <= L_WAIT_B;
-                        end else if (aw_fire) begin
-                            mem_state <= L_WAIT_W;
-                        end else if (w_fire) begin
-                            mem_state <= L_WAIT_AW;
-                        end
+                        if (aw_fire && w_fire) mem_state <= L_WAIT_B;
+                        else if (aw_fire) mem_state <= L_WAIT_W;
+                        else if (w_fire) mem_state <= L_WAIT_AW;
                     end
                 end
+                L_WAIT_R: if (r_fire) mem_state <= L_IDLE;
+                L_WAIT_AW: if (aw_fire) mem_state <= L_WAIT_B;
+                L_WAIT_W: if (w_fire) mem_state <= L_WAIT_B;
+                L_WAIT_B: if (b_fire) mem_state <= L_IDLE;
 
-                L_WAIT_R: begin
-                    if (r_fire) begin
-                        mem_state <= L_IDLE;
-                    end
-                end
-
-                L_WAIT_AW: begin
-                    if (aw_fire) begin
-                        mem_state <= L_WAIT_B;
-                    end
-                end
-
-                L_WAIT_W: begin
-                    if (w_fire) begin
-                        mem_state <= L_WAIT_B;
-                    end
-                end
-
-                L_WAIT_B: begin
-                    if (b_fire) begin
-                        mem_state <= L_IDLE;
-                    end
-                end
-
-                default: begin
-                    mem_state <= L_IDLE;
-                end
+                default: mem_state <= L_IDLE;
             endcase
         end
     end
