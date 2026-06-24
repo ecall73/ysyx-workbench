@@ -104,46 +104,11 @@ module ysyx_26030082_exu (
     localparam [13:0] MTIME_WORD_OFFSET  = 14'h2ffe;
     localparam [13:0] MTIMEH_WORD_OFFSET = 14'h2fff;
 
-    // Common decode fields.
-    wire [6:0] opcode;
-    wire       funct7_5;
-    wire [2:0] funct3;
-    wire [4:0] rf_raddr1;
-    wire [4:0] rf_raddr2;
-    wire [4:0] rf_waddr;
-    wire [11:0] csr_addr;
     reg        branch_redirect;
 
     // RF.
     reg  [31:0] reg_bank [1:15];
-    wire        rf_wen;
-    wire        rf_write;
     reg  [31:0] rf_wdata;
-    wire [31:0] rf_rdata1;
-    wire [31:0] rf_rdata2;
-
-    // Immediate.
-    wire [31:0] imm;
-
-    // ALU.
-    wire [31:0] pc4;
-    wire        mem_ren;
-    wire        mem_wen;
-    wire [31:0] mem_addr;
-    wire [31:0] bit_lhs;
-    wire [31:0] bit_rhs;
-    wire [31:0] addsub_lhs;
-    wire [31:0] addsub_rhs_xor;
-    wire [31:0] addsub_result;
-    wire [31:0] and_result;
-    wire [31:0] or_result;
-    wire [31:0] xor_result;
-    wire [31:0] sll_result;
-    wire [31:0] srl_result;
-    wire [31:0] sra_result;
-    wire        cmp_eq;
-    wire        cmp_lt;
-    wire        cmp_ltu;
 
     // CSR.
     reg  [31:0] csr_mstatus;
@@ -151,95 +116,78 @@ module ysyx_26030082_exu (
     reg  [31:0] csr_mepc;
     reg  [31:0] csr_mcause;
     reg  [31:0] csr_rdata;
-    wire [31:0] csr_src_data;
-    wire [31:0] csr_write_data;
-    wire        csr_wdata_or_sel;
-    wire        csr_wdata_and_sel;
 
     // Memory.
     reg  [2:0]  mem_state;
-    wire        is_clint;
-    wire        ext_mem_req;
-    wire        ext_load_req;
-    wire        ext_store_req;
-    wire        ready_go;
-    wire        fire;
-    wire        ar_fire;
-    wire        r_fire;
-    wire        aw_fire;
-    wire        w_fire;
-    wire        b_fire;
-    wire [1:0]  mem_offset;
     reg  [31:0] local_rdata;
-    wire [31:0] load_raw_data;
     reg  [3:0]  wmask_calc;
     reg  [31:0] rdata_decoded;
     reg  [2:0]  mem_size;
 
-    assign opcode = ex_inst[6:0];
-    assign funct3 = ex_inst[14:12];
-    assign funct7_5 = ex_inst[30];
-    assign rf_raddr1 = ex_inst[19:15];
-    assign rf_raddr2 = ex_inst[24:20];
-    assign csr_addr = ex_inst[31:20];
+    wire [6:0]  opcode = ex_inst[6:0];
+    wire [2:0]  funct3 = ex_inst[14:12];
+    wire        funct7_5 = ex_inst[30];
+    wire [4:0]  rf_raddr1 = ex_inst[19:15];
+    wire [4:0]  rf_raddr2 = ex_inst[24:20];
+    wire [11:0] csr_addr = ex_inst[31:20];
 
-    assign rf_waddr = ex_inst[11:7];
+    wire [4:0] rf_waddr = ex_inst[11:7];
 
 /////////////////////////
     // ID: RF read, imm gen, input mux.
-    assign rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
-    assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
+    wire [31:0] rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
+    wire [31:0] rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
 
-    assign imm = ({32{opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_JALR}} & {{20{ex_inst[31]}}, ex_inst[31:20]}) |
-                 ({32{opcode == OPCODE_STORE}} & {{20{ex_inst[31]}}, ex_inst[31:25], ex_inst[11:7]}) |
-                 ({32{opcode == OPCODE_BRANCH}} & {{20{ex_inst[31]}}, ex_inst[7], ex_inst[30:25], ex_inst[11:8], 1'b0}) |
-                 ({32{opcode == OPCODE_LUI || opcode == OPCODE_AUIPC}} & {ex_inst[31:12], 12'b0}) |
-                 ({32{opcode == OPCODE_JAL}} & {{12{ex_inst[31]}}, ex_inst[19:12], ex_inst[20], ex_inst[30:21], 1'b0}) |
-                 ({32{opcode == OPCODE_SYSTEM}} & {27'b0, ex_inst[19:15]});
+    wire [31:0] imm = ({32{opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_JALR}} & {{20{ex_inst[31]}}, ex_inst[31:20]}) |
+                      ({32{opcode == OPCODE_STORE}} & {{20{ex_inst[31]}}, ex_inst[31:25], ex_inst[11:7]}) |
+                      ({32{opcode == OPCODE_BRANCH}} & {{20{ex_inst[31]}}, ex_inst[7], ex_inst[30:25], ex_inst[11:8], 1'b0}) |
+                      ({32{opcode == OPCODE_LUI || opcode == OPCODE_AUIPC}} & {ex_inst[31:12], 12'b0}) |
+                      ({32{opcode == OPCODE_JAL}} & {{12{ex_inst[31]}}, ex_inst[19:12], ex_inst[20], ex_inst[30:21], 1'b0}) |
+                      ({32{opcode == OPCODE_SYSTEM}} & {27'b0, ex_inst[19:15]});
 
-    assign pc4 = ex_pc + 32'd4;
-    assign csr_src_data = funct3[2] ? imm : rf_rdata1;
-    assign mem_ren = opcode == OPCODE_LOAD;
-    assign mem_wen = opcode == OPCODE_STORE;
+    wire [31:0] pc4 = ex_pc + 32'd4;
+    wire [31:0] csr_src_data = funct3[2] ? imm : rf_rdata1;
+    wire        mem_ren = opcode == OPCODE_LOAD;
+    wire        mem_wen = opcode == OPCODE_STORE;
     assign ex_fence_i = opcode == OPCODE_MISC_MEM && funct3 == F3_FENCE_I;
 
-    assign rf_wen = opcode == OPCODE_OP ||
-                    opcode == OPCODE_OP_IMM ||
-                    opcode == OPCODE_LUI ||
-                    opcode == OPCODE_AUIPC ||
-                    opcode == OPCODE_LOAD ||
-                    opcode == OPCODE_JAL ||
-                    opcode == OPCODE_JALR ||
-                    opcode == OPCODE_SYSTEM && funct3 != F3_PRIV;
+    wire rf_wen = opcode == OPCODE_OP ||
+                  opcode == OPCODE_OP_IMM ||
+                  opcode == OPCODE_LUI ||
+                  opcode == OPCODE_AUIPC ||
+                  opcode == OPCODE_LOAD ||
+                  opcode == OPCODE_JAL ||
+                  opcode == OPCODE_JALR ||
+                  opcode == OPCODE_SYSTEM && funct3 != F3_PRIV;
 
     wire [31:0] addsub_rhs = opcode == OPCODE_OP ? rf_rdata2 : imm;
     wire addsub_sub = opcode == OPCODE_OP && funct7_5;
     wire [31:0] cmp_rhs = opcode == OPCODE_OP_IMM ? imm : rf_rdata2;
 
-    assign addsub_lhs = ({32{opcode == OPCODE_OP || opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_STORE || opcode == OPCODE_JALR}} & rf_rdata1) |
-                        ({32{opcode == OPCODE_AUIPC || opcode == OPCODE_JAL || opcode == OPCODE_BRANCH}} & ex_pc);
-    assign csr_wdata_or_sel = funct3 == F3_CSRRS || funct3 == F3_CSRRSI;
-    assign csr_wdata_and_sel = funct3 == F3_CSRRC || funct3 == F3_CSRRCI;
-    assign bit_lhs = opcode == OPCODE_SYSTEM ? csr_rdata : rf_rdata1;
-    assign bit_rhs = ({32{opcode == OPCODE_OP}} & rf_rdata2) |
-                     ({32{opcode == OPCODE_OP_IMM}} & imm) |
-                     ({32{opcode == OPCODE_SYSTEM && csr_wdata_or_sel}} & csr_src_data) |
-                     ({32{opcode == OPCODE_SYSTEM && csr_wdata_and_sel}} & ~csr_src_data);
+    wire [31:0] addsub_lhs = ({32{opcode == OPCODE_OP || opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_STORE || opcode == OPCODE_JALR}} & rf_rdata1) |
+                             ({32{opcode == OPCODE_AUIPC || opcode == OPCODE_JAL || opcode == OPCODE_BRANCH}} & ex_pc);
+    wire        csr_wdata_or_sel = funct3 == F3_CSRRS || funct3 == F3_CSRRSI;
+    wire        csr_wdata_and_sel = funct3 == F3_CSRRC || funct3 == F3_CSRRCI;
+    wire [31:0] bit_lhs = opcode == OPCODE_SYSTEM ? csr_rdata : rf_rdata1;
+    wire [31:0] bit_rhs = ({32{opcode == OPCODE_OP}} & rf_rdata2) |
+                          ({32{opcode == OPCODE_OP_IMM}} & imm) |
+                          ({32{opcode == OPCODE_SYSTEM && csr_wdata_or_sel}} & csr_src_data) |
+                          ({32{opcode == OPCODE_SYSTEM && csr_wdata_and_sel}} & ~csr_src_data);
 
 /////////////////////////
     // EX: FU, CSR, redirect.
-    assign addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
-    assign addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
-    assign mem_addr = addsub_result;
-    assign and_result = bit_lhs & bit_rhs;
-    assign or_result = bit_lhs | bit_rhs;
-    assign xor_result = bit_lhs ^ bit_rhs;
-    assign sll_result = rf_rdata1 << addsub_rhs[4:0];
-    assign srl_result = rf_rdata1 >> addsub_rhs[4:0];
-    assign sra_result = ($signed(rf_rdata1)) >>> addsub_rhs[4:0];
-    assign cmp_eq = (rf_rdata1 == cmp_rhs);
-    assign cmp_lt = ($signed(rf_rdata1) < $signed(cmp_rhs));
-    assign cmp_ltu = (rf_rdata1 < cmp_rhs);
+    wire [31:0] addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
+    wire [31:0] addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
+    wire [31:0] mem_addr = addsub_result;
+    wire [31:0] and_result = bit_lhs & bit_rhs;
+    wire [31:0] or_result = bit_lhs | bit_rhs;
+    wire [31:0] xor_result = bit_lhs ^ bit_rhs;
+    wire [31:0] sll_result = rf_rdata1 << addsub_rhs[4:0];
+    wire [31:0] srl_result = rf_rdata1 >> addsub_rhs[4:0];
+    wire [31:0] sra_result = ($signed(rf_rdata1)) >>> addsub_rhs[4:0];
+    wire        cmp_eq = (rf_rdata1 == cmp_rhs);
+    wire        cmp_lt = ($signed(rf_rdata1) < $signed(cmp_rhs));
+    wire        cmp_ltu = (rf_rdata1 < cmp_rhs);
 
     always @(*) begin
         case (csr_addr)
@@ -298,9 +246,9 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    assign csr_write_data = ({32{csr_wdata_or_sel}} & or_result) |
-                            ({32{csr_wdata_and_sel}} & and_result) |
-                            ({32{~csr_wdata_or_sel && ~csr_wdata_and_sel}} & csr_src_data);
+    wire [31:0] csr_write_data = ({32{csr_wdata_or_sel}} & or_result) |
+                                 ({32{csr_wdata_and_sel}} & and_result) |
+                                 ({32{~csr_wdata_or_sel && ~csr_wdata_and_sel}} & csr_src_data);
 
     always @(posedge clock) begin
         if (reset) begin
@@ -397,22 +345,22 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    assign is_clint = (mem_addr[31:16] == CLINT_BASE_HI);
-    assign ext_load_req = ex_in_valid && mem_ren && ~is_clint;
-    assign ext_store_req = ex_in_valid && mem_wen && ~is_clint;
-    assign ext_mem_req = ext_load_req || ext_store_req;
-    assign ar_fire = lsu_master_arvalid && lsu_master_arready;
-    assign r_fire = lsu_master_rvalid && lsu_master_rready;
-    assign aw_fire = lsu_master_awvalid && lsu_master_awready;
-    assign w_fire = lsu_master_wvalid && lsu_master_wready;
-    assign b_fire = lsu_master_bvalid && lsu_master_bready;
-    assign mem_offset = mem_addr[1:0];
-    assign load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
-    assign ready_go = mem_state == L_IDLE && ~ext_mem_req ||
-                      mem_state == L_WAIT_R && r_fire ||
-                      mem_state == L_WAIT_B && b_fire;
+    wire        is_clint = (mem_addr[31:16] == CLINT_BASE_HI);
+    wire        ext_load_req = ex_in_valid && mem_ren && ~is_clint;
+    wire        ext_store_req = ex_in_valid && mem_wen && ~is_clint;
+    wire        ext_mem_req = ext_load_req || ext_store_req;
+    wire        ar_fire = lsu_master_arvalid && lsu_master_arready;
+    wire        r_fire = lsu_master_rvalid && lsu_master_rready;
+    wire        aw_fire = lsu_master_awvalid && lsu_master_awready;
+    wire        w_fire = lsu_master_wvalid && lsu_master_wready;
+    wire        b_fire = lsu_master_bvalid && lsu_master_bready;
+    wire [1:0]  mem_offset = mem_addr[1:0];
+    wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
+    wire        ready_go = mem_state == L_IDLE && ~ext_mem_req ||
+                           mem_state == L_WAIT_R && r_fire ||
+                           mem_state == L_WAIT_B && b_fire;
     assign ex_in_ready = ~ex_in_valid || ready_go;
-    assign fire = ex_in_valid && ready_go;
+    wire        fire = ex_in_valid && ready_go;
     assign ex_out_valid = fire;
 
     assign lsu_master_araddr = mem_addr;
@@ -502,7 +450,7 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // WB: output mux and RF write.
-    assign rf_write = fire && rf_wen && (rf_waddr != 5'b0) && ~rf_waddr[4];
+    wire rf_write = fire && rf_wen && (rf_waddr != 5'b0) && ~rf_waddr[4];
 
     always @(*) begin
         rf_wdata = 32'bx;
