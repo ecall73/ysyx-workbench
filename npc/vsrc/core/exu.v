@@ -234,15 +234,12 @@ module ysyx_26030082_exu (
                 cmp_rhs = imm;
             end
 
-            OPCODE_LOAD,
-            OPCODE_STORE,
-            OPCODE_JALR: begin
+            OPCODE_LOAD, OPCODE_STORE, OPCODE_JALR: begin
                 addsub_rhs = imm;
                 addsub_sub = 1'b0;
             end
 
-            OPCODE_AUIPC,
-            OPCODE_JAL: begin
+            OPCODE_AUIPC, OPCODE_JAL: begin
                 addsub_rhs = imm;
                 addsub_sub = 1'b0;
             end
@@ -258,23 +255,15 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    assign addsub_lhs = ({32{(opcode == OPCODE_OP) ||
-                              (opcode == OPCODE_OP_IMM) ||
-                              (opcode == OPCODE_LOAD) ||
-                              (opcode == OPCODE_STORE) ||
-                              (opcode == OPCODE_JALR)}} & rf_rdata1) |
-                        ({32{(opcode == OPCODE_AUIPC) ||
-                              (opcode == OPCODE_JAL) ||
-                              (opcode == OPCODE_BRANCH)}} & ex_pc);
-    assign csr_wdata_or_sel = (funct3 == F3_CSRRS) ||
-                              (funct3 == F3_CSRRSI);
-    assign csr_wdata_and_sel = (funct3 == F3_CSRRC) ||
-                               (funct3 == F3_CSRRCI);
+    assign addsub_lhs = ({32{opcode == OPCODE_OP || opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_STORE || opcode == OPCODE_JALR}} & rf_rdata1) |
+                        ({32{opcode == OPCODE_AUIPC || opcode == OPCODE_JAL || opcode == OPCODE_BRANCH}} & ex_pc);
+    assign csr_wdata_or_sel = funct3 == F3_CSRRS || funct3 == F3_CSRRSI;
+    assign csr_wdata_and_sel = funct3 == F3_CSRRC || funct3 == F3_CSRRCI;
+    assign bit_lhs = (opcode == OPCODE_SYSTEM) ? csr_rdata : rf_rdata1;
     assign bit_rhs = ({32{opcode == OPCODE_OP}} & rf_rdata2) |
                      ({32{opcode == OPCODE_OP_IMM}} & imm) |
                      ({32{(opcode == OPCODE_SYSTEM) && csr_wdata_or_sel}} & csr_src_data) |
                      ({32{(opcode == OPCODE_SYSTEM) && csr_wdata_and_sel}} & ~csr_src_data);
-    assign bit_lhs = (opcode == OPCODE_SYSTEM) ? csr_rdata : rf_rdata1;
 
 /////////////////////////
     // EX: FU, CSR, redirect.
