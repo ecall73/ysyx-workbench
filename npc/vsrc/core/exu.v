@@ -278,9 +278,7 @@ module ysyx_26030082_exu (
                      ({32{opcode == OPCODE_OP_IMM}} & imm) |
                      ({32{(opcode == OPCODE_SYSTEM) && csr_wdata_or_sel}} & csr_src_data) |
                      ({32{(opcode == OPCODE_SYSTEM) && csr_wdata_and_sel}} & ~csr_src_data);
-    assign bit_lhs = ({32{(opcode == OPCODE_OP) ||
-                          (opcode == OPCODE_OP_IMM)}} & rf_rdata1) |
-                     ({32{opcode == OPCODE_SYSTEM}} & csr_rdata);
+    assign bit_lhs = (opcode == OPCODE_SYSTEM) ? csr_rdata : rf_rdata1;
 
 /////////////////////////
     // EX: FU, CSR, redirect.
