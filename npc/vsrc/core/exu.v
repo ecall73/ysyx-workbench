@@ -164,10 +164,9 @@ module ysyx_26030082_exu (
     // Memory.
     reg  [2:0]  mem_state;
     wire        is_mem;
-    wire        is_load;
     wire        is_clint;
     wire        is_local;
-    wire        is_local_load;
+    wire        ext_mem_req;
     wire        ext_load_req;
     wire        ext_store_req;
     wire        ready_go;
@@ -199,28 +198,18 @@ module ysyx_26030082_exu (
     assign rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
     assign store_wdata = rf_rdata2;
 
-    assign imm = ({32{(opcode == OPCODE_OP_IMM) ||
-                      (opcode == OPCODE_LOAD) ||
-                      (opcode == OPCODE_JALR)}} &
-                  {{20{ex_inst[31]}}, ex_inst[31:20]}) |
-                 ({32{opcode == OPCODE_STORE}} &
-                  {{20{ex_inst[31]}}, ex_inst[31:25], ex_inst[11:7]}) |
-                 ({32{opcode == OPCODE_BRANCH}} &
-                  {{20{ex_inst[31]}}, ex_inst[7], ex_inst[30:25], ex_inst[11:8], 1'b0}) |
-                 ({32{(opcode == OPCODE_LUI) ||
-                      (opcode == OPCODE_AUIPC)}} &
-                  {ex_inst[31:12], 12'b0}) |
-                 ({32{opcode == OPCODE_JAL}} &
-                  {{12{ex_inst[31]}}, ex_inst[19:12], ex_inst[20], ex_inst[30:21], 1'b0}) |
-                 ({32{opcode == OPCODE_SYSTEM}} &
-                  {27'b0, ex_inst[19:15]});
+    assign imm = ({32{opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_JALR}} & {{20{ex_inst[31]}}, ex_inst[31:20]}) |
+                 ({32{opcode == OPCODE_STORE}} & {{20{ex_inst[31]}}, ex_inst[31:25], ex_inst[11:7]}) |
+                 ({32{opcode == OPCODE_BRANCH}} & {{20{ex_inst[31]}}, ex_inst[7], ex_inst[30:25], ex_inst[11:8], 1'b0}) |
+                 ({32{(opcode == OPCODE_LUI) || (opcode == OPCODE_AUIPC)}} & {ex_inst[31:12], 12'b0}) |
+                 ({32{opcode == OPCODE_JAL}} & {{12{ex_inst[31]}}, ex_inst[19:12], ex_inst[20], ex_inst[30:21], 1'b0}) |
+                 ({32{opcode == OPCODE_SYSTEM}} & {27'b0, ex_inst[19:15]});
 
     assign pc4 = ex_pc + 32'd4;
     assign csr_src_data = funct3[2] ? imm : rf_rdata1;
-    assign mem_ren = (opcode == OPCODE_LOAD);
-    assign mem_wen = (opcode == OPCODE_STORE);
-    assign ex_fence_i = (opcode == OPCODE_MISC_MEM) &&
-                        (funct3 == F3_FENCE_I);
+    assign mem_ren = opcode == OPCODE_LOAD;
+    assign mem_wen = opcode == OPCODE_STORE;
+    assign ex_fence_i = (opcode == OPCODE_MISC_MEM) && (funct3 == F3_FENCE_I);
 
     always @(*) begin
         case (opcode)
@@ -518,20 +507,19 @@ module ysyx_26030082_exu (
     end
 
     assign is_mem = mem_ren || mem_wen;
-    assign is_load = mem_ren && ~mem_wen;
     assign is_clint = (mem_addr[31:16] == CLINT_BASE_HI);
     assign is_local = is_mem && is_clint;
-    assign is_local_load = is_load && is_clint;
-    assign ext_load_req = ex_in_valid && is_load && ~is_local;
-    assign ext_store_req = ex_in_valid && mem_wen && ~is_local;
+    assign ext_mem_req = ex_in_valid && is_mem && ~is_clint;
+    assign ext_load_req = ext_mem_req && mem_ren;
+    assign ext_store_req = ext_mem_req && mem_wen;
     assign ar_fire = lsu_master_arvalid && lsu_master_arready;
     assign r_fire = lsu_master_rvalid && lsu_master_rready;
     assign aw_fire = lsu_master_awvalid && lsu_master_awready;
     assign w_fire = lsu_master_wvalid && lsu_master_wready;
     assign b_fire = lsu_master_bvalid && lsu_master_bready;
     assign mem_offset = mem_addr[1:0];
-    assign load_raw_data = is_local_load ? local_rdata : lsu_master_rdata;
-    assign ready_go = ((mem_state == L_IDLE) && ~(ex_in_valid && is_mem && ~is_local)) ||
+    assign load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
+    assign ready_go = ((mem_state == L_IDLE) && ~ext_mem_req) ||
                       ((mem_state == L_WAIT_R) && r_fire) ||
                       ((mem_state == L_WAIT_B) && b_fire);
     assign ex_in_ready = ~ex_in_valid || ready_go;
