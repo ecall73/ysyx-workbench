@@ -314,49 +314,25 @@ module ysyx_26030082_exu (
         ex_redirect_pc = 32'bx;
 
         case (opcode)
-            OPCODE_BRANCH, OPCODE_JAL: begin
-                ex_redirect_pc = addsub_result;
-            end
-
-            OPCODE_JALR: begin
-                ex_redirect_pc = {addsub_result[31:1], 1'b0};
-            end
-
+            OPCODE_BRANCH, OPCODE_JAL: ex_redirect_pc = addsub_result;
+            OPCODE_JALR: ex_redirect_pc = {addsub_result[31:1], 1'b0};
             OPCODE_SYSTEM: begin
                 case (funct3)
                     F3_PRIV: begin
                         case (csr_addr)
-                            F12_ECALL: begin
-                                ex_redirect_pc = {csr_mtvec[31:2], 2'b0};
-                            end
+                            F12_ECALL: ex_redirect_pc = {csr_mtvec[31:2], 2'b0};
+                            F12_MRET:  ex_redirect_pc = csr_mepc;
 
-                            F12_MRET: begin
-                                ex_redirect_pc = csr_mepc;
-                            end
-
-                            default: begin
-                            end
+                            default:;
                         endcase
                     end
 
-                    default: begin
-                    end
+                    default:;
                 endcase
             end
+            OPCODE_MISC_MEM: ex_redirect_pc = pc4;
 
-            OPCODE_MISC_MEM: begin
-                case (funct3)
-                    F3_FENCE_I: begin
-                        ex_redirect_pc = pc4;
-                    end
-
-                    default: begin
-                    end
-                endcase
-            end
-
-            default: begin
-            end
+            default:;
         endcase
     end
 
