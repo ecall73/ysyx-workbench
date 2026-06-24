@@ -134,7 +134,7 @@ module ysyx_26030082_exu (
     wire [31:0] bit_rhs;
     wire [31:0] addsub_lhs;
     reg  [31:0] addsub_rhs;
-    reg         addsub_sub;
+    wire        addsub_sub;
     wire [31:0] addsub_rhs_xor;
     wire [31:0] addsub_result;
     wire [31:0] and_result;
@@ -219,21 +219,18 @@ module ysyx_26030082_exu (
 
     always @(*) begin
         addsub_rhs = 32'b0;
-        addsub_sub = 1'bx;
         shift_shamt = 5'b0;
         cmp_rhs = 32'bx;
 
         case (opcode)
             OPCODE_OP: begin
                 addsub_rhs = rf_rdata2;
-                addsub_sub = funct7_5;
                 shift_shamt = rf_rdata2[4:0];
                 cmp_rhs = rf_rdata2;
             end
 
             OPCODE_OP_IMM: begin
                 addsub_rhs = imm;
-                addsub_sub = 1'b0;
                 shift_shamt = imm[4:0];
                 cmp_rhs = imm;
             end
@@ -242,18 +239,15 @@ module ysyx_26030082_exu (
             OPCODE_STORE,
             OPCODE_JALR: begin
                 addsub_rhs = imm;
-                addsub_sub = 1'b0;
             end
 
             OPCODE_AUIPC,
             OPCODE_JAL: begin
                 addsub_rhs = imm;
-                addsub_sub = 1'b0;
             end
 
             OPCODE_BRANCH: begin
                 addsub_rhs = imm;
-                addsub_sub = 1'b0;
                 cmp_rhs = rf_rdata2;
             end
 
@@ -279,6 +273,7 @@ module ysyx_26030082_exu (
                      ({32{(opcode == OPCODE_SYSTEM) && csr_wdata_or_sel}} & csr_src_data) |
                      ({32{(opcode == OPCODE_SYSTEM) && csr_wdata_and_sel}} & ~csr_src_data);
     assign bit_lhs = (opcode == OPCODE_SYSTEM) ? csr_rdata : rf_rdata1;
+    assign addsub_sub = (opcode == OPCODE_OP) && funct7_5;
 
 /////////////////////////
     // EX: FU, CSR, redirect.
