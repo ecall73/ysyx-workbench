@@ -256,7 +256,7 @@ module ysyx_26030082_exu (
             csr_mtvec   <= 32'h1;
             csr_mepc    <= 32'h0;
             csr_mcause  <= 32'h0;
-        end else if (fire && opcode == OPCODE_SYSTEM) begin
+        end else if (ex_out_valid && opcode == OPCODE_SYSTEM) begin
             case (funct3)
                 F3_PRIV: begin
                     case (csr_addr)
@@ -360,8 +360,7 @@ module ysyx_26030082_exu (
                            mem_state == L_WAIT_R && r_fire ||
                            mem_state == L_WAIT_B && b_fire;
     assign ex_in_ready = ~ex_in_valid || ready_go;
-    wire        fire = ex_in_valid && ready_go;
-    assign ex_out_valid = fire;
+    assign ex_out_valid = ex_in_valid && ready_go;
 
     assign lsu_master_araddr = mem_addr;
     assign lsu_master_arsize = mem_size;
@@ -450,7 +449,7 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // WB: output mux and RF write.
-    wire rf_write = fire && rf_wen && (rf_waddr != 5'b0) && ~rf_waddr[4];
+    wire rf_write = ex_out_valid && rf_wen && (rf_waddr != 5'b0) && ~rf_waddr[4];
 
     always @(*) begin
         rf_wdata = 32'bx;
