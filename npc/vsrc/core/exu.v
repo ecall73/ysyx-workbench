@@ -116,7 +116,7 @@ module ysyx_26030082_exu (
 
     // RF.
     reg  [31:0] reg_bank [1:15];
-    reg         rf_wen;
+    wire        rf_wen;
     wire        rf_write;
     reg  [31:0] rf_wdata;
     wire [31:0] rf_rdata1;
@@ -208,19 +208,14 @@ module ysyx_26030082_exu (
     assign mem_wen = opcode == OPCODE_STORE;
     assign ex_fence_i = (opcode == OPCODE_MISC_MEM) && (funct3 == F3_FENCE_I);
 
-    always @(*) begin
-        case (opcode)
-            OPCODE_OP,
-            OPCODE_OP_IMM,
-            OPCODE_LUI,
-            OPCODE_AUIPC,
-            OPCODE_LOAD,
-            OPCODE_JAL,
-            OPCODE_JALR:   rf_wen = 1'b1;
-            OPCODE_SYSTEM: rf_wen = (funct3 != F3_PRIV);
-            default:       rf_wen = 1'b0;
-        endcase
-    end
+    assign rf_wen = (opcode == OPCODE_OP) ||
+                    (opcode == OPCODE_OP_IMM) ||
+                    (opcode == OPCODE_LUI) ||
+                    (opcode == OPCODE_AUIPC) ||
+                    (opcode == OPCODE_LOAD) ||
+                    (opcode == OPCODE_JAL) ||
+                    (opcode == OPCODE_JALR) ||
+                    ((opcode == OPCODE_SYSTEM) && (funct3 != F3_PRIV));
 
     always @(*) begin
         addsub_rhs = 32'b0;
