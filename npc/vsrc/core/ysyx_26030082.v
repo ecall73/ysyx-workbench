@@ -378,10 +378,10 @@ module ysyx_26030082 #(
         (ifu.state == PMU_ICACHE_MISS_AR) ||
         (ifu.state == PMU_ICACHE_MISS_R);
     assign pmu_dcache_access = (exu.mem_state == PMU_LSU_IDLE) &&
-                               ex_in_valid && exu.is_mem && !exu.is_local;
+                               exu.ext_mem_req;
     assign pmu_dcache_store = pmu_dcache_access && exu.mem_wen;
     assign pmu_dcache_miss_cycle = ex_in_valid && !ex_in_ready &&
-                                   exu.is_mem && !exu.is_local;
+                                   exu.ext_mem_req;
     assign pmu_redirect = ex_out_valid && ex_redirect;
 
     always @(*) begin

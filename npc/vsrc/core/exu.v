@@ -163,9 +163,7 @@ module ysyx_26030082_exu (
 
     // Memory.
     reg  [2:0]  mem_state;
-    wire        is_mem;
     wire        is_clint;
-    wire        is_local;
     wire        ext_mem_req;
     wire        ext_load_req;
     wire        ext_store_req;
@@ -500,11 +498,9 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    assign is_mem = mem_ren || mem_wen;
     assign is_clint = (mem_addr[31:16] == CLINT_BASE_HI);
-    assign is_local = is_mem && is_clint;
-    assign ext_load_req = ex_in_valid && mem_ren && ~is_local;
-    assign ext_store_req = ex_in_valid && mem_wen && ~is_local;
+    assign ext_load_req = ex_in_valid && mem_ren && ~is_clint;
+    assign ext_store_req = ex_in_valid && mem_wen && ~is_clint;
     assign ext_mem_req = ext_load_req || ext_store_req;
     assign ar_fire = lsu_master_arvalid && lsu_master_arready;
     assign r_fire = lsu_master_rvalid && lsu_master_rready;
@@ -512,7 +508,7 @@ module ysyx_26030082_exu (
     assign w_fire = lsu_master_wvalid && lsu_master_wready;
     assign b_fire = lsu_master_bvalid && lsu_master_bready;
     assign mem_offset = mem_addr[1:0];
-    assign load_raw_data = is_local ? local_rdata : lsu_master_rdata;
+    assign load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
     assign ready_go = ((mem_state == L_IDLE) && ~ext_mem_req) ||
                       ((mem_state == L_WAIT_R) && r_fire) ||
                       ((mem_state == L_WAIT_B) && b_fire);
