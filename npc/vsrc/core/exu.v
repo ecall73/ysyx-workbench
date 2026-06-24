@@ -271,11 +271,8 @@ module ysyx_26030082_exu (
             OPCODE_SYSTEM: begin
                 case (funct3)
                     F3_CSRRS,
-                    F3_CSRRSI: begin
-                        bit_lhs = csr_rdata;
-                    end
-
                     F3_CSRRC,
+                    F3_CSRRSI,
                     F3_CSRRCI: begin
                         bit_lhs = csr_rdata;
                     end
@@ -357,10 +354,7 @@ module ysyx_26030082_exu (
         ex_redirect_pc = 32'bx;
 
         case (opcode)
-            OPCODE_BRANCH: begin
-                ex_redirect_pc = addsub_result;
-            end
-
+            OPCODE_BRANCH,
             OPCODE_JAL: begin
                 ex_redirect_pc = addsub_result;
             end
@@ -509,16 +503,16 @@ module ysyx_26030082_exu (
     assign is_mem = mem_ren || mem_wen;
     assign is_clint = (mem_addr[31:16] == CLINT_BASE_HI);
     assign is_local = is_mem && is_clint;
-    assign ext_mem_req = ex_in_valid && is_mem && ~is_clint;
-    assign ext_load_req = ext_mem_req && mem_ren;
-    assign ext_store_req = ext_mem_req && mem_wen;
+    assign ext_load_req = ex_in_valid && mem_ren && ~is_local;
+    assign ext_store_req = ex_in_valid && mem_wen && ~is_local;
+    assign ext_mem_req = ext_load_req || ext_store_req;
     assign ar_fire = lsu_master_arvalid && lsu_master_arready;
     assign r_fire = lsu_master_rvalid && lsu_master_rready;
     assign aw_fire = lsu_master_awvalid && lsu_master_awready;
     assign w_fire = lsu_master_wvalid && lsu_master_wready;
     assign b_fire = lsu_master_bvalid && lsu_master_bready;
     assign mem_offset = mem_addr[1:0];
-    assign load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
+    assign load_raw_data = is_local ? local_rdata : lsu_master_rdata;
     assign ready_go = ((mem_state == L_IDLE) && ~ext_mem_req) ||
                       ((mem_state == L_WAIT_R) && r_fire) ||
                       ((mem_state == L_WAIT_B) && b_fire);
@@ -643,7 +637,7 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // WB: output mux and RF write.
-    assign rf_write = fire && rf_wen && (rf_waddr != 5'b0);
+    assign rf_write = fire && rf_wen && (rf_waddr != 5'b0) && ~rf_waddr[4];
 
     always @(*) begin
         rf_wdata = 32'bx;
@@ -671,7 +665,7 @@ module ysyx_26030082_exu (
     end
 
     always @(posedge clock) begin
-        if (rf_write & ~rf_waddr[4]) begin
+        if (rf_write) begin
             reg_bank[rf_waddr[3:0]] <= rf_wdata;
         end
     end
