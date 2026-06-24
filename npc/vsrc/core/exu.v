@@ -140,7 +140,6 @@ module ysyx_26030082_exu (
     wire [31:0] and_result;
     wire [31:0] or_result;
     wire [31:0] xor_result;
-    reg  [ 4:0] shift_shamt;
     wire [31:0] sll_result;
     wire [31:0] srl_result;
     wire [31:0] sra_result;
@@ -220,21 +219,18 @@ module ysyx_26030082_exu (
     always @(*) begin
         addsub_rhs = 32'bx;
         addsub_sub = 1'bx;
-        shift_shamt = 5'bx;
         cmp_rhs = 32'bx;
 
         case (opcode)
             OPCODE_OP: begin
                 addsub_rhs = rf_rdata2;
                 addsub_sub = (funct3 == F3_ADD_SUB) && funct7_5;
-                shift_shamt = rf_rdata2[4:0];
                 cmp_rhs = rf_rdata2;
             end
 
             OPCODE_OP_IMM: begin
                 addsub_rhs = imm;
                 addsub_sub = 1'b0;
-                shift_shamt = imm[4:0];
                 cmp_rhs = imm;
             end
 
@@ -288,9 +284,9 @@ module ysyx_26030082_exu (
     assign and_result = bit_lhs & bit_rhs;
     assign or_result = bit_lhs | bit_rhs;
     assign xor_result = bit_lhs ^ bit_rhs;
-    assign sll_result = rf_rdata1 << shift_shamt;
-    assign srl_result = rf_rdata1 >> shift_shamt;
-    assign sra_result = ($signed(rf_rdata1)) >>> shift_shamt;
+    assign sll_result = rf_rdata1 << addsub_rhs[4:0];
+    assign srl_result = rf_rdata1 >> addsub_rhs[4:0];
+    assign sra_result = ($signed(rf_rdata1)) >>> addsub_rhs[4:0];
     assign cmp_eq = (rf_rdata1 == cmp_rhs);
     assign cmp_lt = ($signed(rf_rdata1) < $signed(cmp_rhs));
     assign cmp_ltu = (rf_rdata1 < cmp_rhs);
