@@ -178,7 +178,6 @@ module ysyx_26030082_exu (
     // EX: FU, CSR, redirect.
     wire [31:0] addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
     wire [31:0] addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
-    wire [31:0] mem_addr = addsub_result;
     wire [31:0] and_result = bit_lhs & bit_rhs;
     wire [31:0] or_result = bit_lhs | bit_rhs;
     wire [31:0] xor_result = bit_lhs ^ bit_rhs;
@@ -345,7 +344,7 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    wire        is_clint = (mem_addr[31:16] == CLINT_BASE_HI);
+    wire        is_clint = (addsub_result[31:16] == CLINT_BASE_HI);
     wire        ext_load_req = ex_in_valid && mem_ren && ~is_clint;
     wire        ext_store_req = ex_in_valid && mem_wen && ~is_clint;
     wire        ext_mem_req = ext_load_req || ext_store_req;
@@ -354,7 +353,7 @@ module ysyx_26030082_exu (
     wire        aw_fire = lsu_master_awvalid && lsu_master_awready;
     wire        w_fire = lsu_master_wvalid && lsu_master_wready;
     wire        b_fire = lsu_master_bvalid && lsu_master_bready;
-    wire [1:0]  mem_offset = mem_addr[1:0];
+    wire [1:0]  mem_offset = addsub_result[1:0];
     wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
     wire        ready_go = mem_state == L_IDLE && ~ext_mem_req ||
                            mem_state == L_WAIT_R && r_fire ||
@@ -362,11 +361,11 @@ module ysyx_26030082_exu (
     assign ex_in_ready = ~ex_in_valid || ready_go;
     assign ex_out_valid = ex_in_valid && ready_go;
 
-    assign lsu_master_araddr = mem_addr;
+    assign lsu_master_araddr = addsub_result;
     assign lsu_master_arsize = mem_size;
     assign lsu_master_arvalid = mem_state == L_IDLE && ext_load_req;
     assign lsu_master_rready = mem_state == L_WAIT_R;
-    assign lsu_master_awaddr = mem_addr;
+    assign lsu_master_awaddr = addsub_result;
     assign lsu_master_awsize = mem_size;
     assign lsu_master_awvalid = mem_state == L_IDLE && ext_store_req ||
                                 mem_state == L_WAIT_AW;
@@ -376,7 +375,7 @@ module ysyx_26030082_exu (
     assign lsu_master_bready = mem_state == L_WAIT_B;
 
     always @(*) begin
-        case (mem_addr[15:2])
+        case (addsub_result[15:2])
             MTIME_WORD_OFFSET:  local_rdata = ex_mtime[31:0];
             MTIMEH_WORD_OFFSET: local_rdata = ex_mtime[63:32];
             default:            local_rdata = 32'b0;
