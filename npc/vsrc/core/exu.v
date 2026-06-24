@@ -197,7 +197,7 @@ module ysyx_26030082_exu (
     assign imm = ({32{opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_JALR}} & {{20{ex_inst[31]}}, ex_inst[31:20]}) |
                  ({32{opcode == OPCODE_STORE}} & {{20{ex_inst[31]}}, ex_inst[31:25], ex_inst[11:7]}) |
                  ({32{opcode == OPCODE_BRANCH}} & {{20{ex_inst[31]}}, ex_inst[7], ex_inst[30:25], ex_inst[11:8], 1'b0}) |
-                 ({32{(opcode == OPCODE_LUI) || (opcode == OPCODE_AUIPC)}} & {ex_inst[31:12], 12'b0}) |
+                 ({32{opcode == OPCODE_LUI || opcode == OPCODE_AUIPC}} & {ex_inst[31:12], 12'b0}) |
                  ({32{opcode == OPCODE_JAL}} & {{12{ex_inst[31]}}, ex_inst[19:12], ex_inst[20], ex_inst[30:21], 1'b0}) |
                  ({32{opcode == OPCODE_SYSTEM}} & {27'b0, ex_inst[19:15]});
 
@@ -205,16 +205,16 @@ module ysyx_26030082_exu (
     assign csr_src_data = funct3[2] ? imm : rf_rdata1;
     assign mem_ren = opcode == OPCODE_LOAD;
     assign mem_wen = opcode == OPCODE_STORE;
-    assign ex_fence_i = (opcode == OPCODE_MISC_MEM) && (funct3 == F3_FENCE_I);
+    assign ex_fence_i = opcode == OPCODE_MISC_MEM && funct3 == F3_FENCE_I;
 
-    assign rf_wen = (opcode == OPCODE_OP) ||
-                    (opcode == OPCODE_OP_IMM) ||
-                    (opcode == OPCODE_LUI) ||
-                    (opcode == OPCODE_AUIPC) ||
-                    (opcode == OPCODE_LOAD) ||
-                    (opcode == OPCODE_JAL) ||
-                    (opcode == OPCODE_JALR) ||
-                    ((opcode == OPCODE_SYSTEM) && (funct3 != F3_PRIV));
+    assign rf_wen = opcode == OPCODE_OP ||
+                    opcode == OPCODE_OP_IMM ||
+                    opcode == OPCODE_LUI ||
+                    opcode == OPCODE_AUIPC ||
+                    opcode == OPCODE_LOAD ||
+                    opcode == OPCODE_JAL ||
+                    opcode == OPCODE_JALR ||
+                    opcode == OPCODE_SYSTEM && funct3 != F3_PRIV;
 
     always @(*) begin
         addsub_rhs = 32'bx;
@@ -224,7 +224,7 @@ module ysyx_26030082_exu (
         case (opcode)
             OPCODE_OP: begin
                 addsub_rhs = rf_rdata2;
-                addsub_sub = (funct3 == F3_ADD_SUB) && funct7_5;
+                addsub_sub = funct3 == F3_ADD_SUB && funct7_5;
                 cmp_rhs = rf_rdata2;
             end
 
@@ -259,11 +259,11 @@ module ysyx_26030082_exu (
                         ({32{opcode == OPCODE_AUIPC || opcode == OPCODE_JAL || opcode == OPCODE_BRANCH}} & ex_pc);
     assign csr_wdata_or_sel = funct3 == F3_CSRRS || funct3 == F3_CSRRSI;
     assign csr_wdata_and_sel = funct3 == F3_CSRRC || funct3 == F3_CSRRCI;
-    assign bit_lhs = (opcode == OPCODE_SYSTEM) ? csr_rdata : rf_rdata1;
+    assign bit_lhs = opcode == OPCODE_SYSTEM ? csr_rdata : rf_rdata1;
     assign bit_rhs = ({32{opcode == OPCODE_OP}} & rf_rdata2) |
                      ({32{opcode == OPCODE_OP_IMM}} & imm) |
-                     ({32{(opcode == OPCODE_SYSTEM) && csr_wdata_or_sel}} & csr_src_data) |
-                     ({32{(opcode == OPCODE_SYSTEM) && csr_wdata_and_sel}} & ~csr_src_data);
+                     ({32{opcode == OPCODE_SYSTEM && csr_wdata_or_sel}} & csr_src_data) |
+                     ({32{opcode == OPCODE_SYSTEM && csr_wdata_and_sel}} & ~csr_src_data);
 
 /////////////////////////
     // EX: FU, CSR, redirect.
@@ -304,10 +304,10 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    assign ex_redirect = ((opcode == OPCODE_BRANCH) && branch_redirect) ||
-                         (opcode == OPCODE_JAL) ||
-                         (opcode == OPCODE_JALR) ||
-                         ((opcode == OPCODE_SYSTEM) && (funct3 == F3_PRIV)) ||
+    assign ex_redirect = opcode == OPCODE_BRANCH && branch_redirect ||
+                         opcode == OPCODE_JAL ||
+                         opcode == OPCODE_JALR ||
+                         opcode == OPCODE_SYSTEM && funct3 == F3_PRIV ||
                          ex_fence_i;
 
     // Redirect mux.
@@ -371,7 +371,7 @@ module ysyx_26030082_exu (
             csr_mtvec   <= 32'h1;
             csr_mepc    <= 32'h0;
             csr_mcause  <= 32'h0;
-        end else if (fire && (opcode == OPCODE_SYSTEM)) begin
+        end else if (fire && opcode == OPCODE_SYSTEM) begin
             case (funct3)
                 F3_PRIV: begin
                     case (csr_addr)
@@ -471,25 +471,25 @@ module ysyx_26030082_exu (
     assign b_fire = lsu_master_bvalid && lsu_master_bready;
     assign mem_offset = mem_addr[1:0];
     assign load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
-    assign ready_go = ((mem_state == L_IDLE) && ~ext_mem_req) ||
-                      ((mem_state == L_WAIT_R) && r_fire) ||
-                      ((mem_state == L_WAIT_B) && b_fire);
+    assign ready_go = mem_state == L_IDLE && ~ext_mem_req ||
+                      mem_state == L_WAIT_R && r_fire ||
+                      mem_state == L_WAIT_B && b_fire;
     assign ex_in_ready = ~ex_in_valid || ready_go;
     assign fire = ex_in_valid && ready_go;
     assign ex_out_valid = fire;
 
     assign lsu_master_araddr = mem_addr;
     assign lsu_master_arsize = mem_size;
-    assign lsu_master_arvalid = (mem_state == L_IDLE) && ext_load_req;
-    assign lsu_master_rready = (mem_state == L_WAIT_R);
+    assign lsu_master_arvalid = mem_state == L_IDLE && ext_load_req;
+    assign lsu_master_rready = mem_state == L_WAIT_R;
     assign lsu_master_awaddr = mem_addr;
     assign lsu_master_awsize = mem_size;
-    assign lsu_master_awvalid = ((mem_state == L_IDLE) && ext_store_req) ||
-                             (mem_state == L_WAIT_AW);
+    assign lsu_master_awvalid = mem_state == L_IDLE && ext_store_req ||
+                                mem_state == L_WAIT_AW;
     assign lsu_master_wstrb = wmask_calc;
-    assign lsu_master_wvalid = ((mem_state == L_IDLE) && ext_store_req) ||
-                            (mem_state == L_WAIT_W);
-    assign lsu_master_bready = (mem_state == L_WAIT_B);
+    assign lsu_master_wvalid = mem_state == L_IDLE && ext_store_req ||
+                               mem_state == L_WAIT_W;
+    assign lsu_master_bready = mem_state == L_WAIT_B;
 
     always @(*) begin
         case (mem_addr[15:2])
