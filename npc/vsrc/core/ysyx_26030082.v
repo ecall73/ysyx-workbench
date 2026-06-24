@@ -362,27 +362,20 @@ module ysyx_26030082 #(
 
     localparam [2:0] PMU_LSU_IDLE = 3'd0;
 
-    wire        pmu_ifetch_fire;
-    wire        pmu_icache_miss;
-    wire        pmu_icache_miss_cycle;
-    wire        pmu_dcache_access;
-    wire        pmu_dcache_store;
-    wire        pmu_dcache_miss_cycle;
-    wire        pmu_redirect;
     reg  [31:0] pmu_event_mask;
 
     // Direct hierarchical reads: simulation-only, no extra submodule ports.
-    assign pmu_ifetch_fire = if_out_valid && if_out_ready;
-    assign pmu_icache_miss = (ifu.state == PMU_ICACHE_LOOKUP) && ifu.cache_miss;
-    assign pmu_icache_miss_cycle =
+    wire pmu_ifetch_fire = if_out_valid && if_out_ready;
+    wire pmu_icache_miss = (ifu.state == PMU_ICACHE_LOOKUP) && ifu.cache_miss;
+    wire pmu_icache_miss_cycle =
         (ifu.state == PMU_ICACHE_MISS_AR) ||
         (ifu.state == PMU_ICACHE_MISS_R);
-    assign pmu_dcache_access = (exu.mem_state == PMU_LSU_IDLE) &&
-                               ex_in_valid && exu.is_mem && !exu.is_local;
-    assign pmu_dcache_store = pmu_dcache_access && exu.mem_wen;
-    assign pmu_dcache_miss_cycle = ex_in_valid && !ex_in_ready &&
-                                   exu.is_mem && !exu.is_local;
-    assign pmu_redirect = ex_out_valid && ex_redirect;
+    wire pmu_dcache_access = (exu.mem_state == PMU_LSU_IDLE) &&
+                             exu.ext_mem_req;
+    wire pmu_dcache_store = pmu_dcache_access && exu.mem_wen;
+    wire pmu_dcache_miss_cycle = ex_in_valid && !ex_in_ready &&
+                                 exu.ext_mem_req;
+    wire pmu_redirect = ex_out_valid && ex_redirect;
 
     always @(*) begin
         pmu_event_mask = 32'b0;
@@ -423,8 +416,7 @@ module ysyx_26030082 #(
 `endif
 
 
-    wire _unused_ok;
-    assign _unused_ok = &{1'b0,
+    wire _unused_ok = &{1'b0,
         io_interrupt,
         io_slave_awvalid, io_slave_awid, io_slave_awaddr, io_slave_awlen, io_slave_awsize, io_slave_awburst,
         io_slave_wvalid, io_slave_wdata, io_slave_wstrb, io_slave_wlast, io_slave_bready,

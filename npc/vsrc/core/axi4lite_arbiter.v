@@ -71,26 +71,17 @@ module ysyx_26030082_axi4lite_arbiter (
     reg [1:0] rd_state;
     reg       rd_owner_ifu;
 
-    wire rd_sel_lsu;
-    wire rd_sel_ifu;
-    wire rd_data_lsu;
-    wire rd_data_ifu;
-    wire lsu_ar_fire;
-    wire lsu_r_fire;
-    wire ifu_ar_fire;
-    wire ifu_r_fire;
+    wire rd_sel_lsu = ((rd_state == R_IDLE) && lsu_master_arvalid) ||
+                      ((rd_state == R_AR) && ~rd_owner_ifu);
+    wire rd_sel_ifu = ((rd_state == R_IDLE) && ~lsu_master_arvalid && ifu_master_arvalid) ||
+                      ((rd_state == R_AR) && rd_owner_ifu);
+    wire rd_data_lsu = (rd_state == R_DATA) && ~rd_owner_ifu;
+    wire rd_data_ifu = (rd_state == R_DATA) && rd_owner_ifu;
 
-    assign rd_sel_lsu = ((rd_state == R_IDLE) && lsu_master_arvalid) ||
-                        ((rd_state == R_AR) && ~rd_owner_ifu);
-    assign rd_sel_ifu = ((rd_state == R_IDLE) && ~lsu_master_arvalid && ifu_master_arvalid) ||
-                        ((rd_state == R_AR) && rd_owner_ifu);
-    assign rd_data_lsu = (rd_state == R_DATA) && ~rd_owner_ifu;
-    assign rd_data_ifu = (rd_state == R_DATA) && rd_owner_ifu;
-
-    assign lsu_ar_fire = rd_sel_lsu && lsu_master_arvalid && io_master_arready;
-    assign ifu_ar_fire = rd_sel_ifu && ifu_master_arvalid && io_master_arready;
-    assign lsu_r_fire = rd_data_lsu && io_master_rvalid && lsu_master_rready;
-    assign ifu_r_fire = rd_data_ifu && io_master_rvalid && ifu_master_rready;
+    wire lsu_ar_fire = rd_sel_lsu && lsu_master_arvalid && io_master_arready;
+    wire ifu_ar_fire = rd_sel_ifu && ifu_master_arvalid && io_master_arready;
+    wire lsu_r_fire = rd_data_lsu && io_master_rvalid && lsu_master_rready;
+    wire ifu_r_fire = rd_data_ifu && io_master_rvalid && ifu_master_rready;
 
     assign ifu_master_arready = rd_sel_ifu && io_master_arready;
     assign ifu_master_rdata = io_master_rdata;
@@ -170,7 +161,6 @@ module ysyx_26030082_axi4lite_arbiter (
         end
     end
 
-    wire _unused_ok;
-    assign _unused_ok = &{1'b0, io_master_rid, io_master_bid};
+    wire _unused_ok = &{1'b0, io_master_rid, io_master_bid};
 
 endmodule
