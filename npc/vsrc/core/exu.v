@@ -290,21 +290,50 @@ module ysyx_26030082_exu (
 /////////////////////////
     // LS: lsu_master.
 
-    wire [2:0] mem_size = funct3[1] ? 3'b010 : {2'b00, funct3[0]};
-
     always @(*) begin
-        lsu_master_wstrb = 4'b1111;
+        lsu_master_wstrb = 4'b0000;
         lsu_master_wdata = rf_rdata2;
-        case (funct3[1:0])
-            2'b00: begin
-                lsu_master_wstrb = 4'b0001 << mem_offset;
-                lsu_master_wdata = {24'b0, rf_rdata2[7:0]} << {mem_offset, 3'b000};
+        case (funct3)
+            F3_SB: begin
+                case (mem_offset)
+                    2'b00: begin
+                        lsu_master_wstrb = 4'b0001;
+                        lsu_master_wdata = {24'b0, rf_rdata2[7:0]};
+                    end
+                    2'b01: begin
+                        lsu_master_wstrb = 4'b0010;
+                        lsu_master_wdata = {16'b0, rf_rdata2[7:0], 8'b0};
+                    end
+                    2'b10: begin
+                        lsu_master_wstrb = 4'b0100;
+                        lsu_master_wdata = {8'b0, rf_rdata2[7:0], 16'b0};
+                    end
+                    2'b11: begin
+                        lsu_master_wstrb = 4'b1000;
+                        lsu_master_wdata = {rf_rdata2[7:0], 24'b0};
+                    end
+                endcase
             end
-            2'b01: begin
-                lsu_master_wstrb = 4'b0011 << {mem_offset[1], 1'b0};
-                lsu_master_wdata = {16'b0, rf_rdata2[15:0]} << {mem_offset[1], 4'b000};
+            F3_SH: begin
+                case (mem_offset[1])
+                    1'b0: begin
+                        lsu_master_wstrb = 4'b0011;
+                        lsu_master_wdata = {16'b0, rf_rdata2[15:0]};
+                    end
+                    1'b1: begin
+                        lsu_master_wstrb = 4'b1100;
+                        lsu_master_wdata = {rf_rdata2[15:0], 16'b0};
+                    end
+                endcase
             end
-            default:;
+            F3_LBU: begin
+            end
+            F3_LHU: begin
+            end
+            default: begin
+                lsu_master_wstrb = 4'b1111;
+                lsu_master_wdata = rf_rdata2;
+            end
         endcase
     end
 
@@ -326,11 +355,11 @@ module ysyx_26030082_exu (
     assign ex_out_valid = ex_in_valid && ready_go;
 
     assign lsu_master_araddr = addsub_result;
-    assign lsu_master_arsize = mem_size;
+    assign lsu_master_arsize = funct3[1:0];
     assign lsu_master_arvalid = mem_state == L_IDLE && ext_load_req;
     assign lsu_master_rready = mem_state == L_WAIT_R;
     assign lsu_master_awaddr = addsub_result;
-    assign lsu_master_awsize = mem_size;
+    assign lsu_master_awsize = funct3[1:0];
     assign lsu_master_awvalid = mem_state == L_IDLE && ext_store_req ||
                                 mem_state == L_WAIT_AW;
     assign lsu_master_wvalid = mem_state == L_IDLE && ext_store_req ||
