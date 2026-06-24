@@ -261,10 +261,7 @@ module ysyx_26030082_exu (
             end
 
             OPCODE_SYSTEM: begin
-                case (funct3)
-                    F3_CSRRS, F3_CSRRC, F3_CSRRSI, F3_CSRRCI: bit_lhs = csr_rdata;
-                    default:;
-                endcase
+                bit_lhs = csr_rdata;
             end
 
             default: begin
