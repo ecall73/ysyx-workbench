@@ -292,54 +292,21 @@ module ysyx_26030082_exu (
     // LS: lsu_master.
 
     always @(*) begin
-        lsu_master_wstrb = 4'b0000;
-        lsu_master_wdata = rf_rdata2;
         mem_size = 3'b010;
-        case (funct3)
-            F3_SB: begin
+        lsu_master_wstrb = 4'b1111;
+        lsu_master_wdata = rf_rdata2;
+        case (funct3[1:0])
+            2'b00: begin
                 mem_size = 3'b000;
-                case (mem_offset)
-                    2'b00: begin
-                        lsu_master_wstrb = 4'b0001;
-                        lsu_master_wdata = {24'b0, rf_rdata2[7:0]};
-                    end
-                    2'b01: begin
-                        lsu_master_wstrb = 4'b0010;
-                        lsu_master_wdata = {16'b0, rf_rdata2[7:0], 8'b0};
-                    end
-                    2'b10: begin
-                        lsu_master_wstrb = 4'b0100;
-                        lsu_master_wdata = {8'b0, rf_rdata2[7:0], 16'b0};
-                    end
-                    2'b11: begin
-                        lsu_master_wstrb = 4'b1000;
-                        lsu_master_wdata = {rf_rdata2[7:0], 24'b0};
-                    end
-                endcase
+                lsu_master_wstrb = 4'b0001 << mem_offset;
+                lsu_master_wdata = {24'b0, rf_rdata2[7:0]} << {mem_offset, 3'b000};
             end
-            F3_SH: begin
+            2'b01: begin
                 mem_size = 3'b001;
-                case (mem_offset[1])
-                    1'b0: begin
-                        lsu_master_wstrb = 4'b0011;
-                        lsu_master_wdata = {16'b0, rf_rdata2[15:0]};
-                    end
-                    1'b1: begin
-                        lsu_master_wstrb = 4'b1100;
-                        lsu_master_wdata = {rf_rdata2[15:0], 16'b0};
-                    end
-                endcase
+                lsu_master_wstrb = 4'b0011 << {mem_offset[1], 1'b0};
+                lsu_master_wdata = {16'b0, rf_rdata2[15:0]} << {mem_offset[1], 4'b000};
             end
-            F3_LBU: begin
-                mem_size = 3'b000;
-            end
-            F3_LHU: begin
-                mem_size = 3'b001;
-            end
-            default: begin
-                lsu_master_wstrb = 4'b1111;
-                lsu_master_wdata = rf_rdata2;
-            end
+            default:;
         endcase
     end
 
@@ -354,7 +321,6 @@ module ysyx_26030082_exu (
     wire        b_fire = lsu_master_bvalid && lsu_master_bready;
     wire [1:0]  mem_offset = addsub_result[1:0];
     wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
-    wire [31:0] load_shifted = load_raw_data >> {mem_offset, 3'b000};
     wire        ready_go = mem_state == L_IDLE && ~ext_mem_req ||
                            mem_state == L_WAIT_R && r_fire ||
                            mem_state == L_WAIT_B && b_fire;
@@ -408,10 +374,38 @@ module ysyx_26030082_exu (
     always @(*) begin
         rdata_decoded = load_raw_data;
         case (funct3)
-            F3_LB:  rdata_decoded = {{24{load_shifted[7]}}, load_shifted[7:0]};
-            F3_LH:  rdata_decoded = {{16{load_shifted[15]}}, load_shifted[15:0]};
-            F3_LBU: rdata_decoded = {24'b0, load_shifted[7:0]};
-            F3_LHU: rdata_decoded = {16'b0, load_shifted[15:0]};
+            F3_LB: begin
+                case (mem_offset)
+                    2'b00: rdata_decoded = {{24{load_raw_data[7]}}, load_raw_data[7:0]};
+                    2'b01: rdata_decoded = {{24{load_raw_data[15]}}, load_raw_data[15:8]};
+                    2'b10: rdata_decoded = {{24{load_raw_data[23]}}, load_raw_data[23:16]};
+                    2'b11: rdata_decoded = {{24{load_raw_data[31]}}, load_raw_data[31:24]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LH: begin
+                case (mem_offset[1])
+                    1'b0: rdata_decoded = {{16{load_raw_data[15]}}, load_raw_data[15:0]};
+                    1'b1: rdata_decoded = {{16{load_raw_data[31]}}, load_raw_data[31:16]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LBU: begin
+                case (mem_offset)
+                    2'b00: rdata_decoded = {24'b0, load_raw_data[7:0]};
+                    2'b01: rdata_decoded = {24'b0, load_raw_data[15:8]};
+                    2'b10: rdata_decoded = {24'b0, load_raw_data[23:16]};
+                    2'b11: rdata_decoded = {24'b0, load_raw_data[31:24]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LHU: begin
+                case (mem_offset[1])
+                    1'b0: rdata_decoded = {16'b0, load_raw_data[15:0]};
+                    1'b1: rdata_decoded = {16'b0, load_raw_data[31:16]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
             default: rdata_decoded = load_raw_data;
         endcase
     end
