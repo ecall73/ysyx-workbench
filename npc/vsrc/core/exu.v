@@ -354,6 +354,7 @@ module ysyx_26030082_exu (
     wire        b_fire = lsu_master_bvalid && lsu_master_bready;
     wire [1:0]  mem_offset = addsub_result[1:0];
     wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
+    wire [31:0] load_shifted = load_raw_data >> {mem_offset, 3'b000};
     wire        ready_go = mem_state == L_IDLE && ~ext_mem_req ||
                            mem_state == L_WAIT_R && r_fire ||
                            mem_state == L_WAIT_B && b_fire;
@@ -407,38 +408,10 @@ module ysyx_26030082_exu (
     always @(*) begin
         rdata_decoded = load_raw_data;
         case (funct3)
-            F3_LB: begin
-                case (mem_offset)
-                    2'b00: rdata_decoded = {{24{load_raw_data[7]}}, load_raw_data[7:0]};
-                    2'b01: rdata_decoded = {{24{load_raw_data[15]}}, load_raw_data[15:8]};
-                    2'b10: rdata_decoded = {{24{load_raw_data[23]}}, load_raw_data[23:16]};
-                    2'b11: rdata_decoded = {{24{load_raw_data[31]}}, load_raw_data[31:24]};
-                    default: rdata_decoded = 32'b0;
-                endcase
-            end
-            F3_LH: begin
-                case (mem_offset[1])
-                    1'b0: rdata_decoded = {{16{load_raw_data[15]}}, load_raw_data[15:0]};
-                    1'b1: rdata_decoded = {{16{load_raw_data[31]}}, load_raw_data[31:16]};
-                    default: rdata_decoded = 32'b0;
-                endcase
-            end
-            F3_LBU: begin
-                case (mem_offset)
-                    2'b00: rdata_decoded = {24'b0, load_raw_data[7:0]};
-                    2'b01: rdata_decoded = {24'b0, load_raw_data[15:8]};
-                    2'b10: rdata_decoded = {24'b0, load_raw_data[23:16]};
-                    2'b11: rdata_decoded = {24'b0, load_raw_data[31:24]};
-                    default: rdata_decoded = 32'b0;
-                endcase
-            end
-            F3_LHU: begin
-                case (mem_offset[1])
-                    1'b0: rdata_decoded = {16'b0, load_raw_data[15:0]};
-                    1'b1: rdata_decoded = {16'b0, load_raw_data[31:16]};
-                    default: rdata_decoded = 32'b0;
-                endcase
-            end
+            F3_LB:  rdata_decoded = {{24{load_shifted[7]}}, load_shifted[7:0]};
+            F3_LH:  rdata_decoded = {{16{load_shifted[15]}}, load_shifted[15:0]};
+            F3_LBU: rdata_decoded = {24'b0, load_shifted[7:0]};
+            F3_LHU: rdata_decoded = {16'b0, load_shifted[15:0]};
             default: rdata_decoded = load_raw_data;
         endcase
     end
