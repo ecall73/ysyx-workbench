@@ -262,15 +262,8 @@ module ysyx_26030082_exu (
 
             OPCODE_SYSTEM: begin
                 case (funct3)
-                    F3_CSRRS,
-                    F3_CSRRC,
-                    F3_CSRRSI,
-                    F3_CSRRCI: begin
-                        bit_lhs = csr_rdata;
-                    end
-
-                    default: begin
-                    end
+                    F3_CSRRS, F3_CSRRC, F3_CSRRSI, F3_CSRRCI: bit_lhs = csr_rdata;
+                    default:;
                 endcase
             end
 
@@ -529,8 +522,6 @@ module ysyx_26030082_exu (
             default:            local_rdata = 32'b0;
         endcase
     end
-
-
 
     always @(posedge clock) begin
         if (reset) begin
