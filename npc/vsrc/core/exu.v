@@ -28,7 +28,7 @@ module ysyx_26030082_exu (
     output            lsu_master_awvalid,
     input             lsu_master_awready,
     output reg [31:0] lsu_master_wdata,
-    output     [ 3:0] lsu_master_wstrb,
+    output reg [ 3:0] lsu_master_wstrb,
     output            lsu_master_wvalid,
     input             lsu_master_wready,
     input      [ 1:0] lsu_master_bresp,
@@ -120,7 +120,6 @@ module ysyx_26030082_exu (
     // Memory.
     reg  [2:0]  mem_state;
     reg  [31:0] local_rdata;
-    reg  [3:0]  wmask_calc;
     reg  [31:0] rdata_decoded;
     reg  [2:0]  mem_size;
 
@@ -293,7 +292,7 @@ module ysyx_26030082_exu (
     // LS: lsu_master.
 
     always @(*) begin
-        wmask_calc = 4'b0000;
+        lsu_master_wstrb = 4'b0000;
         lsu_master_wdata = rf_rdata2;
         mem_size = 3'b010;
         case (funct3)
@@ -301,19 +300,19 @@ module ysyx_26030082_exu (
                 mem_size = 3'b000;
                 case (mem_offset)
                     2'b00: begin
-                        wmask_calc = 4'b0001;
+                        lsu_master_wstrb = 4'b0001;
                         lsu_master_wdata = {24'b0, rf_rdata2[7:0]};
                     end
                     2'b01: begin
-                        wmask_calc = 4'b0010;
+                        lsu_master_wstrb = 4'b0010;
                         lsu_master_wdata = {16'b0, rf_rdata2[7:0], 8'b0};
                     end
                     2'b10: begin
-                        wmask_calc = 4'b0100;
+                        lsu_master_wstrb = 4'b0100;
                         lsu_master_wdata = {8'b0, rf_rdata2[7:0], 16'b0};
                     end
                     2'b11: begin
-                        wmask_calc = 4'b1000;
+                        lsu_master_wstrb = 4'b1000;
                         lsu_master_wdata = {rf_rdata2[7:0], 24'b0};
                     end
                 endcase
@@ -322,11 +321,11 @@ module ysyx_26030082_exu (
                 mem_size = 3'b001;
                 case (mem_offset[1])
                     1'b0: begin
-                        wmask_calc = 4'b0011;
+                        lsu_master_wstrb = 4'b0011;
                         lsu_master_wdata = {16'b0, rf_rdata2[15:0]};
                     end
                     1'b1: begin
-                        wmask_calc = 4'b1100;
+                        lsu_master_wstrb = 4'b1100;
                         lsu_master_wdata = {rf_rdata2[15:0], 16'b0};
                     end
                 endcase
@@ -338,7 +337,7 @@ module ysyx_26030082_exu (
                 mem_size = 3'b001;
             end
             default: begin
-                wmask_calc = 4'b1111;
+                lsu_master_wstrb = 4'b1111;
                 lsu_master_wdata = rf_rdata2;
             end
         endcase
@@ -369,7 +368,6 @@ module ysyx_26030082_exu (
     assign lsu_master_awsize = mem_size;
     assign lsu_master_awvalid = mem_state == L_IDLE && ext_store_req ||
                                 mem_state == L_WAIT_AW;
-    assign lsu_master_wstrb = wmask_calc;
     assign lsu_master_wvalid = mem_state == L_IDLE && ext_store_req ||
                                mem_state == L_WAIT_W;
     assign lsu_master_bready = mem_state == L_WAIT_B;
