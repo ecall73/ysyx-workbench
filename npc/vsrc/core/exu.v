@@ -133,8 +133,6 @@ module ysyx_26030082_exu (
     wire [31:0] bit_lhs;
     wire [31:0] bit_rhs;
     wire [31:0] addsub_lhs;
-    // reg  [31:0] addsub_rhs;
-    // reg         addsub_sub;
     wire [31:0] addsub_rhs_xor;
     wire [31:0] addsub_result;
     wire [31:0] and_result;
@@ -143,7 +141,6 @@ module ysyx_26030082_exu (
     wire [31:0] sll_result;
     wire [31:0] srl_result;
     wire [31:0] sra_result;
-    // reg  [31:0] cmp_rhs;
     wire        cmp_eq;
     wire        cmp_lt;
     wire        cmp_ltu;
@@ -214,45 +211,6 @@ module ysyx_26030082_exu (
                     opcode == OPCODE_JAL ||
                     opcode == OPCODE_JALR ||
                     opcode == OPCODE_SYSTEM && funct3 != F3_PRIV;
-
-    /*always @(*) begin
-        addsub_rhs = 32'bx;
-        addsub_sub = 1'bx;
-        cmp_rhs = 32'bx;
-
-        case (opcode)
-            OPCODE_OP: begin
-                addsub_rhs = rf_rdata2;
-                addsub_sub = funct3 == F3_ADD_SUB && funct7_5;
-                cmp_rhs = rf_rdata2;
-            end
-
-            OPCODE_OP_IMM: begin
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-                cmp_rhs = imm;
-            end
-
-            OPCODE_LOAD, OPCODE_STORE, OPCODE_JALR: begin
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-            end
-
-            OPCODE_AUIPC, OPCODE_JAL: begin
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-            end
-
-            OPCODE_BRANCH: begin
-                addsub_rhs = imm;
-                addsub_sub = 1'b0;
-                cmp_rhs = rf_rdata2;
-            end
-
-            default: begin
-            end
-        endcase
-    end*/
 
     wire [31:0] addsub_rhs = opcode == OPCODE_OP ? rf_rdata2 : imm;
     wire addsub_sub = opcode == OPCODE_OP && funct7_5;
