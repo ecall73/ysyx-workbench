@@ -121,7 +121,6 @@ module ysyx_26030082_exu (
     reg  [2:0]  mem_state;
     reg  [31:0] local_rdata;
     reg  [31:0] rdata_decoded;
-    reg  [2:0]  mem_size;
 
     wire [6:0]  opcode = ex_inst[6:0];
     wire [2:0]  funct3 = ex_inst[14:12];
@@ -291,18 +290,17 @@ module ysyx_26030082_exu (
 /////////////////////////
     // LS: lsu_master.
 
+    wire [2:0] mem_size = funct3[1] ? 3'b010 : {2'b00, funct3[0]};
+
     always @(*) begin
-        mem_size = 3'b010;
         lsu_master_wstrb = 4'b1111;
         lsu_master_wdata = rf_rdata2;
         case (funct3[1:0])
             2'b00: begin
-                mem_size = 3'b000;
                 lsu_master_wstrb = 4'b0001 << mem_offset;
                 lsu_master_wdata = {24'b0, rf_rdata2[7:0]} << {mem_offset, 3'b000};
             end
             2'b01: begin
-                mem_size = 3'b001;
                 lsu_master_wstrb = 4'b0011 << {mem_offset[1], 1'b0};
                 lsu_master_wdata = {16'b0, rf_rdata2[15:0]} << {mem_offset[1], 4'b000};
             end
