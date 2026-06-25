@@ -195,6 +195,23 @@ module ysyx_26030082_ifu #(
             end
         end
     end
+
+    reg [19:0] debug_wait_cycles;
+    always @(posedge clock) begin
+        if (reset || req_fire || ar_fire || r_fire || flush) begin
+            debug_wait_cycles <= 20'b0;
+        end else begin
+            debug_wait_cycles <= debug_wait_cycles + 1'b1;
+            if (debug_wait_cycles == 20'd50000) begin
+                $fatal(1,
+                    "ifu watchdog pc=%08x state=%0d hit=%0d miss=%0d arvalid=%0d arready=%0d rvalid=%0d rready=%0d rlast=%0d ar_done=%0d drop=%0d",
+                    if_pc, state, cache_hit, cache_miss,
+                    ifu_master_arvalid, ifu_master_arready,
+                    ifu_master_rvalid, ifu_master_rready, ifu_master_rlast,
+                    refill_ar_done, drop_refill);
+            end
+        end
+    end
 `endif
 
     wire _unused_ok = &{1'b0, ifu_master_rresp};
