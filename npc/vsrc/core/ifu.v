@@ -103,7 +103,6 @@ module ysyx_26030082_ifu #(
 
             case (state)
                 S_LOOKUP: begin
-                    drop_refill <= 1'b0;
                     if (ar_fire) begin
                         refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
                         state <= S_MISS_R;
