@@ -293,8 +293,6 @@ module ysyx_26030082_exu (
     // LS: lsu_master.
 
     always @(*) begin
-        lsu_master_wstrb = 4'b0000;
-        lsu_master_wdata = rf_rdata2;
         case (funct3)
             F3_SB: begin
                 case (addsub_result[1:0])
@@ -332,7 +330,10 @@ module ysyx_26030082_exu (
                 lsu_master_wstrb = 4'b1111;
                 lsu_master_wdata = rf_rdata2;
             end
-            default:;
+            default: begin
+                lsu_master_wstrb = 4'b0000;
+                lsu_master_wdata = 32'bx;
+            end
         endcase
     end
 
