@@ -74,8 +74,6 @@ module ysyx_26030082_ifu #(
     assign ifu_master_rready = (state == S_MISS_R);
     wire ar_fire = ifu_master_arvalid && ifu_master_arready;
     wire r_fire = ifu_master_rvalid && ifu_master_rready;
-    wire refill_done = r_fire && ifu_master_rlast;
-    wire refill_drop = drop_refill || flush;
 
     always @(posedge clock) begin
         if (reset) begin
@@ -84,7 +82,7 @@ module ysyx_26030082_ifu #(
             valid_array <= {LINE_COUNT{1'b0}};
         end else if (ar_fire) begin
             valid_array[lookup_index] <= 1'b0;
-        end else if (refill_done && !refill_drop) begin
+        end else if (r_fire && ifu_master_rlast && !drop_refill && !flush) begin
             valid_array[lookup_index] <= 1'b1;
         end
     end
@@ -117,12 +115,12 @@ module ysyx_26030082_ifu #(
                     end
 
                     if (r_fire) begin
-                        if (!refill_drop) begin
+                        if (!drop_refill && !flush) begin
                             data_array[lookup_index][{refill_word_idx, 5'b0} +: 32] <= ifu_master_rdata;
                         end
 
-                        if (refill_done) begin
-                            if (!refill_drop) begin
+                        if (ifu_master_rlast) begin
+                            if (!drop_refill && !flush) begin
                                 tag_array[lookup_index] <= lookup_tag;
                             end
                             state <= S_LOOKUP;
