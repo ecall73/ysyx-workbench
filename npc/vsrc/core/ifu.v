@@ -82,6 +82,8 @@ module ysyx_26030082_ifu #(
             valid_array <= {LINE_COUNT{1'b0}};
         end else if (invalidate) begin
             valid_array <= {LINE_COUNT{1'b0}};
+        end else if (ar_fire) begin
+            valid_array[lookup_index] <= 1'b0;
         end else if ((state == S_MISS_R) && r_fire && !flush) begin
             valid_array[lookup_index] <= ifu_master_rlast;
         end
@@ -109,6 +111,7 @@ module ysyx_26030082_ifu #(
 
                 S_MISS_AR: begin
                     if (ar_fire) begin
+                        tag_array[lookup_index] <= lookup_tag;
                         state <= flush ? S_DROP_R : S_MISS_R;
                     end else if (flush) begin
                         state <= S_LOOKUP;
@@ -121,7 +124,6 @@ module ysyx_26030082_ifu #(
                     end else if (r_fire) begin
                         data_array[refill_word_index] <= ifu_master_rdata;
                         if (ifu_master_rlast) begin
-                            tag_array[lookup_index] <= lookup_tag;
                             state <= S_LOOKUP;
                         end else begin
                             refill_word_idx <= refill_word_idx + 1'b1;
