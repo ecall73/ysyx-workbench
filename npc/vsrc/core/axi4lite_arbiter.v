@@ -8,7 +8,6 @@ module ysyx_26030082_axi4lite_arbiter (
     input         ifu_master_arvalid,
     output        ifu_master_arready,
     output [31:0] ifu_master_rdata,
-    output [ 1:0] ifu_master_rresp,
     output        ifu_master_rlast,
     output        ifu_master_rvalid,
     input         ifu_master_rready,
@@ -18,7 +17,6 @@ module ysyx_26030082_axi4lite_arbiter (
     input         lsu_master_arvalid,
     output        lsu_master_arready,
     output [31:0] lsu_master_rdata,
-    output [ 1:0] lsu_master_rresp,
     output        lsu_master_rvalid,
     input         lsu_master_rready,
     input  [31:0] lsu_master_awaddr,
@@ -29,7 +27,6 @@ module ysyx_26030082_axi4lite_arbiter (
     input  [ 3:0] lsu_master_wstrb,
     input         lsu_master_wvalid,
     output        lsu_master_wready,
-    output [ 1:0] lsu_master_bresp,
     output        lsu_master_bvalid,
     input         lsu_master_bready,
     // Shared IO master interface
@@ -83,18 +80,15 @@ module ysyx_26030082_axi4lite_arbiter (
 
     assign ifu_master_arready = rd_sel_ifu && io_master_arready;
     assign ifu_master_rdata = io_master_rdata;
-    assign ifu_master_rresp = io_master_rresp;
     assign ifu_master_rlast = io_master_rlast;
     assign ifu_master_rvalid = rd_data_ifu && io_master_rvalid;
 
     assign lsu_master_arready = rd_sel_lsu && io_master_arready;
     assign lsu_master_rdata = io_master_rdata;
-    assign lsu_master_rresp = io_master_rresp;
     assign lsu_master_rvalid = rd_data_lsu && io_master_rvalid;
 
     assign lsu_master_awready = io_master_awready;
     assign lsu_master_wready = io_master_wready;
-    assign lsu_master_bresp = io_master_bresp;
     assign lsu_master_bvalid = io_master_bvalid;
 
     assign io_master_araddr = rd_sel_ifu ? ifu_master_araddr : lsu_master_araddr;

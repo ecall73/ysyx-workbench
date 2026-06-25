@@ -25,7 +25,6 @@ module ysyx_26030082_ifu #(
     output            ifu_master_arvalid,
     input             ifu_master_arready,
     input      [31:0] ifu_master_rdata,
-    input      [ 1:0] ifu_master_rresp,
     input             ifu_master_rlast,
     input             ifu_master_rvalid,
     output            ifu_master_rready
@@ -176,7 +175,4 @@ module ysyx_26030082_ifu #(
         end
     end
 `endif
-
-    wire _unused_ok = &{1'b0, ifu_master_rresp};
-
 endmodule

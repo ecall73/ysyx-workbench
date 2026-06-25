@@ -20,7 +20,6 @@ module ysyx_26030082_exu (
     output            lsu_master_arvalid,
     input             lsu_master_arready,
     input      [31:0] lsu_master_rdata,
-    input      [ 1:0] lsu_master_rresp,
     input             lsu_master_rvalid,
     output            lsu_master_rready,
     output     [31:0] lsu_master_awaddr,
@@ -31,7 +30,6 @@ module ysyx_26030082_exu (
     output reg [ 3:0] lsu_master_wstrb,
     output            lsu_master_wvalid,
     input             lsu_master_wready,
-    input      [ 1:0] lsu_master_bresp,
     input             lsu_master_bvalid,
     output            lsu_master_bready
 );
@@ -82,17 +80,13 @@ module ysyx_26030082_exu (
     localparam [2:0] F3_BLTU = 3'b110;
     localparam [2:0] F3_BGEU = 3'b111;
 
-    localparam [2:0] F3_FENCE   = 3'b000;
     localparam [2:0] F3_FENCE_I = 3'b001;
     localparam [2:0] F3_LB      = 3'b000;
     localparam [2:0] F3_LH      = 3'b001;
-    localparam [2:0] F3_LW      = 3'b010;
     localparam [2:0] F3_LBU     = 3'b100;
     localparam [2:0] F3_LHU     = 3'b101;
     localparam [2:0] F3_SB      = 3'b000;
     localparam [2:0] F3_SH      = 3'b001;
-    localparam [2:0] F3_SW      = 3'b010;
-    localparam [2:0] F3_JALR    = 3'b000;
 
     localparam [31:0] CAUSE_ECALL = 32'd11;
     localparam R_IDLE    = 1'd0;
