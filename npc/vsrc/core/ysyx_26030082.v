@@ -369,7 +369,7 @@ module ysyx_26030082 #(
     wire pmu_ifetch_fire = if_out_valid && if_out_ready;
     wire pmu_icache_miss = (ifu.state == PMU_ICACHE_LOOKUP) && ifu.cache_miss;
     wire pmu_icache_miss_cycle = (ifu.state == PMU_ICACHE_MISS_AR) ||
-                                 (ifu.state == PMU_ICACHE_MISS_R);
+                                  (ifu.state == PMU_ICACHE_MISS_R);
     wire pmu_dcache_access = (exu.rd_state == PMU_LSU_R_IDLE) &&
                              (exu.wr_state == PMU_LSU_W_IDLE) &&
                              exu.ext_mem_req;

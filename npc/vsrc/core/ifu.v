@@ -88,8 +88,6 @@ module ysyx_26030082_ifu #(
             valid_array <= {LINE_COUNT{1'b0}};
         end else if (invalidate) begin
             valid_array <= {LINE_COUNT{1'b0}};
-        end else if (refill_start) begin
-            valid_array[lookup_index] <= 1'b0;
         end else if ((state == S_MISS_R) && r_fire && ifu_master_rlast && !refill_drop) begin
             valid_array[refill_index] <= 1'b1;
         end
@@ -128,12 +126,14 @@ module ysyx_26030082_ifu #(
                 end
 
                 S_MISS_AR: begin
-                    if (flush) begin
-                        drop_refill <= 1'b1;
-                    end
-
                     if (ar_fire) begin
                         state <= S_MISS_R;
+                        if (flush) begin
+                            drop_refill <= 1'b1;
+                        end
+                    end else if (flush) begin
+                        state <= S_LOOKUP;
+                        drop_refill <= 1'b0;
                     end
                 end
 
