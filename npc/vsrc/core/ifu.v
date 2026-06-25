@@ -37,10 +37,10 @@ module ysyx_26030082_ifu #(
     localparam integer OFFSET_W        = WORD_OFF_W + LINE_ADDR_OFF_W;
     localparam integer TAG_W           = 32 - INDEX_W - OFFSET_W;
 
-    localparam S_INIT    = 2'd0;
-    localparam S_LOOKUP  = 2'd1;
-    localparam S_MISS_AR = 2'd2;
-    localparam S_MISS_R  = 2'd3;
+    localparam [1:0] S_LOOKUP  = 2'd0;
+    localparam [1:0] S_MISS_AR = 2'd1;
+    localparam [1:0] S_MISS_R  = 2'd2;
+    localparam [1:0] S_DROP_R  = 2'd3;
 
     reg [1:0] state;
 
@@ -50,10 +50,6 @@ module ysyx_26030082_ifu #(
     reg [LINE_COUNT-1:0] valid_array;
 
     reg [LINE_WORD_OFF_W-1:0] refill_word_idx;
-    reg [31:0] refill_line_base;
-    reg [INDEX_W-1:0] refill_index;
-    reg [TAG_W-1:0] refill_tag;
-    reg drop_refill;
 
     wire [LINE_WORD_OFF_W-1:0] lookup_word_offset =
         if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
@@ -72,36 +68,31 @@ module ysyx_26030082_ifu #(
     wire req_fire = if_out_valid && if_out_ready;
 
     wire [31:0] miss_line_base = {if_pc[31:OFFSET_W], {OFFSET_W{1'b0}}};
-    wire refill_start = cache_miss && !flush;
-    assign ifu_master_araddr = (state == S_LOOKUP) ? miss_line_base : refill_line_base;
+    assign ifu_master_araddr = miss_line_base;
     assign ifu_master_arlen = LINE_WORDS[7:0] - 8'd1;
     assign ifu_master_arburst = 2'b01;
-    assign ifu_master_arvalid = refill_start ||
-                                (state == S_MISS_AR);
-    assign ifu_master_rready = (state == S_MISS_R);
+    assign ifu_master_arvalid = (state == S_MISS_AR);
+    assign ifu_master_rready = (state == S_MISS_R) || (state == S_DROP_R);
     wire ar_fire = ifu_master_arvalid && ifu_master_arready;
     wire r_fire = ifu_master_rvalid && ifu_master_rready;
-    wire refill_drop = drop_refill || flush;
 
     always @(posedge clock) begin
         if (reset) begin
             valid_array <= {LINE_COUNT{1'b0}};
         end else if (invalidate) begin
             valid_array <= {LINE_COUNT{1'b0}};
-        end else if ((state == S_MISS_R) && r_fire && ifu_master_rlast && !refill_drop) begin
-            valid_array[refill_index] <= 1'b1;
+        end else if ((state == S_MISS_R) && flush) begin
+            valid_array[lookup_index] <= 1'b0;
+        end else if ((state == S_MISS_R) && r_fire && ifu_master_rlast) begin
+            valid_array[lookup_index] <= 1'b1;
         end
     end
 
     always @(posedge clock) begin
         if (reset) begin
-            state <= S_INIT;
+            state <= S_LOOKUP;
             if_pc <= RESET_PC;
             refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
-            refill_line_base <= RESET_PC;
-            refill_index <= {INDEX_W{1'b0}};
-            refill_tag <= {TAG_W{1'b0}};
-            drop_refill <= 1'b0;
         end else begin
             if (flush) begin
                 if_pc <= ex_redirect_pc;
@@ -110,58 +101,43 @@ module ysyx_26030082_ifu #(
             end
 
             case (state)
-                S_INIT: begin
-                    state <= S_LOOKUP;
-                end
-
                 S_LOOKUP: begin
-                    drop_refill <= 1'b0;
-                    if (refill_start) begin
+                    if (cache_miss && !flush) begin
                         refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
-                        refill_line_base <= miss_line_base;
-                        refill_index <= lookup_index;
-                        refill_tag <= lookup_tag;
-                        state <= ar_fire ? S_MISS_R : S_MISS_AR;
+                        state <= S_MISS_AR;
                     end
                 end
 
                 S_MISS_AR: begin
                     if (ar_fire) begin
-                        state <= S_MISS_R;
-                        if (flush) begin
-                            drop_refill <= 1'b1;
-                        end
+                        state <= flush ? S_DROP_R : S_MISS_R;
                     end else if (flush) begin
                         state <= S_LOOKUP;
-                        drop_refill <= 1'b0;
                     end
                 end
 
                 S_MISS_R: begin
                     if (flush) begin
-                        drop_refill <= 1'b1;
-                    end
-
-                    if (r_fire) begin
-                        if (!refill_drop) begin
-                            data_array[refill_index][{refill_word_idx, 5'b0} +: 32] <= ifu_master_rdata;
-                        end
-
+                        state <= (r_fire && ifu_master_rlast) ? S_LOOKUP : S_DROP_R;
+                    end else if (r_fire) begin
+                        data_array[lookup_index][{refill_word_idx, 5'b0} +: 32] <= ifu_master_rdata;
                         if (ifu_master_rlast) begin
-                            if (!refill_drop) begin
-                                tag_array[refill_index] <= refill_tag;
-                            end
+                            tag_array[lookup_index] <= lookup_tag;
                             state <= S_LOOKUP;
-                            drop_refill <= 1'b0;
                         end else begin
                             refill_word_idx <= refill_word_idx + 1'b1;
                         end
                     end
                 end
 
+                S_DROP_R: begin
+                    if (r_fire && ifu_master_rlast) begin
+                        state <= S_LOOKUP;
+                    end
+                end
+
                 default: begin
                     state <= S_LOOKUP;
-                    drop_refill <= 1'b0;
                 end
             endcase
         end
@@ -195,10 +171,10 @@ module ysyx_26030082_ifu #(
         end
         if (!reset && (state == S_MISS_R) && r_fire) begin
             if ((refill_word_idx == (LINE_WORDS - 1)) && !ifu_master_rlast) begin
-                $fatal(1, "ifu burst refill missing rlast on final beat line=%08x", refill_line_base);
+                $fatal(1, "ifu burst refill missing rlast on final beat line=%08x", miss_line_base);
             end
             if ((refill_word_idx != (LINE_WORDS - 1)) && ifu_master_rlast) begin
-                $fatal(1, "ifu burst refill saw early rlast line=%08x beat=%0d", refill_line_base, refill_word_idx);
+                $fatal(1, "ifu burst refill saw early rlast line=%08x beat=%0d", miss_line_base, refill_word_idx);
             end
         end
     end
