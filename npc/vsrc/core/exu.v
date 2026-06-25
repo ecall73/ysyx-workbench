@@ -377,10 +377,13 @@ module ysyx_26030082_exu (
         end else begin
             case (mem_state)
                 L_IDLE: begin
-                    if (ar_fire) mem_state <= L_WAIT_R;
-                    else if (aw_fire && w_fire) mem_state <= L_WAIT_B;
-                    else if (aw_fire) mem_state <= L_WAIT_W;
-                    else if (w_fire) mem_state <= L_WAIT_AW;
+                    case ({ar_fire, aw_fire, w_fire})
+                        3'b100: mem_state <= L_WAIT_R;
+                        3'b011: mem_state <= L_WAIT_B;
+                        3'b010: mem_state <= L_WAIT_W;
+                        3'b001: mem_state <= L_WAIT_AW;
+                        default: mem_state <= L_IDLE;
+                    endcase
                 end
                 L_WAIT_R: if (r_fire) mem_state <= L_IDLE;
                 L_WAIT_AW: if (aw_fire) mem_state <= L_WAIT_B;
