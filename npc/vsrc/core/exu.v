@@ -100,6 +100,10 @@ module ysyx_26030082_exu (
     localparam L_WAIT_AW = 3'd1;
     localparam L_WAIT_W  = 3'd2;
     localparam L_WAIT_B  = 3'd3;
+    localparam W_IDLE    = 2'd0;
+    localparam W_WAIT_AW = 2'd1;
+    localparam W_WAIT_W  = 2'd2;
+    localparam W_WAIT_B  = 2'd3;
     localparam [15:0] CLINT_BASE_HI     = 16'h0200;
     localparam [13:0] MTIME_WORD_OFFSET  = 14'h2ffe;
     localparam [13:0] MTIMEH_WORD_OFFSET = 14'h2fff;
@@ -118,7 +122,8 @@ module ysyx_26030082_exu (
     reg  [31:0] csr_rdata;
 
     // Memory.
-    reg  [2:0]  mem_state;
+    reg         rd_wait_r;
+    reg  [1:0] wr_state;
     reg  [31:0] local_rdata;
     reg  [31:0] rdata_decoded;
 
@@ -345,23 +350,29 @@ module ysyx_26030082_exu (
     wire        b_fire = lsu_master_bvalid && lsu_master_bready;
 
     wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
-    wire        ready_go = mem_state == L_IDLE && ~ext_mem_req ||
-                           mem_state == L_WAIT_R && r_fire ||
-                           mem_state == L_WAIT_B && b_fire;
+    wire        mem_idle = ~rd_wait_r && wr_state == W_IDLE;
+    wire [2:0]  mem_state = rd_wait_r ? L_WAIT_R :
+                            wr_state == W_WAIT_AW ? L_WAIT_AW :
+                            wr_state == W_WAIT_W  ? L_WAIT_W  :
+                            wr_state == W_WAIT_B  ? L_WAIT_B  :
+                            L_IDLE;
+    wire        ready_go = mem_idle && ~ext_mem_req ||
+                           rd_wait_r && r_fire ||
+                           wr_state == W_WAIT_B && b_fire;
     assign ex_in_ready = ~ex_in_valid || ready_go;
     assign ex_out_valid = ex_in_valid && ready_go;
 
     assign lsu_master_araddr = addsub_result;
     assign lsu_master_arsize = funct3[1:0];
-    assign lsu_master_arvalid = mem_state == L_IDLE && ext_load_req;
-    assign lsu_master_rready = mem_state == L_WAIT_R;
+    assign lsu_master_arvalid = mem_idle && ext_load_req;
+    assign lsu_master_rready = rd_wait_r;
     assign lsu_master_awaddr = addsub_result;
     assign lsu_master_awsize = funct3[1:0];
-    assign lsu_master_awvalid = mem_state == L_IDLE && ext_store_req ||
-                                mem_state == L_WAIT_AW;
-    assign lsu_master_wvalid = mem_state == L_IDLE && ext_store_req ||
-                               mem_state == L_WAIT_W;
-    assign lsu_master_bready = mem_state == L_WAIT_B;
+    assign lsu_master_awvalid = mem_idle && ext_store_req ||
+                                wr_state == W_WAIT_AW;
+    assign lsu_master_wvalid = mem_idle && ext_store_req ||
+                               wr_state == W_WAIT_W;
+    assign lsu_master_bready = wr_state == W_WAIT_B;
 
     always @(*) begin
         case (addsub_result[15:2])
@@ -373,21 +384,34 @@ module ysyx_26030082_exu (
 
     always @(posedge clock) begin
         if (reset) begin
-            mem_state <= L_IDLE;
+            rd_wait_r <= 1'b0;
         end else begin
-            case (mem_state)
-                L_IDLE: begin
-                    if (ar_fire) mem_state <= L_WAIT_R;
-                    else if (aw_fire && w_fire) mem_state <= L_WAIT_B;
-                    else if (aw_fire) mem_state <= L_WAIT_W;
-                    else if (w_fire) mem_state <= L_WAIT_AW;
-                end
-                L_WAIT_R: if (r_fire) mem_state <= L_IDLE;
-                L_WAIT_AW: if (aw_fire) mem_state <= L_WAIT_B;
-                L_WAIT_W: if (w_fire) mem_state <= L_WAIT_B;
-                L_WAIT_B: if (b_fire) mem_state <= L_IDLE;
+            if (rd_wait_r) begin
+                if (r_fire) rd_wait_r <= 1'b0;
+            end else if (ar_fire) begin
+                rd_wait_r <= 1'b1;
+            end
+        end
+    end
 
-                default: mem_state <= L_IDLE;
+    always @(posedge clock) begin
+        if (reset) begin
+            wr_state <= W_IDLE;
+        end else begin
+            case (wr_state)
+                W_IDLE: begin
+                    case ({aw_fire, w_fire})
+                        2'b11: wr_state <= W_WAIT_B;
+                        2'b10: wr_state <= W_WAIT_W;
+                        2'b01: wr_state <= W_WAIT_AW;
+                        default:;
+                    endcase
+                end
+                W_WAIT_AW: if (aw_fire) wr_state <= W_WAIT_B;
+                W_WAIT_W:  if (w_fire)  wr_state <= W_WAIT_B;
+                W_WAIT_B:  if (b_fire)  wr_state <= W_IDLE;
+
+                default: wr_state <= W_IDLE;
             endcase
         end
     end
