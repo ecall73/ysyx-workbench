@@ -82,10 +82,8 @@ module ysyx_26030082_ifu #(
             valid_array <= {LINE_COUNT{1'b0}};
         end else if (invalidate) begin
             valid_array <= {LINE_COUNT{1'b0}};
-        end else if ((state == S_MISS_R) && flush) begin
-            valid_array[lookup_index] <= 1'b0;
-        end else if ((state == S_MISS_R) && r_fire && ifu_master_rlast) begin
-            valid_array[lookup_index] <= 1'b1;
+        end else if ((state == S_MISS_R) && r_fire && !flush) begin
+            valid_array[lookup_index] <= ifu_master_rlast;
         end
     end
 
