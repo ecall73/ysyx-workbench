@@ -356,9 +356,8 @@ module ysyx_26030082 #(
     localparam [31:0] PMU_EVT_DCACHE_MISS_CYCLE = 32'h0000_0040;
     localparam [31:0] PMU_EVT_REDIRECT          = 32'h0000_0080;
 
-    localparam [1:0] PMU_ICACHE_LOOKUP  = 2'd0;
-    localparam [1:0] PMU_ICACHE_MISS_AR = 2'd1;
-    localparam [1:0] PMU_ICACHE_MISS_R  = 2'd2;
+    localparam PMU_ICACHE_LOOKUP = 1'd0;
+    localparam PMU_ICACHE_MISS_R = 1'd1;
 
     localparam PMU_LSU_R_IDLE = 1'd0;
     localparam [1:0] PMU_LSU_W_IDLE = 2'd0;
@@ -368,9 +367,7 @@ module ysyx_26030082 #(
     // Direct hierarchical reads: simulation-only, no extra submodule ports.
     wire pmu_ifetch_fire = if_out_valid && if_out_ready;
     wire pmu_icache_miss = (ifu.state == PMU_ICACHE_LOOKUP) && ifu.cache_miss;
-    wire pmu_icache_miss_cycle =
-        (ifu.state == PMU_ICACHE_MISS_AR) ||
-        (ifu.state == PMU_ICACHE_MISS_R);
+    wire pmu_icache_miss_cycle = (ifu.state == PMU_ICACHE_MISS_R);
     wire pmu_dcache_access = (exu.rd_state == PMU_LSU_R_IDLE) &&
                              (exu.wr_state == PMU_LSU_W_IDLE) &&
                              exu.ext_mem_req;
