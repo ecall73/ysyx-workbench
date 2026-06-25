@@ -55,16 +55,14 @@ module ysyx_26030082_ifu #(
         if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
     wire [INDEX_W-1:0] lookup_index = if_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
     wire [TAG_W-1:0] lookup_tag = if_pc[31 : OFFSET_W + INDEX_W];
-    wire [INDEX_W+LINE_WORD_OFF_W-1:0] lookup_word_index = {lookup_index, lookup_word_offset};
-    wire [INDEX_W+LINE_WORD_OFF_W-1:0] refill_word_index = {lookup_index, refill_word_idx};
-
     wire cache_hit = valid_array[lookup_index] && (tag_array[lookup_index] == lookup_tag);
     wire cache_miss = (state == S_LOOKUP) && !cache_hit;
 
     wire flush = ex_out_valid && ex_redirect;
     wire invalidate = ex_out_valid && ex_fence_i;
+    wire r_last_fire = r_fire && ifu_master_rlast;
     assign if_out_valid = (state == S_LOOKUP) && cache_hit;
-    assign if_inst = data_array[lookup_word_index];
+    assign if_inst = data_array[{lookup_index, lookup_word_offset}];
 
     wire req_fire = if_out_valid && if_out_ready;
 
@@ -78,14 +76,12 @@ module ysyx_26030082_ifu #(
     wire r_fire = ifu_master_rvalid && ifu_master_rready;
 
     always @(posedge clock) begin
-        if (reset) begin
-            valid_array <= {LINE_COUNT{1'b0}};
-        end else if (invalidate) begin
+        if (reset || invalidate) begin
             valid_array <= {LINE_COUNT{1'b0}};
         end else if (ar_fire) begin
             valid_array[lookup_index] <= 1'b0;
-        end else if ((state == S_MISS_R) && r_fire && !flush) begin
-            valid_array[lookup_index] <= ifu_master_rlast;
+        end else if ((state == S_MISS_R) && r_last_fire && !flush) begin
+            valid_array[lookup_index] <= 1'b1;
         end
     end
 
@@ -120,9 +116,9 @@ module ysyx_26030082_ifu #(
 
                 S_MISS_R: begin
                     if (flush) begin
-                        state <= (r_fire && ifu_master_rlast) ? S_LOOKUP : S_DROP_R;
+                        state <= r_last_fire ? S_LOOKUP : S_DROP_R;
                     end else if (r_fire) begin
-                        data_array[refill_word_index] <= ifu_master_rdata;
+                        data_array[{lookup_index, refill_word_idx}] <= ifu_master_rdata;
                         if (ifu_master_rlast) begin
                             state <= S_LOOKUP;
                         end else begin
@@ -132,7 +128,7 @@ module ysyx_26030082_ifu #(
                 end
 
                 S_DROP_R: begin
-                    if (r_fire && ifu_master_rlast) begin
+                    if (r_last_fire) begin
                         state <= S_LOOKUP;
                     end
                 end
