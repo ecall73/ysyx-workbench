@@ -128,13 +128,12 @@ module ysyx_26030082_ifu #(
                 end
 
                 S_MISS_AR: begin
+                    if (flush) begin
+                        drop_refill <= 1'b1;
+                    end
+
                     if (ar_fire) begin
                         state <= S_MISS_R;
-                        if (flush) begin
-                            drop_refill <= 1'b1;
-                        end
-                    end else if (flush) begin
-                        state <= S_LOOKUP;
                     end
                 end
 
