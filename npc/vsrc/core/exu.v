@@ -129,8 +129,6 @@ module ysyx_26030082_exu (
     reg  [1:0] wr_state;
     reg  [31:0] local_rdata;
     reg  [31:0] rdata_decoded;
-    reg  [ 7:0] load_byte;
-    reg  [15:0] load_half;
 
     wire [6:0]  opcode = ex_inst[6:0];
     wire [2:0]  funct3 = ex_inst[14:12];
@@ -143,8 +141,20 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // ID: RF read, imm gen, input mux.
-    wire [31:0] rf_rdata1 = (rf_raddr1 == 5'b0) ? 32'b0 : reg_bank[rf_raddr1];
-    wire [31:0] rf_rdata2 = (rf_raddr2 == 5'b0) ? 32'b0 : reg_bank[rf_raddr2];
+    wire rs1_used = opcode == OPCODE_OP ||
+                    opcode == OPCODE_OP_IMM ||
+                    opcode == OPCODE_LOAD ||
+                    opcode == OPCODE_STORE ||
+                    opcode == OPCODE_JALR ||
+                    opcode == OPCODE_BRANCH ||
+                    opcode == OPCODE_SYSTEM && (funct3 == F3_CSRRW ||
+                                                funct3 == F3_CSRRS ||
+                                                funct3 == F3_CSRRC);
+    wire rs2_used = opcode == OPCODE_OP ||
+                    opcode == OPCODE_STORE ||
+                    opcode == OPCODE_BRANCH;
+    wire [31:0] rf_rdata1 = rs1_used ? ((rf_raddr1 == 5'b0) ? 32'b0 : reg_bank[rf_raddr1]) : 32'bx;
+    wire [31:0] rf_rdata2 = rs2_used ? ((rf_raddr2 == 5'b0) ? 32'b0 : reg_bank[rf_raddr2]) : 32'bx;
 
     wire [31:0] imm = ({32{opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_JALR}} & {{20{ex_inst[31]}}, ex_inst[31:20]}) |
                       ({32{opcode == OPCODE_STORE}} & {{20{ex_inst[31]}}, ex_inst[31:25], ex_inst[11:7]}) |
@@ -306,20 +316,41 @@ module ysyx_26030082_exu (
 /////////////////////////
     // LS: lsu_master.
 
-    wire [31:0] store_byte_data = {24'b0, rf_rdata2[7:0]} << {addsub_result[1:0], 3'b0};
-    wire [31:0] store_half_data = {16'b0, rf_rdata2[15:0]} << {addsub_result[1], 4'b0};
-
     always @(*) begin
         lsu_master_wstrb = 4'b0000;
         lsu_master_wdata = rf_rdata2;
         case (funct3)
             F3_SB: begin
-                lsu_master_wstrb = 4'b0001 << addsub_result[1:0];
-                lsu_master_wdata = store_byte_data;
+                case (addsub_result[1:0])
+                    2'b00: begin
+                        lsu_master_wstrb = 4'b0001;
+                        lsu_master_wdata = {24'b0, rf_rdata2[7:0]};
+                    end
+                    2'b01: begin
+                        lsu_master_wstrb = 4'b0010;
+                        lsu_master_wdata = {16'b0, rf_rdata2[7:0], 8'b0};
+                    end
+                    2'b10: begin
+                        lsu_master_wstrb = 4'b0100;
+                        lsu_master_wdata = {8'b0, rf_rdata2[7:0], 16'b0};
+                    end
+                    2'b11: begin
+                        lsu_master_wstrb = 4'b1000;
+                        lsu_master_wdata = {rf_rdata2[7:0], 24'b0};
+                    end
+                endcase
             end
             F3_SH: begin
-                lsu_master_wstrb = addsub_result[1] ? 4'b1100 : 4'b0011;
-                lsu_master_wdata = store_half_data;
+                case (addsub_result[1])
+                    1'b0: begin
+                        lsu_master_wstrb = 4'b0011;
+                        lsu_master_wdata = {16'b0, rf_rdata2[15:0]};
+                    end
+                    1'b1: begin
+                        lsu_master_wstrb = 4'b1100;
+                        lsu_master_wdata = {rf_rdata2[15:0], 16'b0};
+                    end
+                endcase
             end
             default: begin
                 lsu_master_wstrb = 4'b1111;
@@ -397,28 +428,40 @@ module ysyx_26030082_exu (
     end
 
     always @(*) begin
-        case (addsub_result[1:0])
-            2'b00: load_byte = load_raw_data[ 7: 0];
-            2'b01: load_byte = load_raw_data[15: 8];
-            2'b10: load_byte = load_raw_data[23:16];
-            2'b11: load_byte = load_raw_data[31:24];
-            default: load_byte = 8'b0;
-        endcase
-    end
-
-    always @(*) begin
-        case (addsub_result[1])
-            1'b0: load_half = load_raw_data[15: 0];
-            1'b1: load_half = load_raw_data[31:16];
-            default: load_half = 16'b0;
-        endcase
-    end
-
-    always @(*) begin
         rdata_decoded = load_raw_data;
         case (funct3)
-            F3_LB, F3_LBU: rdata_decoded = {{24{~funct3[2] && load_byte[7]}}, load_byte};
-            F3_LH, F3_LHU: rdata_decoded = {{16{~funct3[2] && load_half[15]}}, load_half};
+            F3_LB: begin
+                case (addsub_result[1:0])
+                    2'b00: rdata_decoded = {{24{load_raw_data[7]}}, load_raw_data[7:0]};
+                    2'b01: rdata_decoded = {{24{load_raw_data[15]}}, load_raw_data[15:8]};
+                    2'b10: rdata_decoded = {{24{load_raw_data[23]}}, load_raw_data[23:16]};
+                    2'b11: rdata_decoded = {{24{load_raw_data[31]}}, load_raw_data[31:24]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LH: begin
+                case (addsub_result[1])
+                    1'b0: rdata_decoded = {{16{load_raw_data[15]}}, load_raw_data[15:0]};
+                    1'b1: rdata_decoded = {{16{load_raw_data[31]}}, load_raw_data[31:16]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LBU: begin
+                case (addsub_result[1:0])
+                    2'b00: rdata_decoded = {24'b0, load_raw_data[7:0]};
+                    2'b01: rdata_decoded = {24'b0, load_raw_data[15:8]};
+                    2'b10: rdata_decoded = {24'b0, load_raw_data[23:16]};
+                    2'b11: rdata_decoded = {24'b0, load_raw_data[31:24]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LHU: begin
+                case (addsub_result[1])
+                    1'b0: rdata_decoded = {16'b0, load_raw_data[15:0]};
+                    1'b1: rdata_decoded = {16'b0, load_raw_data[31:16]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
             default: rdata_decoded = load_raw_data;
         endcase
     end
