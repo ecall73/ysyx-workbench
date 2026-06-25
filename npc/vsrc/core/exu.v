@@ -104,8 +104,24 @@ module ysyx_26030082_exu (
     reg        branch_redirect;
 
     // RF.
-    reg  [31:0] reg_bank [1:31];
+    reg  [31:0] rf_lo [0:15];
+    reg  [31:0] rf_hi [0:15];
     reg  [31:0] rf_wdata;
+
+`ifndef SYNTHESIS
+    wire [31:0] reg_bank [0:31];
+    assign reg_bank[0] = 32'b0;
+
+    genvar rf_dbg_i;
+    generate
+        for (rf_dbg_i = 1; rf_dbg_i < 16; rf_dbg_i = rf_dbg_i + 1) begin : gen_rf_dbg_lo
+            assign reg_bank[rf_dbg_i] = rf_lo[rf_dbg_i];
+        end
+        for (rf_dbg_i = 16; rf_dbg_i < 32; rf_dbg_i = rf_dbg_i + 1) begin : gen_rf_dbg_hi
+            assign reg_bank[rf_dbg_i] = rf_hi[rf_dbg_i - 16];
+        end
+    endgenerate
+`endif
 
     // CSR.
     reg  [31:0] csr_mstatus;
@@ -131,8 +147,10 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // ID: RF read, imm gen, input mux.
-    wire [31:0] rf_rdata1 = (rf_raddr1 == 5'd0) ? 32'b0 : reg_bank[rf_raddr1];
-    wire [31:0] rf_rdata2 = (rf_raddr2 == 5'd0) ? 32'b0 : reg_bank[rf_raddr2];
+    wire [31:0] rf_rdata1 = (rf_raddr1 == 5'b0) ? 32'b0 :
+                            rf_raddr1[4] ? rf_hi[rf_raddr1[3:0]] : rf_lo[rf_raddr1[3:0]];
+    wire [31:0] rf_rdata2 = (rf_raddr2 == 5'b0) ? 32'b0 :
+                            rf_raddr2[4] ? rf_hi[rf_raddr2[3:0]] : rf_lo[rf_raddr2[3:0]];
 
     wire [31:0] imm = ({32{opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_JALR}} & {{20{ex_inst[31]}}, ex_inst[31:20]}) |
                       ({32{opcode == OPCODE_STORE}} & {{20{ex_inst[31]}}, ex_inst[31:25], ex_inst[11:7]}) |
@@ -470,7 +488,11 @@ module ysyx_26030082_exu (
 
     always @(posedge clock) begin
         if (rf_write) begin
-            reg_bank[rf_waddr] <= rf_wdata;
+            if (rf_waddr[4]) begin
+                rf_hi[rf_waddr[3:0]] <= rf_wdata;
+            end else begin
+                rf_lo[rf_waddr[3:0]] <= rf_wdata;
+            end
         end
     end
 

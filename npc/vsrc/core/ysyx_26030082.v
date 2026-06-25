@@ -104,9 +104,7 @@ module ysyx_26030082 #(
     export "DPI-C" function npc_get_gpr;
     function int npc_get_gpr(input int idx);
         begin
-            if (idx == 0) begin
-                npc_get_gpr = 0;
-            end else if (idx > 0 && idx < 32) begin
+            if (idx >= 0 && idx < 32) begin
                 npc_get_gpr = exu.reg_bank[idx];
             end else begin
                 npc_get_gpr = 0;
