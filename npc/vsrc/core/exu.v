@@ -347,10 +347,8 @@ module ysyx_26030082_exu (
     wire        b_fire = lsu_master_bvalid && lsu_master_bready;
 
     wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
-    wire        ready_go = rd_state == R_IDLE && wr_state == W_IDLE && ~ext_mem_req ||
-                           rd_state == R_WAIT_R && r_fire ||
-                           wr_state == W_WAIT_B && b_fire;
-    assign ex_in_ready = ~ex_in_valid || ready_go;
+    wire        ready_go = ~ext_mem_req || r_fire || b_fire;
+    assign ex_in_ready = ready_go;
     assign ex_out_valid = ex_in_valid && ready_go;
 
     assign lsu_master_araddr = addsub_result;
