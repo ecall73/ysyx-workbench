@@ -445,7 +445,7 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // WB: output mux and RF write.
-    wire rf_write = ex_out_valid && rf_wen && ~rf_waddr[4];
+    wire rf_write = ex_out_valid && rf_wen && (rf_waddr != 5'b0) && ~rf_waddr[4];
 
     always @(*) begin
         rf_wdata = 32'bx;
