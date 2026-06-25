@@ -27,8 +27,8 @@ module ysyx_26030082_exu (
     output     [ 2:0] lsu_master_awsize,
     output            lsu_master_awvalid,
     input             lsu_master_awready,
-    output     [31:0] lsu_master_wdata,
-    output     [ 3:0] lsu_master_wstrb,
+    output reg [31:0] lsu_master_wdata,
+    output reg [ 3:0] lsu_master_wstrb,
     output            lsu_master_wvalid,
     input             lsu_master_wready,
     input      [ 1:0] lsu_master_bresp,
@@ -122,6 +122,8 @@ module ysyx_26030082_exu (
     reg         rd_state;
     reg  [1:0] wr_state;
     wire [31:0] local_rdata;
+    reg  [ 7:0] load_byte;
+    reg  [15:0] load_half;
 
     wire [6:0]  opcode = ex_inst[6:0];
     wire [2:0]  funct3 = ex_inst[14:12];
@@ -302,27 +304,75 @@ module ysyx_26030082_exu (
     wire        w_fire = lsu_master_wvalid && lsu_master_wready;
     wire        b_fire = lsu_master_bvalid && lsu_master_bready;
 
-    wire [4:0]  byte_shift = {addsub_result[1:0], 3'b000};
-    wire [4:0]  half_shift = {addsub_result[1], 4'b0000};
-
     wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
-    wire [31:0] load_byte_data = load_raw_data >> byte_shift;
-    wire [31:0] load_half_data = load_raw_data >> half_shift;
     wire [31:0] rdata_decoded =
-        funct3 == F3_LB  ? {{24{load_byte_data[7]}}, load_byte_data[7:0]} :
-        funct3 == F3_LH  ? {{16{load_half_data[15]}}, load_half_data[15:0]} :
-        funct3 == F3_LBU ? {24'b0, load_byte_data[7:0]} :
-        funct3 == F3_LHU ? {16'b0, load_half_data[15:0]} :
+        funct3 == F3_LB  ? {{24{load_byte[7]}}, load_byte} :
+        funct3 == F3_LH  ? {{16{load_half[15]}}, load_half} :
+        funct3 == F3_LBU ? {24'b0, load_byte} :
+        funct3 == F3_LHU ? {16'b0, load_half} :
                             load_raw_data;
 
-    wire [31:0] store_byte_data = {24'b0, rf_rdata2[7:0]} << byte_shift;
-    wire [31:0] store_half_data = {16'b0, rf_rdata2[15:0]} << half_shift;
-    assign lsu_master_wdata = funct3 == F3_SB ? store_byte_data :
-                              funct3 == F3_SH ? store_half_data :
-                                                rf_rdata2;
-    assign lsu_master_wstrb = funct3 == F3_SB ? (4'b0001 << addsub_result[1:0]) :
-                              funct3 == F3_SH ? (4'b0011 << {addsub_result[1], 1'b0}) :
-                                                4'b1111;
+    always @(*) begin
+        case (addsub_result[1:0])
+            2'b00: load_byte = load_raw_data[7:0];
+            2'b01: load_byte = load_raw_data[15:8];
+            2'b10: load_byte = load_raw_data[23:16];
+            2'b11: load_byte = load_raw_data[31:24];
+            default: load_byte = 8'b0;
+        endcase
+    end
+
+    always @(*) begin
+        case (addsub_result[1])
+            1'b0: load_half = load_raw_data[15:0];
+            1'b1: load_half = load_raw_data[31:16];
+            default: load_half = 16'b0;
+        endcase
+    end
+
+    always @(*) begin
+        lsu_master_wdata = rf_rdata2;
+        lsu_master_wstrb = 4'b1111;
+        case (funct3)
+            F3_SB: begin
+                case (addsub_result[1:0])
+                    2'b00: begin
+                        lsu_master_wdata = {24'b0, rf_rdata2[7:0]};
+                        lsu_master_wstrb = 4'b0001;
+                    end
+                    2'b01: begin
+                        lsu_master_wdata = {16'b0, rf_rdata2[7:0], 8'b0};
+                        lsu_master_wstrb = 4'b0010;
+                    end
+                    2'b10: begin
+                        lsu_master_wdata = {8'b0, rf_rdata2[7:0], 16'b0};
+                        lsu_master_wstrb = 4'b0100;
+                    end
+                    2'b11: begin
+                        lsu_master_wdata = {rf_rdata2[7:0], 24'b0};
+                        lsu_master_wstrb = 4'b1000;
+                    end
+                    default:;
+                endcase
+            end
+
+            F3_SH: begin
+                case (addsub_result[1])
+                    1'b0: begin
+                        lsu_master_wdata = {16'b0, rf_rdata2[15:0]};
+                        lsu_master_wstrb = 4'b0011;
+                    end
+                    1'b1: begin
+                        lsu_master_wdata = {rf_rdata2[15:0], 16'b0};
+                        lsu_master_wstrb = 4'b1100;
+                    end
+                    default:;
+                endcase
+            end
+
+            default:;
+        endcase
+    end
 
     assign ex_in_ready = ~ext_mem_req || r_fire || b_fire;
     assign ex_out_valid = ex_in_valid && ex_in_ready;
