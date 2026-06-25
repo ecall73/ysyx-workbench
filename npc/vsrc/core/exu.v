@@ -376,13 +376,10 @@ module ysyx_26030082_exu (
         end else begin
             case (mem_state)
                 L_IDLE: begin
-                    if (ext_load_req) begin
-                        if (ar_fire) mem_state <= L_WAIT_R;
-                    end else if (ext_store_req) begin
-                        if (aw_fire && w_fire) mem_state <= L_WAIT_B;
-                        else if (aw_fire) mem_state <= L_WAIT_W;
-                        else if (w_fire) mem_state <= L_WAIT_AW;
-                    end
+                    if (ar_fire) mem_state <= L_WAIT_R;
+                    else if (aw_fire && w_fire) mem_state <= L_WAIT_B;
+                    else if (aw_fire) mem_state <= L_WAIT_W;
+                    else if (w_fire) mem_state <= L_WAIT_AW;
                 end
                 L_WAIT_R: if (r_fire) mem_state <= L_IDLE;
                 L_WAIT_AW: if (aw_fire) mem_state <= L_WAIT_B;
