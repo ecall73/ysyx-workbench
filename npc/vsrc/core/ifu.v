@@ -53,6 +53,7 @@ module ysyx_26030082_ifu #(
     reg [TAG_W-1:0] refill_tag;
     reg refill_ar_done;
     reg drop_refill;
+    reg fetch_enable;
 
     wire [LINE_WORD_OFF_W-1:0] lookup_word_offset =
         if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
@@ -71,7 +72,7 @@ module ysyx_26030082_ifu #(
     wire req_fire = if_out_valid && if_out_ready;
 
     wire [31:0] miss_line_base = {if_pc[31:OFFSET_W], {OFFSET_W{1'b0}}};
-    wire refill_start = cache_miss && !flush;
+    wire refill_start = fetch_enable && cache_miss && !flush;
     assign ifu_master_araddr = (state == S_LOOKUP) ? miss_line_base : refill_line_base;
     assign ifu_master_arlen = LINE_WORDS[7:0] - 8'd1;
     assign ifu_master_arburst = 2'b01;
@@ -104,7 +105,10 @@ module ysyx_26030082_ifu #(
             refill_tag <= {TAG_W{1'b0}};
             refill_ar_done <= 1'b0;
             drop_refill <= 1'b0;
+            fetch_enable <= 1'b0;
         end else begin
+            fetch_enable <= 1'b1;
+
             if (flush) begin
                 if_pc <= ex_redirect_pc;
             end else if (req_fire) begin
