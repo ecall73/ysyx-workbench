@@ -347,8 +347,7 @@ module ysyx_26030082_exu (
     wire        b_fire = lsu_master_bvalid && lsu_master_bready;
 
     wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
-    wire        mem_idle = rd_state == R_IDLE && wr_state == W_IDLE;
-    wire        ready_go = mem_idle && ~ext_mem_req ||
+    wire        ready_go = rd_state == R_IDLE && wr_state == W_IDLE && ~ext_mem_req ||
                            rd_state == R_WAIT_R && r_fire ||
                            wr_state == W_WAIT_B && b_fire;
     assign ex_in_ready = ~ex_in_valid || ready_go;
@@ -356,13 +355,13 @@ module ysyx_26030082_exu (
 
     assign lsu_master_araddr = addsub_result;
     assign lsu_master_arsize = funct3[1:0];
-    assign lsu_master_arvalid = mem_idle && ext_load_req;
+    assign lsu_master_arvalid = rd_state == R_IDLE && ext_load_req;
     assign lsu_master_rready = rd_state == R_WAIT_R;
     assign lsu_master_awaddr = addsub_result;
     assign lsu_master_awsize = funct3[1:0];
-    assign lsu_master_awvalid = mem_idle && ext_store_req ||
+    assign lsu_master_awvalid = wr_state == W_IDLE && ext_store_req ||
                                 wr_state == W_WAIT_AW;
-    assign lsu_master_wvalid = mem_idle && ext_store_req ||
+    assign lsu_master_wvalid = wr_state == W_IDLE && ext_store_req ||
                                wr_state == W_WAIT_W;
     assign lsu_master_bready = wr_state == W_WAIT_B;
 
