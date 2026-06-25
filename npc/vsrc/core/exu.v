@@ -347,9 +347,8 @@ module ysyx_26030082_exu (
     wire        b_fire = lsu_master_bvalid && lsu_master_bready;
 
     wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
-    wire        ready_go = ~ext_mem_req || r_fire || b_fire;
-    assign ex_in_ready = ready_go;
-    assign ex_out_valid = ex_in_valid && ready_go;
+    assign ex_in_ready = ~ext_mem_req || r_fire || b_fire;
+    assign ex_out_valid = ex_in_valid && ex_in_ready;
 
     assign lsu_master_araddr = addsub_result;
     assign lsu_master_arsize = funct3[1:0];
@@ -446,7 +445,7 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // WB: output mux and RF write.
-    wire rf_write = ex_out_valid && rf_wen && (rf_waddr != 5'b0) && ~rf_waddr[4];
+    wire rf_write = ex_out_valid && rf_wen && ~rf_waddr[4];
 
     always @(*) begin
         rf_wdata = 32'bx;
