@@ -161,29 +161,6 @@ module ysyx_26030082_axi4lite_arbiter (
         end
     end
 
-`ifndef SYNTHESIS
-    reg [15:0] debug_rd_wait_cycles;
-    always @(posedge clock) begin
-        if (reset || lsu_ar_fire || ifu_ar_fire || lsu_r_fire || ifu_r_fire) begin
-            debug_rd_wait_cycles <= 16'b0;
-        end else if (rd_state != R_IDLE) begin
-            debug_rd_wait_cycles <= debug_rd_wait_cycles + 1'b1;
-            if (debug_rd_wait_cycles == 16'd1000) begin
-                $fatal(1,
-                    "arbiter watchdog rd_state=%0d owner_ifu=%0d rd_sel_ifu=%0d rd_sel_lsu=%0d ifu_arvalid=%0d lsu_arvalid=%0d io_arvalid=%0d io_arready=%0d ifu_arready=%0d io_araddr=%08x io_arlen=%0d io_arsize=%0d io_arburst=%0d io_rvalid=%0d io_rready=%0d io_rlast=%0d",
-                    rd_state, rd_owner_ifu, rd_sel_ifu, rd_sel_lsu,
-                    ifu_master_arvalid, lsu_master_arvalid,
-                    io_master_arvalid, io_master_arready, ifu_master_arready,
-                    io_master_araddr, io_master_arlen, io_master_arsize,
-                    io_master_arburst, io_master_rvalid, io_master_rready,
-                    io_master_rlast);
-            end
-        end else begin
-            debug_rd_wait_cycles <= 16'b0;
-        end
-    end
-`endif
-
     wire _unused_ok = &{1'b0, io_master_rid, io_master_bid};
 
 endmodule

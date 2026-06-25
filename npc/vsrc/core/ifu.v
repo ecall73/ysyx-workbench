@@ -51,7 +51,6 @@ module ysyx_26030082_ifu #(
     reg [31:0] refill_line_base;
     reg [INDEX_W-1:0] refill_index;
     reg [TAG_W-1:0] refill_tag;
-    reg refill_ar_done;
     reg drop_refill;
     reg fetch_enable;
 
@@ -77,8 +76,8 @@ module ysyx_26030082_ifu #(
     assign ifu_master_arlen = LINE_WORDS[7:0] - 8'd1;
     assign ifu_master_arburst = 2'b01;
     assign ifu_master_arvalid = refill_start ||
-                                (state == S_MISS_R && !refill_ar_done);
-    assign ifu_master_rready = (state == S_MISS_R) && refill_ar_done;
+                                (state == S_MISS_R);
+    assign ifu_master_rready = (state == S_MISS_R);
     wire ar_fire = ifu_master_arvalid && ifu_master_arready;
     wire r_fire = ifu_master_rvalid && ifu_master_rready;
     wire refill_drop = drop_refill || flush;
@@ -103,7 +102,6 @@ module ysyx_26030082_ifu #(
             refill_line_base <= RESET_PC;
             refill_index <= {INDEX_W{1'b0}};
             refill_tag <= {TAG_W{1'b0}};
-            refill_ar_done <= 1'b0;
             drop_refill <= 1'b0;
             fetch_enable <= 1'b0;
         end else begin
@@ -123,7 +121,6 @@ module ysyx_26030082_ifu #(
                         refill_line_base <= miss_line_base;
                         refill_index <= lookup_index;
                         refill_tag <= lookup_tag;
-                        refill_ar_done <= ar_fire;
                         state <= S_MISS_R;
                     end
                 end
@@ -133,11 +130,7 @@ module ysyx_26030082_ifu #(
                         drop_refill <= 1'b1;
                     end
 
-                    if (!refill_ar_done) begin
-                        if (ar_fire) begin
-                            refill_ar_done <= 1'b1;
-                        end
-                    end else if (r_fire) begin
+                    if (r_fire) begin
                         if (!refill_drop) begin
                             data_array[refill_index][{refill_word_idx, 5'b0} +: 32] <= ifu_master_rdata;
                         end
@@ -147,7 +140,6 @@ module ysyx_26030082_ifu #(
                                 tag_array[refill_index] <= refill_tag;
                             end
                             state <= S_LOOKUP;
-                            refill_ar_done <= 1'b0;
                             drop_refill <= 1'b0;
                         end else begin
                             refill_word_idx <= refill_word_idx + 1'b1;
@@ -157,7 +149,6 @@ module ysyx_26030082_ifu #(
 
                 default: begin
                     state <= S_LOOKUP;
-                    refill_ar_done <= 1'b0;
                     drop_refill <= 1'b0;
                 end
             endcase
@@ -192,27 +183,10 @@ module ysyx_26030082_ifu #(
         end
         if (!reset && (state == S_MISS_R) && r_fire) begin
             if ((refill_word_idx == (LINE_WORDS - 1)) && !ifu_master_rlast) begin
-                $fatal(1, "ifu burst refill missing rlast on final beat line=%08x", miss_line_base);
+                $fatal(1, "ifu burst refill missing rlast on final beat line=%08x", refill_line_base);
             end
             if ((refill_word_idx != (LINE_WORDS - 1)) && ifu_master_rlast) begin
-                $fatal(1, "ifu burst refill saw early rlast line=%08x beat=%0d", miss_line_base, refill_word_idx);
-            end
-        end
-    end
-
-    reg [19:0] debug_wait_cycles;
-    always @(posedge clock) begin
-        if (reset || req_fire || ar_fire || r_fire || flush) begin
-            debug_wait_cycles <= 20'b0;
-        end else begin
-            debug_wait_cycles <= debug_wait_cycles + 1'b1;
-            if (debug_wait_cycles == 20'd50000) begin
-                $fatal(1,
-                    "ifu watchdog pc=%08x state=%0d hit=%0d miss=%0d arvalid=%0d arready=%0d rvalid=%0d rready=%0d rlast=%0d ar_done=%0d drop=%0d",
-                    if_pc, state, cache_hit, cache_miss,
-                    ifu_master_arvalid, ifu_master_arready,
-                    ifu_master_rvalid, ifu_master_rready, ifu_master_rlast,
-                    refill_ar_done, drop_refill);
+                $fatal(1, "ifu burst refill saw early rlast line=%08x beat=%0d", refill_line_base, refill_word_idx);
             end
         end
     end
