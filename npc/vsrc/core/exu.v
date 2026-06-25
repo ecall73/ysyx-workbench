@@ -101,27 +101,21 @@ module ysyx_26030082_exu (
     localparam [13:0] MTIME_WORD_OFFSET  = 14'h2ffe;
     localparam [13:0] MTIMEH_WORD_OFFSET = 14'h2fff;
 
+    function [31:0] reverse32;
+        input [31:0] data;
+        integer i;
+        begin
+            for (i = 0; i < 32; i = i + 1) begin
+                reverse32[i] = data[31 - i];
+            end
+        end
+    endfunction
+
     reg        branch_redirect;
 
     // RF.
-    reg  [31:0] rf_lo [0:15];
-    reg  [31:0] rf_hi [0:15];
+    reg  [31:0] reg_bank [0:31];
     reg  [31:0] rf_wdata;
-
-`ifndef SYNTHESIS
-    wire [31:0] reg_bank [0:31];
-    assign reg_bank[0] = 32'b0;
-
-    genvar rf_dbg_i;
-    generate
-        for (rf_dbg_i = 1; rf_dbg_i < 16; rf_dbg_i = rf_dbg_i + 1) begin : gen_rf_dbg_lo
-            assign reg_bank[rf_dbg_i] = rf_lo[rf_dbg_i];
-        end
-        for (rf_dbg_i = 16; rf_dbg_i < 32; rf_dbg_i = rf_dbg_i + 1) begin : gen_rf_dbg_hi
-            assign reg_bank[rf_dbg_i] = rf_hi[rf_dbg_i - 16];
-        end
-    endgenerate
-`endif
 
     // CSR.
     reg  [31:0] csr_mstatus;
@@ -147,10 +141,8 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // ID: RF read, imm gen, input mux.
-    wire [31:0] rf_rdata1 = (rf_raddr1 == 5'b0) ? 32'b0 :
-                            rf_raddr1[4] ? rf_hi[rf_raddr1[3:0]] : rf_lo[rf_raddr1[3:0]];
-    wire [31:0] rf_rdata2 = (rf_raddr2 == 5'b0) ? 32'b0 :
-                            rf_raddr2[4] ? rf_hi[rf_raddr2[3:0]] : rf_lo[rf_raddr2[3:0]];
+    wire [31:0] rf_rdata1 = reg_bank[rf_raddr1];
+    wire [31:0] rf_rdata2 = reg_bank[rf_raddr2];
 
     wire [31:0] imm = ({32{opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_JALR}} & {{20{ex_inst[31]}}, ex_inst[31:20]}) |
                       ({32{opcode == OPCODE_STORE}} & {{20{ex_inst[31]}}, ex_inst[31:25], ex_inst[11:7]}) |
@@ -195,9 +187,15 @@ module ysyx_26030082_exu (
     wire [31:0] and_result = bit_lhs & bit_rhs;
     wire [31:0] or_result = bit_lhs | bit_rhs;
     wire [31:0] xor_result = bit_lhs ^ bit_rhs;
-    wire [31:0] sll_result = rf_rdata1 << addsub_rhs[4:0];
-    wire [31:0] srl_result = rf_rdata1 >> addsub_rhs[4:0];
-    wire [31:0] sra_result = ($signed(rf_rdata1)) >>> addsub_rhs[4:0];
+    wire        shift_right = funct3[2];
+    wire        shift_fill = shift_right && funct7_5 && rf_rdata1[31];
+    wire [31:0] shift_src = shift_right ? rf_rdata1 : reverse32(rf_rdata1);
+    wire [31:0] shift_s1 = addsub_rhs[0] ? {{ 1{shift_fill}}, shift_src[31:1]} : shift_src;
+    wire [31:0] shift_s2 = addsub_rhs[1] ? {{ 2{shift_fill}}, shift_s1[31:2]} : shift_s1;
+    wire [31:0] shift_s4 = addsub_rhs[2] ? {{ 4{shift_fill}}, shift_s2[31:4]} : shift_s2;
+    wire [31:0] shift_s8 = addsub_rhs[3] ? {{ 8{shift_fill}}, shift_s4[31:8]} : shift_s4;
+    wire [31:0] shift_s16 = addsub_rhs[4] ? {{16{shift_fill}}, shift_s8[31:16]} : shift_s8;
+    wire [31:0] shift_result = shift_right ? shift_s16 : reverse32(shift_s16);
     wire        cmp_eq = (rf_rdata1 == cmp_rhs);
     wire        cmp_lt = ($signed(rf_rdata1) < $signed(cmp_rhs));
     wire        cmp_ltu = (rf_rdata1 < cmp_rhs);
@@ -459,7 +457,7 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // WB: output mux and RF write.
-    wire rf_write = ex_out_valid && rf_wen && (rf_waddr != 5'b0);
+    wire rf_write = ex_out_valid && rf_wen;
 
     always @(*) begin
         rf_wdata = 32'bx;
@@ -467,11 +465,11 @@ module ysyx_26030082_exu (
             OPCODE_OP, OPCODE_OP_IMM: begin
                 case (funct3)
                     F3_ADD_SUB:         rf_wdata = addsub_result;
-                    F3_SLL:             rf_wdata = sll_result;
+                    F3_SLL:             rf_wdata = shift_result;
                     F3_SLT:             rf_wdata = {31'b0, cmp_lt};
                     F3_SLTU:            rf_wdata = {31'b0, cmp_ltu};
                     F3_XOR:             rf_wdata = xor_result;
-                    F3_SRL_SRA:         rf_wdata = funct7_5 ? sra_result : srl_result;
+                    F3_SRL_SRA:         rf_wdata = shift_result;
                     F3_OR:              rf_wdata = or_result;
                     F3_AND:             rf_wdata = and_result;
                     default:;
@@ -488,10 +486,8 @@ module ysyx_26030082_exu (
 
     always @(posedge clock) begin
         if (rf_write) begin
-            if (rf_waddr[4]) begin
-                rf_hi[rf_waddr[3:0]] <= rf_wdata;
-            end else begin
-                rf_lo[rf_waddr[3:0]] <= rf_wdata;
+            if (rf_waddr != 5'b0) begin
+                reg_bank[rf_waddr] <= rf_wdata;
             end
         end
     end
