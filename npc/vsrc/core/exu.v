@@ -95,11 +95,8 @@ module ysyx_26030082_exu (
     localparam [2:0] F3_JALR    = 3'b000;
 
     localparam [31:0] CAUSE_ECALL = 32'd11;
-    localparam L_IDLE    = 3'd0;
-    localparam L_WAIT_R  = 3'd4;
-    localparam L_WAIT_AW = 3'd1;
-    localparam L_WAIT_W  = 3'd2;
-    localparam L_WAIT_B  = 3'd3;
+    localparam R_IDLE    = 1'd0;
+    localparam R_WAIT_R  = 1'd1;
     localparam W_IDLE    = 2'd0;
     localparam W_WAIT_AW = 2'd1;
     localparam W_WAIT_W  = 2'd2;
@@ -122,7 +119,7 @@ module ysyx_26030082_exu (
     reg  [31:0] csr_rdata;
 
     // Memory.
-    reg         rd_wait_r;
+    reg         rd_state;
     reg  [1:0] wr_state;
     reg  [31:0] local_rdata;
     reg  [31:0] rdata_decoded;
@@ -350,14 +347,9 @@ module ysyx_26030082_exu (
     wire        b_fire = lsu_master_bvalid && lsu_master_bready;
 
     wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
-    wire        mem_idle = ~rd_wait_r && wr_state == W_IDLE;
-    wire [2:0]  mem_state = rd_wait_r ? L_WAIT_R :
-                            wr_state == W_WAIT_AW ? L_WAIT_AW :
-                            wr_state == W_WAIT_W  ? L_WAIT_W  :
-                            wr_state == W_WAIT_B  ? L_WAIT_B  :
-                            L_IDLE;
+    wire        mem_idle = rd_state == R_IDLE && wr_state == W_IDLE;
     wire        ready_go = mem_idle && ~ext_mem_req ||
-                           rd_wait_r && r_fire ||
+                           rd_state == R_WAIT_R && r_fire ||
                            wr_state == W_WAIT_B && b_fire;
     assign ex_in_ready = ~ex_in_valid || ready_go;
     assign ex_out_valid = ex_in_valid && ready_go;
@@ -365,7 +357,7 @@ module ysyx_26030082_exu (
     assign lsu_master_araddr = addsub_result;
     assign lsu_master_arsize = funct3[1:0];
     assign lsu_master_arvalid = mem_idle && ext_load_req;
-    assign lsu_master_rready = rd_wait_r;
+    assign lsu_master_rready = rd_state == R_WAIT_R;
     assign lsu_master_awaddr = addsub_result;
     assign lsu_master_awsize = funct3[1:0];
     assign lsu_master_awvalid = mem_idle && ext_store_req ||
@@ -384,13 +376,14 @@ module ysyx_26030082_exu (
 
     always @(posedge clock) begin
         if (reset) begin
-            rd_wait_r <= 1'b0;
+            rd_state <= R_IDLE;
         end else begin
-            if (rd_wait_r) begin
-                if (r_fire) rd_wait_r <= 1'b0;
-            end else if (ar_fire) begin
-                rd_wait_r <= 1'b1;
-            end
+            case (rd_state)
+                R_IDLE:   if (ar_fire) rd_state <= R_WAIT_R;
+                R_WAIT_R: if (r_fire)  rd_state <= R_IDLE;
+
+                default: rd_state <= R_IDLE;
+            endcase
         end
     end
 

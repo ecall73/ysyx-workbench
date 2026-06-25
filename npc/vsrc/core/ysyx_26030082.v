@@ -360,7 +360,8 @@ module ysyx_26030082 #(
     localparam [1:0] PMU_ICACHE_MISS_AR = 2'd1;
     localparam [1:0] PMU_ICACHE_MISS_R  = 2'd2;
 
-    localparam [2:0] PMU_LSU_IDLE = 3'd0;
+    localparam PMU_LSU_R_IDLE = 1'd0;
+    localparam [1:0] PMU_LSU_W_IDLE = 2'd0;
 
     reg  [31:0] pmu_event_mask;
 
@@ -370,7 +371,8 @@ module ysyx_26030082 #(
     wire pmu_icache_miss_cycle =
         (ifu.state == PMU_ICACHE_MISS_AR) ||
         (ifu.state == PMU_ICACHE_MISS_R);
-    wire pmu_dcache_access = (exu.mem_state == PMU_LSU_IDLE) &&
+    wire pmu_dcache_access = (exu.rd_state == PMU_LSU_R_IDLE) &&
+                             (exu.wr_state == PMU_LSU_W_IDLE) &&
                              exu.ext_mem_req;
     wire pmu_dcache_store = pmu_dcache_access && exu.mem_wen;
     wire pmu_dcache_miss_cycle = ex_in_valid && !ex_in_ready &&
