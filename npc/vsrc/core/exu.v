@@ -96,10 +96,10 @@ module ysyx_26030082_exu (
 
     localparam [31:0] CAUSE_ECALL = 32'd11;
     localparam L_IDLE    = 3'd0;
-    localparam L_WAIT_R  = 3'd1;
-    localparam L_WAIT_AW = 3'd2;
-    localparam L_WAIT_W  = 3'd3;
-    localparam L_WAIT_B  = 3'd4;
+    localparam L_WAIT_AW = 3'd1;
+    localparam L_WAIT_W  = 3'd2;
+    localparam L_WAIT_B  = 3'd3;
+    localparam L_WAIT_R  = 3'd4;
     localparam [15:0] CLINT_BASE_HI     = 16'h0200;
     localparam [13:0] MTIME_WORD_OFFSET  = 14'h2ffe;
     localparam [13:0] MTIMEH_WORD_OFFSET = 14'h2fff;
@@ -378,10 +378,11 @@ module ysyx_26030082_exu (
             case (mem_state)
                 L_IDLE: begin
                     case ({ar_fire, aw_fire, w_fire})
-                        3'b100: mem_state <= L_WAIT_R;
-                        3'b011: mem_state <= L_WAIT_B;
-                        3'b010: mem_state <= L_WAIT_W;
+                        3'b000: mem_state <= L_IDLE;
                         3'b001: mem_state <= L_WAIT_AW;
+                        3'b010: mem_state <= L_WAIT_W;
+                        3'b011: mem_state <= L_WAIT_B;
+                        3'b100: mem_state <= L_WAIT_R;
                         default: mem_state <= L_IDLE;
                     endcase
                 end
