@@ -93,6 +93,9 @@ module ysyx_26030082_exu (
     localparam [31:0] CAUSE_ECALL = 32'd11;
     localparam R_IDLE    = 1'd0;
     localparam R_WAIT_R  = 1'd1;
+    localparam RF_IDLE     = 2'd0;
+    localparam RF_READ_RS2 = 2'd1;
+    localparam RF_DONE     = 2'd2;
     localparam W_IDLE    = 2'd0;
     localparam W_WAIT_AW = 2'd1;
     localparam W_WAIT_W  = 2'd2;
@@ -114,7 +117,13 @@ module ysyx_26030082_exu (
     reg        branch_redirect;
 
     // RF.
-    reg  [31:0] reg_bank [1:31];
+    reg  [31:0] reg_low  [1:15];
+    reg  [31:0] reg_high [0:15];
+    reg  [ 1:0] rf_state;
+    reg  [31:0] rf_high_rdata1;
+    reg  [31:0] rf_high_rdata2;
+    reg  [31:0] rf_low_rdata1;
+    reg  [31:0] rf_low_rdata2;
     reg  [31:0] rf_wdata;
 
     // CSR.
@@ -141,8 +150,68 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // ID: RF read, imm gen, input mux.
-    wire [31:0] rf_rdata1 = (rf_raddr1 == 5'b0) ? 32'b0 : reg_bank[rf_raddr1];
-    wire [31:0] rf_rdata2 = (rf_raddr2 == 5'b0) ? 32'b0 : reg_bank[rf_raddr2];
+    wire        rs1_used = opcode == OPCODE_OP ||
+                           opcode == OPCODE_OP_IMM ||
+                           opcode == OPCODE_LOAD ||
+                           opcode == OPCODE_STORE ||
+                           opcode == OPCODE_JALR ||
+                           opcode == OPCODE_BRANCH ||
+                           opcode == OPCODE_SYSTEM && funct3 != F3_PRIV && !funct3[2];
+    wire        rs2_used = opcode == OPCODE_OP ||
+                           opcode == OPCODE_STORE ||
+                           opcode == OPCODE_BRANCH;
+    wire        rs1_high = rs1_used && rf_raddr1[4];
+    wire        rs2_high = rs2_used && rf_raddr2[4];
+    wire        rf_high_pending = ex_in_valid && (rs1_high || rs2_high);
+    wire        rf_ready = !rf_high_pending || rf_state == RF_DONE;
+    wire [ 3:0] rf_high_raddr = (rf_state == RF_READ_RS2) ? rf_raddr2[3:0] :
+                                 rs1_high ? rf_raddr1[3:0] : rf_raddr2[3:0];
+    wire [31:0] rf_high_rdata = reg_high[rf_high_raddr];
+
+    always @(*) begin
+        case (rf_raddr1[3:0])
+            4'd1:    rf_low_rdata1 = reg_low[1];
+            4'd2:    rf_low_rdata1 = reg_low[2];
+            4'd3:    rf_low_rdata1 = reg_low[3];
+            4'd4:    rf_low_rdata1 = reg_low[4];
+            4'd5:    rf_low_rdata1 = reg_low[5];
+            4'd6:    rf_low_rdata1 = reg_low[6];
+            4'd7:    rf_low_rdata1 = reg_low[7];
+            4'd8:    rf_low_rdata1 = reg_low[8];
+            4'd9:    rf_low_rdata1 = reg_low[9];
+            4'd10:   rf_low_rdata1 = reg_low[10];
+            4'd11:   rf_low_rdata1 = reg_low[11];
+            4'd12:   rf_low_rdata1 = reg_low[12];
+            4'd13:   rf_low_rdata1 = reg_low[13];
+            4'd14:   rf_low_rdata1 = reg_low[14];
+            4'd15:   rf_low_rdata1 = reg_low[15];
+            default: rf_low_rdata1 = 32'b0;
+        endcase
+    end
+
+    always @(*) begin
+        case (rf_raddr2[3:0])
+            4'd1:    rf_low_rdata2 = reg_low[1];
+            4'd2:    rf_low_rdata2 = reg_low[2];
+            4'd3:    rf_low_rdata2 = reg_low[3];
+            4'd4:    rf_low_rdata2 = reg_low[4];
+            4'd5:    rf_low_rdata2 = reg_low[5];
+            4'd6:    rf_low_rdata2 = reg_low[6];
+            4'd7:    rf_low_rdata2 = reg_low[7];
+            4'd8:    rf_low_rdata2 = reg_low[8];
+            4'd9:    rf_low_rdata2 = reg_low[9];
+            4'd10:   rf_low_rdata2 = reg_low[10];
+            4'd11:   rf_low_rdata2 = reg_low[11];
+            4'd12:   rf_low_rdata2 = reg_low[12];
+            4'd13:   rf_low_rdata2 = reg_low[13];
+            4'd14:   rf_low_rdata2 = reg_low[14];
+            4'd15:   rf_low_rdata2 = reg_low[15];
+            default: rf_low_rdata2 = 32'b0;
+        endcase
+    end
+
+    wire [31:0] rf_rdata1 = rf_raddr1[4] ? rf_high_rdata1 : rf_low_rdata1;
+    wire [31:0] rf_rdata2 = rf_raddr2[4] ? rf_high_rdata2 : rf_low_rdata2;
 
     wire [31:0] imm = ({32{opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_JALR}} & {{20{ex_inst[31]}}, ex_inst[31:20]}) |
                       ({32{opcode == OPCODE_STORE}} & {{20{ex_inst[31]}}, ex_inst[31:25], ex_inst[11:7]}) |
@@ -348,8 +417,9 @@ module ysyx_26030082_exu (
     end
 
     wire        is_clint = (addsub_result[31:16] == CLINT_BASE_HI);
-    wire        ext_load_req = ex_in_valid && mem_ren && ~is_clint;
-    wire        ext_store_req = ex_in_valid && mem_wen && ~is_clint;
+    wire        exec_valid = ex_in_valid && rf_ready;
+    wire        ext_load_req = exec_valid && mem_ren && ~is_clint;
+    wire        ext_store_req = exec_valid && mem_wen && ~is_clint;
     wire        ext_mem_req = ext_load_req || ext_store_req;
 
     wire        ar_fire = lsu_master_arvalid && lsu_master_arready;
@@ -359,8 +429,9 @@ module ysyx_26030082_exu (
     wire        b_fire = lsu_master_bvalid && lsu_master_bready;
 
     wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
-    assign ex_in_ready = ~ext_mem_req || r_fire || b_fire;
-    assign ex_out_valid = ex_in_valid && ex_in_ready;
+    wire        mem_ready = ~ext_mem_req || r_fire || b_fire;
+    assign ex_in_ready = rf_ready && mem_ready;
+    assign ex_out_valid = exec_valid && mem_ready;
 
     assign lsu_master_araddr = addsub_result;
     assign lsu_master_arsize = {1'b0, funct3[1:0]};
@@ -411,6 +482,41 @@ module ysyx_26030082_exu (
                 W_WAIT_AW: if (aw_fire) wr_state <= W_WAIT_B;
                 W_WAIT_W:  if (w_fire)  wr_state <= W_WAIT_B;
                 W_WAIT_B:  if (b_fire)  wr_state <= W_IDLE;
+            endcase
+        end
+    end
+
+    always @(posedge clock) begin
+        if (reset) begin
+            rf_state <= RF_IDLE;
+        end else begin
+            case (rf_state)
+                RF_IDLE: begin
+                    if (ex_in_valid) begin
+                        if (rs1_high) begin
+                            rf_high_rdata1 <= rf_high_rdata;
+                            rf_state <= rs2_high ? RF_READ_RS2 : RF_DONE;
+                        end else if (rs2_high) begin
+                            rf_high_rdata2 <= rf_high_rdata;
+                            rf_state <= RF_DONE;
+                        end
+                    end
+                end
+
+                RF_READ_RS2: begin
+                    rf_high_rdata2 <= rf_high_rdata;
+                    rf_state <= RF_DONE;
+                end
+
+                RF_DONE: begin
+                    if (!ex_in_valid || ex_in_ready) begin
+                        rf_state <= RF_IDLE;
+                    end
+                end
+
+                default: begin
+                    rf_state <= RF_IDLE;
+                end
             endcase
         end
     end
@@ -487,7 +593,11 @@ module ysyx_26030082_exu (
     always @(posedge clock) begin
         if (rf_write) begin
             if (rf_waddr != 5'b0) begin
-                reg_bank[rf_waddr] <= rf_wdata;
+                if (rf_waddr[4]) begin
+                    reg_high[rf_waddr[3:0]] <= rf_wdata;
+                end else begin
+                    reg_low[rf_waddr[3:0]] <= rf_wdata;
+                end
             end
         end
     end
