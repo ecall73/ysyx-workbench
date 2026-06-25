@@ -141,20 +141,8 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // ID: RF read, imm gen, input mux.
-    wire rs1_used = opcode == OPCODE_OP ||
-                    opcode == OPCODE_OP_IMM ||
-                    opcode == OPCODE_LOAD ||
-                    opcode == OPCODE_STORE ||
-                    opcode == OPCODE_JALR ||
-                    opcode == OPCODE_BRANCH ||
-                    opcode == OPCODE_SYSTEM && (funct3 == F3_CSRRW ||
-                                                funct3 == F3_CSRRS ||
-                                                funct3 == F3_CSRRC);
-    wire rs2_used = opcode == OPCODE_OP ||
-                    opcode == OPCODE_STORE ||
-                    opcode == OPCODE_BRANCH;
-    wire [31:0] rf_rdata1 = rs1_used ? ((rf_raddr1 == 5'b0) ? 32'b0 : reg_bank[rf_raddr1]) : 32'bx;
-    wire [31:0] rf_rdata2 = rs2_used ? ((rf_raddr2 == 5'b0) ? 32'b0 : reg_bank[rf_raddr2]) : 32'bx;
+    wire [31:0] rf_rdata1 = (rf_raddr1 == 5'b0) ? 32'b0 : reg_bank[rf_raddr1];
+    wire [31:0] rf_rdata2 = (rf_raddr2 == 5'b0) ? 32'b0 : reg_bank[rf_raddr2];
 
     wire [31:0] imm = ({32{opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_JALR}} & {{20{ex_inst[31]}}, ex_inst[31:20]}) |
                       ({32{opcode == OPCODE_STORE}} & {{20{ex_inst[31]}}, ex_inst[31:25], ex_inst[11:7]}) |
