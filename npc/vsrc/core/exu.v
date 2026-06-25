@@ -293,6 +293,8 @@ module ysyx_26030082_exu (
     // LS: lsu_master.
 
     always @(*) begin
+        lsu_master_wstrb = 4'b0000;
+        lsu_master_wdata = rf_rdata2;
         case (funct3)
             F3_SB: begin
                 case (addsub_result[1:0])
@@ -326,13 +328,9 @@ module ysyx_26030082_exu (
                     end
                 endcase
             end
-            F3_SW: begin
+            default: begin
                 lsu_master_wstrb = 4'b1111;
                 lsu_master_wdata = rf_rdata2;
-            end
-            default: begin
-                lsu_master_wstrb = 4'b0000;
-                lsu_master_wdata = 32'bx;
             end
         endcase
     end
@@ -391,7 +389,14 @@ module ysyx_26030082_exu (
             wr_state <= W_IDLE;
         end else begin
             case (wr_state)
-                W_IDLE:                 wr_state <= {aw_fire, w_fire};
+                W_IDLE: begin
+                    case ({aw_fire, w_fire})
+                        2'b11: wr_state <= W_WAIT_B;
+                        2'b10: wr_state <= W_WAIT_W;
+                        2'b01: wr_state <= W_WAIT_AW;
+                        default:;
+                    endcase
+                end
                 W_WAIT_AW: if (aw_fire) wr_state <= W_WAIT_B;
                 W_WAIT_W:  if (w_fire)  wr_state <= W_WAIT_B;
                 W_WAIT_B:  if (b_fire)  wr_state <= W_IDLE;
