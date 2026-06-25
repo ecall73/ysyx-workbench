@@ -141,6 +141,7 @@ module ysyx_26030082 #(
     wire        ifu_master_arvalid;
     wire        ifu_master_arready;
     wire [31:0] ifu_master_rdata;
+    wire [ 1:0] ifu_master_rresp;
     wire        ifu_master_rlast;
     wire        ifu_master_rvalid;
     wire        ifu_master_rready;
@@ -151,6 +152,7 @@ module ysyx_26030082 #(
     wire        lsu_master_arvalid;
     wire        lsu_master_arready;
     wire [31:0] lsu_master_rdata;
+    wire [ 1:0] lsu_master_rresp;
     wire        lsu_master_rvalid;
     wire        lsu_master_rready;
     wire [31:0] lsu_master_awaddr;
@@ -161,6 +163,7 @@ module ysyx_26030082 #(
     wire [ 3:0] lsu_master_wstrb;
     wire        lsu_master_wvalid;
     wire        lsu_master_wready;
+    wire [ 1:0] lsu_master_bresp;
     wire        lsu_master_bvalid;
     wire        lsu_master_bready;
     reg  [63:0] mtime;
@@ -199,6 +202,7 @@ module ysyx_26030082 #(
         .ifu_master_arvalid (ifu_master_arvalid),
         .ifu_master_arready (ifu_master_arready),
         .ifu_master_rdata   (ifu_master_rdata),
+        .ifu_master_rresp   (ifu_master_rresp),
         .ifu_master_rlast   (ifu_master_rlast),
         .ifu_master_rvalid  (ifu_master_rvalid),
         .ifu_master_rready  (ifu_master_rready)
@@ -246,6 +250,7 @@ module ysyx_26030082 #(
         .lsu_master_arvalid (lsu_master_arvalid),
         .lsu_master_arready (lsu_master_arready),
         .lsu_master_rdata   (lsu_master_rdata),
+        .lsu_master_rresp   (lsu_master_rresp),
         .lsu_master_rvalid  (lsu_master_rvalid),
         .lsu_master_rready  (lsu_master_rready),
         .lsu_master_awaddr  (lsu_master_awaddr),
@@ -256,6 +261,7 @@ module ysyx_26030082 #(
         .lsu_master_wstrb   (lsu_master_wstrb),
         .lsu_master_wvalid  (lsu_master_wvalid),
         .lsu_master_wready  (lsu_master_wready),
+        .lsu_master_bresp   (lsu_master_bresp),
         .lsu_master_bvalid  (lsu_master_bvalid),
         .lsu_master_bready  (lsu_master_bready)
     );
@@ -270,6 +276,7 @@ module ysyx_26030082 #(
         .ifu_master_arvalid (ifu_master_arvalid),
         .ifu_master_arready (ifu_master_arready),
         .ifu_master_rdata   (ifu_master_rdata),
+        .ifu_master_rresp   (ifu_master_rresp),
         .ifu_master_rlast   (ifu_master_rlast),
         .ifu_master_rvalid  (ifu_master_rvalid),
         .ifu_master_rready  (ifu_master_rready),
@@ -279,6 +286,7 @@ module ysyx_26030082 #(
         .lsu_master_arvalid (lsu_master_arvalid),
         .lsu_master_arready (lsu_master_arready),
         .lsu_master_rdata   (lsu_master_rdata),
+        .lsu_master_rresp   (lsu_master_rresp),
         .lsu_master_rvalid  (lsu_master_rvalid),
         .lsu_master_rready  (lsu_master_rready),
         .lsu_master_awaddr  (lsu_master_awaddr),
@@ -289,6 +297,7 @@ module ysyx_26030082 #(
         .lsu_master_wstrb   (lsu_master_wstrb),
         .lsu_master_wvalid  (lsu_master_wvalid),
         .lsu_master_wready  (lsu_master_wready),
+        .lsu_master_bresp   (lsu_master_bresp),
         .lsu_master_bvalid  (lsu_master_bvalid),
         .lsu_master_bready  (lsu_master_bready),
 

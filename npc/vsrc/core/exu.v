@@ -20,6 +20,7 @@ module ysyx_26030082_exu (
     output            lsu_master_arvalid,
     input             lsu_master_arready,
     input      [31:0] lsu_master_rdata,
+    input      [ 1:0] lsu_master_rresp,
     input             lsu_master_rvalid,
     output            lsu_master_rready,
     output     [31:0] lsu_master_awaddr,
@@ -30,6 +31,7 @@ module ysyx_26030082_exu (
     output reg [ 3:0] lsu_master_wstrb,
     output            lsu_master_wvalid,
     input             lsu_master_wready,
+    input      [ 1:0] lsu_master_bresp,
     input             lsu_master_bvalid,
     output            lsu_master_bready
 );
@@ -80,13 +82,17 @@ module ysyx_26030082_exu (
     localparam [2:0] F3_BLTU = 3'b110;
     localparam [2:0] F3_BGEU = 3'b111;
 
+    localparam [2:0] F3_FENCE   = 3'b000;
     localparam [2:0] F3_FENCE_I = 3'b001;
     localparam [2:0] F3_LB      = 3'b000;
     localparam [2:0] F3_LH      = 3'b001;
+    localparam [2:0] F3_LW      = 3'b010;
     localparam [2:0] F3_LBU     = 3'b100;
     localparam [2:0] F3_LHU     = 3'b101;
     localparam [2:0] F3_SB      = 3'b000;
     localparam [2:0] F3_SH      = 3'b001;
+    localparam [2:0] F3_SW      = 3'b010;
+    localparam [2:0] F3_JALR    = 3'b000;
 
     localparam [31:0] CAUSE_ECALL = 32'd11;
     localparam R_IDLE    = 1'd0;
@@ -115,9 +121,8 @@ module ysyx_26030082_exu (
     // Memory.
     reg         rd_state;
     reg  [1:0] wr_state;
-    wire [31:0] local_rdata;
-    reg  [ 7:0] load_byte;
-    reg  [15:0] load_half;
+    reg  [31:0] local_rdata;
+    reg  [31:0] rdata_decoded;
 
     wire [6:0]  opcode = ex_inst[6:0];
     wire [2:0]  funct3 = ex_inst[14:12];
@@ -287,6 +292,49 @@ module ysyx_26030082_exu (
 /////////////////////////
     // LS: lsu_master.
 
+    always @(*) begin
+        lsu_master_wstrb = 4'b0000;
+        lsu_master_wdata = rf_rdata2;
+        case (funct3)
+            F3_SB: begin
+                case (addsub_result[1:0])
+                    2'b00: begin
+                        lsu_master_wstrb = 4'b0001;
+                        lsu_master_wdata = {24'b0, rf_rdata2[7:0]};
+                    end
+                    2'b01: begin
+                        lsu_master_wstrb = 4'b0010;
+                        lsu_master_wdata = {16'b0, rf_rdata2[7:0], 8'b0};
+                    end
+                    2'b10: begin
+                        lsu_master_wstrb = 4'b0100;
+                        lsu_master_wdata = {8'b0, rf_rdata2[7:0], 16'b0};
+                    end
+                    2'b11: begin
+                        lsu_master_wstrb = 4'b1000;
+                        lsu_master_wdata = {rf_rdata2[7:0], 24'b0};
+                    end
+                endcase
+            end
+            F3_SH: begin
+                case (addsub_result[1])
+                    1'b0: begin
+                        lsu_master_wstrb = 4'b0011;
+                        lsu_master_wdata = {16'b0, rf_rdata2[15:0]};
+                    end
+                    1'b1: begin
+                        lsu_master_wstrb = 4'b1100;
+                        lsu_master_wdata = {rf_rdata2[15:0], 16'b0};
+                    end
+                endcase
+            end
+            default: begin
+                lsu_master_wstrb = 4'b1111;
+                lsu_master_wdata = rf_rdata2;
+            end
+        endcase
+    end
+
     wire        is_clint = (addsub_result[31:16] == CLINT_BASE_HI);
     wire        ext_load_req = ex_in_valid && mem_ren && ~is_clint;
     wire        ext_store_req = ex_in_valid && mem_wen && ~is_clint;
@@ -299,75 +347,6 @@ module ysyx_26030082_exu (
     wire        b_fire = lsu_master_bvalid && lsu_master_bready;
 
     wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
-    wire [31:0] rdata_decoded =
-        funct3 == F3_LB  ? {{24{load_byte[7]}}, load_byte} :
-        funct3 == F3_LH  ? {{16{load_half[15]}}, load_half} :
-        funct3 == F3_LBU ? {24'b0, load_byte} :
-        funct3 == F3_LHU ? {16'b0, load_half} :
-                            load_raw_data;
-
-    always @(*) begin
-        case (addsub_result[1:0])
-            2'b00: load_byte = load_raw_data[7:0];
-            2'b01: load_byte = load_raw_data[15:8];
-            2'b10: load_byte = load_raw_data[23:16];
-            2'b11: load_byte = load_raw_data[31:24];
-            default: load_byte = 8'b0;
-        endcase
-    end
-
-    always @(*) begin
-        case (addsub_result[1])
-            1'b0: load_half = load_raw_data[15:0];
-            1'b1: load_half = load_raw_data[31:16];
-            default: load_half = 16'b0;
-        endcase
-    end
-
-    always @(*) begin
-        lsu_master_wdata = rf_rdata2;
-        lsu_master_wstrb = 4'b1111;
-        case (funct3)
-            F3_SB: begin
-                case (addsub_result[1:0])
-                    2'b00: begin
-                        lsu_master_wdata = {24'b0, rf_rdata2[7:0]};
-                        lsu_master_wstrb = 4'b0001;
-                    end
-                    2'b01: begin
-                        lsu_master_wdata = {16'b0, rf_rdata2[7:0], 8'b0};
-                        lsu_master_wstrb = 4'b0010;
-                    end
-                    2'b10: begin
-                        lsu_master_wdata = {8'b0, rf_rdata2[7:0], 16'b0};
-                        lsu_master_wstrb = 4'b0100;
-                    end
-                    2'b11: begin
-                        lsu_master_wdata = {rf_rdata2[7:0], 24'b0};
-                        lsu_master_wstrb = 4'b1000;
-                    end
-                    default:;
-                endcase
-            end
-
-            F3_SH: begin
-                case (addsub_result[1])
-                    1'b0: begin
-                        lsu_master_wdata = {16'b0, rf_rdata2[15:0]};
-                        lsu_master_wstrb = 4'b0011;
-                    end
-                    1'b1: begin
-                        lsu_master_wdata = {rf_rdata2[15:0], 16'b0};
-                        lsu_master_wstrb = 4'b1100;
-                    end
-                    default:;
-                endcase
-            end
-
-            default:;
-        endcase
-    end
-
     assign ex_in_ready = ~ext_mem_req || r_fire || b_fire;
     assign ex_out_valid = ex_in_valid && ex_in_ready;
 
@@ -385,9 +364,13 @@ module ysyx_26030082_exu (
                                wr_state == W_WAIT_W;
     assign lsu_master_bready = wr_state == W_WAIT_B;
 
-    assign local_rdata = addsub_result[15:2] == MTIME_WORD_OFFSET  ? ex_mtime[31:0] :
-                         addsub_result[15:2] == MTIMEH_WORD_OFFSET ? ex_mtime[63:32] :
-                                                                      32'b0;
+    always @(*) begin
+        case (addsub_result[15:2])
+            MTIME_WORD_OFFSET:  local_rdata = ex_mtime[31:0];
+            MTIMEH_WORD_OFFSET: local_rdata = ex_mtime[63:32];
+            default:            local_rdata = 32'b0;
+        endcase
+    end
 
     always @(posedge clock) begin
         if (reset) begin
@@ -419,6 +402,46 @@ module ysyx_26030082_exu (
             endcase
         end
     end
+
+    always @(*) begin
+        rdata_decoded = load_raw_data;
+        case (funct3)
+            F3_LB: begin
+                case (addsub_result[1:0])
+                    2'b00: rdata_decoded = {{24{load_raw_data[7]}}, load_raw_data[7:0]};
+                    2'b01: rdata_decoded = {{24{load_raw_data[15]}}, load_raw_data[15:8]};
+                    2'b10: rdata_decoded = {{24{load_raw_data[23]}}, load_raw_data[23:16]};
+                    2'b11: rdata_decoded = {{24{load_raw_data[31]}}, load_raw_data[31:24]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LH: begin
+                case (addsub_result[1])
+                    1'b0: rdata_decoded = {{16{load_raw_data[15]}}, load_raw_data[15:0]};
+                    1'b1: rdata_decoded = {{16{load_raw_data[31]}}, load_raw_data[31:16]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LBU: begin
+                case (addsub_result[1:0])
+                    2'b00: rdata_decoded = {24'b0, load_raw_data[7:0]};
+                    2'b01: rdata_decoded = {24'b0, load_raw_data[15:8]};
+                    2'b10: rdata_decoded = {24'b0, load_raw_data[23:16]};
+                    2'b11: rdata_decoded = {24'b0, load_raw_data[31:24]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            F3_LHU: begin
+                case (addsub_result[1])
+                    1'b0: rdata_decoded = {16'b0, load_raw_data[15:0]};
+                    1'b1: rdata_decoded = {16'b0, load_raw_data[31:16]};
+                    default: rdata_decoded = 32'b0;
+                endcase
+            end
+            default: rdata_decoded = load_raw_data;
+        endcase
+    end
+
 
 /////////////////////////
     // WB: output mux and RF write.
