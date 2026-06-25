@@ -82,17 +82,13 @@ module ysyx_26030082_exu (
     localparam [2:0] F3_BLTU = 3'b110;
     localparam [2:0] F3_BGEU = 3'b111;
 
-    localparam [2:0] F3_FENCE   = 3'b000;
     localparam [2:0] F3_FENCE_I = 3'b001;
     localparam [2:0] F3_LB      = 3'b000;
     localparam [2:0] F3_LH      = 3'b001;
-    localparam [2:0] F3_LW      = 3'b010;
     localparam [2:0] F3_LBU     = 3'b100;
     localparam [2:0] F3_LHU     = 3'b101;
     localparam [2:0] F3_SB      = 3'b000;
     localparam [2:0] F3_SH      = 3'b001;
-    localparam [2:0] F3_SW      = 3'b010;
-    localparam [2:0] F3_JALR    = 3'b000;
 
     localparam [31:0] CAUSE_ECALL = 32'd11;
     localparam R_IDLE    = 1'd0;
@@ -108,7 +104,7 @@ module ysyx_26030082_exu (
     reg        branch_redirect;
 
     // RF.
-    reg  [31:0] reg_bank [1:15];
+    reg  [31:0] reg_bank [1:31];
     reg  [31:0] rf_wdata;
 
     // CSR.
@@ -135,8 +131,8 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // ID: RF read, imm gen, input mux.
-    wire [31:0] rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
-    wire [31:0] rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
+    wire [31:0] rf_rdata1 = (rf_raddr1 == 5'd0) ? 32'b0 : reg_bank[rf_raddr1];
+    wire [31:0] rf_rdata2 = (rf_raddr2 == 5'd0) ? 32'b0 : reg_bank[rf_raddr2];
 
     wire [31:0] imm = ({32{opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_JALR}} & {{20{ex_inst[31]}}, ex_inst[31:20]}) |
                       ({32{opcode == OPCODE_STORE}} & {{20{ex_inst[31]}}, ex_inst[31:25], ex_inst[11:7]}) |
@@ -351,12 +347,12 @@ module ysyx_26030082_exu (
     assign ex_out_valid = ex_in_valid && ex_in_ready;
 
     assign lsu_master_araddr = addsub_result;
-    assign lsu_master_arsize = funct3[1:0];
+    assign lsu_master_arsize = {1'b0, funct3[1:0]};
     wire        load_start = rd_state == R_IDLE && ext_load_req;
     assign lsu_master_arvalid = load_start;
     assign lsu_master_rready = rd_state == R_WAIT_R;
     assign lsu_master_awaddr = addsub_result;
-    assign lsu_master_awsize = funct3[1:0];
+    assign lsu_master_awsize = {1'b0, funct3[1:0]};
     wire        store_start = wr_state == W_IDLE && ext_store_req;
     assign lsu_master_awvalid = store_start ||
                                 wr_state == W_WAIT_AW;
@@ -445,7 +441,7 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // WB: output mux and RF write.
-    wire rf_write = ex_out_valid && rf_wen && (rf_waddr != 5'b0) && ~rf_waddr[4];
+    wire rf_write = ex_out_valid && rf_wen && (rf_waddr != 5'b0);
 
     always @(*) begin
         rf_wdata = 32'bx;
@@ -474,7 +470,7 @@ module ysyx_26030082_exu (
 
     always @(posedge clock) begin
         if (rf_write) begin
-            reg_bank[rf_waddr[3:0]] <= rf_wdata;
+            reg_bank[rf_waddr] <= rf_wdata;
         end
     end
 

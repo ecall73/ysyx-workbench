@@ -171,10 +171,10 @@ module ysyx_26030082_ifu #(
             $fatal(1, "unaligned ifu fetch pc=%08x", if_pc);
         end
         if (!reset && (state == S_MISS_R) && r_fire) begin
-            if ((refill_word_idx == (LINE_WORDS - 1)) && !ifu_master_rlast) begin
+            if ((refill_word_idx == {LINE_WORD_OFF_W{1'b1}}) && !ifu_master_rlast) begin
                 $fatal(1, "ifu burst refill missing rlast on final beat line=%08x", miss_line_base);
             end
-            if ((refill_word_idx != (LINE_WORDS - 1)) && ifu_master_rlast) begin
+            if ((refill_word_idx != {LINE_WORD_OFF_W{1'b1}}) && ifu_master_rlast) begin
                 $fatal(1, "ifu burst refill saw early rlast line=%08x beat=%0d", miss_line_base, refill_word_idx);
             end
         end
