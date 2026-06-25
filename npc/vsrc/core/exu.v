@@ -392,7 +392,12 @@ module ysyx_26030082_exu (
         end else begin
             case (wr_state)
                 W_IDLE: begin
-                    wr_state <= {aw_fire, w_fire};
+                    case ({aw_fire, w_fire})
+                        2'b11: wr_state <= W_WAIT_B;
+                        2'b10: wr_state <= W_WAIT_W;
+                        2'b01: wr_state <= W_WAIT_AW;
+                        default:;
+                    endcase
                 end
                 W_WAIT_AW: if (aw_fire) wr_state <= W_WAIT_B;
                 W_WAIT_W:  if (w_fire)  wr_state <= W_WAIT_B;
