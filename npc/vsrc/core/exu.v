@@ -326,10 +326,6 @@ module ysyx_26030082_exu (
                     end
                 endcase
             end
-            F3_LBU: begin
-            end
-            F3_LHU: begin
-            end
             default: begin
                 lsu_master_wstrb = 4'b1111;
                 lsu_master_wdata = rf_rdata2;
