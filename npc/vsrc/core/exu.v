@@ -122,8 +122,6 @@ module ysyx_26030082_exu (
     reg  [ 1:0] rf_state;
     reg  [31:0] rf_high_rdata1;
     reg  [31:0] rf_high_rdata2;
-    reg  [31:0] rf_low_rdata1;
-    reg  [31:0] rf_low_rdata2;
     reg  [31:0] rf_wdata;
 
     // CSR.
@@ -167,49 +165,8 @@ module ysyx_26030082_exu (
     wire [ 3:0] rf_high_raddr = (rf_state == RF_READ_RS2) ? rf_raddr2[3:0] :
                                  rs1_high ? rf_raddr1[3:0] : rf_raddr2[3:0];
     wire [31:0] rf_high_rdata = reg_high[rf_high_raddr];
-
-    always @(*) begin
-        case (rf_raddr1[3:0])
-            4'd1:    rf_low_rdata1 = reg_low[1];
-            4'd2:    rf_low_rdata1 = reg_low[2];
-            4'd3:    rf_low_rdata1 = reg_low[3];
-            4'd4:    rf_low_rdata1 = reg_low[4];
-            4'd5:    rf_low_rdata1 = reg_low[5];
-            4'd6:    rf_low_rdata1 = reg_low[6];
-            4'd7:    rf_low_rdata1 = reg_low[7];
-            4'd8:    rf_low_rdata1 = reg_low[8];
-            4'd9:    rf_low_rdata1 = reg_low[9];
-            4'd10:   rf_low_rdata1 = reg_low[10];
-            4'd11:   rf_low_rdata1 = reg_low[11];
-            4'd12:   rf_low_rdata1 = reg_low[12];
-            4'd13:   rf_low_rdata1 = reg_low[13];
-            4'd14:   rf_low_rdata1 = reg_low[14];
-            4'd15:   rf_low_rdata1 = reg_low[15];
-            default: rf_low_rdata1 = 32'b0;
-        endcase
-    end
-
-    always @(*) begin
-        case (rf_raddr2[3:0])
-            4'd1:    rf_low_rdata2 = reg_low[1];
-            4'd2:    rf_low_rdata2 = reg_low[2];
-            4'd3:    rf_low_rdata2 = reg_low[3];
-            4'd4:    rf_low_rdata2 = reg_low[4];
-            4'd5:    rf_low_rdata2 = reg_low[5];
-            4'd6:    rf_low_rdata2 = reg_low[6];
-            4'd7:    rf_low_rdata2 = reg_low[7];
-            4'd8:    rf_low_rdata2 = reg_low[8];
-            4'd9:    rf_low_rdata2 = reg_low[9];
-            4'd10:   rf_low_rdata2 = reg_low[10];
-            4'd11:   rf_low_rdata2 = reg_low[11];
-            4'd12:   rf_low_rdata2 = reg_low[12];
-            4'd13:   rf_low_rdata2 = reg_low[13];
-            4'd14:   rf_low_rdata2 = reg_low[14];
-            4'd15:   rf_low_rdata2 = reg_low[15];
-            default: rf_low_rdata2 = 32'b0;
-        endcase
-    end
-
+    wire [31:0] rf_low_rdata1 = (rf_raddr1[3:0] == 4'b0) ? 32'b0 : reg_low[rf_raddr1[3:0]];
+    wire [31:0] rf_low_rdata2 = (rf_raddr2[3:0] == 4'b0) ? 32'b0 : reg_low[rf_raddr2[3:0]];
     wire [31:0] rf_rdata1 = rf_raddr1[4] ? rf_high_rdata1 : rf_low_rdata1;
     wire [31:0] rf_rdata2 = rf_raddr2[4] ? rf_high_rdata2 : rf_low_rdata2;
 
