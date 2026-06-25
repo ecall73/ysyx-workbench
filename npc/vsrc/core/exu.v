@@ -95,11 +95,12 @@ module ysyx_26030082_exu (
     localparam [2:0] F3_JALR    = 3'b000;
 
     localparam [31:0] CAUSE_ECALL = 32'd11;
-    localparam L_IDLE    = 3'd0;
-    localparam L_WAIT_R  = 3'd1;
-    localparam L_WAIT_AW = 3'd2;
-    localparam L_WAIT_W  = 3'd3;
-    localparam L_WAIT_B  = 3'd4;
+    localparam R_IDLE    = 1'd0;
+    localparam R_WAIT_R  = 1'd1;
+    localparam W_IDLE    = 2'd0;
+    localparam W_WAIT_AW = 2'd1;
+    localparam W_WAIT_W  = 2'd2;
+    localparam W_WAIT_B  = 2'd3;
     localparam [15:0] CLINT_BASE_HI     = 16'h0200;
     localparam [13:0] MTIME_WORD_OFFSET  = 14'h2ffe;
     localparam [13:0] MTIMEH_WORD_OFFSET = 14'h2fff;
@@ -118,10 +119,10 @@ module ysyx_26030082_exu (
     reg  [31:0] csr_rdata;
 
     // Memory.
-    reg  [2:0]  mem_state;
+    reg         rd_state;
+    reg  [1:0] wr_state;
     reg  [31:0] local_rdata;
     reg  [31:0] rdata_decoded;
-    reg  [2:0]  mem_size;
 
     wire [6:0]  opcode = ex_inst[6:0];
     wire [2:0]  funct3 = ex_inst[14:12];
@@ -294,11 +295,9 @@ module ysyx_26030082_exu (
     always @(*) begin
         lsu_master_wstrb = 4'b0000;
         lsu_master_wdata = rf_rdata2;
-        mem_size = 3'b010;
         case (funct3)
             F3_SB: begin
-                mem_size = 3'b000;
-                case (mem_offset)
+                case (addsub_result[1:0])
                     2'b00: begin
                         lsu_master_wstrb = 4'b0001;
                         lsu_master_wdata = {24'b0, rf_rdata2[7:0]};
@@ -318,8 +317,7 @@ module ysyx_26030082_exu (
                 endcase
             end
             F3_SH: begin
-                mem_size = 3'b001;
-                case (mem_offset[1])
+                case (addsub_result[1])
                     1'b0: begin
                         lsu_master_wstrb = 4'b0011;
                         lsu_master_wdata = {16'b0, rf_rdata2[15:0]};
@@ -329,12 +327,6 @@ module ysyx_26030082_exu (
                         lsu_master_wdata = {rf_rdata2[15:0], 16'b0};
                     end
                 endcase
-            end
-            F3_LBU: begin
-                mem_size = 3'b000;
-            end
-            F3_LHU: begin
-                mem_size = 3'b001;
             end
             default: begin
                 lsu_master_wstrb = 4'b1111;
@@ -347,30 +339,30 @@ module ysyx_26030082_exu (
     wire        ext_load_req = ex_in_valid && mem_ren && ~is_clint;
     wire        ext_store_req = ex_in_valid && mem_wen && ~is_clint;
     wire        ext_mem_req = ext_load_req || ext_store_req;
+
     wire        ar_fire = lsu_master_arvalid && lsu_master_arready;
     wire        r_fire = lsu_master_rvalid && lsu_master_rready;
     wire        aw_fire = lsu_master_awvalid && lsu_master_awready;
     wire        w_fire = lsu_master_wvalid && lsu_master_wready;
     wire        b_fire = lsu_master_bvalid && lsu_master_bready;
-    wire [1:0]  mem_offset = addsub_result[1:0];
+
     wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
-    wire        ready_go = mem_state == L_IDLE && ~ext_mem_req ||
-                           mem_state == L_WAIT_R && r_fire ||
-                           mem_state == L_WAIT_B && b_fire;
-    assign ex_in_ready = ~ex_in_valid || ready_go;
-    assign ex_out_valid = ex_in_valid && ready_go;
+    assign ex_in_ready = ~ext_mem_req || r_fire || b_fire;
+    assign ex_out_valid = ex_in_valid && ex_in_ready;
 
     assign lsu_master_araddr = addsub_result;
-    assign lsu_master_arsize = mem_size;
-    assign lsu_master_arvalid = mem_state == L_IDLE && ext_load_req;
-    assign lsu_master_rready = mem_state == L_WAIT_R;
+    assign lsu_master_arsize = funct3[1:0];
+    wire        load_start = rd_state == R_IDLE && ext_load_req;
+    assign lsu_master_arvalid = load_start;
+    assign lsu_master_rready = rd_state == R_WAIT_R;
     assign lsu_master_awaddr = addsub_result;
-    assign lsu_master_awsize = mem_size;
-    assign lsu_master_awvalid = mem_state == L_IDLE && ext_store_req ||
-                                mem_state == L_WAIT_AW;
-    assign lsu_master_wvalid = mem_state == L_IDLE && ext_store_req ||
-                               mem_state == L_WAIT_W;
-    assign lsu_master_bready = mem_state == L_WAIT_B;
+    assign lsu_master_awsize = funct3[1:0];
+    wire        store_start = wr_state == W_IDLE && ext_store_req;
+    assign lsu_master_awvalid = store_start ||
+                                wr_state == W_WAIT_AW;
+    assign lsu_master_wvalid = store_start ||
+                               wr_state == W_WAIT_W;
+    assign lsu_master_bready = wr_state == W_WAIT_B;
 
     always @(*) begin
         case (addsub_result[15:2])
@@ -382,24 +374,31 @@ module ysyx_26030082_exu (
 
     always @(posedge clock) begin
         if (reset) begin
-            mem_state <= L_IDLE;
+            rd_state <= R_IDLE;
         end else begin
-            case (mem_state)
-                L_IDLE: begin
-                    if (ext_load_req) begin
-                        if (ar_fire) mem_state <= L_WAIT_R;
-                    end else if (ext_store_req) begin
-                        if (aw_fire && w_fire) mem_state <= L_WAIT_B;
-                        else if (aw_fire) mem_state <= L_WAIT_W;
-                        else if (w_fire) mem_state <= L_WAIT_AW;
-                    end
-                end
-                L_WAIT_R: if (r_fire) mem_state <= L_IDLE;
-                L_WAIT_AW: if (aw_fire) mem_state <= L_WAIT_B;
-                L_WAIT_W: if (w_fire) mem_state <= L_WAIT_B;
-                L_WAIT_B: if (b_fire) mem_state <= L_IDLE;
+            case (rd_state)
+                R_IDLE:   if (ar_fire) rd_state <= R_WAIT_R;
+                R_WAIT_R: if (r_fire)  rd_state <= R_IDLE;
+            endcase
+        end
+    end
 
-                default: mem_state <= L_IDLE;
+    always @(posedge clock) begin
+        if (reset) begin
+            wr_state <= W_IDLE;
+        end else begin
+            case (wr_state)
+                W_IDLE: begin
+                    case ({aw_fire, w_fire})
+                        2'b11: wr_state <= W_WAIT_B;
+                        2'b10: wr_state <= W_WAIT_W;
+                        2'b01: wr_state <= W_WAIT_AW;
+                        default:;
+                    endcase
+                end
+                W_WAIT_AW: if (aw_fire) wr_state <= W_WAIT_B;
+                W_WAIT_W:  if (w_fire)  wr_state <= W_WAIT_B;
+                W_WAIT_B:  if (b_fire)  wr_state <= W_IDLE;
             endcase
         end
     end
@@ -408,7 +407,7 @@ module ysyx_26030082_exu (
         rdata_decoded = load_raw_data;
         case (funct3)
             F3_LB: begin
-                case (mem_offset)
+                case (addsub_result[1:0])
                     2'b00: rdata_decoded = {{24{load_raw_data[7]}}, load_raw_data[7:0]};
                     2'b01: rdata_decoded = {{24{load_raw_data[15]}}, load_raw_data[15:8]};
                     2'b10: rdata_decoded = {{24{load_raw_data[23]}}, load_raw_data[23:16]};
@@ -417,14 +416,14 @@ module ysyx_26030082_exu (
                 endcase
             end
             F3_LH: begin
-                case (mem_offset[1])
+                case (addsub_result[1])
                     1'b0: rdata_decoded = {{16{load_raw_data[15]}}, load_raw_data[15:0]};
                     1'b1: rdata_decoded = {{16{load_raw_data[31]}}, load_raw_data[31:16]};
                     default: rdata_decoded = 32'b0;
                 endcase
             end
             F3_LBU: begin
-                case (mem_offset)
+                case (addsub_result[1:0])
                     2'b00: rdata_decoded = {24'b0, load_raw_data[7:0]};
                     2'b01: rdata_decoded = {24'b0, load_raw_data[15:8]};
                     2'b10: rdata_decoded = {24'b0, load_raw_data[23:16]};
@@ -433,7 +432,7 @@ module ysyx_26030082_exu (
                 endcase
             end
             F3_LHU: begin
-                case (mem_offset[1])
+                case (addsub_result[1])
                     1'b0: rdata_decoded = {16'b0, load_raw_data[15:0]};
                     1'b1: rdata_decoded = {16'b0, load_raw_data[31:16]};
                     default: rdata_decoded = 32'b0;
