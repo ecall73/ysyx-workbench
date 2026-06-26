@@ -335,16 +335,16 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    wire        is_clint = (addsub_result[31:16] == CLINT_BASE_HI);
-    wire        ext_load_req = ex_in_valid && mem_ren && ~is_clint;
-    wire        ext_store_req = ex_in_valid && mem_wen && ~is_clint;
-    wire        ext_mem_req = ext_load_req || ext_store_req;
+    wire is_clint = (addsub_result[31:16] == CLINT_BASE_HI);
+    wire ext_load_req = ex_in_valid && mem_ren && ~is_clint;
+    wire ext_store_req = ex_in_valid && mem_wen && ~is_clint;
+    wire ext_mem_req = ext_load_req || ext_store_req;
 
-    wire        ar_fire = lsu_master_arvalid && lsu_master_arready;
-    wire        r_fire = lsu_master_rvalid && lsu_master_rready;
-    wire        aw_fire = lsu_master_awvalid && lsu_master_awready;
-    wire        w_fire = lsu_master_wvalid && lsu_master_wready;
-    wire        b_fire = lsu_master_bvalid && lsu_master_bready;
+    wire ar_fire = lsu_master_arvalid && lsu_master_arready;
+    wire r_fire = lsu_master_rvalid && lsu_master_rready;
+    wire aw_fire = lsu_master_awvalid && lsu_master_awready;
+    wire w_fire = lsu_master_wvalid && lsu_master_wready;
+    wire b_fire = lsu_master_bvalid && lsu_master_bready;
 
     wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
     assign ex_in_ready = ~ext_mem_req || r_fire || b_fire;
@@ -391,10 +391,9 @@ module ysyx_26030082_exu (
                 W_IDLE: begin
                     case ({aw_fire, w_fire})
                         2'b00: wr_state <= W_IDLE;
-                        2'b11: wr_state <= W_WAIT_B;
-                        2'b10: wr_state <= W_WAIT_W;
                         2'b01: wr_state <= W_WAIT_AW;
-                        default:;
+                        2'b10: wr_state <= W_WAIT_W;
+                        2'b11: wr_state <= W_WAIT_B;  
                     endcase
                 end
                 W_WAIT_AW: if (aw_fire) wr_state <= W_WAIT_B;
@@ -413,14 +412,12 @@ module ysyx_26030082_exu (
                     2'b01: rdata_decoded = {{24{load_raw_data[15]}}, load_raw_data[15:8]};
                     2'b10: rdata_decoded = {{24{load_raw_data[23]}}, load_raw_data[23:16]};
                     2'b11: rdata_decoded = {{24{load_raw_data[31]}}, load_raw_data[31:24]};
-                    default: rdata_decoded = 32'b0;
                 endcase
             end
             F3_LH: begin
                 case (addsub_result[1])
                     1'b0: rdata_decoded = {{16{load_raw_data[15]}}, load_raw_data[15:0]};
                     1'b1: rdata_decoded = {{16{load_raw_data[31]}}, load_raw_data[31:16]};
-                    default: rdata_decoded = 32'b0;
                 endcase
             end
             F3_LBU: begin
@@ -429,14 +426,12 @@ module ysyx_26030082_exu (
                     2'b01: rdata_decoded = {24'b0, load_raw_data[15:8]};
                     2'b10: rdata_decoded = {24'b0, load_raw_data[23:16]};
                     2'b11: rdata_decoded = {24'b0, load_raw_data[31:24]};
-                    default: rdata_decoded = 32'b0;
                 endcase
             end
             F3_LHU: begin
                 case (addsub_result[1])
                     1'b0: rdata_decoded = {16'b0, load_raw_data[15:0]};
                     1'b1: rdata_decoded = {16'b0, load_raw_data[31:16]};
-                    default: rdata_decoded = 32'b0;
                 endcase
             end
             default: rdata_decoded = load_raw_data;
