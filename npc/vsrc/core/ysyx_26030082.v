@@ -367,10 +367,10 @@ module ysyx_26030082 #(
         (ifu.state == PMU_ICACHE_MISS_R);
     wire pmu_dcache_access = (exu.rd_state == PMU_LSU_R_IDLE) &&
                              (exu.wr_state == PMU_LSU_W_IDLE) &&
-                             exu.ext_mem_req;
+                             (exu.ext_load_req || exu.ext_store_req);
     wire pmu_dcache_store = pmu_dcache_access && exu.mem_wen;
     wire pmu_dcache_miss_cycle = ex_in_valid && !ex_in_ready &&
-                                 exu.ext_mem_req;
+                                 (exu.ext_load_req || exu.ext_store_req);
     wire pmu_redirect = ex_out_valid && ex_redirect;
 
     always @(*) begin

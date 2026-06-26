@@ -352,18 +352,19 @@ module ysyx_26030082_exu (
     end
 
     wire is_clint = (addsub_result[31:16] == CLINT_BASE_HI);
+
+    always @(*) begin
+        case (addsub_result[15:2])
+            MTIME_OFFSET[15:2]:  clint_rdata = ex_mtime[31:0];
+            MTIMEH_OFFSET[15:2]: clint_rdata = ex_mtime[63:32];
+            default:            clint_rdata = 32'b0;
+        endcase
+    end
+
     wire ext_load_req = ex_in_valid && mem_ren && ~is_clint;
     wire ext_store_req = ex_in_valid && mem_wen && ~is_clint;
-    wire ext_mem_req = ext_load_req || ext_store_req;
 
-    wire ar_fire = lsu_master_arvalid && lsu_master_arready;
-    wire r_fire = lsu_master_rvalid && lsu_master_rready;
-    wire aw_fire = lsu_master_awvalid && lsu_master_awready;
-    wire w_fire = lsu_master_wvalid && lsu_master_wready;
-    wire b_fire = lsu_master_bvalid && lsu_master_bready;
-
-    wire [31:0] load_raw_data = is_clint ? clint_rdata : lsu_master_rdata;
-    assign ex_in_ready = ~ext_mem_req || r_fire || b_fire;
+    assign ex_in_ready = ~(ext_load_req || ext_store_req) || r_fire || b_fire;
     assign ex_out_valid = ex_in_valid && ex_in_ready;
 
     assign lsu_master_araddr = addsub_result;
@@ -376,13 +377,11 @@ module ysyx_26030082_exu (
     assign lsu_master_wvalid = wr_state == W_IDLE && ext_store_req || wr_state == W_WAIT_W;
     assign lsu_master_bready = wr_state == W_WAIT_B;
 
-    always @(*) begin
-        case (addsub_result[15:2])
-            MTIME_OFFSET[15:2]:  clint_rdata = ex_mtime[31:0];
-            MTIMEH_OFFSET[15:2]: clint_rdata = ex_mtime[63:32];
-            default:            clint_rdata = 32'b0;
-        endcase
-    end
+    wire ar_fire = lsu_master_arvalid && lsu_master_arready;
+    wire r_fire = lsu_master_rvalid && lsu_master_rready;
+    wire aw_fire = lsu_master_awvalid && lsu_master_awready;
+    wire w_fire = lsu_master_wvalid && lsu_master_wready;
+    wire b_fire = lsu_master_bvalid && lsu_master_bready;
 
     always @(posedge clock) begin
         if (reset) begin
@@ -414,6 +413,8 @@ module ysyx_26030082_exu (
             endcase
         end
     end
+
+    wire [31:0] load_raw_data = is_clint ? clint_rdata : lsu_master_rdata;
 
     always @(*) begin
         rdata_decoded = load_raw_data;
