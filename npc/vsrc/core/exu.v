@@ -127,10 +127,10 @@ module ysyx_26030082_exu (
     reg  [31:0] rf_wdata;
 
     // CSR.
-    reg  [31:0] csr_mstatus;
+    reg         csr_mstatus_mie;
+    reg         csr_mstatus_mpie;
     reg  [31:0] csr_mtvec;
-    reg  [31:0] csr_mepc;
-    reg  [31:0] csr_mcause;
+    reg  [29:0] csr_mepc_hi;
     reg  [31:0] csr_rdata;
 
     // Memory.
@@ -271,10 +271,10 @@ module ysyx_26030082_exu (
 
     always @(*) begin
         case (csr_addr)
-            CSR_MSTATUS:   csr_rdata = csr_mstatus;
+            CSR_MSTATUS:   csr_rdata = {19'b0, 2'b11, 3'b0, csr_mstatus_mpie, 3'b0, csr_mstatus_mie, 3'b0};
             CSR_MTVEC:     csr_rdata = csr_mtvec;
-            CSR_MEPC:      csr_rdata = csr_mepc;
-            CSR_MCAUSE:    csr_rdata = csr_mcause;
+            CSR_MEPC:      csr_rdata = {csr_mepc_hi, 2'b0};
+            CSR_MCAUSE:    csr_rdata = CAUSE_ECALL;
             CSR_MVENDORID: csr_rdata = 32'h7973_7978;
             CSR_MARCHID:   csr_rdata = 32'd26030082;
             default:       csr_rdata = 32'b0;
@@ -311,7 +311,7 @@ module ysyx_26030082_exu (
                     F3_PRIV: begin
                         case (csr_addr)
                             F12_ECALL: ex_redirect_pc = {csr_mtvec[31:2], 2'b0};
-                            F12_MRET:  ex_redirect_pc = csr_mepc;
+                            F12_MRET:  ex_redirect_pc = {csr_mepc_hi, 2'b0};
 
                             default:;
                         endcase
@@ -332,23 +332,21 @@ module ysyx_26030082_exu (
 
     always @(posedge clock) begin
         if (reset) begin
-            csr_mstatus <= 32'h1800;
+            csr_mstatus_mie <= 1'b0;
+            csr_mstatus_mpie <= 1'b0;
             csr_mtvec   <= 32'h1;
-            csr_mepc    <= 32'h0;
-            csr_mcause  <= 32'h0;
+            csr_mepc_hi <= 30'h0;
         end else if (ex_out_valid && opcode == OPCODE_SYSTEM) begin
             case (funct3)
                 F3_PRIV: begin
                     case (csr_addr)
                         F12_ECALL: begin
-                            csr_mstatus[3] <= 1'b0;
-                            csr_mstatus[7] <= csr_mstatus[3];
-                            csr_mstatus[12:11] <= 2'b11;
-                            csr_mepc <= ex_pc;
-                            csr_mcause <= CAUSE_ECALL;
+                            csr_mstatus_mie <= 1'b0;
+                            csr_mstatus_mpie <= csr_mstatus_mie;
+                            csr_mepc_hi <= ex_pc[31:2];
                         end
                         F12_MRET: begin
-                            csr_mstatus[3] <= csr_mstatus[7];
+                            csr_mstatus_mie <= csr_mstatus_mpie;
                         end
                         default:;
                     endcase
@@ -356,10 +354,12 @@ module ysyx_26030082_exu (
 
                 F3_CSRRW, F3_CSRRS, F3_CSRRC, F3_CSRRWI, F3_CSRRSI, F3_CSRRCI: begin
                     case (csr_addr)
-                        CSR_MSTATUS: csr_mstatus <= csr_write_data;
+                        CSR_MSTATUS: begin
+                            csr_mstatus_mie <= csr_write_data[3];
+                            csr_mstatus_mpie <= csr_write_data[7];
+                        end
                         CSR_MTVEC:   csr_mtvec   <= csr_write_data;
-                        CSR_MEPC:    csr_mepc    <= csr_write_data;
-                        CSR_MCAUSE:  csr_mcause  <= csr_write_data;
+                        CSR_MEPC:    csr_mepc_hi <= csr_write_data[31:2];
                         default:;
                     endcase
                 end

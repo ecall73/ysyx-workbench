@@ -45,7 +45,7 @@ module ysyx_26030082_ifu #(
 
     reg [1:0] state;
 
-    reg [31:0] data_array [0:CACHE_WORDS-1];
+    reg [29:0] data_array [0:CACHE_WORDS-1];
     reg [TAG_W-1:0] tag_array [0:LINE_COUNT-1];
     reg [LINE_COUNT-1:0] valid_array;
 
@@ -64,7 +64,7 @@ module ysyx_26030082_ifu #(
     wire flush = ex_out_valid && ex_redirect;
     wire invalidate = ex_out_valid && ex_fence_i;
     assign if_out_valid = (state == S_LOOKUP) && cache_hit;
-    assign if_inst = data_array[lookup_word_index];
+    assign if_inst = {data_array[lookup_word_index], 2'b11};
 
     wire req_fire = if_out_valid && if_out_ready;
 
@@ -122,7 +122,7 @@ module ysyx_26030082_ifu #(
                     if (flush) begin
                         state <= (r_fire && ifu_master_rlast) ? S_LOOKUP : S_DROP_R;
                     end else if (r_fire) begin
-                        data_array[refill_word_index] <= ifu_master_rdata;
+                        data_array[refill_word_index] <= ifu_master_rdata[31:2];
                         if (ifu_master_rlast) begin
                             state <= S_LOOKUP;
                         end else begin
