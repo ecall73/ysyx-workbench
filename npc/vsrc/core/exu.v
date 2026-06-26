@@ -160,30 +160,34 @@ module ysyx_26030082_exu (
                   opcode == OPCODE_JALR ||
                   opcode == OPCODE_SYSTEM && funct3 != F3_PRIV;
 
-    wire [31:0] addsub_rhs = opcode == OPCODE_OP ? rf_rdata2 : imm;
     wire addsub_sub = opcode == OPCODE_OP && funct7_5;
-    wire [31:0] cmp_rhs = opcode == OPCODE_OP_IMM ? imm : rf_rdata2;
-
     wire [31:0] addsub_lhs = ({32{opcode == OPCODE_OP || opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_STORE || opcode == OPCODE_JALR}} & rf_rdata1) |
                              ({32{opcode == OPCODE_AUIPC || opcode == OPCODE_JAL || opcode == OPCODE_BRANCH}} & ex_pc);
-    wire        csr_wdata_or_sel = funct3 == F3_CSRRS || funct3 == F3_CSRRSI;
-    wire        csr_wdata_and_sel = funct3 == F3_CSRRC || funct3 == F3_CSRRCI;
+    wire [31:0] addsub_rhs = opcode == OPCODE_OP ? rf_rdata2 : imm;
+    wire [31:0] addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
+
     wire [31:0] bit_lhs = opcode == OPCODE_SYSTEM ? csr_rdata : rf_rdata1;
     wire [31:0] bit_rhs = ({32{opcode == OPCODE_OP}} & rf_rdata2) |
                           ({32{opcode == OPCODE_OP_IMM}} & imm) |
-                          ({32{opcode == OPCODE_SYSTEM && csr_wdata_or_sel}} & csr_src_data) |
-                          ({32{opcode == OPCODE_SYSTEM && csr_wdata_and_sel}} & ~csr_src_data);
+                          ({32{opcode == OPCODE_SYSTEM && (funct3 == F3_CSRRS || funct3 == F3_CSRRSI)}} & csr_src_data) |
+                          ({32{opcode == OPCODE_SYSTEM && (funct3 == F3_CSRRC || funct3 == F3_CSRRCI)}} & ~csr_src_data);
+
+    wire [31:0] cmp_rhs = opcode == OPCODE_OP_IMM ? imm : rf_rdata2;
+
 
 /////////////////////////
     // EX: FU, CSR, redirect.
-    wire [31:0] addsub_rhs_xor = addsub_sub ? (~addsub_rhs + 1) : addsub_rhs;
-    wire [31:0] addsub_result = addsub_lhs + addsub_rhs_xor;
+    
+    wire [31:0] addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
+
     wire [31:0] and_result = bit_lhs & bit_rhs;
     wire [31:0] or_result = bit_lhs | bit_rhs;
     wire [31:0] xor_result = bit_lhs ^ bit_rhs;
+
     wire [31:0] sll_result = rf_rdata1 << addsub_rhs[4:0];
     wire [31:0] srl_result = rf_rdata1 >> addsub_rhs[4:0];
     wire [31:0] sra_result = ($signed(rf_rdata1)) >>> addsub_rhs[4:0];
+    
     wire        cmp_eq = (rf_rdata1 == cmp_rhs);
     wire        cmp_lt = ($signed(rf_rdata1) < $signed(cmp_rhs));
     wire        cmp_ltu = (rf_rdata1 < cmp_rhs);
