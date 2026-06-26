@@ -78,7 +78,9 @@ module ysyx_26030082_ifu #(
     wire r_fire = ifu_master_rvalid && ifu_master_rready;
 
     always @(posedge clock) begin
-        if (reset || invalidate) begin
+        if (reset) begin
+            valid_array <= 0;
+        end else if (invalidate) begin
             valid_array <= 0;
         end else if (ar_fire) begin
             valid_array[lookup_index] <= 1'b0;
