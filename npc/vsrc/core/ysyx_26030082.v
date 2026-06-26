@@ -103,13 +103,17 @@ module ysyx_26030082 #(
     import "DPI-C" function void npc_pmu_event(input int event_mask);
     export "DPI-C" function npc_get_gpr;
     function int npc_get_gpr(input int idx);
+        integer bit_idx;
         begin
             if (idx == 0) begin
                 npc_get_gpr = 0;
             end else if (idx > 0 && idx < 16) begin
                 npc_get_gpr = exu.reg_low[idx];
             end else if (idx < 32) begin
-                npc_get_gpr = exu.reg_high[idx[3:0]];
+                npc_get_gpr = 0;
+                for (bit_idx = 0; bit_idx < 32; bit_idx = bit_idx + 1) begin
+                    npc_get_gpr[bit_idx] = exu.reg_high_bit[bit_idx][idx[3:0]];
+                end
             end else begin
                 npc_get_gpr = 0;
             end

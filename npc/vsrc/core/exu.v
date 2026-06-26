@@ -94,8 +94,9 @@ module ysyx_26030082_exu (
     localparam R_IDLE    = 1'd0;
     localparam R_WAIT_R  = 1'd1;
     localparam RF_IDLE     = 2'd0;
-    localparam RF_READ_RS2 = 2'd1;
-    localparam RF_DONE     = 2'd2;
+    localparam RF_READ_RS1 = 2'd1;
+    localparam RF_READ_RS2 = 2'd2;
+    localparam RF_DONE     = 2'd3;
     localparam W_IDLE    = 2'd0;
     localparam W_WAIT_AW = 2'd1;
     localparam W_WAIT_W  = 2'd2;
@@ -118,8 +119,9 @@ module ysyx_26030082_exu (
 
     // RF.
     reg  [31:0] reg_low  [1:15];
-    reg  [31:0] reg_high [0:15];
+    reg  [15:0] reg_high_bit [0:31];
     reg  [ 1:0] rf_state;
+    reg  [ 4:0] rf_bit_idx;
     reg  [31:0] rf_high_rdata1;
     reg  [31:0] rf_high_rdata2;
     reg  [31:0] rf_low_rdata1;
@@ -138,6 +140,7 @@ module ysyx_26030082_exu (
     reg  [1:0] wr_state;
     reg  [31:0] local_rdata;
     reg  [31:0] rdata_decoded;
+    integer rf_bit_i;
 
     wire [6:0]  opcode = ex_inst[6:0];
     wire [2:0]  funct3 = ex_inst[14:12];
@@ -164,9 +167,9 @@ module ysyx_26030082_exu (
     wire        rs2_high = rs2_used && rf_raddr2[4];
     wire        rf_high_pending = ex_in_valid && (rs1_high || rs2_high);
     wire        rf_ready = !rf_high_pending || rf_state == RF_DONE;
-    wire [ 3:0] rf_high_raddr = (rf_state == RF_READ_RS2) ? rf_raddr2[3:0] :
-                                 rs1_high ? rf_raddr1[3:0] : rf_raddr2[3:0];
-    wire [31:0] rf_high_rdata = reg_high[rf_high_raddr];
+    wire [ 3:0] rf_high_raddr = (rf_state == RF_READ_RS2) ? rf_raddr2[3:0] : rf_raddr1[3:0];
+    wire        rf_high_rbit = reg_high_bit[rf_bit_idx][rf_high_raddr];
+    wire        rf_bit_last = rf_bit_idx == 5'd31;
 
     always @(*) begin
         case (rf_raddr1[3:0])
@@ -489,23 +492,33 @@ module ysyx_26030082_exu (
     always @(posedge clock) begin
         if (reset) begin
             rf_state <= RF_IDLE;
+            rf_bit_idx <= 5'b0;
         end else begin
             case (rf_state)
                 RF_IDLE: begin
-                    if (ex_in_valid) begin
-                        if (rs1_high) begin
-                            rf_high_rdata1 <= rf_high_rdata;
-                            rf_state <= rs2_high ? RF_READ_RS2 : RF_DONE;
-                        end else if (rs2_high) begin
-                            rf_high_rdata2 <= rf_high_rdata;
-                            rf_state <= RF_DONE;
-                        end
+                    if (rf_high_pending) begin
+                        rf_bit_idx <= 5'b0;
+                        rf_state <= rs1_high ? RF_READ_RS1 : RF_READ_RS2;
+                    end
+                end
+
+                RF_READ_RS1: begin
+                    rf_high_rdata1[rf_bit_idx] <= rf_high_rbit;
+                    if (rf_bit_last) begin
+                        rf_bit_idx <= 5'b0;
+                        rf_state <= rs2_high ? RF_READ_RS2 : RF_DONE;
+                    end else begin
+                        rf_bit_idx <= rf_bit_idx + 1'b1;
                     end
                 end
 
                 RF_READ_RS2: begin
-                    rf_high_rdata2 <= rf_high_rdata;
-                    rf_state <= RF_DONE;
+                    rf_high_rdata2[rf_bit_idx] <= rf_high_rbit;
+                    if (rf_bit_last) begin
+                        rf_state <= RF_DONE;
+                    end else begin
+                        rf_bit_idx <= rf_bit_idx + 1'b1;
+                    end
                 end
 
                 RF_DONE: begin
@@ -594,7 +607,9 @@ module ysyx_26030082_exu (
         if (rf_write) begin
             if (rf_waddr != 5'b0) begin
                 if (rf_waddr[4]) begin
-                    reg_high[rf_waddr[3:0]] <= rf_wdata;
+                    for (rf_bit_i = 0; rf_bit_i < 32; rf_bit_i = rf_bit_i + 1) begin
+                        reg_high_bit[rf_bit_i][rf_waddr[3:0]] <= rf_wdata[rf_bit_i];
+                    end
                 end else begin
                     reg_low[rf_waddr[3:0]] <= rf_wdata;
                 end
