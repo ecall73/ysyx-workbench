@@ -10,18 +10,27 @@
 #include <nvboard.h>
 #endif
 
+#ifndef NPC_ENABLE_PERF
+#define NPC_ENABLE_PERF 1
+#endif
+
+#if NPC_ENABLE_PERF
 // PMU report uses magenta so it can be visually separated from normal logs.
 #define PmuLog(format, ...) \
     _Log(ANSI_FMT(format, ANSI_FG_MAGENTA) "\n", ##__VA_ARGS__)
+#endif
 
 static bool g_commit_valid = false;
 static uint32_t g_commit_pc = 0;
 static uint32_t g_commit_inst = 0;
 static constexpr uint32_t kEbreakInst = 0x00100073u;
 
+#if NPC_ENABLE_PERF
 static uint64_t g_timer_us = 0;
+#endif
 static uint64_t g_nr_sim_cycle = 0;
 
+#if NPC_ENABLE_PERF
 enum PmuInstClass : uint8_t {
     PMU_CLASS_LOAD = 0,
     PMU_CLASS_MISC_MEM,
@@ -78,6 +87,7 @@ static uint8_t pmu_classify_inst(uint32_t inst) {
 static void pmu_on_commit(uint32_t inst) {
     g_ret_class_cnt[pmu_classify_inst(inst)]++;
 }
+#endif
 
 extern "C" void npc_commit(int pc, int inst) {
     if (is_finished) {
@@ -87,10 +97,13 @@ extern "C" void npc_commit(int pc, int inst) {
     g_commit_valid = true;
     g_commit_pc = (uint32_t)pc;
     g_commit_inst = (uint32_t)inst;
+#if NPC_ENABLE_PERF
     pmu_on_commit((uint32_t)inst);
+#endif
 }
 
 extern "C" void npc_pmu_event(int event_mask) {
+#if NPC_ENABLE_PERF
     if (is_finished) {
         return;
     }
@@ -104,8 +117,12 @@ extern "C" void npc_pmu_event(int event_mask) {
     if (mask & NPC_PMU_EVT_DCACHE_MISS) g_pmu.dcache_miss++;
     if (mask & NPC_PMU_EVT_DCACHE_MISS_CYCLE) g_pmu.dcache_miss_cycle++;
     if (mask & NPC_PMU_EVT_REDIRECT) g_pmu.redirect++;
+#else
+    (void)event_mask;
+#endif
 }
 
+#if NPC_ENABLE_PERF
 static uint64_t get_time_us() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -218,6 +235,7 @@ static void statistic() {
     }
     PmuLog("+------------------+-------------+-----------+\n");
 }
+#endif
 
 void cpu_exec(uint64_t n) {
     if (is_finished) {
@@ -225,7 +243,9 @@ void cpu_exec(uint64_t n) {
         return;
     }
 
+#if NPC_ENABLE_PERF
     uint64_t timer_start = get_time_us();
+#endif
     bool need_report = false;
 
     bool run_forever = (n == (uint64_t)-1);
@@ -245,12 +265,16 @@ void cpu_exec(uint64_t n) {
         g_top->clock = 0;
         g_top->eval();
         g_contextp->timeInc(1);
+#if NPC_ENABLE_WAVE
         if (g_tfp) g_tfp->dump(g_contextp->time());
+#endif
 
         g_top->clock = 1;
         g_top->eval();
         g_contextp->timeInc(1);
+#if NPC_ENABLE_WAVE
         if (g_tfp) g_tfp->dump(g_contextp->time());
+#endif
 
         if (g_commit_valid) {
             uint32_t commit_pc = g_commit_pc;
@@ -293,14 +317,18 @@ void cpu_exec(uint64_t n) {
         }
     }
 
+#if NPC_ENABLE_PERF
     uint64_t timer_end = get_time_us();
     g_timer_us += timer_end - timer_start;
+#endif
 
     if (need_report) {
         Log("npc: %s at pc = 0x%08x",
             (trap_a0 == 0 ? ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)
                           : ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED)),
             trap_pc);
+#if NPC_ENABLE_PERF
         statistic();
+#endif
     }
 }

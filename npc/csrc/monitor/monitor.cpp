@@ -12,6 +12,10 @@
 void nvboard_bind_all_pins(SimTop* top);
 #endif
 
+#ifndef NPC_ENABLE_WAVE
+#define NPC_ENABLE_WAVE 0
+#endif
+
 SimTop *g_top = NULL;
 VerilatedContext *g_contextp = NULL;
 VerilatedVcdC *g_tfp = NULL;
@@ -107,12 +111,14 @@ void init_monitor(int argc, char **argv) {
     int diff_port = 1234;
     long img_size = parse_args_and_load_image(argc, argv, &diff_so_file, &diff_port);
 
-    if (!sdb_batch_mode) {
+#if NPC_ENABLE_WAVE
+    {
         Verilated::traceEverOn(true);
         tfp = new VerilatedVcdC;
         top->trace(tfp, 99);
         tfp->open("waveform.vcd");
     }
+#endif
 
     g_top = top;
     g_contextp = contextp;
@@ -128,7 +134,9 @@ void init_monitor(int argc, char **argv) {
     sim_set_external_idle(top);
     top->eval();
     contextp->timeInc(1);
+#if NPC_ENABLE_WAVE
     if (tfp) tfp->dump(contextp->time());
+#endif
 
     // ChipLink requires reset to be held for at least 10 full cycles.
     constexpr int kResetCycles = 10;
@@ -136,12 +144,16 @@ void init_monitor(int argc, char **argv) {
         top->clock = 1;
         top->eval();
         contextp->timeInc(1);
+#if NPC_ENABLE_WAVE
         if (tfp) tfp->dump(contextp->time());
+#endif
 
         top->clock = 0;
         top->eval();
         contextp->timeInc(1);
+#if NPC_ENABLE_WAVE
         if (tfp) tfp->dump(contextp->time());
+#endif
     }
     top->reset = 0;
 
@@ -159,11 +171,13 @@ void npc_cleanup() {
         log_fp = NULL;
     }
 
+#if NPC_ENABLE_WAVE
     if (g_tfp) {
         g_tfp->close();
         delete g_tfp;
         g_tfp = NULL;
     }
+#endif
 
     if (g_top) {
         delete g_top;
