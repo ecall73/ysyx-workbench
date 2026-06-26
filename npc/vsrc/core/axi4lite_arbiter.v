@@ -125,7 +125,6 @@ module ysyx_26030082_axi4lite_arbiter (
     always @(posedge clock) begin
         if (reset) begin
             rd_state <= R_IDLE;
-            rd_owner_ifu <= 1'b0;
         end else begin
             case (rd_state)
                 R_IDLE: begin
@@ -135,8 +134,6 @@ module ysyx_26030082_axi4lite_arbiter (
                     end else if (ifu_master_arvalid) begin
                         rd_owner_ifu <= 1'b1;
                         rd_state <= ifu_ar_fire ? R_DATA : R_AR;
-                    end else begin
-                        rd_owner_ifu <= 1'b0;
                     end
                 end
 
@@ -149,13 +146,11 @@ module ysyx_26030082_axi4lite_arbiter (
                 R_DATA: begin
                     if ((lsu_r_fire || ifu_r_fire) && io_master_rlast) begin
                         rd_state <= R_IDLE;
-                        rd_owner_ifu <= 1'b0;
                     end
                 end
 
                 default: begin
                     rd_state <= R_IDLE;
-                    rd_owner_ifu <= 1'b0;
                 end
             endcase
         end

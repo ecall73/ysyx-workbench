@@ -331,7 +331,6 @@ module ysyx_26030082_exu (
             csr_mstatus_mie <= 1'b0;
             csr_mstatus_mpie <= 1'b0;
             csr_mtvec   <= 32'h1;
-            csr_mepc_hi <= 30'h0;
         end else if (ex_out_valid && opcode == OPCODE_SYSTEM) begin
             case (funct3)
                 F3_PRIV: begin

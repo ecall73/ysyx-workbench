@@ -94,7 +94,6 @@ module ysyx_26030082_ifu #(
         if (reset) begin
             state <= S_LOOKUP;
             if_pc <= RESET_PC;
-            refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
         end else begin
             if (flush) begin
                 if_pc <= ex_redirect_pc;
