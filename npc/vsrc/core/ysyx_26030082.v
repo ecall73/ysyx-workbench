@@ -367,7 +367,7 @@ module ysyx_26030082 #(
 
     // Direct hierarchical reads: simulation-only, no extra submodule ports.
     wire pmu_ifetch_fire = if_out_valid && if_out_ready;
-    wire pmu_icache_miss = (ifu.state == PMU_ICACHE_LOOKUP) && ifu.cache_miss;
+    wire pmu_icache_miss = (ifu.state == PMU_ICACHE_LOOKUP) && ifu.icache_miss;
     wire pmu_icache_miss_cycle =
         (ifu.state == PMU_ICACHE_MISS_AR) ||
         (ifu.state == PMU_ICACHE_MISS_R);

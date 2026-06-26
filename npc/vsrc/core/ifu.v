@@ -45,25 +45,24 @@ module ysyx_26030082_ifu #(
 
     reg [1:0] state;
 
-    reg [31:0] data_array [0:LINE_COUNT*LINE_WORDS-1];
-    reg [TAG_W-1:0] tag_array [0:LINE_COUNT-1];
-    reg [LINE_COUNT-1:0] valid_array;
+    reg [31:0] icache_data [0:LINE_COUNT*LINE_WORDS-1];
+    reg [TAG_W-1:0] icache_tag [0:LINE_COUNT-1];
+    reg [LINE_COUNT-1:0] icache_valid;
 
     reg [WORD_INDEX_W-1:0] refill_word_idx;
 
-    wire [WORD_INDEX_W-1:0] lookup_word_offset = if_pc[BYTE_OFF_W + WORD_INDEX_W - 1 : BYTE_OFF_W];
+    wire [WORD_INDEX_W-1:0] lookup_word_idx = if_pc[BYTE_OFF_W + WORD_INDEX_W - 1 : BYTE_OFF_W];
     wire [LINE_INDEX_W-1:0] lookup_index = if_pc[LINE_OFF_W + LINE_INDEX_W - 1 : LINE_OFF_W];
     wire [TAG_W-1:0] lookup_tag = if_pc[31 : LINE_OFF_W + LINE_INDEX_W];
-    wire [LINE_INDEX_W+WORD_INDEX_W-1:0] lookup_word_index = {lookup_index, lookup_word_offset};
-    wire [LINE_INDEX_W+WORD_INDEX_W-1:0] refill_word_index = {lookup_index, refill_word_idx};
+    wire [LINE_INDEX_W+WORD_INDEX_W-1:0] lookup_data_idx = {lookup_index, lookup_word_idx};
+    wire [LINE_INDEX_W+WORD_INDEX_W-1:0] refill_data_idx = {lookup_index, refill_word_idx};
 
-    wire cache_hit = valid_array[lookup_index] && (tag_array[lookup_index] == lookup_tag);
-    wire cache_miss = (state == S_LOOKUP) && !cache_hit;
+    wire icache_hit = icache_valid[lookup_index] && (icache_tag[lookup_index] == lookup_tag);
 
     wire flush = ex_out_valid && ex_redirect;
     wire invalidate = ex_out_valid && ex_fence_i;
-    assign if_out_valid = (state == S_LOOKUP) && cache_hit;
-    assign if_inst = data_array[lookup_word_index];
+    assign if_out_valid = (state == S_LOOKUP) && icache_hit;
+    assign if_inst = icache_data[lookup_data_idx];
 
     wire req_fire = if_out_valid && if_out_ready;
 
@@ -78,13 +77,13 @@ module ysyx_26030082_ifu #(
 
     always @(posedge clock) begin
         if (reset) begin
-            valid_array <= 0;
+            icache_valid <= 0;
         end else if (invalidate) begin
-            valid_array <= 0;
+            icache_valid <= 0;
         end else if (ar_fire) begin
-            valid_array[lookup_index] <= 1'b0;
+            icache_valid[lookup_index] <= 1'b0;
         end else if ((state == S_MISS_R) && r_fire && !flush) begin
-            valid_array[lookup_index] <= ifu_master_rlast;
+            icache_valid[lookup_index] <= ifu_master_rlast;
         end
     end
 
@@ -102,7 +101,7 @@ module ysyx_26030082_ifu #(
 
             case (state)
                 S_LOOKUP: begin
-                    if (cache_miss && !flush) begin
+                    if (!icache_hit && !flush) begin
                         refill_word_idx <= 0;
                         state <= S_MISS_AR;
                     end
@@ -110,7 +109,7 @@ module ysyx_26030082_ifu #(
 
                 S_MISS_AR: begin
                     if (ar_fire) begin
-                        tag_array[lookup_index] <= lookup_tag;
+                        icache_tag[lookup_index] <= lookup_tag;
                         state <= flush ? S_DROP_R : S_MISS_R;
                     end else if (flush) begin
                         state <= S_LOOKUP;
@@ -121,7 +120,7 @@ module ysyx_26030082_ifu #(
                     if (flush) begin
                         state <= (r_fire && ifu_master_rlast) ? S_LOOKUP : S_DROP_R;
                     end else if (r_fire) begin
-                        data_array[refill_word_index] <= ifu_master_rdata;
+                        icache_data[refill_data_idx] <= ifu_master_rdata;
                         if (ifu_master_rlast) begin
                             state <= S_LOOKUP;
                         end else begin
