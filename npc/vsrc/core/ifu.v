@@ -32,7 +32,7 @@ module ysyx_26030082_ifu #(
 );
     localparam integer WORD_OFF_W      = 2;
     localparam integer LINE_ADDR_OFF_W = $clog2(LINE_WORDS);
-    localparam integer LINE_WORD_OFF_W = $clog2((LINE_WORDS < 2) ? 2 : LINE_WORDS);
+    localparam integer LINE_WORD_OFF_W = $clog2(LINE_WORDS);
     localparam integer INDEX_W         = $clog2(LINE_COUNT);
     localparam integer OFFSET_W        = WORD_OFF_W + LINE_ADDR_OFF_W;
     localparam integer TAG_W           = 32 - INDEX_W - OFFSET_W;
@@ -52,8 +52,7 @@ module ysyx_26030082_ifu #(
 
     reg [LINE_WORD_OFF_W-1:0] refill_word_idx;
 
-    wire [LINE_WORD_OFF_W-1:0] lookup_word_offset =
-        if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
+    wire [LINE_WORD_OFF_W-1:0] lookup_word_offset = if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
     wire [INDEX_W-1:0] lookup_index = if_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
     wire [TAG_W-1:0] lookup_tag = if_pc[31 : OFFSET_W + INDEX_W];
     wire [INDEX_W+LINE_WORD_OFF_W-1:0] lookup_word_index = {lookup_index, lookup_word_offset};
@@ -147,20 +146,11 @@ module ysyx_26030082_ifu #(
 
 `ifndef SYNTHESIS
     initial begin
-        if (LINE_WORDS < 1) begin
-            $fatal(1, "ifu LINE_WORDS must be at least 1");
+        if ((LINE_WORDS < 2) || ((LINE_WORDS & (LINE_WORDS - 1)) != 0) || (LINE_WORDS > 256)) begin
+            $fatal(1, "icache LINE_WORDS != 2**n (1 <= n <= 8)");
         end
-        if ((LINE_WORDS & (LINE_WORDS - 1)) != 0) begin
-            $fatal(1, "ifu LINE_WORDS must be a power of two");
-        end
-        if (LINE_COUNT < 2) begin
-            $fatal(1, "ifu LINE_COUNT must be at least 2");
-        end
-        if ((LINE_COUNT & (LINE_COUNT - 1)) != 0) begin
-            $fatal(1, "ifu LINE_COUNT must be a power of two");
-        end
-        if (LINE_WORDS > 256) begin
-            $fatal(1, "ifu LINE_WORDS must be <= 256");
+        if ((LINE_COUNT < 2) || ((LINE_COUNT & (LINE_COUNT - 1)) != 0)) begin
+            $fatal(1, "icache LINE_COUNT != 2**n (n >= 1)");
         end
         if (OFFSET_W + INDEX_W >= 32) begin
             $fatal(1, "ifu geometry is too large for ADDR_WIDTH");
