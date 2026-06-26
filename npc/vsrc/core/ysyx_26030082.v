@@ -214,14 +214,8 @@ module ysyx_26030082 #(
     // IF -> EX
     // ================================================================
     always @(posedge clock) begin
-        if (reset) begin
+        if (reset || (ex_redirect && ex_out_valid)) begin
             ex_in_valid <= 1'b0;
-            ex_pc <= 32'b0;
-            ex_inst <= 32'b0;
-        end else if (ex_redirect && ex_out_valid) begin
-            ex_in_valid <= 1'b0;
-            ex_pc <= 32'b0;
-            ex_inst <= 32'b0;
         end else if (if_out_ready) begin
             ex_in_valid <= if_out_valid;
             ex_pc <= if_pc;
@@ -367,16 +361,16 @@ module ysyx_26030082 #(
 
     // Direct hierarchical reads: simulation-only, no extra submodule ports.
     wire pmu_ifetch_fire = if_out_valid && if_out_ready;
-    wire pmu_icache_miss = (ifu.state == PMU_ICACHE_LOOKUP) && ifu.cache_miss;
+    wire pmu_icache_miss = (ifu.state == PMU_ICACHE_LOOKUP) && ~ifu.icache_hit;
     wire pmu_icache_miss_cycle =
         (ifu.state == PMU_ICACHE_MISS_AR) ||
         (ifu.state == PMU_ICACHE_MISS_R);
     wire pmu_dcache_access = (exu.rd_state == PMU_LSU_R_IDLE) &&
                              (exu.wr_state == PMU_LSU_W_IDLE) &&
-                             exu.ext_mem_req;
+                             (exu.ext_load_req || exu.ext_store_req);
     wire pmu_dcache_store = pmu_dcache_access && exu.mem_wen;
     wire pmu_dcache_miss_cycle = ex_in_valid && !ex_in_ready &&
-                                 exu.ext_mem_req;
+                                 (exu.ext_load_req || exu.ext_store_req);
     wire pmu_redirect = ex_out_valid && ex_redirect;
 
     always @(*) begin

@@ -102,8 +102,8 @@ module ysyx_26030082_exu (
     localparam W_WAIT_W  = 2'd2;
     localparam W_WAIT_B  = 2'd3;
     localparam [15:0] CLINT_BASE_HI     = 16'h0200;
-    localparam [13:0] MTIME_WORD_OFFSET  = 14'h2ffe;
-    localparam [13:0] MTIMEH_WORD_OFFSET = 14'h2fff;
+    localparam [15:0] MTIME_OFFSET  = 16'hbff8;
+    localparam [15:0] MTIMEH_OFFSET = 16'hbffc;
 
     reg        branch_redirect;
 
@@ -121,7 +121,7 @@ module ysyx_26030082_exu (
     // Memory.
     reg         rd_state;
     reg  [1:0] wr_state;
-    reg  [31:0] local_rdata;
+    reg  [31:0] clint_rdata;
     reg  [31:0] rdata_decoded;
 
     wire [6:0]  opcode = ex_inst[6:0];
@@ -160,30 +160,34 @@ module ysyx_26030082_exu (
                   opcode == OPCODE_JALR ||
                   opcode == OPCODE_SYSTEM && funct3 != F3_PRIV;
 
-    wire [31:0] addsub_rhs = opcode == OPCODE_OP ? rf_rdata2 : imm;
     wire addsub_sub = opcode == OPCODE_OP && funct7_5;
-    wire [31:0] cmp_rhs = opcode == OPCODE_OP_IMM ? imm : rf_rdata2;
-
     wire [31:0] addsub_lhs = ({32{opcode == OPCODE_OP || opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_STORE || opcode == OPCODE_JALR}} & rf_rdata1) |
                              ({32{opcode == OPCODE_AUIPC || opcode == OPCODE_JAL || opcode == OPCODE_BRANCH}} & ex_pc);
-    wire        csr_wdata_or_sel = funct3 == F3_CSRRS || funct3 == F3_CSRRSI;
-    wire        csr_wdata_and_sel = funct3 == F3_CSRRC || funct3 == F3_CSRRCI;
+    wire [31:0] addsub_rhs = opcode == OPCODE_OP ? rf_rdata2 : imm;
+    wire [31:0] addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
+
     wire [31:0] bit_lhs = opcode == OPCODE_SYSTEM ? csr_rdata : rf_rdata1;
     wire [31:0] bit_rhs = ({32{opcode == OPCODE_OP}} & rf_rdata2) |
                           ({32{opcode == OPCODE_OP_IMM}} & imm) |
-                          ({32{opcode == OPCODE_SYSTEM && csr_wdata_or_sel}} & csr_src_data) |
-                          ({32{opcode == OPCODE_SYSTEM && csr_wdata_and_sel}} & ~csr_src_data);
+                          ({32{opcode == OPCODE_SYSTEM && (funct3 == F3_CSRRS || funct3 == F3_CSRRSI)}} & csr_src_data) |
+                          ({32{opcode == OPCODE_SYSTEM && (funct3 == F3_CSRRC || funct3 == F3_CSRRCI)}} & ~csr_src_data);
+
+    wire [31:0] cmp_rhs = opcode == OPCODE_OP_IMM ? imm : rf_rdata2;
+
 
 /////////////////////////
     // EX: FU, CSR, redirect.
-    wire [31:0] addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
+    
     wire [31:0] addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
+
     wire [31:0] and_result = bit_lhs & bit_rhs;
     wire [31:0] or_result = bit_lhs | bit_rhs;
     wire [31:0] xor_result = bit_lhs ^ bit_rhs;
+
     wire [31:0] sll_result = rf_rdata1 << addsub_rhs[4:0];
     wire [31:0] srl_result = rf_rdata1 >> addsub_rhs[4:0];
     wire [31:0] sra_result = ($signed(rf_rdata1)) >>> addsub_rhs[4:0];
+
     wire        cmp_eq = (rf_rdata1 == cmp_rhs);
     wire        cmp_lt = ($signed(rf_rdata1) < $signed(cmp_rhs));
     wire        cmp_ltu = (rf_rdata1 < cmp_rhs);
@@ -221,33 +225,24 @@ module ysyx_26030082_exu (
     // Redirect mux.
     always @(*) begin
         ex_redirect_pc = 32'bx;
-
         case (opcode)
-            OPCODE_BRANCH, OPCODE_JAL: ex_redirect_pc = addsub_result;
-            OPCODE_JALR: ex_redirect_pc = {addsub_result[31:1], 1'b0};
+            OPCODE_BRANCH, OPCODE_JAL, OPCODE_JALR: ex_redirect_pc = {addsub_result[31:1], 1'b0};
             OPCODE_SYSTEM: begin
                 case (funct3)
                     F3_PRIV: begin
                         case (csr_addr)
                             F12_ECALL: ex_redirect_pc = {csr_mtvec[31:2], 2'b0};
                             F12_MRET:  ex_redirect_pc = csr_mepc;
-
                             default:;
                         endcase
                     end
-
                     default:;
                 endcase
             end
             OPCODE_MISC_MEM: ex_redirect_pc = pc4;
-
             default:;
         endcase
     end
-
-    wire [31:0] csr_write_data = ({32{csr_wdata_or_sel}} & or_result) |
-                                 ({32{csr_wdata_and_sel}} & and_result) |
-                                 ({32{~csr_wdata_or_sel && ~csr_wdata_and_sel}} & csr_src_data);
 
     always @(posedge clock) begin
         if (reset) begin
@@ -273,12 +268,32 @@ module ysyx_26030082_exu (
                     endcase
                 end
 
-                F3_CSRRW, F3_CSRRS, F3_CSRRC, F3_CSRRWI, F3_CSRRSI, F3_CSRRCI: begin
+                F3_CSRRW, F3_CSRRWI: begin
                     case (csr_addr)
-                        CSR_MSTATUS: csr_mstatus <= csr_write_data;
-                        CSR_MTVEC:   csr_mtvec   <= csr_write_data;
-                        CSR_MEPC:    csr_mepc    <= csr_write_data;
-                        CSR_MCAUSE:  csr_mcause  <= csr_write_data;
+                        CSR_MSTATUS: csr_mstatus <= csr_src_data;
+                        CSR_MTVEC:   csr_mtvec   <= csr_src_data;
+                        CSR_MEPC:    csr_mepc    <= csr_src_data;
+                        CSR_MCAUSE:  csr_mcause  <= csr_src_data;
+                        default:;
+                    endcase
+                end
+
+                F3_CSRRS, F3_CSRRSI: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_mstatus <= or_result;
+                        CSR_MTVEC:   csr_mtvec   <= or_result;
+                        CSR_MEPC:    csr_mepc    <= or_result;
+                        CSR_MCAUSE:  csr_mcause  <= or_result;
+                        default:;
+                    endcase
+                end
+
+                F3_CSRRC, F3_CSRRCI: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_mstatus <= and_result;
+                        CSR_MTVEC:   csr_mtvec   <= and_result;
+                        CSR_MEPC:    csr_mepc    <= and_result;
+                        CSR_MCAUSE:  csr_mcause  <= and_result;
                         default:;
                     endcase
                 end
@@ -335,42 +350,37 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    wire        is_clint = (addsub_result[31:16] == CLINT_BASE_HI);
-    wire        ext_load_req = ex_in_valid && mem_ren && ~is_clint;
-    wire        ext_store_req = ex_in_valid && mem_wen && ~is_clint;
-    wire        ext_mem_req = ext_load_req || ext_store_req;
-
-    wire        ar_fire = lsu_master_arvalid && lsu_master_arready;
-    wire        r_fire = lsu_master_rvalid && lsu_master_rready;
-    wire        aw_fire = lsu_master_awvalid && lsu_master_awready;
-    wire        w_fire = lsu_master_wvalid && lsu_master_wready;
-    wire        b_fire = lsu_master_bvalid && lsu_master_bready;
-
-    wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
-    assign ex_in_ready = ~ext_mem_req || r_fire || b_fire;
-    assign ex_out_valid = ex_in_valid && ex_in_ready;
-
-    assign lsu_master_araddr = addsub_result;
-    assign lsu_master_arsize = funct3[1:0];
-    wire        load_start = rd_state == R_IDLE && ext_load_req;
-    assign lsu_master_arvalid = load_start;
-    assign lsu_master_rready = rd_state == R_WAIT_R;
-    assign lsu_master_awaddr = addsub_result;
-    assign lsu_master_awsize = funct3[1:0];
-    wire        store_start = wr_state == W_IDLE && ext_store_req;
-    assign lsu_master_awvalid = store_start ||
-                                wr_state == W_WAIT_AW;
-    assign lsu_master_wvalid = store_start ||
-                               wr_state == W_WAIT_W;
-    assign lsu_master_bready = wr_state == W_WAIT_B;
+    wire is_clint = (addsub_result[31:16] == CLINT_BASE_HI);
 
     always @(*) begin
         case (addsub_result[15:2])
-            MTIME_WORD_OFFSET:  local_rdata = ex_mtime[31:0];
-            MTIMEH_WORD_OFFSET: local_rdata = ex_mtime[63:32];
-            default:            local_rdata = 32'b0;
+            MTIME_OFFSET[15:2]:  clint_rdata = ex_mtime[31:0];
+            MTIMEH_OFFSET[15:2]: clint_rdata = ex_mtime[63:32];
+            default:            clint_rdata = 32'b0;
         endcase
     end
+
+    wire ext_load_req = ex_in_valid && mem_ren && ~is_clint;
+    wire ext_store_req = ex_in_valid && mem_wen && ~is_clint;
+
+    assign ex_in_ready = ~(ext_load_req || ext_store_req) || r_fire || b_fire;
+    assign ex_out_valid = ex_in_valid && ex_in_ready;
+
+    assign lsu_master_araddr = addsub_result;
+    assign lsu_master_arsize = {1'b0, funct3[1:0]};
+    assign lsu_master_arvalid = rd_state == R_IDLE && ext_load_req;
+    assign lsu_master_rready = rd_state == R_WAIT_R;
+    assign lsu_master_awaddr = addsub_result;
+    assign lsu_master_awsize = {1'b0, funct3[1:0]};
+    assign lsu_master_awvalid = wr_state == W_IDLE && ext_store_req || wr_state == W_WAIT_AW;
+    assign lsu_master_wvalid = wr_state == W_IDLE && ext_store_req || wr_state == W_WAIT_W;
+    assign lsu_master_bready = wr_state == W_WAIT_B;
+
+    wire ar_fire = lsu_master_arvalid && lsu_master_arready;
+    wire r_fire = lsu_master_rvalid && lsu_master_rready;
+    wire aw_fire = lsu_master_awvalid && lsu_master_awready;
+    wire w_fire = lsu_master_wvalid && lsu_master_wready;
+    wire b_fire = lsu_master_bvalid && lsu_master_bready;
 
     always @(posedge clock) begin
         if (reset) begin
@@ -390,10 +400,10 @@ module ysyx_26030082_exu (
             case (wr_state)
                 W_IDLE: begin
                     case ({aw_fire, w_fire})
-                        2'b11: wr_state <= W_WAIT_B;
-                        2'b10: wr_state <= W_WAIT_W;
+                        2'b00: wr_state <= W_IDLE;
                         2'b01: wr_state <= W_WAIT_AW;
-                        default:;
+                        2'b10: wr_state <= W_WAIT_W;
+                        2'b11: wr_state <= W_WAIT_B;  
                     endcase
                 end
                 W_WAIT_AW: if (aw_fire) wr_state <= W_WAIT_B;
@@ -402,6 +412,8 @@ module ysyx_26030082_exu (
             endcase
         end
     end
+
+    wire [31:0] load_raw_data = is_clint ? clint_rdata : lsu_master_rdata;
 
     always @(*) begin
         rdata_decoded = load_raw_data;
@@ -412,14 +424,12 @@ module ysyx_26030082_exu (
                     2'b01: rdata_decoded = {{24{load_raw_data[15]}}, load_raw_data[15:8]};
                     2'b10: rdata_decoded = {{24{load_raw_data[23]}}, load_raw_data[23:16]};
                     2'b11: rdata_decoded = {{24{load_raw_data[31]}}, load_raw_data[31:24]};
-                    default: rdata_decoded = 32'b0;
                 endcase
             end
             F3_LH: begin
                 case (addsub_result[1])
                     1'b0: rdata_decoded = {{16{load_raw_data[15]}}, load_raw_data[15:0]};
                     1'b1: rdata_decoded = {{16{load_raw_data[31]}}, load_raw_data[31:16]};
-                    default: rdata_decoded = 32'b0;
                 endcase
             end
             F3_LBU: begin
@@ -428,14 +438,12 @@ module ysyx_26030082_exu (
                     2'b01: rdata_decoded = {24'b0, load_raw_data[15:8]};
                     2'b10: rdata_decoded = {24'b0, load_raw_data[23:16]};
                     2'b11: rdata_decoded = {24'b0, load_raw_data[31:24]};
-                    default: rdata_decoded = 32'b0;
                 endcase
             end
             F3_LHU: begin
                 case (addsub_result[1])
                     1'b0: rdata_decoded = {16'b0, load_raw_data[15:0]};
                     1'b1: rdata_decoded = {16'b0, load_raw_data[31:16]};
-                    default: rdata_decoded = 32'b0;
                 endcase
             end
             default: rdata_decoded = load_raw_data;
