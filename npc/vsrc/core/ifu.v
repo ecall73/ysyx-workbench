@@ -35,7 +35,7 @@ module ysyx_26030082_ifu #(
     localparam integer LINE_WORD_OFF_W = $clog2((LINE_WORDS < 2) ? 2 : LINE_WORDS);
     localparam integer INDEX_W         = $clog2(LINE_COUNT);
     localparam integer OFFSET_W        = WORD_OFF_W + LINE_ADDR_OFF_W;
-    localparam integer TAG_ADDR_W      = 25 - INDEX_W - OFFSET_W;
+    localparam integer TAG_ADDR_W      = 17 - INDEX_W - OFFSET_W;
     localparam integer TAG_W           = 2 + TAG_ADDR_W;
     localparam integer CACHE_WORDS     = LINE_WORDS * LINE_COUNT;
 
@@ -55,7 +55,7 @@ module ysyx_26030082_ifu #(
     wire [LINE_WORD_OFF_W-1:0] lookup_word_offset =
         if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
     wire [INDEX_W-1:0] lookup_index = if_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
-    wire [TAG_W-1:0] lookup_tag = {if_pc[31], if_pc[29] | if_pc[28], if_pc[24 : OFFSET_W + INDEX_W]};
+    wire [TAG_W-1:0] lookup_tag = {if_pc[31], if_pc[29] | if_pc[28], if_pc[16 : OFFSET_W + INDEX_W]};
     wire [LINE_WORD_OFF_W + INDEX_W - 1:0] lookup_word_index = {lookup_index, lookup_word_offset};
     wire [LINE_WORD_OFF_W + INDEX_W - 1:0] refill_word_index = {lookup_index, refill_word_idx};
 
