@@ -108,7 +108,7 @@ module ysyx_26030082_exu (
     reg        branch_redirect;
 
     // RF.
-    reg  [31:0] reg_bank [1:15];
+    reg  [31:0] reg_bank [1:31];
     reg  [31:0] rf_wdata;
 
     // CSR.
@@ -135,8 +135,8 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // ID: RF read, imm gen, input mux.
-    wire [31:0] rf_rdata1 = (rf_raddr1 == 5'd0 || rf_raddr1[4]) ? 32'b0 : reg_bank[rf_raddr1[3:0]];
-    wire [31:0] rf_rdata2 = (rf_raddr2 == 5'd0 || rf_raddr2[4]) ? 32'b0 : reg_bank[rf_raddr2[3:0]];
+    wire [31:0] rf_rdata1 = (rf_raddr1 == 5'd0) ? 32'b0 : reg_bank[rf_raddr1];
+    wire [31:0] rf_rdata2 = (rf_raddr2 == 5'd0) ? 32'b0 : reg_bank[rf_raddr2];
 
     wire [31:0] imm = ({32{opcode == OPCODE_OP_IMM || opcode == OPCODE_LOAD || opcode == OPCODE_JALR}} & {{20{ex_inst[31]}}, ex_inst[31:20]}) |
                       ({32{opcode == OPCODE_STORE}} & {{20{ex_inst[31]}}, ex_inst[31:25], ex_inst[11:7]}) |
@@ -347,9 +347,8 @@ module ysyx_26030082_exu (
     wire        b_fire = lsu_master_bvalid && lsu_master_bready;
 
     wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
-    wire        mem_ready = ~ext_mem_req || r_fire || b_fire;
-    assign ex_in_ready = mem_ready;
-    assign ex_out_valid = ex_in_valid && mem_ready;
+    assign ex_in_ready = ~ext_mem_req || r_fire || b_fire;
+    assign ex_out_valid = ex_in_valid && ex_in_ready;
 
     assign lsu_master_araddr = addsub_result;
     assign lsu_master_arsize = {1'b0, funct3[1:0]};
@@ -446,7 +445,7 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // WB: output mux and RF write.
-    wire rf_write = ex_out_valid && rf_wen && (rf_waddr != 5'b0) && ~rf_waddr[4];
+    wire rf_write = ex_out_valid && rf_wen && (rf_waddr != 5'b0);
 
     always @(*) begin
         rf_wdata = 32'bx;
@@ -475,7 +474,7 @@ module ysyx_26030082_exu (
 
     always @(posedge clock) begin
         if (rf_write) begin
-            reg_bank[rf_waddr[3:0]] <= rf_wdata;
+            reg_bank[rf_waddr] <= rf_wdata;
         end
     end
 

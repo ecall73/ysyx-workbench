@@ -36,7 +36,6 @@ module ysyx_26030082_ifu #(
     localparam integer INDEX_W         = $clog2(LINE_COUNT);
     localparam integer OFFSET_W        = WORD_OFF_W + LINE_ADDR_OFF_W;
     localparam integer TAG_W           = 32 - INDEX_W - OFFSET_W;
-    localparam integer CACHE_WORDS     = LINE_WORDS * LINE_COUNT;
     localparam [LINE_WORD_OFF_W-1:0] LINE_LAST_WORD = {LINE_WORD_OFF_W{1'b1}};
 
     localparam [1:0] S_LOOKUP  = 2'd0;
@@ -46,6 +45,7 @@ module ysyx_26030082_ifu #(
 
     reg [1:0] state;
 
+    localparam integer CACHE_WORDS = LINE_COUNT * LINE_WORDS;
     reg [31:0] data_array [0:CACHE_WORDS-1];
     reg [TAG_W-1:0] tag_array [0:LINE_COUNT-1];
     reg [LINE_COUNT-1:0] valid_array;
@@ -56,8 +56,8 @@ module ysyx_26030082_ifu #(
         if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
     wire [INDEX_W-1:0] lookup_index = if_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
     wire [TAG_W-1:0] lookup_tag = if_pc[31 : OFFSET_W + INDEX_W];
-    wire [LINE_WORD_OFF_W + INDEX_W - 1:0] lookup_word_index = {lookup_index, lookup_word_offset};
-    wire [LINE_WORD_OFF_W + INDEX_W - 1:0] refill_word_index = {lookup_index, refill_word_idx};
+    wire [INDEX_W+LINE_WORD_OFF_W-1:0] lookup_word_index = {lookup_index, lookup_word_offset};
+    wire [INDEX_W+LINE_WORD_OFF_W-1:0] refill_word_index = {lookup_index, refill_word_idx};
 
     wire cache_hit = valid_array[lookup_index] && (tag_array[lookup_index] == lookup_tag);
     wire cache_miss = (state == S_LOOKUP) && !cache_hit;
