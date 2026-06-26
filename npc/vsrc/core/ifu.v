@@ -76,9 +76,7 @@ module ysyx_26030082_ifu #(
     wire r_fire = ifu_master_rvalid && ifu_master_rready;
 
     always @(posedge clock) begin
-        if (reset) begin
-            icache_valid <= 0;
-        end else if (invalidate) begin
+        if (reset || invalidate) begin
             icache_valid <= 0;
         end else if (ar_fire) begin
             icache_valid[lookup_index] <= 1'b0;
