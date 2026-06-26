@@ -107,9 +107,7 @@ module ysyx_26030082 #(
             if (idx == 0) begin
                 npc_get_gpr = 0;
             end else if (idx > 0 && idx < 16) begin
-                npc_get_gpr = exu.reg_low[idx];
-            end else if (idx < 32) begin
-                npc_get_gpr = exu.reg_high[idx[3:0]];
+                npc_get_gpr = exu.reg_bank[idx];
             end else begin
                 npc_get_gpr = 0;
             end
@@ -168,15 +166,15 @@ module ysyx_26030082 #(
     wire [ 1:0] lsu_master_bresp;
     wire        lsu_master_bvalid;
     wire        lsu_master_bready;
-    reg  [22:0] mtime;
+    reg  [63:0] mtime;
 
 ////////////////////////////////////////////////////////////////
 
     always @(posedge clock) begin
         if (reset) begin
-            mtime <= 23'b0;
+            mtime <= 64'b0;
         end else begin
-            mtime <= mtime + 23'd1;
+            mtime <= mtime + 64'd1;
         end
     end
 
@@ -218,8 +216,12 @@ module ysyx_26030082 #(
     always @(posedge clock) begin
         if (reset) begin
             ex_in_valid <= 1'b0;
+            ex_pc <= 32'b0;
+            ex_inst <= 32'b0;
         end else if (ex_redirect && ex_out_valid) begin
             ex_in_valid <= 1'b0;
+            ex_pc <= 32'b0;
+            ex_inst <= 32'b0;
         end else if (if_out_ready) begin
             ex_in_valid <= if_out_valid;
             ex_pc <= if_pc;
@@ -237,7 +239,7 @@ module ysyx_26030082 #(
 
         .ex_out_valid       (ex_out_valid),
 
-        .ex_mtime           ({41'b0, mtime}),
+        .ex_mtime           (mtime),
 
         .ex_redirect        (ex_redirect),
         .ex_redirect_pc     (ex_redirect_pc),

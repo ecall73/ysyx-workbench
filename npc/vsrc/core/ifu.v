@@ -37,6 +37,7 @@ module ysyx_26030082_ifu #(
     localparam integer OFFSET_W        = WORD_OFF_W + LINE_ADDR_OFF_W;
     localparam integer TAG_W           = 32 - INDEX_W - OFFSET_W;
     localparam integer CACHE_WORDS     = LINE_WORDS * LINE_COUNT;
+    localparam [LINE_WORD_OFF_W-1:0] LINE_LAST_WORD = {LINE_WORD_OFF_W{1'b1}};
 
     localparam [1:0] S_LOOKUP  = 2'd0;
     localparam [1:0] S_MISS_AR = 2'd1;
@@ -45,7 +46,7 @@ module ysyx_26030082_ifu #(
 
     reg [1:0] state;
 
-    reg [29:0] data_array [0:CACHE_WORDS-1];
+    reg [31:0] data_array [0:CACHE_WORDS-1];
     reg [TAG_W-1:0] tag_array [0:LINE_COUNT-1];
     reg [LINE_COUNT-1:0] valid_array;
 
@@ -64,7 +65,7 @@ module ysyx_26030082_ifu #(
     wire flush = ex_out_valid && ex_redirect;
     wire invalidate = ex_out_valid && ex_fence_i;
     assign if_out_valid = (state == S_LOOKUP) && cache_hit;
-    assign if_inst = {data_array[lookup_word_index], 2'b11};
+    assign if_inst = data_array[lookup_word_index];
 
     wire req_fire = if_out_valid && if_out_ready;
 
@@ -93,6 +94,7 @@ module ysyx_26030082_ifu #(
         if (reset) begin
             state <= S_LOOKUP;
             if_pc <= RESET_PC;
+            refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
         end else begin
             if (flush) begin
                 if_pc <= ex_redirect_pc;
@@ -121,7 +123,7 @@ module ysyx_26030082_ifu #(
                     if (flush) begin
                         state <= (r_fire && ifu_master_rlast) ? S_LOOKUP : S_DROP_R;
                     end else if (r_fire) begin
-                        data_array[refill_word_index] <= ifu_master_rdata[31:2];
+                        data_array[refill_word_index] <= ifu_master_rdata;
                         if (ifu_master_rlast) begin
                             state <= S_LOOKUP;
                         end else begin
@@ -170,10 +172,10 @@ module ysyx_26030082_ifu #(
             $fatal(1, "unaligned ifu fetch pc=%08x", if_pc);
         end
         if (!reset && (state == S_MISS_R) && r_fire) begin
-            if ((refill_word_idx == {LINE_WORD_OFF_W{1'b1}}) && !ifu_master_rlast) begin
+            if ((refill_word_idx == LINE_LAST_WORD) && !ifu_master_rlast) begin
                 $fatal(1, "ifu burst refill missing rlast on final beat line=%08x", miss_line_base);
             end
-            if ((refill_word_idx != {LINE_WORD_OFF_W{1'b1}}) && ifu_master_rlast) begin
+            if ((refill_word_idx != LINE_LAST_WORD) && ifu_master_rlast) begin
                 $fatal(1, "ifu burst refill saw early rlast line=%08x beat=%0d", miss_line_base, refill_word_idx);
             end
         end
