@@ -390,6 +390,7 @@ module ysyx_26030082_exu (
             case (wr_state)
                 W_IDLE: begin
                     case ({aw_fire, w_fire})
+                        2'b00: wr_state <= W_IDLE;
                         2'b11: wr_state <= W_WAIT_B;
                         2'b10: wr_state <= W_WAIT_W;
                         2'b01: wr_state <= W_WAIT_AW;
