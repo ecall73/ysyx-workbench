@@ -187,7 +187,7 @@ module ysyx_26030082_exu (
     wire [31:0] sll_result = rf_rdata1 << addsub_rhs[4:0];
     wire [31:0] srl_result = rf_rdata1 >> addsub_rhs[4:0];
     wire [31:0] sra_result = ($signed(rf_rdata1)) >>> addsub_rhs[4:0];
-    
+
     wire        cmp_eq = (rf_rdata1 == cmp_rhs);
     wire        cmp_lt = ($signed(rf_rdata1) < $signed(cmp_rhs));
     wire        cmp_ltu = (rf_rdata1 < cmp_rhs);
@@ -225,26 +225,21 @@ module ysyx_26030082_exu (
     // Redirect mux.
     always @(*) begin
         ex_redirect_pc = 32'bx;
-
         case (opcode)
-            OPCODE_BRANCH, OPCODE_JAL: ex_redirect_pc = addsub_result;
-            OPCODE_JALR: ex_redirect_pc = {addsub_result[31:1], 1'b0};
+            OPCODE_BRANCH, OPCODE_JAL, OPCODE_JALR: ex_redirect_pc = {addsub_result[31:1], 1'b0};
             OPCODE_SYSTEM: begin
                 case (funct3)
                     F3_PRIV: begin
                         case (csr_addr)
                             F12_ECALL: ex_redirect_pc = {csr_mtvec[31:2], 2'b0};
                             F12_MRET:  ex_redirect_pc = csr_mepc;
-
                             default:;
                         endcase
                     end
-
                     default:;
                 endcase
             end
             OPCODE_MISC_MEM: ex_redirect_pc = pc4;
-
             default:;
         endcase
     end
