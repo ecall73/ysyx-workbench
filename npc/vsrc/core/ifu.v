@@ -64,8 +64,6 @@ module ysyx_26030082_ifu #(
     assign if_out_valid = (state == S_LOOKUP) && icache_hit;
     assign if_inst = icache_data[lookup_data_idx];
 
-    wire req_fire = if_out_valid && if_out_ready;
-
     assign ifu_master_araddr = {if_pc[31:LINE_OFF_W], {LINE_OFF_W{1'b0}}};
     assign ifu_master_arlen = LINE_WORDS[7:0] - 8'd1;
     assign ifu_master_arburst = 2'b01;
@@ -93,7 +91,7 @@ module ysyx_26030082_ifu #(
         end else begin
             if (flush) begin
                 if_pc <= ex_redirect_pc;
-            end else if (req_fire) begin
+            end else if (if_out_valid && if_out_ready) begin
                 if_pc <= if_pc + 32'd4;
             end
 
@@ -154,7 +152,7 @@ module ysyx_26030082_ifu #(
     end
 
     always @(posedge clock) begin
-        if (!reset && req_fire && (if_pc[1:0] != 2'b00)) begin
+        if (!reset && if_out_valid && (if_pc[1:0] != 2'b00)) begin
             $fatal(1, "unaligned ifu fetch pc=%08x", if_pc);
         end
         if (!reset && (state == S_MISS_R) && r_fire) begin
