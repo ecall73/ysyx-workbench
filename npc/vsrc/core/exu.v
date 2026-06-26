@@ -102,8 +102,8 @@ module ysyx_26030082_exu (
     localparam W_WAIT_W  = 2'd2;
     localparam W_WAIT_B  = 2'd3;
     localparam [15:0] CLINT_BASE_HI     = 16'h0200;
-    localparam [13:0] MTIME_WORD_OFFSET  = 14'h2ffe;
-    localparam [13:0] MTIMEH_WORD_OFFSET = 14'h2fff;
+    localparam [15:0] MTIME_OFFSET  = 16'hbff8;
+    localparam [15:0] MTIMEH_OFFSET = 16'hbffc;
 
     reg        branch_redirect;
 
@@ -121,7 +121,7 @@ module ysyx_26030082_exu (
     // Memory.
     reg         rd_state;
     reg  [1:0] wr_state;
-    reg  [31:0] local_rdata;
+    reg  [31:0] clint_rdata;
     reg  [31:0] rdata_decoded;
 
     wire [6:0]  opcode = ex_inst[6:0];
@@ -362,7 +362,7 @@ module ysyx_26030082_exu (
     wire w_fire = lsu_master_wvalid && lsu_master_wready;
     wire b_fire = lsu_master_bvalid && lsu_master_bready;
 
-    wire [31:0] load_raw_data = (mem_ren && is_clint) ? local_rdata : lsu_master_rdata;
+    wire [31:0] load_raw_data = is_clint ? clint_rdata : lsu_master_rdata;
     assign ex_in_ready = ~ext_mem_req || r_fire || b_fire;
     assign ex_out_valid = ex_in_valid && ex_in_ready;
 
@@ -378,9 +378,9 @@ module ysyx_26030082_exu (
 
     always @(*) begin
         case (addsub_result[15:2])
-            MTIME_WORD_OFFSET:  local_rdata = ex_mtime[31:0];
-            MTIMEH_WORD_OFFSET: local_rdata = ex_mtime[63:32];
-            default:            local_rdata = 32'b0;
+            MTIME_OFFSET[15:2]:  clint_rdata = ex_mtime[31:0];
+            MTIMEH_OFFSET[15:2]: clint_rdata = ex_mtime[63:32];
+            default:            clint_rdata = 32'b0;
         endcase
     end
 
