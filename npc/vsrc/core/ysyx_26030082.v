@@ -218,12 +218,8 @@ module ysyx_26030082 #(
     always @(posedge clock) begin
         if (reset) begin
             ex_in_valid <= 1'b0;
-            ex_pc <= 32'b0;
-            ex_inst <= 32'b0;
         end else if (ex_redirect && ex_out_valid) begin
             ex_in_valid <= 1'b0;
-            ex_pc <= 32'b0;
-            ex_inst <= 32'b0;
         end else if (if_out_ready) begin
             ex_in_valid <= if_out_valid;
             ex_pc <= if_pc;
