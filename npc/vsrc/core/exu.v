@@ -372,11 +372,8 @@ module ysyx_26030082_exu (
     assign lsu_master_rready = rd_state == R_WAIT_R;
     assign lsu_master_awaddr = addsub_result;
     assign lsu_master_awsize = {1'b0, funct3[1:0]};
-    wire        store_start = wr_state == W_IDLE && ext_store_req;
-    assign lsu_master_awvalid = store_start ||
-                                wr_state == W_WAIT_AW;
-    assign lsu_master_wvalid = store_start ||
-                               wr_state == W_WAIT_W;
+    assign lsu_master_awvalid = wr_state == W_IDLE && ext_store_req || wr_state == W_WAIT_AW;
+    assign lsu_master_wvalid = wr_state == W_IDLE && ext_store_req || wr_state == W_WAIT_W;
     assign lsu_master_bready = wr_state == W_WAIT_B;
 
     always @(*) begin
