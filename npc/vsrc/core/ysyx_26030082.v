@@ -168,15 +168,15 @@ module ysyx_26030082 #(
     wire [ 1:0] lsu_master_bresp;
     wire        lsu_master_bvalid;
     wire        lsu_master_bready;
-    reg  [31:0] mtime;
+    reg  [22:0] mtime;
 
 ////////////////////////////////////////////////////////////////
 
     always @(posedge clock) begin
         if (reset) begin
-            mtime <= 32'b0;
+            mtime <= 23'b0;
         end else begin
-            mtime <= mtime + 32'd1;
+            mtime <= mtime + 23'd1;
         end
     end
 
@@ -237,7 +237,7 @@ module ysyx_26030082 #(
 
         .ex_out_valid       (ex_out_valid),
 
-        .ex_mtime           ({32'b0, mtime}),
+        .ex_mtime           ({41'b0, mtime}),
 
         .ex_redirect        (ex_redirect),
         .ex_redirect_pc     (ex_redirect_pc),
