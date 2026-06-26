@@ -176,8 +176,8 @@ module ysyx_26030082_exu (
 
 /////////////////////////
     // EX: FU, CSR, redirect.
-    wire [31:0] addsub_rhs_xor = addsub_sub ? ~addsub_rhs : addsub_rhs;
-    wire [31:0] addsub_result = addsub_lhs + addsub_rhs_xor + {31'b0, addsub_sub};
+    wire [31:0] addsub_rhs_xor = addsub_sub ? (~addsub_rhs + 1) : addsub_rhs;
+    wire [31:0] addsub_result = addsub_lhs + addsub_rhs_xor;
     wire [31:0] and_result = bit_lhs & bit_rhs;
     wire [31:0] or_result = bit_lhs | bit_rhs;
     wire [31:0] xor_result = bit_lhs ^ bit_rhs;
