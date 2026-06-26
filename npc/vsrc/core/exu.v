@@ -245,10 +245,6 @@ module ysyx_26030082_exu (
         endcase
     end
 
-    wire [31:0] csr_write_data = ({32{csr_wdata_or_sel}} & or_result) |
-                                 ({32{csr_wdata_and_sel}} & and_result) |
-                                 ({32{~csr_wdata_or_sel && ~csr_wdata_and_sel}} & csr_src_data);
-
     always @(posedge clock) begin
         if (reset) begin
             csr_mstatus <= 32'h1800;
@@ -273,12 +269,32 @@ module ysyx_26030082_exu (
                     endcase
                 end
 
-                F3_CSRRW, F3_CSRRS, F3_CSRRC, F3_CSRRWI, F3_CSRRSI, F3_CSRRCI: begin
+                F3_CSRRW, F3_CSRRWI: begin
                     case (csr_addr)
-                        CSR_MSTATUS: csr_mstatus <= csr_write_data;
-                        CSR_MTVEC:   csr_mtvec   <= csr_write_data;
-                        CSR_MEPC:    csr_mepc    <= csr_write_data;
-                        CSR_MCAUSE:  csr_mcause  <= csr_write_data;
+                        CSR_MSTATUS: csr_mstatus <= csr_src_data;
+                        CSR_MTVEC:   csr_mtvec   <= csr_src_data;
+                        CSR_MEPC:    csr_mepc    <= csr_src_data;
+                        CSR_MCAUSE:  csr_mcause  <= csr_src_data;
+                        default:;
+                    endcase
+                end
+
+                F3_CSRRS, F3_CSRRSI: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_mstatus <= or_result;
+                        CSR_MTVEC:   csr_mtvec   <= or_result;
+                        CSR_MEPC:    csr_mepc    <= or_result;
+                        CSR_MCAUSE:  csr_mcause  <= or_result;
+                        default:;
+                    endcase
+                end
+
+                F3_CSRRC, F3_CSRRCI: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_mstatus <= and_result;
+                        CSR_MTVEC:   csr_mtvec   <= and_result;
+                        CSR_MEPC:    csr_mepc    <= and_result;
+                        CSR_MCAUSE:  csr_mcause  <= and_result;
                         default:;
                     endcase
                 end
