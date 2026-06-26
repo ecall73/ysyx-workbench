@@ -351,12 +351,12 @@ module ysyx_26030082_exu (
     assign ex_out_valid = ex_in_valid && ex_in_ready;
 
     assign lsu_master_araddr = addsub_result;
-    assign lsu_master_arsize = funct3[1:0];
+    assign lsu_master_arsize = {1'b0, funct3[1:0]};
     wire        load_start = rd_state == R_IDLE && ext_load_req;
     assign lsu_master_arvalid = load_start;
     assign lsu_master_rready = rd_state == R_WAIT_R;
     assign lsu_master_awaddr = addsub_result;
-    assign lsu_master_awsize = funct3[1:0];
+    assign lsu_master_awsize = {1'b0, funct3[1:0]};
     wire        store_start = wr_state == W_IDLE && ext_store_req;
     assign lsu_master_awvalid = store_start ||
                                 wr_state == W_WAIT_AW;

@@ -30,13 +30,14 @@ module ysyx_26030082_ifu #(
     input             ifu_master_rvalid,
     output            ifu_master_rready
 );
-    localparam integer WORD_OFF_W      = 2;
-    localparam integer LINE_ADDR_OFF_W = $clog2(LINE_WORDS);
-    localparam integer LINE_WORD_OFF_W = $clog2(LINE_WORDS);
-    localparam integer INDEX_W         = $clog2(LINE_COUNT);
-    localparam integer OFFSET_W        = WORD_OFF_W + LINE_ADDR_OFF_W;
-    localparam integer TAG_W           = 32 - INDEX_W - OFFSET_W;
-    localparam [LINE_WORD_OFF_W-1:0] LINE_LAST_WORD = {LINE_WORD_OFF_W{1'b1}};
+    localparam integer BYTE_OFF_W   = 2;
+    localparam integer WORD_INDEX_W = $clog2(LINE_WORDS);
+    localparam integer LINE_INDEX_W = $clog2(LINE_COUNT);
+    localparam integer LINE_OFF_W   = BYTE_OFF_W + WORD_INDEX_W;
+    localparam integer TAG_W        = 32 - LINE_INDEX_W - LINE_OFF_W;
+    localparam integer CACHE_WORDS  = LINE_COUNT * LINE_WORDS;
+
+    localparam [WORD_INDEX_W-1:0] LINE_LAST_WORD = {WORD_INDEX_W{1'b1}};
 
     localparam [1:0] S_LOOKUP  = 2'd0;
     localparam [1:0] S_MISS_AR = 2'd1;
@@ -45,18 +46,17 @@ module ysyx_26030082_ifu #(
 
     reg [1:0] state;
 
-    localparam integer CACHE_WORDS = LINE_COUNT * LINE_WORDS;
     reg [31:0] data_array [0:CACHE_WORDS-1];
     reg [TAG_W-1:0] tag_array [0:LINE_COUNT-1];
     reg [LINE_COUNT-1:0] valid_array;
 
-    reg [LINE_WORD_OFF_W-1:0] refill_word_idx;
+    reg [WORD_INDEX_W-1:0] refill_word_idx;
 
-    wire [LINE_WORD_OFF_W-1:0] lookup_word_offset = if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
-    wire [INDEX_W-1:0] lookup_index = if_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
-    wire [TAG_W-1:0] lookup_tag = if_pc[31 : OFFSET_W + INDEX_W];
-    wire [INDEX_W+LINE_WORD_OFF_W-1:0] lookup_word_index = {lookup_index, lookup_word_offset};
-    wire [INDEX_W+LINE_WORD_OFF_W-1:0] refill_word_index = {lookup_index, refill_word_idx};
+    wire [WORD_INDEX_W-1:0] lookup_word_offset = if_pc[BYTE_OFF_W + WORD_INDEX_W - 1 : BYTE_OFF_W];
+    wire [LINE_INDEX_W-1:0] lookup_index = if_pc[LINE_OFF_W + LINE_INDEX_W - 1 : LINE_OFF_W];
+    wire [TAG_W-1:0] lookup_tag = if_pc[31 : LINE_OFF_W + LINE_INDEX_W];
+    wire [LINE_INDEX_W+WORD_INDEX_W-1:0] lookup_word_index = {lookup_index, lookup_word_offset};
+    wire [LINE_INDEX_W+WORD_INDEX_W-1:0] refill_word_index = {lookup_index, refill_word_idx};
 
     wire cache_hit = valid_array[lookup_index] && (tag_array[lookup_index] == lookup_tag);
     wire cache_miss = (state == S_LOOKUP) && !cache_hit;
@@ -68,7 +68,7 @@ module ysyx_26030082_ifu #(
 
     wire req_fire = if_out_valid && if_out_ready;
 
-    wire [31:0] miss_line_base = {if_pc[31:OFFSET_W], {OFFSET_W{1'b0}}};
+    wire [31:0] miss_line_base = {if_pc[31:LINE_OFF_W], {LINE_OFF_W{1'b0}}};
     assign ifu_master_araddr = miss_line_base;
     assign ifu_master_arlen = LINE_WORDS[7:0] - 8'd1;
     assign ifu_master_arburst = 2'b01;
@@ -93,7 +93,7 @@ module ysyx_26030082_ifu #(
         if (reset) begin
             state <= S_LOOKUP;
             if_pc <= RESET_PC;
-            refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
+            refill_word_idx <= {WORD_INDEX_W{1'b0}};
         end else begin
             if (flush) begin
                 if_pc <= ex_redirect_pc;
@@ -104,7 +104,7 @@ module ysyx_26030082_ifu #(
             case (state)
                 S_LOOKUP: begin
                     if (cache_miss && !flush) begin
-                        refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
+                        refill_word_idx <= {WORD_INDEX_W{1'b0}};
                         state <= S_MISS_AR;
                     end
                 end
@@ -152,7 +152,7 @@ module ysyx_26030082_ifu #(
         if ((LINE_COUNT < 2) || ((LINE_COUNT & (LINE_COUNT - 1)) != 0)) begin
             $fatal(1, "icache LINE_COUNT != 2**n (n >= 1)");
         end
-        if (OFFSET_W + INDEX_W >= 32) begin
+        if (LINE_OFF_W + LINE_INDEX_W >= 32) begin
             $fatal(1, "ifu geometry is too large for ADDR_WIDTH");
         end
     end
