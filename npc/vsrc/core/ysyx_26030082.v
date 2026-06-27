@@ -100,7 +100,9 @@ module ysyx_26030082 #(
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
     import "DPI-C" function void npc_commit(input int pc, input int inst);
+`ifdef NPC_ENABLE_PERF
     import "DPI-C" function void npc_pmu_event(input int event_mask);
+`endif
     export "DPI-C" function npc_get_gpr;
     function int npc_get_gpr(input int idx);
         begin
@@ -341,6 +343,7 @@ module ysyx_26030082 #(
     // ================================================================
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
+`ifdef NPC_ENABLE_PERF
     localparam [31:0] PMU_EVT_IFETCH_FIRE       = 32'h0000_0001;
     localparam [31:0] PMU_EVT_ICACHE_MISS       = 32'h0000_0002;
     localparam [31:0] PMU_EVT_ICACHE_MISS_CYCLE = 32'h0000_0004;
@@ -408,6 +411,7 @@ module ysyx_26030082 #(
             npc_pmu_event(pmu_event_mask);
         end
     end
+`endif
 `endif
 `endif
 

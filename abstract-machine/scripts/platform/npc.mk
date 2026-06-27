@@ -19,14 +19,25 @@ ifeq ($(filter 1 y yes true,$(DEBUG)),)
 NPCFLAGS += -b
 endif
 
-DIFFTEST ?= 0
+DIFF ?= 0
+PERF ?= 0
+WAVE ?= 0
 DIFF_REF_SO ?= $(NEMU_HOME)/build/riscv32-nemu-interpreter-so
 DIFF_PORT ?= 1234
 
-ifeq ($(filter 1 y yes true,$(DIFFTEST)),)
-else
+ifneq ($(filter-out 0 1,$(DIFF)),)
+$(error Unsupported DIFF='$(DIFF)'. Expected '0' or '1')
+endif
+ifneq ($(filter-out 0 1,$(PERF)),)
+$(error Unsupported PERF='$(PERF)'. Expected '0' or '1')
+endif
+ifneq ($(filter-out 0 1,$(WAVE)),)
+$(error Unsupported WAVE='$(WAVE)'. Expected '0' or '1')
+endif
+
+ifeq ($(DIFF),1)
 ifeq ($(strip $(NEMU_HOME)),)
-$(error NEMU_HOME is required when DIFFTEST=1)
+$(error NEMU_HOME is required when DIFF=1)
 endif
 NPCFLAGS += -d $(DIFF_REF_SO) -p $(DIFF_PORT)
 endif
@@ -44,6 +55,6 @@ image: image-dep
 	@$(OBJCOPY) -S --set-section-flags .bss=alloc,contents -O binary $(IMAGE).elf $(IMAGE).bin
 
 run: insert-arg
-	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=npc sim ARGS="$(NPCFLAGS) $(IMAGE).bin"
+	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=npc DIFF=0 PERF=$(PERF) WAVE=$(WAVE) sim ARGS="$(NPCFLAGS) $(IMAGE).bin"
 
 .PHONY: insert-arg
