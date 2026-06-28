@@ -89,6 +89,10 @@ static inline void csr_write(uint32_t addr, word_t data) {
   }
 }
 
+static inline uint32_t csr_addr(const Decode *s) {
+  return BITS(s->isa.inst, 31, 20);
+}
+
 #if CONFIG_ETRACE
 static inline void etrace_log_mret(vaddr_t target) {
   log_write("etrace: mret -> " FMT_WORD " mstatus=" FMT_WORD "\n", target, cpu.mstatus);
@@ -173,17 +177,15 @@ static int decode_exec(Decode *s) {
   INSTPAT("0000000 ????? ????? 111 ????? 01100 11", and    , R, R(rd) = src1 & src2);
 
   INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , N,
-      uint32_t inst = INSTPAT_INST(s);
-      uint32_t csr = BITS(inst, 31, 20);
-      uint32_t rs1 = BITS(inst, 19, 15);
+      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
+      uint32_t csr = csr_addr(s);
       word_t old = csr_read(csr);
       csr_write(csr, R(rs1));
       R(rd) = old;
   );
   INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , N,
-      uint32_t inst = INSTPAT_INST(s);
-      uint32_t csr = BITS(inst, 31, 20);
-      uint32_t rs1 = BITS(inst, 19, 15);
+      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
+      uint32_t csr = csr_addr(s);
       word_t old = csr_read(csr);
       if (rs1 != 0) {
         csr_write(csr, old | R(rs1));
@@ -191,9 +193,8 @@ static int decode_exec(Decode *s) {
       R(rd) = old;
   );
   INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc  , N,
-      uint32_t inst = INSTPAT_INST(s);
-      uint32_t csr = BITS(inst, 31, 20);
-      uint32_t rs1 = BITS(inst, 19, 15);
+      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
+      uint32_t csr = csr_addr(s);
       word_t old = csr_read(csr);
       if (rs1 != 0) {
         csr_write(csr, old & ~R(rs1));
@@ -201,17 +202,15 @@ static int decode_exec(Decode *s) {
       R(rd) = old;
   );
   INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , N,
-      uint32_t inst = INSTPAT_INST(s);
-      uint32_t csr = BITS(inst, 31, 20);
-      word_t zimm = BITS(inst, 19, 15);
+      uint32_t csr = csr_addr(s);
+      word_t zimm = BITS(s->isa.inst, 19, 15);
       word_t old = csr_read(csr);
       csr_write(csr, zimm);
       R(rd) = old;
   );
   INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , N,
-      uint32_t inst = INSTPAT_INST(s);
-      uint32_t csr = BITS(inst, 31, 20);
-      word_t zimm = BITS(inst, 19, 15);
+      uint32_t csr = csr_addr(s);
+      word_t zimm = BITS(s->isa.inst, 19, 15);
       word_t old = csr_read(csr);
       if (zimm != 0) {
         csr_write(csr, old | zimm);
@@ -219,9 +218,8 @@ static int decode_exec(Decode *s) {
       R(rd) = old;
   );
   INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci , N,
-      uint32_t inst = INSTPAT_INST(s);
-      uint32_t csr = BITS(inst, 31, 20);
-      word_t zimm = BITS(inst, 19, 15);
+      uint32_t csr = csr_addr(s);
+      word_t zimm = BITS(s->isa.inst, 19, 15);
       word_t old = csr_read(csr);
       if (zimm != 0) {
         csr_write(csr, old & ~zimm);
