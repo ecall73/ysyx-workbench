@@ -217,23 +217,6 @@ static int find_main_op(int p, int q) {
   return op;
 }
 
-static word_t eval(int p, int q, bool *success);
-
-static word_t eval_unary(int p, int q, bool *success) {
-  word_t val = eval(p + 1, q, success);
-  if (!*success) return 0;
-
-  switch (tokens[p].type) {
-    case TK_NEG: return (word_t)(0u - val);
-    case TK_DEREF: return vaddr_read(val, 4);
-    case TK_NOT: return !val;
-    case '~': return ~val;
-    default:
-      *success = false;
-      return 0;
-  }
-}
-
 static word_t eval(int p, int q, bool *success) {
   if (p > q) {
     /* Bad expression */
@@ -269,7 +252,18 @@ static word_t eval(int p, int q, bool *success) {
     int op = find_main_op(p, q);
 
     if (op == -1) {
-      return eval_unary(p, q, success);
+      word_t val = eval(p + 1, q, success);
+      if (!*success) return 0;
+
+      switch (tokens[p].type) {
+        case TK_NEG: return (word_t)(0u - val);
+        case TK_DEREF: return vaddr_read(val, 4);
+        case TK_NOT: return !val;
+        case '~': return ~val;
+        default:
+          *success = false;
+          return 0;
+      }
     }
 
     word_t val1 = eval(p, op - 1, success);
