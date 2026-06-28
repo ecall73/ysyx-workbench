@@ -21,7 +21,7 @@
 word_t expr(char *e, bool *success);
 
 int wp_new(char *e);
-bool free_wp(int no);
+bool free_wp(int NO);
 void wp_display();
 
 #endif

@@ -126,11 +126,11 @@ static int cmd_w(char *args) {
     printf("Usage: w <EXPR>\n");
     return 0;
   }
-  int no = wp_new(args);
-  if (no == -1) {
+  int NO = wp_new(args);
+  if (NO == -1) {
     printf("Failed to create watchpoint\n");
   } else {
-    printf("Watchpoint %d: %s\n", no, args);
+    printf("Watchpoint %d: %s\n", NO, args);
   }
   return 0;
 }
@@ -140,11 +140,11 @@ static int cmd_d(char *args) {
     printf("Usage: d <NO>\n");
     return 0;
   }
-  int no = strtol(args, NULL, 0);
-  if (free_wp(no)) {
-    printf("Watchpoint %d deleted\n", no);
+  int NO = strtol(args, NULL, 0);
+  if (free_wp(NO)) {
+    printf("Watchpoint %d deleted\n", NO);
   } else {
-    printf("Watchpoint %d not found\n", no);
+    printf("Watchpoint %d not found\n", NO);
   }
   return 0;
 }

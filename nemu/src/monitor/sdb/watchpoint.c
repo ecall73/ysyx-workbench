@@ -71,11 +71,11 @@ int wp_new(char *e) {
   return wp->NO;
 }
 
-bool free_wp(int no) {
+bool free_wp(int NO) {
   WP *prev = NULL;
   WP *wp = head;
   while (wp != NULL) {
-    if (wp->NO == no) {
+    if (wp->NO == NO) {
       if (prev == NULL) {
         head = wp->next;
       } else {
