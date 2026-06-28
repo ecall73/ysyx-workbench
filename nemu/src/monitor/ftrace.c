@@ -55,20 +55,18 @@ static void append_func_symbol(vaddr_t start, uint32_t size, const char *name) {
 }
 
 static const char *lookup_func(vaddr_t addr) {
+  const char *range_match = NULL;
   for (size_t i = 0; i < nr_func_symbols; i ++) {
     if (func_symbols[i].start == addr) {
       return func_symbols[i].name;
     }
-  }
-
-  for (size_t i = 0; i < nr_func_symbols; i ++) {
     if (func_symbols[i].end > func_symbols[i].start &&
         addr >= func_symbols[i].start && addr < func_symbols[i].end) {
-      return func_symbols[i].name;
+      range_match = func_symbols[i].name;
     }
   }
 
-  return "???";
+  return range_match ? range_match : "???";
 }
 
 void init_ftrace(const char *elf_file) {
