@@ -15,6 +15,7 @@
 
 #include <isa.h>
 #include <cpu/cpu.h>
+#include <memory/vaddr.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "sdb.h"
@@ -23,7 +24,25 @@ static int is_batch_mode = false;
 
 void init_regex();
 void init_wp_pool();
-word_t vaddr_read(vaddr_t addr, int len);
+
+static char *skip_spaces(char *s) {
+  while (s != NULL && *s == ' ') s ++;
+  return s;
+}
+
+static bool parse_positive_int(char *s, int *out) {
+  if (s == NULL) return false;
+  s = skip_spaces(s);
+  if (*s == '\0' || *s == '-') return false;
+
+  char *end = NULL;
+  long val = strtol(s, &end, 10);
+  end = skip_spaces(end);
+  if (*end != '\0' || val <= 0 || val > INT32_MAX) return false;
+
+  *out = (int)val;
+  return true;
+}
 
 /* We use the `readline' library to provide more flexibility to read from stdin. */
 static char* rl_gets() {
@@ -50,22 +69,21 @@ static int cmd_c(char *args) {
 
 
 static int cmd_q(char *args) {
-  // PA1 RTFSC 优美地退出
   nemu_state.state = NEMU_QUIT;
   return -1;
 }
 
-// PA1 基础设施 单步执行
 static int cmd_si(char *args) {
   int n = 1;
-  if (args != NULL) {
-    n = strtol(args, NULL, 0);
+  if (args != NULL && !parse_positive_int(args, &n)) {
+    printf("Usage: si [N]\n");
+    return 0;
   }
+
   cpu_exec(n);
   return 0;
 }
 
-// PA1 基础设施 打印寄存器
 static int cmd_info(char *args) {
   if (args == NULL) {
     printf("Usage: info r (registers) or info w (watchpoints)\n");
@@ -82,20 +100,31 @@ static int cmd_info(char *args) {
   return 0;
 }
 
-// PA1 基础设施 扫描内存
 static int cmd_x(char *args) {
   int num = 0;
-  vaddr_t addr = 0;
-  char *N = strtok(args, " ");
-  char *EXPR = strtok(NULL, " ");
-  if (N == NULL || EXPR == NULL) {
-    printf("Usage: x <n> <addr>\n");
+  if (args == NULL) {
+    printf("Usage: x N EXPR\n");
     return 0;
   }
-  sscanf(N, "%d", &num);
-  sscanf(EXPR, "%x", &addr);
+
+  char *n_str = strtok(args, " ");
+  char *expr_str = strtok(NULL, "");
+  if (!parse_positive_int(n_str, &num) || expr_str == NULL) {
+    printf("Usage: x N EXPR\n");
+    return 0;
+  }
+
+  bool success = false;
+  vaddr_t addr = expr(expr_str, &success);
+  if (!success) {
+    printf("Bad expression: %s\n", expr_str);
+    return 0;
+  }
+
   for (int i = 0; i < num; i ++) {
-    printf(ANSI_FG_GREEN"0x%08x: "ANSI_FG_BLUE"0x%08x\n"ANSI_NONE, addr + i * 4, vaddr_read(addr + i * 4, 4));
+    vaddr_t cur = addr + i * 4;
+    printf(ANSI_FG_GREEN FMT_WORD ": " ANSI_FG_BLUE FMT_WORD "\n" ANSI_NONE,
+        cur, vaddr_read(cur, 4));
   }
   return 0;
 }
@@ -114,7 +143,6 @@ static int cmd_p(char* args) {
   return 0;
 }
 
-// PA1 监视点 实现监视点
 static int cmd_w(char *args) {
   if (args == NULL) {
     printf("Usage: w <EXPR>\n");
