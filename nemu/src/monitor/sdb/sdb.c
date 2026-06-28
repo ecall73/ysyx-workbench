@@ -57,7 +57,7 @@ static int cmd_q(char *args) {
 static int cmd_si(char *args) {
   uint64_t n = 1;
   if (args != NULL) {
-    n = strtoull(args, NULL, 0);
+    n = strtol(args, NULL, 0);
   }
 
   cpu_exec(n);
