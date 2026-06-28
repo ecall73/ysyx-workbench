@@ -40,7 +40,13 @@ void init_wp_pool() {
   free_ = wp_pool;
 }
 
-static WP* new_wp() {
+int new_wp(char *e) {
+  bool success;
+  word_t val = expr(e, &success);
+  if (!success) {
+    return -1;
+  }
+
   if (free_ == NULL) {
     panic("No more watchpoints available");
   }
@@ -51,20 +57,6 @@ static WP* new_wp() {
   wp->next = head;
   head = wp;
 
-  wp->expr[0] = '\0';
-  wp->old_val = 0;
-
-  return wp;
-}
-
-int wp_new(char *e) {
-  bool success;
-  word_t val = expr(e, &success);
-  if (!success) {
-    return -1;
-  }
-
-  WP *wp = new_wp();
   assert(strlen(e) < WP_EXPR_SIZE);
   strcpy(wp->expr, e);
   wp->old_val = val;

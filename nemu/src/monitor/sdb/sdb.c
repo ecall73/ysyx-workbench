@@ -57,7 +57,7 @@ static int cmd_q(char *args) {
 static int cmd_si(char *args) {
   uint64_t n = 1;
   if (args != NULL) {
-    n = strtoull(args, NULL, 0);
+    n = strtol(args, NULL, 0);
   }
   cpu_exec(n);
   return 0;
@@ -80,15 +80,9 @@ static int cmd_info(char *args) {
 }
 
 static int cmd_x(char *args) {
-  char *n_str = NULL;
-  char *expr_str = NULL;
-
-  if (args != NULL) {
-    n_str = strtok(args, " ");
-    expr_str = strtok(NULL, "");
-  }
-
-  if (n_str == NULL || expr_str == NULL) {
+  char *n_str = args == NULL ? NULL : strtok(args, " ");
+  char *expr_str = n_str == NULL ? NULL : strtok(NULL, "");
+  if (expr_str == NULL) {
     printf("Usage: x <N> <EXPR>\n");
     return 0;
   }
@@ -126,7 +120,7 @@ static int cmd_w(char *args) {
     printf("Usage: w <EXPR>\n");
     return 0;
   }
-  int NO = wp_new(args);
+  int NO = new_wp(args);
   if (NO == -1) {
     printf("Failed to create watchpoint\n");
   } else {
