@@ -166,18 +166,13 @@ static word_t eval(int p, int q, bool *success) {
      * For now this token should be a number.
      * Return the value of the number.
      */
-    if (tokens[p].type == TK_HEX) {
-      return strtol(tokens[p].str, NULL, 16);
-    }
-    else if (tokens[p].type == TK_DEC) {
-      return strtol(tokens[p].str, NULL, 10);
-    }
-    else if (tokens[p].type == TK_REG) {
-      return isa_reg_str2val(tokens[p].str, success);
-    }
-    else {
-      *success = false;
-      return 0;
+    switch (tokens[p].type) {
+      case TK_HEX: return strtol(tokens[p].str, NULL, 16);
+      case TK_DEC: return strtol(tokens[p].str, NULL, 10);
+      case TK_REG: return isa_reg_str2val(tokens[p].str, success);
+      default:
+        *success = false;
+        return 0;
     }
   }
   else if (check_parentheses(p, q) == true) {
@@ -192,12 +187,8 @@ static word_t eval(int p, int q, bool *success) {
     int min_prec = 100;
 
     for (int i = p; i <= q; i++) {
-      if (tokens[i].type == '(') {
-        balance++;
-      }
-      else if (tokens[i].type == ')') {
-        balance--;
-      }
+      if (tokens[i].type == '(') balance++;
+      else if (tokens[i].type == ')') balance--;
       else if (balance == 0) {
         int prec = -1;
         switch (tokens[i].type) {
@@ -238,14 +229,15 @@ static word_t eval(int p, int q, bool *success) {
     word_t val1 = eval(p, op - 1, success);
     if (!*success) return 0;
 
+    // Short-circuit evaluation for logical operators
     if (tokens[op].type == TK_OR) {
-      if (val1) return 1;
+      if (val1) return 1;  // If left operand is true, don't evaluate right
       word_t val2 = eval(op + 1, q, success);
       if (!*success) return 0;
       return val1 || val2;
     }
     if (tokens[op].type == TK_AND) {
-      if (!val1) return 0;
+      if (!val1) return 0;  // If left operand is false, don't evaluate right
       word_t val2 = eval(op + 1, q, success);
       if (!*success) return 0;
       return val1 && val2;
