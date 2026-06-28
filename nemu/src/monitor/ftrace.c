@@ -60,7 +60,8 @@ static const char *lookup_func(vaddr_t addr) {
     if (func_symbols[i].start == addr) {
       return func_symbols[i].name;
     }
-    if (func_symbols[i].end > func_symbols[i].start &&
+    if (range_match == NULL &&
+        func_symbols[i].end > func_symbols[i].start &&
         addr >= func_symbols[i].start && addr < func_symbols[i].end) {
       range_match = func_symbols[i].name;
     }
