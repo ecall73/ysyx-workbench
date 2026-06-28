@@ -25,25 +25,6 @@ static int is_batch_mode = false;
 void init_regex();
 void init_wp_pool();
 
-static char *skip_spaces(char *s) {
-  while (s != NULL && *s == ' ') s ++;
-  return s;
-}
-
-static bool parse_positive_int(char *s, int *out) {
-  if (s == NULL) return false;
-  s = skip_spaces(s);
-  if (*s == '\0' || *s == '-') return false;
-
-  char *end = NULL;
-  long val = strtol(s, &end, 10);
-  end = skip_spaces(end);
-  if (*end != '\0' || val <= 0 || val > INT32_MAX) return false;
-
-  *out = (int)val;
-  return true;
-}
-
 /* We use the `readline' library to provide more flexibility to read from stdin. */
 static char* rl_gets() {
   static char *line_read = NULL;
@@ -74,10 +55,9 @@ static int cmd_q(char *args) {
 }
 
 static int cmd_si(char *args) {
-  int n = 1;
-  if (args != NULL && !parse_positive_int(args, &n)) {
-    printf("Usage: si [N]\n");
-    return 0;
+  uint64_t n = 1;
+  if (args != NULL) {
+    n = strtoull(args, NULL, 0);
   }
 
   cpu_exec(n);
@@ -109,10 +89,11 @@ static int cmd_x(char *args) {
 
   char *n_str = strtok(args, " ");
   char *expr_str = strtok(NULL, "");
-  if (!parse_positive_int(n_str, &num) || expr_str == NULL) {
+  if (n_str == NULL || expr_str == NULL) {
     printf("Usage: x N EXPR\n");
     return 0;
   }
+  num = strtol(n_str, NULL, 0);
 
   bool success = false;
   vaddr_t addr = expr(expr_str, &success);
