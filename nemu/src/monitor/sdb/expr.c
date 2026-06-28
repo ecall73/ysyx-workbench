@@ -38,7 +38,7 @@ static struct rule {
   {" +", TK_NOTYPE},              // spaces
   {"0[xX][0-9a-fA-F]+", TK_HEX},  // hexadecimal num
   {"[0-9]+", TK_DEC},             // decimal num
-  {"\\$[A-Za-z0-9$]+", TK_REG},   // register
+  {"\\$(\\$0|ra|sp|gp|tp|t[0-6]|s[0-9]|s1[0-1]|a[0-7]|x[0-9]{1,2}|pc|PC)", TK_REG}, // register
   {"\\+", '+'},                   // plus
   {"\\-", '-'},                   // minus
   {"\\*", '*'},                   // multiply

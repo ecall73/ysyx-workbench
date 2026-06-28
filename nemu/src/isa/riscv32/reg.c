@@ -40,19 +40,21 @@ word_t isa_reg_str2val(const char *s, bool *success) {
   if (strcmp(s, "$pc") == 0 || strcmp(s, "$PC") == 0) {
     return cpu.pc;
   }
-
+  
+  // Try to match x0-x31
   if (s[0] == '$' && s[1] == 'x') {
-    int reg_idx = -1;
-    if (sscanf(s + 2, "%d", &reg_idx) == 1) {
-      if (reg_idx >= 0 && reg_idx < NR_GPR) {
-        return cpu.gpr[reg_idx];
+      int reg_idx = -1;
+      if (sscanf(s + 2, "%d", &reg_idx) == 1) {
+          if (reg_idx >= 0 && reg_idx < NR_GPR) {
+              return cpu.gpr[reg_idx];
+          }
       }
-    }
   }
 
+  // Try to match register names (e.g. $ra, $sp)
   for (int i = 0; i < NR_GPR; i++) {
     if (s[0] == '$' && strcmp(s + 1, regs[i]) == 0) {
-      return cpu.gpr[i];
+        return cpu.gpr[i];
     }
   }
 
