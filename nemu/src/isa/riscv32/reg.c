@@ -23,10 +23,10 @@ const char *regs[] = {
   "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
 };
 
+#define NR_GPR ARRLEN(regs)
+
 void isa_reg_display() {
-  // PA1 基础设施 打印寄存器
-  int i;
-  for (i = 0; i < 32; i ++) {
+  for (int i = 0; i < NR_GPR; i ++) {
     printf(ANSI_FG_RED"(x%02d) "ANSI_FG_GREEN"%-4s "ANSI_FG_BLUE"0x%08x\t"ANSI_NONE, i, regs[i], cpu.gpr[i]);
     if (i % 4 == 3) {
       printf("\n");
@@ -45,14 +45,14 @@ word_t isa_reg_str2val(const char *s, bool *success) {
   if (s[0] == '$' && s[1] == 'x') {
       int reg_idx = -1;
       if (sscanf(s + 2, "%d", &reg_idx) == 1) {
-          if (reg_idx >= 0 && reg_idx < 32) {
+          if (reg_idx >= 0 && reg_idx < NR_GPR) {
               return cpu.gpr[reg_idx];
           }
       }
   }
 
   // Try to match register names (e.g. $ra, $sp)
-  for (int i = 0; i < 32; i++) {
+  for (int i = 0; i < NR_GPR; i++) {
     if (s[0] == '$' && strcmp(s + 1, regs[i]) == 0) {
         return cpu.gpr[i];
     }

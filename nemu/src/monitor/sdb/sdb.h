@@ -20,8 +20,8 @@
 
 word_t expr(char *e, bool *success);
 
-int wp_new(char *e);
-bool wp_free(int no);
+int new_wp(char *e);
+bool free_wp(int NO);
 void wp_display();
 
 #endif

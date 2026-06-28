@@ -15,6 +15,7 @@
 
 #include <isa.h>
 #include <cpu/cpu.h>
+#include <memory/vaddr.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "sdb.h"
@@ -23,7 +24,6 @@ static int is_batch_mode = false;
 
 void init_regex();
 void init_wp_pool();
-word_t vaddr_read(vaddr_t addr, int len);
 
 /* We use the `readline' library to provide more flexibility to read from stdin. */
 static char* rl_gets() {
@@ -50,14 +50,12 @@ static int cmd_c(char *args) {
 
 
 static int cmd_q(char *args) {
-  // PA1 RTFSC 优美地退出
   nemu_state.state = NEMU_QUIT;
   return -1;
 }
 
-// PA1 基础设施 单步执行
 static int cmd_si(char *args) {
-  int n = 1;
+  uint64_t n = 1;
   if (args != NULL) {
     n = strtol(args, NULL, 0);
   }
@@ -65,7 +63,6 @@ static int cmd_si(char *args) {
   return 0;
 }
 
-// PA1 基础设施 打印寄存器
 static int cmd_info(char *args) {
   if (args == NULL) {
     printf("Usage: info r (registers) or info w (watchpoints)\n");
@@ -82,20 +79,24 @@ static int cmd_info(char *args) {
   return 0;
 }
 
-// PA1 基础设施 扫描内存
 static int cmd_x(char *args) {
-  int num = 0;
-  vaddr_t addr = 0;
-  char *N = strtok(args, " ");
-  char *EXPR = strtok(NULL, " ");
-  if (N == NULL || EXPR == NULL) {
-    printf("Usage: x <n> <addr>\n");
+  char *n_str = args == NULL ? NULL : strtok(args, " ");
+  char *expr_str = n_str == NULL ? NULL : strtok(NULL, "");
+  if (expr_str == NULL) {
+    printf("Usage: x <N> <EXPR>\n");
     return 0;
   }
-  sscanf(N, "%d", &num);
-  sscanf(EXPR, "%x", &addr);
+  int num = strtol(n_str, NULL, 0);
+
+  bool success = false;
+  vaddr_t addr = expr(expr_str, &success);
+  if (!success) {
+    printf("Bad expression: %s\n", expr_str);
+    return 0;
+  }
+
   for (int i = 0; i < num; i ++) {
-    printf(ANSI_FG_GREEN"0x%08x: "ANSI_FG_BLUE"0x%08x\n"ANSI_NONE, addr + i * 4, vaddr_read(addr + i * 4, 4));
+    printf(ANSI_FG_GREEN FMT_WORD ": " ANSI_FG_BLUE FMT_WORD "\n" ANSI_NONE, addr + i * 4, vaddr_read(addr + i * 4, 4));
   }
   return 0;
 }
@@ -114,17 +115,16 @@ static int cmd_p(char* args) {
   return 0;
 }
 
-// PA1 监视点 实现监视点
 static int cmd_w(char *args) {
   if (args == NULL) {
     printf("Usage: w <EXPR>\n");
     return 0;
   }
-  int no = wp_new(args);
-  if (no == -1) {
+  int NO = new_wp(args);
+  if (NO == -1) {
     printf("Failed to create watchpoint\n");
   } else {
-    printf("Watchpoint %d: %s\n", no, args);
+    printf("Watchpoint %d: %s\n", NO, args);
   }
   return 0;
 }
@@ -134,11 +134,11 @@ static int cmd_d(char *args) {
     printf("Usage: d <NO>\n");
     return 0;
   }
-  int no = strtol(args, NULL, 0);
-  if (wp_free(no)) {
-    printf("Watchpoint %d deleted\n", no);
+  int NO = strtol(args, NULL, 0);
+  if (free_wp(NO)) {
+    printf("Watchpoint %d deleted\n", NO);
   } else {
-    printf("Watchpoint %d not found\n", no);
+    printf("Watchpoint %d not found\n", NO);
   }
   return 0;
 }
@@ -155,7 +155,7 @@ static struct {
   { "q", "Exit NEMU", cmd_q },
   { "si", "Pause after executing [N] instructions", cmd_si },
   { "info", "r: Print register status, w: Print watchpoint information", cmd_info },
-  { "x", "Scan <N> words starting from <addr>", cmd_x },
+  { "x", "Scan <N> words starting from <EXPR>", cmd_x },
   { "p", "Find the value of <EXPR>", cmd_p },
   { "w", "Set watchpoint <EXPR>", cmd_w },
   { "d", "Delete watchpoint <NO>", cmd_d },
