@@ -92,16 +92,6 @@ typedef struct token {
 static Token tokens[MAX_TOKENS] __attribute__((used)) = {};
 static int nr_token __attribute__((used))  = 0;
 
-static void add_token(int type, char *start, int len) {
-  Assert(nr_token < MAX_TOKENS, "Too many tokens");
-  Assert(len < TOKEN_STR_SIZE, "Token too long: %.*s", len, start);
-
-  tokens[nr_token].type = type;
-  strncpy(tokens[nr_token].str, start, len);
-  tokens[nr_token].str[len] = '\0';
-  nr_token ++;
-}
-
 static bool make_token(char *e) {
   int position = 0;
   int i;
@@ -124,7 +114,13 @@ static bool make_token(char *e) {
         position += substr_len;
 
         if (rules[i].token_type != TK_NOTYPE) {
-          add_token(rules[i].token_type, substr_start, substr_len);
+          Assert(nr_token < MAX_TOKENS, "Too many tokens");
+          Assert(substr_len < TOKEN_STR_SIZE, "Token too long: %.*s", substr_len, substr_start);
+
+          tokens[nr_token].type = rules[i].token_type;
+          strncpy(tokens[nr_token].str, substr_start, substr_len);
+          tokens[nr_token].str[substr_len] = '\0';
+          nr_token ++;
         }
 
         break;
@@ -159,64 +155,6 @@ static bool check_parentheses(int p, int q) {
   return balance == 0;
 }
 
-static bool is_operand(int type) {
-  return type == TK_HEX || type == TK_DEC || type == TK_REG || type == ')';
-}
-
-static void mark_unary_ops() {
-  for (int i = 0; i < nr_token; i++) {
-    bool unary = i == 0 || !is_operand(tokens[i - 1].type);
-    if (unary && tokens[i].type == '-') {
-      tokens[i].type = TK_NEG;
-    }
-    else if (unary && tokens[i].type == '*') {
-      tokens[i].type = TK_DEREF;
-    }
-  }
-}
-
-static int operator_precedence(int type) {
-  switch (type) {
-    case TK_OR: return 0;
-    case TK_AND: return 1;
-    case '|': return 2;
-    case '^': return 3;
-    case '&': return 4;
-    case TK_EQ: case TK_NEQ: return 5;
-    case '<': case '>': case TK_LE: case TK_GE: return 6;
-    case TK_SHL: case TK_SHR: return 7;
-    case '+': case '-': return 8;
-    case '*': case '/': case '%': return 9;
-    default: return -1;
-  }
-}
-
-static int find_main_op(int p, int q) {
-  int op = -1;
-  int balance = 0;
-  int min_prec = 100;
-
-  for (int i = p; i <= q; i++) {
-    if (tokens[i].type == '(') {
-      balance ++;
-      continue;
-    }
-    if (tokens[i].type == ')') {
-      balance --;
-      continue;
-    }
-    if (balance != 0) continue;
-
-    int prec = operator_precedence(tokens[i].type);
-    if (prec >= 0 && prec <= min_prec) {
-      min_prec = prec;
-      op = i;
-    }
-  }
-
-  return op;
-}
-
 static word_t eval(int p, int q, bool *success) {
   if (p > q) {
     /* Bad expression */
@@ -249,7 +187,38 @@ static word_t eval(int p, int q, bool *success) {
     return eval(p + 1, q - 1, success);
   }
   else {
-    int op = find_main_op(p, q);
+    int op = -1;
+    int balance = 0;
+    int min_prec = 100;
+
+    for (int i = p; i <= q; i++) {
+      if (tokens[i].type == '(') {
+        balance++;
+      }
+      else if (tokens[i].type == ')') {
+        balance--;
+      }
+      else if (balance == 0) {
+        int prec = -1;
+        switch (tokens[i].type) {
+          case TK_OR: prec = 0; break;
+          case TK_AND: prec = 1; break;
+          case '|': prec = 2; break;
+          case '^': prec = 3; break;
+          case '&': prec = 4; break;
+          case TK_EQ: case TK_NEQ: prec = 5; break;
+          case '<': case '>': case TK_LE: case TK_GE: prec = 6; break;
+          case TK_SHL: case TK_SHR: prec = 7; break;
+          case '+': case '-': prec = 8; break;
+          case '*': case '/': case '%': prec = 9; break;
+          default: break;
+        }
+        if (prec >= 0 && prec <= min_prec) {
+          min_prec = prec;
+          op = i;
+        }
+      }
+    }
 
     if (op == -1) {
       word_t val = eval(p + 1, q, success);
@@ -268,16 +237,15 @@ static word_t eval(int p, int q, bool *success) {
 
     word_t val1 = eval(p, op - 1, success);
     if (!*success) return 0;
-    
-    // Short-circuit evaluation for logical operators
+
     if (tokens[op].type == TK_OR) {
-      if (val1) return 1;  // If left operand is true, don't evaluate right
+      if (val1) return 1;
       word_t val2 = eval(op + 1, q, success);
       if (!*success) return 0;
       return val1 || val2;
     }
     if (tokens[op].type == TK_AND) {
-      if (!val1) return 0;  // If left operand is false, don't evaluate right
+      if (!val1) return 0;
       word_t val2 = eval(op + 1, q, success);
       if (!*success) return 0;
       return val1 && val2;
@@ -326,7 +294,19 @@ word_t expr(char *e, bool *success) {
     return 0;
   }
 
-  mark_unary_ops();
+  for (int i = 0; i < nr_token; i++) {
+    if (tokens[i].type == '-' || tokens[i].type == '*') {
+      bool unary = i == 0;
+      if (!unary) {
+        int prev_type = tokens[i - 1].type;
+        unary = prev_type != TK_DEC && prev_type != TK_HEX && prev_type != TK_REG && prev_type != ')';
+      }
+      if (unary) {
+        tokens[i].type = tokens[i].type == '-' ? TK_NEG : TK_DEREF;
+      }
+    }
+  }
+
   *success = true;
   return eval(0, nr_token - 1, success);
 }
