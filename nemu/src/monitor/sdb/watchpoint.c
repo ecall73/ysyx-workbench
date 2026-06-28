@@ -57,25 +57,6 @@ static WP* new_wp() {
   return wp;
 }
 
-static void free_wp(WP *wp) {
-  assert(wp != NULL);
-
-  if (head == wp) {
-    head = wp->next;
-  } else {
-    WP *prev = head;
-    while (prev != NULL && prev->next != wp) {
-      prev = prev->next;
-    }
-    if (prev != NULL) {
-      prev->next = wp->next;
-    }
-  }
-
-  wp->next = free_;
-  free_ = wp;
-}
-
 int wp_new(char *e) {
   bool success;
   word_t val = expr(e, &success);
@@ -90,13 +71,21 @@ int wp_new(char *e) {
   return wp->NO;
 }
 
-bool wp_free(int no) {
+bool free_wp(int no) {
+  WP *prev = NULL;
   WP *wp = head;
   while (wp != NULL) {
     if (wp->NO == no) {
-      free_wp(wp);
+      if (prev == NULL) {
+        head = wp->next;
+      } else {
+        prev->next = wp->next;
+      }
+      wp->next = free_;
+      free_ = wp;
       return true;
     }
+    prev = wp;
     wp = wp->next;
   }
   return false;
@@ -122,15 +111,16 @@ bool wp_check() {
   while (wp != NULL) {
     bool success;
     word_t new_val = expr(wp->expr, &success);
-    if (!success) {
+    if (success) {
+      if (new_val != wp->old_val) {
+        printf("Watchpoint %d: %s\n", wp->NO, wp->expr);
+        printf("Old value = [HEX] " FMT_WORD "\t[DEC] %u\n", wp->old_val, wp->old_val);
+        printf("New value = [HEX] " FMT_WORD "\t[DEC] %u\n", new_val, new_val);
+        wp->old_val = new_val;
+        trigger = true;
+      }
+    } else {
       printf("Error evaluating watchpoint %d: %s\n", wp->NO, wp->expr);
-      trigger = true;
-    } else if (new_val != wp->old_val) {
-      printf("Watchpoint %d: %s\n", wp->NO, wp->expr);
-      printf("Old value = " FMT_WORD "\n", wp->old_val);
-      printf("New value = " FMT_WORD "\n", new_val);
-      wp->old_val = new_val;
-      trigger = true;
     }
     wp = wp->next;
   }

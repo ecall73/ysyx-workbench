@@ -141,7 +141,7 @@ static int cmd_d(char *args) {
     return 0;
   }
   int no = strtol(args, NULL, 0);
-  if (wp_free(no)) {
+  if (free_wp(no)) {
     printf("Watchpoint %d deleted\n", no);
   } else {
     printf("Watchpoint %d not found\n", no);
