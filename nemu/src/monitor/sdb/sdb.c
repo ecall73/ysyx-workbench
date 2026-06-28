@@ -81,19 +81,13 @@ static int cmd_info(char *args) {
 }
 
 static int cmd_x(char *args) {
-  int num = 0;
-  if (args == NULL) {
-    printf("Usage: x N EXPR\n");
+  char *n_str = args == NULL ? NULL : strtok(args, " ");
+  char *expr_str = n_str == NULL ? NULL : strtok(NULL, "");
+  if (expr_str == NULL) {
+    printf("Usage: x <N> <EXPR>\n");
     return 0;
   }
-
-  char *n_str = strtok(args, " ");
-  char *expr_str = strtok(NULL, "");
-  if (n_str == NULL || expr_str == NULL) {
-    printf("Usage: x N EXPR\n");
-    return 0;
-  }
-  num = strtol(n_str, NULL, 0);
+  int num = strtol(n_str, NULL, 0);
 
   bool success = false;
   vaddr_t addr = expr(expr_str, &success);
@@ -103,9 +97,7 @@ static int cmd_x(char *args) {
   }
 
   for (int i = 0; i < num; i ++) {
-    vaddr_t cur = addr + i * 4;
-    printf(ANSI_FG_GREEN FMT_WORD ": " ANSI_FG_BLUE FMT_WORD "\n" ANSI_NONE,
-        cur, vaddr_read(cur, 4));
+    printf(ANSI_FG_GREEN FMT_WORD ": " ANSI_FG_BLUE FMT_WORD "\n" ANSI_NONE, addr + i * 4, vaddr_read(addr + i * 4, 4));
   }
   return 0;
 }
@@ -164,7 +156,7 @@ static struct {
   { "q", "Exit NEMU", cmd_q },
   { "si", "Pause after executing [N] instructions", cmd_si },
   { "info", "r: Print register status, w: Print watchpoint information", cmd_info },
-  { "x", "Scan <N> words starting from <addr>", cmd_x },
+  { "x", "Scan <N> words starting from <EXPR>", cmd_x },
   { "p", "Find the value of <EXPR>", cmd_p },
   { "w", "Set watchpoint <EXPR>", cmd_w },
   { "d", "Delete watchpoint <NO>", cmd_d },
