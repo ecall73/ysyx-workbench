@@ -9,6 +9,7 @@
 typedef uint32_t word_t;
 
 #define Log(format, ...) 
+#define Assert(cond, format, ...) do { if (!(cond)) exit(1); } while (0)
 #define panic(format, ...) exit(1)
 
 #define ARRLEN(arr) (int)(sizeof(arr) / sizeof(arr[0]))

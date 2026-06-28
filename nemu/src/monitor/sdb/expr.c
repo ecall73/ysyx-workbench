@@ -93,8 +93,8 @@ static Token tokens[MAX_TOKENS] __attribute__((used)) = {};
 static int nr_token __attribute__((used))  = 0;
 
 static void add_token(int type, char *start, int len) {
-  assert(nr_token < MAX_TOKENS);
-  assert(len < TOKEN_STR_SIZE);
+  Assert(nr_token < MAX_TOKENS, "Too many tokens");
+  Assert(len < TOKEN_STR_SIZE, "Token too long: %.*s", len, start);
 
   tokens[nr_token].type = type;
   strncpy(tokens[nr_token].str, start, len);
