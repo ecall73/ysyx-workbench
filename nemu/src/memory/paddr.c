@@ -70,21 +70,7 @@ void init_mem() {
   current_backend->log_ranges();
 }
 
-#ifdef CONFIG_MTRACE
-static inline void mtrace_log_read(paddr_t addr, int len, word_t data) {
-  if ((MTRACE_COND)) {
-    mtrace_write("R " FMT_PADDR " len=%d data=" FMT_WORD "\n", addr, len, data);
-  }
-}
-
-static inline void mtrace_log_write(paddr_t addr, int len, word_t data) {
-  if ((MTRACE_COND)) {
-    mtrace_write("W " FMT_PADDR " len=%d data=" FMT_WORD "\n", addr, len, data);
-  }
-}
-#endif
-
-static word_t paddr_read_raw(paddr_t addr, int len) {
+word_t paddr_read(paddr_t addr, int len) {
   word_t data = 0;
   if (likely(current_backend->read(addr, len, &data))) {
     return data;
@@ -93,19 +79,8 @@ static word_t paddr_read_raw(paddr_t addr, int len) {
   return 0;
 }
 
-word_t paddr_ifetch(paddr_t addr, int len) {
-  return paddr_read_raw(addr, len);
-}
-
-word_t paddr_read(paddr_t addr, int len) {
-  word_t data = paddr_read_raw(addr, len);
-  IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
-  return data;
-}
-
 void paddr_write(paddr_t addr, int len, word_t data) {
   if (likely(current_backend->write(addr, len, data))) {
-    IFDEF(CONFIG_MTRACE, mtrace_log_write(addr, len, data));
     return;
   }
   out_of_bound(addr);
