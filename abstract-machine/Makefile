@@ -58,10 +58,7 @@ ARCHIVE   = $(WORK_DIR)/build/$(NAME)-$(ARCH).a
 ### Collect the files to be linked: object files (`.o`) and libraries (`.a`)
 OBJS      = $(addprefix $(DST_DIR)/, $(addsuffix .o, $(basename $(SRCS))))
 LIBS     := $(sort $(LIBS) am klib) # lazy evaluation ("=") causes infinite recursions
-ifeq ($(KLIB_IMPL),picolibc)
-KLIB_EXTERNAL_LIBC := 1
-endif
-ifeq ($(KLIB_IMPL),picolibc)
+ifeq ($(PICOLIBC),1)
 KLIB_PICOLIBC_HOME ?= /usr/lib/picolibc/riscv64-unknown-elf
 KLIB_LIBC ?= $(KLIB_PICOLIBC_HOME)/lib/$(KLIB_PICOLIBC_MULTILIB)/libc.a
 KLIB_LIBGCC ?= /usr/lib/gcc/riscv64-unknown-elf/10.2.0/$(KLIB_PICOLIBC_MULTILIB)/libgcc.a
@@ -92,7 +89,7 @@ CFLAGS   += -O2 -MMD -Wall -Werror $(INCFLAGS) \
             -DARCH_H=\"$(ARCH_H)\" \
             -fno-asynchronous-unwind-tables -fno-builtin -fno-stack-protector \
             -Wno-main -U_FORTIFY_SOURCE -fvisibility=hidden
-ifeq ($(KLIB_IMPL),picolibc)
+ifeq ($(PICOLIBC),1)
 CFLAGS   += -D__KLIB_USE_PICOLIBC__ -isystem $(KLIB_PICOLIBC_HOME)/include
 endif
 CXXFLAGS +=  $(CFLAGS) -ffreestanding -fno-rtti -fno-exceptions
@@ -151,10 +148,10 @@ $(IMAGE).elf: $(LINKAGE) $(LDSCRIPTS)
 ifneq ($(filter $(ARCH),native),)
 	@$(CXX) -o $@ -Wl,--whole-archive $(LINKAGE) -Wl,-no-whole-archive $(LDFLAGS_CXX)
 else
-ifeq ($(KLIB_EXTERNAL_LIBC),1)
-	@test -n "$(KLIB_PICOLIBC_MULTILIB)" || { echo "Unsupported ARCH=$(ARCH) for KLIB_IMPL=$(KLIB_IMPL)"; exit 1; }
-	@test -f "$(KLIB_LIBC)" || { echo "Missing libc for KLIB_IMPL=$(KLIB_IMPL): $(KLIB_LIBC)"; exit 1; }
-	@test -f "$(KLIB_LIBGCC)" || { echo "Missing libgcc for KLIB_IMPL=$(KLIB_IMPL): $(KLIB_LIBGCC)"; exit 1; }
+ifeq ($(PICOLIBC),1)
+	@test -n "$(KLIB_PICOLIBC_MULTILIB)" || { echo "Unsupported ARCH=$(ARCH) for PICOLIBC=1"; exit 1; }
+	@test -f "$(KLIB_LIBC)" || { echo "Missing libc for PICOLIBC=1: $(KLIB_LIBC)"; exit 1; }
+	@test -f "$(KLIB_LIBGCC)" || { echo "Missing libgcc for PICOLIBC=1: $(KLIB_LIBGCC)"; exit 1; }
 	@$(LD) $(LDFLAGS) -o $@ --start-group $(LINKAGE) $(KLIB_LIBC) $(KLIB_LIBGCC) --end-group
 else
 	@$(LD) $(LDFLAGS) -o $@ --start-group $(LINKAGE) --end-group
