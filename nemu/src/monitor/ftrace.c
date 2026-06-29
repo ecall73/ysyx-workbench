@@ -141,7 +141,7 @@ void ftrace_call(vaddr_t pc, vaddr_t target) {
   if (!ftrace_ready) return;
 
   const char *name = lookup_func(target);
-  log_write(FMT_WORD ": %*scall [%s@" FMT_WORD "]\n",
+  ftrace_write(FMT_WORD ": %*scall [%s@" FMT_WORD "]\n",
       pc, ftrace_depth * 2, "", name, target);
   ftrace_depth ++;
 }
@@ -151,7 +151,7 @@ void ftrace_ret(vaddr_t pc) {
 
   if (ftrace_depth > 0) ftrace_depth --;
   const char *name = lookup_func(pc);
-  log_write(FMT_WORD ": %*sret  [%s]\n", pc, ftrace_depth * 2, "", name);
+  ftrace_write(FMT_WORD ": %*sret  [%s]\n", pc, ftrace_depth * 2, "", name);
 }
 
 #else

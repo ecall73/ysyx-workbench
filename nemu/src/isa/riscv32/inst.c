@@ -95,7 +95,7 @@ static inline uint32_t csr_addr(const Decode *s) {
 
 #if CONFIG_ETRACE
 static inline void etrace_log_mret(vaddr_t target) {
-  log_write("etrace: mret -> " FMT_WORD " mstatus=" FMT_WORD "\n", target, cpu.mstatus);
+  etrace_write("etrace: mret -> " FMT_WORD " mstatus=" FMT_WORD "\n", target, cpu.mstatus);
 }
 #endif
 

@@ -14,11 +14,14 @@
 ***************************************************************************************/
 
 #include <common.h>
+#include <stdarg.h>
 
 extern uint64_t g_nr_guest_inst;
 
 #ifndef CONFIG_TARGET_AM
 FILE *log_fp = NULL;
+static FILE *ftrace_fp = NULL;
+static FILE *etrace_fp = NULL;
 
 void init_log(const char *log_file) {
   log_fp = stdout;
@@ -33,5 +36,44 @@ void init_log(const char *log_file) {
 bool log_enable() {
   return MUXDEF(CONFIG_TRACE, (g_nr_guest_inst >= CONFIG_TRACE_START) &&
          (g_nr_guest_inst <= CONFIG_TRACE_END), false);
+}
+
+static FILE *open_trace_log(const char *name, const char *log_file) {
+  if (log_file == NULL) return NULL;
+
+  FILE *fp = fopen(log_file, "w");
+  Assert(fp, "Can not open '%s'", log_file);
+  Log("%s trace is written to %s", name, log_file);
+  return fp;
+}
+
+void init_ftrace_log(const char *log_file) {
+  ftrace_fp = open_trace_log("ftrace", log_file);
+}
+
+void init_etrace_log(const char *log_file) {
+  etrace_fp = open_trace_log("etrace", log_file);
+}
+
+static void trace_vwrite(FILE *trace_fp, const char *fmt, va_list ap) {
+  FILE *fp = trace_fp != NULL ? trace_fp : log_fp;
+  if (log_enable() && fp != NULL) {
+    vfprintf(fp, fmt, ap);
+    fflush(fp);
+  }
+}
+
+void ftrace_write(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  trace_vwrite(ftrace_fp, fmt, ap);
+  va_end(ap);
+}
+
+void etrace_write(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  trace_vwrite(etrace_fp, fmt, ap);
+  va_end(ap);
 }
 #endif
