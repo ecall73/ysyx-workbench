@@ -7,7 +7,6 @@
 #include <stdint.h>
 
 #if !defined(__ISA_NATIVE__) || defined(__NATIVE_USE_KLIB__)
-
 int vfprintf(FILE *stream, const char *fmt, va_list ap) {
   (void)stream;
   int count = 0;
@@ -109,13 +108,11 @@ int printf(const char *fmt, ...) {
   return ret;
 }
 
-int vsprintf(char *restrict s, const char *restrict fmt, va_list ap)
-{
-	return vsnprintf(s, INT_MAX, fmt, ap);
+int vsprintf(char *restrict s, const char *restrict fmt, va_list ap) {
+  return vsnprintf(s, INT_MAX, fmt, ap);
 }
 
-int sprintf(char *restrict s, const char *restrict fmt, ...)
-{
+int sprintf(char *restrict s, const char *restrict fmt, ...) {
 	int ret;
 	va_list ap;
 	va_start(ap, fmt);
@@ -124,8 +121,7 @@ int sprintf(char *restrict s, const char *restrict fmt, ...)
 	return ret;
 }
 
-int snprintf(char *restrict s, size_t n, const char *restrict fmt, ...)
-{
+int snprintf(char *restrict s, size_t n, const char *restrict fmt, ...) {
 	int ret;
 	va_list ap;
 	va_start(ap, fmt);
