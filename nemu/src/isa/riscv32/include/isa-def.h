@@ -21,7 +21,8 @@
 typedef struct {
   word_t gpr[MUXDEF(CONFIG_RVE, 16, 32)];
   vaddr_t pc;
-  // Must match nemu/tools/spike-diff/difftest.cc and npc/csrc/cpu/difftest.cpp.
+  // DiffTest layout order: must match nemu/tools/spike-diff/difftest.cc
+  // and npc/csrc/cpu/difftest.cpp.
   word_t mstatus, mtvec, mepc, mcause;
 } MUXDEF(CONFIG_RV64, riscv64_CPU_state, riscv32_CPU_state);
 
