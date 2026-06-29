@@ -63,6 +63,27 @@ KLIB_EXTERNAL_LIBC := 1
 else ifeq ($(KLIB_IMPL),picolibc)
 KLIB_EXTERNAL_LIBC := 1
 endif
+KLIB_MULTILIB_DIR_riscv32-nemu := rv32im/ilp32
+KLIB_MULTILIB_DIR_riscv32e-nemu := rv32em/ilp32e
+KLIB_MULTILIB_DIR_riscv32e-npc := rv32e/ilp32e
+KLIB_MULTILIB_DIR_riscv32e-ysyxsoc := rv32e/ilp32e
+KLIB_MULTILIB_DIR_riscv32e-ysyxsoc-psrammem := rv32e/ilp32e
+KLIB_MULTILIB_DIR := $(KLIB_MULTILIB_DIR_$(ARCH))
+KLIB_LIBC_FLAGS_riscv32-nemu := -march=rv32im -mabi=ilp32
+KLIB_LIBC_FLAGS_riscv32e-nemu := -march=rv32em -mabi=ilp32e
+KLIB_LIBC_FLAGS_riscv32e-npc := -march=rv32e -mabi=ilp32e
+KLIB_LIBC_FLAGS_riscv32e-ysyxsoc := -march=rv32e -mabi=ilp32e
+KLIB_LIBC_FLAGS_riscv32e-ysyxsoc-psrammem := -march=rv32e -mabi=ilp32e
+KLIB_LIBC_FLAGS := $(KLIB_LIBC_FLAGS_$(ARCH))
+ifeq ($(KLIB_IMPL),newlib)
+KLIB_NEWLIB_CC ?= riscv64-unknown-elf-gcc
+KLIB_LIBC ?= $(shell $(KLIB_NEWLIB_CC) $(KLIB_LIBC_FLAGS) -print-file-name=libc.a)
+KLIB_LIBGCC ?= $(shell $(KLIB_NEWLIB_CC) $(KLIB_LIBC_FLAGS) -print-libgcc-file-name)
+else ifeq ($(KLIB_IMPL),picolibc)
+KLIB_PICOLIBC_HOME ?= /usr/lib/picolibc/riscv64-unknown-elf
+KLIB_LIBC ?= $(KLIB_PICOLIBC_HOME)/lib/$(KLIB_MULTILIB_DIR)/libc.a
+KLIB_LIBGCC ?= /usr/lib/gcc/riscv64-unknown-elf/10.2.0/$(KLIB_MULTILIB_DIR)/libgcc.a
+endif
 LINKAGE   = $(OBJS)  # library archives are added by LIB_TEMPLATE below
 
 ## 3. General Compilation Flags
@@ -92,7 +113,7 @@ CFLAGS   += -O2 -MMD -Wall -Werror $(INCFLAGS) \
 ifeq ($(KLIB_IMPL),newlib)
 CFLAGS   += -D__KLIB_USE_NEWLIB__
 else ifeq ($(KLIB_IMPL),picolibc)
-CFLAGS   += -D__KLIB_USE_PICOLIBC__
+CFLAGS   += -D__KLIB_USE_PICOLIBC__ -isystem $(KLIB_PICOLIBC_HOME)/include
 endif
 CXXFLAGS +=  $(CFLAGS) -ffreestanding -fno-rtti -fno-exceptions
 ASFLAGS  += -MMD $(INCFLAGS)
@@ -150,7 +171,10 @@ ifneq ($(filter $(ARCH),native),)
 	@$(CXX) -o $@ -Wl,--whole-archive $(LINKAGE) -Wl,-no-whole-archive $(LDFLAGS_CXX)
 else
 ifeq ($(KLIB_EXTERNAL_LIBC),1)
-	@$(CC) $(CFLAGS) -nostartfiles -Wl,-T,$(firstword $(LDSCRIPTS)) -Wl,--start-group $(LINKAGE) -lc -lgcc -Wl,--end-group -Wl,-o,$@ $(LDFLAGS)
+	@test -n "$(KLIB_MULTILIB_DIR)" || { echo "Unsupported ARCH=$(ARCH) for KLIB_IMPL=$(KLIB_IMPL)"; exit 1; }
+	@test -f "$(KLIB_LIBC)" || { echo "Missing libc for KLIB_IMPL=$(KLIB_IMPL): $(KLIB_LIBC)"; exit 1; }
+	@test -f "$(KLIB_LIBGCC)" || { echo "Missing libgcc for KLIB_IMPL=$(KLIB_IMPL): $(KLIB_LIBGCC)"; exit 1; }
+	@$(LD) $(LDFLAGS) -o $@ --start-group $(LINKAGE) $(KLIB_LIBC) $(KLIB_LIBGCC) --end-group
 else
 	@$(LD) $(LDFLAGS) -o $@ --start-group $(LINKAGE) --end-group
 endif
