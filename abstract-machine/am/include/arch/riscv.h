@@ -8,7 +8,8 @@
 #endif
 
 struct Context {
-  uintptr_t gpr[NR_REGS], mstatus, mepc, mcause;
+  // Must match the trap frame layout in am/src/riscv/*/trap.S.
+  uintptr_t gpr[NR_REGS], mcause, mstatus, mepc;
   void *pdir;
 };
 
