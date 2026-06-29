@@ -1,25 +1,18 @@
 #include <am.h>
 #include <klib.h>
 #include <stdarg.h>
-#include <stdio.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #if !defined(__ISA_NATIVE__) || defined(__NATIVE_USE_KLIB__)
-int vfprintf(FILE *stream, const char *fmt, va_list ap) {
-  (void)stream;
-  char buf[1024];
-  int ret = vsnprintf(buf, sizeof(buf), fmt, ap);
-  for (char *p = buf; *p; p++) putch(*p);
-  return ret;
-}
-
 int printf(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  int ret = vfprintf(NULL, fmt, ap);
+  char buf[1024];
+  int ret = vsnprintf(buf, sizeof(buf), fmt, ap);
   va_end(ap);
+  for (char *p = buf; *p; p++) putch(*p);
   return ret;
 }
 
