@@ -23,7 +23,7 @@
 #define Mw vaddr_write
 
 enum {
-  TYPE_I, TYPE_U, TYPE_S, TYPE_J, TYPE_B, TYPE_R,
+  TYPE_I, TYPE_U, TYPE_S, TYPE_J, TYPE_B, TYPE_R, TYPE_CSR,
   TYPE_N, // none
 };
 
@@ -47,6 +47,7 @@ static void decode_operand(Decode *s, int *rd, word_t *src1, word_t *src2, word_
     case TYPE_J:                   immJ(); break;
     case TYPE_B: src1R(); src2R(); immB(); break;
     case TYPE_R: src1R(); src2R();         break;
+    case TYPE_CSR: src1R(); *src2 = rs1; *imm = BITS(i, 31, 20); break;
     case TYPE_N: break;
     default: panic("unsupported type = %d", type);
   }
@@ -87,10 +88,6 @@ static inline void csr_write(uint32_t addr, word_t data) {
     case CSR_MCAUSE:  cpu.mcause  = data; break;
     default: break;
   }
-}
-
-static inline uint32_t csr_addr(const Decode *s) {
-  return BITS(s->isa.inst, 31, 20);
 }
 
 #if CONFIG_ETRACE
@@ -176,50 +173,47 @@ static int decode_exec(Decode *s) {
   INSTPAT("0000000 ????? ????? 110 ????? 01100 11", or     , R, R(rd) = src1 | src2);
   INSTPAT("0000000 ????? ????? 111 ????? 01100 11", and    , R, R(rd) = src1 & src2);
 
-  INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , N,
-      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
-      uint32_t csr = csr_addr(s);
+  INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , CSR,
+      uint32_t csr = imm;
       word_t old = csr_read(csr);
-      csr_write(csr, R(rs1));
+      csr_write(csr, src1);
       R(rd) = old;
   );
-  INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , N,
-      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
-      uint32_t csr = csr_addr(s);
+  INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , CSR,
+      uint32_t csr = imm;
       word_t old = csr_read(csr);
-      if (rs1 != 0) {
-        csr_write(csr, old | R(rs1));
+      if (src2 != 0) {
+        csr_write(csr, old | src1);
       }
       R(rd) = old;
   );
-  INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc  , N,
-      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
-      uint32_t csr = csr_addr(s);
+  INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc  , CSR,
+      uint32_t csr = imm;
       word_t old = csr_read(csr);
-      if (rs1 != 0) {
-        csr_write(csr, old & ~R(rs1));
+      if (src2 != 0) {
+        csr_write(csr, old & ~src1);
       }
       R(rd) = old;
   );
-  INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , N,
-      uint32_t csr = csr_addr(s);
-      word_t zimm = BITS(s->isa.inst, 19, 15);
+  INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , CSR,
+      uint32_t csr = imm;
+      word_t zimm = src2;
       word_t old = csr_read(csr);
       csr_write(csr, zimm);
       R(rd) = old;
   );
-  INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , N,
-      uint32_t csr = csr_addr(s);
-      word_t zimm = BITS(s->isa.inst, 19, 15);
+  INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , CSR,
+      uint32_t csr = imm;
+      word_t zimm = src2;
       word_t old = csr_read(csr);
       if (zimm != 0) {
         csr_write(csr, old | zimm);
       }
       R(rd) = old;
   );
-  INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci , N,
-      uint32_t csr = csr_addr(s);
-      word_t zimm = BITS(s->isa.inst, 19, 15);
+  INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci , CSR,
+      uint32_t csr = imm;
+      word_t zimm = src2;
       word_t old = csr_read(csr);
       if (zimm != 0) {
         csr_write(csr, old & ~zimm);
