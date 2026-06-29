@@ -12,10 +12,11 @@ typedef struct {
   char *buf;
   size_t cap;
   size_t len;
+  bool console;
 } Output;
 
 static void out_char(Output *out, char ch) {
-  if (out->buf == NULL) {
+  if (out->console) {
     putch(ch);
   } else if (out->len + 1 < out->cap) {
     out->buf[out->len] = ch;
@@ -187,7 +188,7 @@ static int format(Output *out, const char *fmt, va_list ap) {
 
 int vfprintf(FILE *stream, const char *fmt, va_list ap) {
   (void)stream;
-  Output out = { .buf = NULL, .cap = 0, .len = 0 };
+  Output out = { .buf = NULL, .cap = 0, .len = 0, .console = true };
   return format(&out, fmt, ap);
 }
 
@@ -200,7 +201,7 @@ int printf(const char *fmt, ...) {
 }
 
 int vsnprintf(char *s, size_t n, const char *fmt, va_list ap) {
-  Output out = { .buf = s, .cap = n, .len = 0 };
+  Output out = { .buf = s, .cap = n, .len = 0, .console = false };
   return format(&out, fmt, ap);
 }
 
