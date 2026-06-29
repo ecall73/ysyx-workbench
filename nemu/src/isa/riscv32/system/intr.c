@@ -17,7 +17,7 @@
 
 #if CONFIG_ETRACE
 static inline void etrace_log_raise(word_t no, vaddr_t epc, vaddr_t target) {
-  etrace_write("etrace: raise NO=%u epc=" FMT_WORD " -> mtvec=" FMT_WORD
+  etrace_write("raise NO=%u epc=" FMT_WORD " -> mtvec=" FMT_WORD
             " mstatus=" FMT_WORD "\n",
             (uint32_t)no, epc, target, cpu.mstatus);
 }

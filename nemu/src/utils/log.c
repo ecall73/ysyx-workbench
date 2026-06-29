@@ -65,18 +65,20 @@ void init_dtrace_log(const char *log_file) {
   dtrace_fp = open_trace_log("dtrace", log_file);
 }
 
-static void trace_vwrite(FILE *trace_fp, const char *fmt, va_list ap) {
+static void trace_vwrite(FILE *trace_fp, const char *prefix, const char *fmt, va_list ap) {
   if (!log_enable()) return;
 
   if (log_fp != NULL) {
     va_list log_ap;
     va_copy(log_ap, ap);
+    fputs(prefix, log_fp);
     vfprintf(log_fp, fmt, log_ap);
     fflush(log_fp);
     va_end(log_ap);
   }
 
   if (trace_fp != NULL) {
+    fputs(prefix, trace_fp);
     vfprintf(trace_fp, fmt, ap);
     fflush(trace_fp);
   }
@@ -85,28 +87,28 @@ static void trace_vwrite(FILE *trace_fp, const char *fmt, va_list ap) {
 void ftrace_write(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  trace_vwrite(ftrace_fp, fmt, ap);
+  trace_vwrite(ftrace_fp, "[FTRACE] ", fmt, ap);
   va_end(ap);
 }
 
 void etrace_write(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  trace_vwrite(etrace_fp, fmt, ap);
+  trace_vwrite(etrace_fp, "[ETRACE] ", fmt, ap);
   va_end(ap);
 }
 
 void mtrace_write(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  trace_vwrite(mtrace_fp, fmt, ap);
+  trace_vwrite(mtrace_fp, "[MTRACE] ", fmt, ap);
   va_end(ap);
 }
 
 void dtrace_write(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  trace_vwrite(dtrace_fp, fmt, ap);
+  trace_vwrite(dtrace_fp, "[DTRACE] ", fmt, ap);
   va_end(ap);
 }
 #endif

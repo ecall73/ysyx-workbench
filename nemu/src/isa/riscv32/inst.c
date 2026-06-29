@@ -234,7 +234,7 @@ static int decode_exec(Decode *s) {
       mstatus &= ~MSTATUS_MPP;                                        // MPP <- U(0)
       cpu.mstatus = mstatus;
       s->dnpc = cpu.mepc;
-      IFONE(CONFIG_ETRACE, etrace_write("etrace: mret -> " FMT_WORD " mstatus=" FMT_WORD "\n", s->dnpc, cpu.mstatus));
+      IFONE(CONFIG_ETRACE, etrace_write("mret -> " FMT_WORD " mstatus=" FMT_WORD "\n", s->dnpc, cpu.mstatus));
   );
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
 
