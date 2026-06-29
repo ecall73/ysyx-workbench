@@ -3,22 +3,33 @@
 #if !defined(__ISA_NATIVE__) || defined(__NATIVE_USE_KLIB__)
 
 size_t strlen(const char *s) {
-  const char *a = s;
-  for (; *s; s++);
-  return s - a;
+  size_t n = 0;
+  while (s[n] != '\0') {
+    n++;
+  }
+  return n;
 }
 
 char *strcpy(char *dst, const char *src) {
-  char *tmp = dst;
-  for (; (*dst = *src); src++, dst++);
-  return tmp;
+  char *ret = dst;
+  while ((*dst = *src) != '\0') {
+    dst++;
+    src++;
+  }
+  return ret;
 }
 
 char *strncpy(char *dst, const char *src, size_t n) {
-  char *tmp = dst;
-  for (; n && (*dst = *src); n--, src++, dst++);
-  while (n--) *dst++ = '\0';
-  return tmp;
+  char *ret = dst;
+  while (n > 0 && *src != '\0') {
+    *dst++ = *src++;
+    n--;
+  }
+  while (n > 0) {
+    *dst++ = '\0';
+    n--;
+  }
+  return ret;
 }
 
 char *strcat(char *dst, const char *src) {
@@ -45,27 +56,41 @@ int strncmp(const char *s1, const char *s2, size_t n) {
 
 void *memset(void *s, int c, size_t n) {
   unsigned char *p = s;
-  while (n--) *p++ = (unsigned char)c;
+  while (n > 0) {
+    *p++ = (unsigned char)c;
+    n--;
+  }
   return s;
 }
 
 void *memcpy(void *dst, const void *src, size_t n) {
   unsigned char *d = dst;
   const unsigned char *s = src;
-  while (n--) *d++ = *s++;
+  while (n > 0) {
+    *d++ = *s++;
+    n--;
+  }
   return dst;
 }
 
 void *memmove(void *dst, const void *src, size_t n) {
   unsigned char *d = dst;
   const unsigned char *s = src;
+
   if (d == s) return dst;
+
   if (d < s) {
-    while (n--) *d++ = *s++;
+    while (n > 0) {
+      *d++ = *s++;
+      n--;
+    }
   } else {
     d += n;
     s += n;
-    while (n--) *--d = *--s;
+    while (n > 0) {
+      *--d = *--s;
+      n--;
+    }
   }
   return dst;
 }
