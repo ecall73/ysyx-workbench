@@ -30,7 +30,7 @@ uint64_t g_nr_guest_inst = 0;
 static uint64_t g_timer = 0; // unit: us
 static bool g_print_step = false;
 
-#if defined(CONFIG_ITRACE) || defined(CONFIG_IRINGBUF)
+#ifdef CONFIG_ITRACE
 static void format_inst(const Decode *s, char *buf, size_t size) {
   char *p = buf;
   p += snprintf(p, size, FMT_WORD ":", s->pc);
@@ -58,36 +58,6 @@ static void format_inst(const Decode *s, char *buf, size_t size) {
 }
 #endif
 
-#ifdef CONFIG_IRINGBUF
-typedef struct {
-  bool valid;
-  char text[128];
-} IRingBufSlot;
-
-static IRingBufSlot iringbuf[CONFIG_IRINGBUF_SIZE] = {};
-static int iringbuf_wptr = 0;
-static int iringbuf_count = 0;
-static Decode *cur_exec = NULL;
-
-static void iringbuf_push(const Decode *s) {
-  format_inst(s, iringbuf[iringbuf_wptr].text, sizeof(iringbuf[iringbuf_wptr].text));
-  iringbuf[iringbuf_wptr].valid = true;
-  iringbuf_wptr = (iringbuf_wptr + 1) % CONFIG_IRINGBUF_SIZE;
-  if (iringbuf_count < CONFIG_IRINGBUF_SIZE) iringbuf_count ++;
-}
-
-static void iringbuf_dump(int focus) {
-  if (iringbuf_count == 0) return;
-
-  puts("Instruction ring buffer (oldest -> newest):");
-  for (int i = 0; i < iringbuf_count; i ++) {
-    int idx = (iringbuf_wptr - iringbuf_count + i + CONFIG_IRINGBUF_SIZE) % CONFIG_IRINGBUF_SIZE;
-    if (!iringbuf[idx].valid) continue;
-    printf("%s %s\n", (idx == focus ? "-->" : "   "), iringbuf[idx].text);
-  }
-}
-#endif
-
 void device_update();
 
 static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
@@ -108,19 +78,10 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 static void exec_once(Decode *s, vaddr_t pc) {
   s->pc = pc;
   s->snpc = pc;
-#ifdef CONFIG_IRINGBUF
-  cur_exec = s;
-#endif
   isa_exec_once(s);
-#ifdef CONFIG_IRINGBUF
-  cur_exec = NULL;
-#endif
   cpu.pc = s->dnpc;
 #ifdef CONFIG_ITRACE
   format_inst(s, s->logbuf, sizeof(s->logbuf));
-#endif
-#ifdef CONFIG_IRINGBUF
-  iringbuf_push(s);
 #endif
 }
 
@@ -145,14 +106,6 @@ static void statistic() {
 }
 
 void assert_fail_msg() {
-#ifdef CONFIG_IRINGBUF
-  int focus = -1;
-  if (cur_exec != NULL) {
-    iringbuf_push(cur_exec);
-    focus = (iringbuf_wptr + CONFIG_IRINGBUF_SIZE - 1) % CONFIG_IRINGBUF_SIZE;
-  }
-  iringbuf_dump(focus);
-#endif
   isa_reg_display();
   statistic();
 }

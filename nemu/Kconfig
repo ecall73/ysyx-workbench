@@ -141,16 +141,6 @@ config TRACE_END
   int "When tracing is disabled (unit: number of instructions)"
   default 10000
 
-config IRINGBUF
-  depends on TRACE
-  bool "Enable instruction ring buffer (iringbuf)"
-  default n
-
-config IRINGBUF_SIZE
-  depends on IRINGBUF
-  int "Instruction ring buffer size"
-  default 16
-
 config ITRACE
   depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
   bool "Enable instruction tracer"
