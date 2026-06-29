@@ -9,11 +9,6 @@
 
 #if !defined(__ISA_NATIVE__) || defined(__NATIVE_USE_KLIB__)
 
-// PA2 程序，运行时环境与AM 实现sprintf
-// 考虑到 musl libc 的实现比较复杂，就把当年高程写的版本移植过来
-// 不过除了 vsnprintf 之外的函数还是沿用 musl libc 的方式，复用 vsnprintf
-
-
 // 直接用putch输出字符，兼容AM环境
 static int fputc_simple(char ch) {
   putch(ch);
