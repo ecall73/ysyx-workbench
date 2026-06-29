@@ -56,7 +56,9 @@ word_t map_read(paddr_t addr, int len, IOMap *map) {
   assert(len >= 1 && len <= 8);
   check_bound(map, addr);
   paddr_t offset = addr - map->low;
-  IFDEF(CONFIG_DTRACE, dtrace_write("device=%s type=read addr=0x%lx len=%d\n", map->name, (uint64_t)addr, len));
+#ifdef CONFIG_DTRACE
+  dtrace_write("device=%s type=read addr=0x%lx len=%d\n", map->name, (uint64_t)addr, len);
+#endif
   invoke_callback(map->callback, offset, len, false); // prepare data to read
   word_t ret = host_read(map->space + offset, len);
   return ret;
@@ -66,7 +68,9 @@ void map_write(paddr_t addr, int len, word_t data, IOMap *map) {
   assert(len >= 1 && len <= 8);
   check_bound(map, addr);
   paddr_t offset = addr - map->low;
-  IFDEF(CONFIG_DTRACE, dtrace_write("device=%s type=write addr=0x%lx len=%d data=0x%lx\n", map->name, (uint64_t)addr, len, (uint64_t)data));
+#ifdef CONFIG_DTRACE
+  dtrace_write("device=%s type=write addr=0x%lx len=%d data=0x%lx\n", map->name, (uint64_t)addr, len, (uint64_t)data);
+#endif
   host_write(map->space + offset, len, data);
   invoke_callback(map->callback, offset, len, true);
 }

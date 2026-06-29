@@ -7,10 +7,10 @@ static bool native_read(paddr_t addr, int len, word_t *data) {
     *data = nemu_host_read_region(nemu_pmem_base(), addr, CONFIG_MBASE, len);
     return true;
   }
-  IFDEF(CONFIG_DEVICE, {
-    *data = mmio_read(addr, len);
-    return true;
-  });
+#ifdef CONFIG_DEVICE
+  *data = mmio_read(addr, len);
+  return true;
+#endif
   return false;
 }
 
@@ -19,10 +19,10 @@ static bool native_write(paddr_t addr, int len, word_t data) {
     nemu_host_write_region(nemu_pmem_base(), addr, CONFIG_MBASE, len, data);
     return true;
   }
-  IFDEF(CONFIG_DEVICE, {
-    mmio_write(addr, len, data);
-    return true;
-  });
+#ifdef CONFIG_DEVICE
+  mmio_write(addr, len, data);
+  return true;
+#endif
   return false;
 }
 

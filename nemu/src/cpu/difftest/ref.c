@@ -46,6 +46,7 @@ __EXPORT void difftest_exec(uint64_t n) {
 }
 
 __EXPORT void difftest_raise_intr(word_t NO) {
+  (void)NO;
   assert(0);
 }
 
@@ -54,6 +55,7 @@ __EXPORT void difftest_enable_ysyxsoc_paddr(void) {
 }
 
 __EXPORT void difftest_init(int port) {
+  (void)port;
   void init_mem();
   init_mem();
   /* Perform ISA dependent initialization. */

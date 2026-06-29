@@ -23,5 +23,6 @@ word_t expr(char *e, bool *success);
 int new_wp(char *e);
 bool free_wp(int NO);
 void wp_display();
+bool wp_check();
 
 #endif

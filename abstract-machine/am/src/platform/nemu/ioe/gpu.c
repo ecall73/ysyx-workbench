@@ -3,19 +3,19 @@
 
 #define SYNC_ADDR (VGACTL_ADDR + 4)
 
-static int w = 0;
-static int h = 0;
+static int screen_w = 0;
+static int screen_h = 0;
 
 void __am_gpu_init() {
   uint32_t wh = inl(VGACTL_ADDR);
-  w = wh >> 16;
-  h = wh & 0xffff;
+  screen_w = wh >> 16;
+  screen_h = wh & 0xffff;
 }
 
 void __am_gpu_config(AM_GPU_CONFIG_T *cfg) {
   *cfg = (AM_GPU_CONFIG_T) {
     .present = true, .has_accel = false,
-    .width = w, .height = h,
+    .width = screen_w, .height = screen_h,
     .vmemsz = 0
   };
 }
@@ -28,7 +28,7 @@ void __am_gpu_fbdraw(AM_GPU_FBDRAW_T *ctl) {
 
     for (int j = 0; j < draw_h; j ++) {
       for (int i = 0; i < draw_w; i ++) {
-        fb[(y + j) * w + (x + i)] = pixels[j * draw_w + i];
+        fb[(y + j) * screen_w + (x + i)] = pixels[j * draw_w + i];
       }
     }
   }

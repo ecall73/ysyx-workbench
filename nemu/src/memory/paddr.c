@@ -50,10 +50,6 @@ void nemu_select_ysyxsoc_paddr_backend(void) {
   current_backend = nemu_ysyxsoc_paddr_backend();
 }
 
-static void out_of_bound(paddr_t addr) {
-  current_backend->out_of_bound(addr);
-}
-
 void init_mem() {
 #if   defined(CONFIG_PMEM_MALLOC)
   pmem = malloc(CONFIG_MSIZE);
@@ -75,7 +71,7 @@ word_t paddr_read(paddr_t addr, int len) {
   if (likely(current_backend->read(addr, len, &data))) {
     return data;
   }
-  out_of_bound(addr);
+  current_backend->out_of_bound(addr);
   return 0;
 }
 
@@ -83,5 +79,5 @@ void paddr_write(paddr_t addr, int len, word_t data) {
   if (likely(current_backend->write(addr, len, data))) {
     return;
   }
-  out_of_bound(addr);
+  current_backend->out_of_bound(addr);
 }
