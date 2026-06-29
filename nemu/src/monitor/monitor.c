@@ -136,7 +136,6 @@ void init_monitor(int argc, char *argv[]) {
 
 #ifdef CONFIG_FTRACE
   init_ftrace_log(ftrace_log_file);
-  init_ftrace(elf_file);
 #endif
 #ifdef CONFIG_ETRACE
   init_etrace_log(etrace_log_file);
@@ -146,6 +145,9 @@ void init_monitor(int argc, char *argv[]) {
 #endif
 #ifdef CONFIG_DTRACE
   init_dtrace_log(dtrace_log_file);
+#endif
+#ifdef CONFIG_FTRACE
+  init_ftrace(elf_file);
 #endif
 
   /* Initialize memory. */
