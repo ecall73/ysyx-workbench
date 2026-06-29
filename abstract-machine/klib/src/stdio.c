@@ -18,10 +18,9 @@ int vfprintf(FILE *stream, const char *fmt, va_list ap) {
 }
 
 int printf(const char *fmt, ...) {
-  int ret;
   va_list ap;
   va_start(ap, fmt);
-  ret = vfprintf(NULL, fmt, ap);
+  int ret = vfprintf(NULL, fmt, ap);
   va_end(ap);
   return ret;
 }
@@ -31,19 +30,17 @@ int vsprintf(char *restrict s, const char *restrict fmt, va_list ap) {
 }
 
 int sprintf(char *restrict s, const char *restrict fmt, ...) {
-	int ret;
 	va_list ap;
 	va_start(ap, fmt);
-	ret = vsprintf(s, fmt, ap);
+	int ret = vsprintf(s, fmt, ap);
 	va_end(ap);
 	return ret;
 }
 
 int snprintf(char *restrict s, size_t n, const char *restrict fmt, ...) {
-	int ret;
 	va_list ap;
 	va_start(ap, fmt);
-	ret = vsnprintf(s, n, fmt, ap);
+	int ret = vsnprintf(s, n, fmt, ap);
 	va_end(ap);
 	return ret;
 }
