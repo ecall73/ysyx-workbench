@@ -55,20 +55,19 @@ static void append_func_symbol(vaddr_t start, uint32_t size, const char *name) {
 }
 
 static const char *lookup_func(vaddr_t addr) {
+  const char *range_match = NULL;
   for (size_t i = 0; i < nr_func_symbols; i ++) {
     if (func_symbols[i].start == addr) {
       return func_symbols[i].name;
     }
-  }
-
-  for (size_t i = 0; i < nr_func_symbols; i ++) {
-    if (func_symbols[i].end > func_symbols[i].start &&
+    if (range_match == NULL &&
+        func_symbols[i].end > func_symbols[i].start &&
         addr >= func_symbols[i].start && addr < func_symbols[i].end) {
-      return func_symbols[i].name;
+      range_match = func_symbols[i].name;
     }
   }
 
-  return "???";
+  return range_match ? range_match : "???";
 }
 
 void init_ftrace(const char *elf_file) {
@@ -142,7 +141,7 @@ void ftrace_call(vaddr_t pc, vaddr_t target) {
   if (!ftrace_ready) return;
 
   const char *name = lookup_func(target);
-  log_write(FMT_WORD ": %*scall [%s@" FMT_WORD "]\n",
+  ftrace_write(FMT_WORD ": %*scall [%s@" FMT_WORD "]\n",
       pc, ftrace_depth * 2, "", name, target);
   ftrace_depth ++;
 }
@@ -152,7 +151,7 @@ void ftrace_ret(vaddr_t pc) {
 
   if (ftrace_depth > 0) ftrace_depth --;
   const char *name = lookup_func(pc);
-  log_write(FMT_WORD ": %*sret  [%s]\n", pc, ftrace_depth * 2, "", name);
+  ftrace_write(FMT_WORD ": %*sret  [%s]\n", pc, ftrace_depth * 2, "", name);
 }
 
 #else

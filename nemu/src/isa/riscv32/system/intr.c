@@ -15,19 +15,13 @@
 
 #include <isa.h>
 
-#if CONFIG_ETRACE
-static inline void etrace_log_raise(word_t no, vaddr_t epc, vaddr_t target) {
-  log_write("etrace: raise NO=%u epc=" FMT_WORD " -> mtvec=" FMT_WORD
-            " mstatus=" FMT_WORD "\n",
-            (uint32_t)no, epc, target, cpu.mstatus);
-}
-#endif
+enum {
+  MSTATUS_MIE  = (1u << 3),
+  MSTATUS_MPIE = (1u << 7),
+  MSTATUS_MPP  = (3u << 11),
+};
 
-word_t isa_raise_intr(word_t NO, vaddr_t epc) {
-  const word_t MSTATUS_MIE  = (1u << 3);
-  const word_t MSTATUS_MPIE = (1u << 7);
-  const word_t MSTATUS_MPP  = (3u << 11);
-
+vaddr_t isa_raise_intr(word_t NO, vaddr_t epc) {
   word_t mstatus = cpu.mstatus;
   word_t mie = (mstatus & MSTATUS_MIE) ? 1 : 0;
   mstatus = (mstatus & ~MSTATUS_MPIE) | (mie ? MSTATUS_MPIE : 0);
@@ -38,7 +32,25 @@ word_t isa_raise_intr(word_t NO, vaddr_t epc) {
   cpu.mepc = epc;
   cpu.mcause = NO;
   vaddr_t target = cpu.mtvec & ~0x3;
-  IFONE(CONFIG_ETRACE, etrace_log_raise(NO, epc, target));
+#ifdef CONFIG_ETRACE
+  etrace_write("raise NO=%u epc=" FMT_WORD " -> mtvec=" FMT_WORD
+      " mstatus=" FMT_WORD "\n", (uint32_t)NO, epc, target, cpu.mstatus);
+#endif
+  return target;
+}
+
+vaddr_t isa_mret() {
+  word_t mstatus = cpu.mstatus;
+  word_t mpie = (mstatus & MSTATUS_MPIE) ? 1 : 0;
+  mstatus = (mstatus & ~MSTATUS_MIE) | (mpie ? MSTATUS_MIE : 0); // MIE <- MPIE
+  mstatus |= MSTATUS_MPIE;                                        // MPIE <- 1
+  mstatus &= ~MSTATUS_MPP;                                        // MPP <- U(0)
+  cpu.mstatus = mstatus;
+
+  vaddr_t target = cpu.mepc;
+#ifdef CONFIG_ETRACE
+  etrace_write("mret -> " FMT_WORD " mstatus=" FMT_WORD "\n", target, cpu.mstatus);
+#endif
   return target;
 }
 

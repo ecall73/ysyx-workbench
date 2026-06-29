@@ -8,6 +8,7 @@
 #endif
 
 struct Context {
+  // Must match abstract-machine/am/src/riscv/{nemu,npc,ysyxsoc}/trap.S.
   uintptr_t gpr[NR_REGS], mcause, mstatus, mepc;
   void *pdir;
 };

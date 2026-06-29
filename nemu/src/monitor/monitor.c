@@ -18,6 +18,10 @@
 
 void init_rand();
 void init_log(const char *log_file);
+void init_ftrace_log(const char *log_file);
+void init_etrace_log(const char *log_file);
+void init_mtrace_log(const char *log_file);
+void init_dtrace_log(const char *log_file);
 void init_mem();
 void init_difftest(char *ref_so_file, long img_size, int port);
 void init_device();
@@ -47,6 +51,10 @@ static char *log_file = NULL;
 static char *diff_so_file = NULL;
 static char *img_file = NULL;
 static char *elf_file = NULL;
+static char *ftrace_log_file = NULL;
+static char *etrace_log_file = NULL;
+static char *mtrace_log_file = NULL;
+static char *dtrace_log_file = NULL;
 static int difftest_port = 1234;
 
 static long load_img() {
@@ -77,15 +85,23 @@ static int parse_args(int argc, char *argv[]) {
     {"log"      , required_argument, NULL, 'l'},
     {"diff"     , required_argument, NULL, 'd'},
     {"elf"      , required_argument, NULL, 'f'},
+    {"ftrace-log", required_argument, NULL, 'F'},
+    {"etrace-log", required_argument, NULL, 'E'},
+    {"mtrace-log", required_argument, NULL, 'M'},
+    {"dtrace-log", required_argument, NULL, 'D'},
     {"port"     , required_argument, NULL, 'p'},
     {"help"     , no_argument      , NULL, 'h'},
     {0          , 0                , NULL,  0 },
   };
   int o;
-  while ( (o = getopt_long(argc, argv, "-bhf:l:d:p:", table, NULL)) != -1) {
+  while ( (o = getopt_long(argc, argv, "-bhf:F:E:M:D:l:d:p:", table, NULL)) != -1) {
     switch (o) {
       case 'b': sdb_set_batch_mode(); break;
       case 'f': elf_file = optarg; break;
+      case 'F': ftrace_log_file = optarg; break;
+      case 'E': etrace_log_file = optarg; break;
+      case 'M': mtrace_log_file = optarg; break;
+      case 'D': dtrace_log_file = optarg; break;
       case 'p': sscanf(optarg, "%d", &difftest_port); break;
       case 'l': log_file = optarg; break;
       case 'd': diff_so_file = optarg; break;
@@ -94,6 +110,10 @@ static int parse_args(int argc, char *argv[]) {
         printf("Usage: %s [OPTION...] IMAGE [args]\n\n", argv[0]);
         printf("\t-b,--batch              run with batch mode\n");
         printf("\t-f,--elf=FILE            load ELF symbols for ftrace\n");
+        printf("\t-F,--ftrace-log=FILE     output ftrace to FILE\n");
+        printf("\t-E,--etrace-log=FILE     output etrace to FILE\n");
+        printf("\t-M,--mtrace-log=FILE     output mtrace to FILE\n");
+        printf("\t-D,--dtrace-log=FILE     output dtrace to FILE\n");
         printf("\t-l,--log=FILE           output log to FILE\n");
         printf("\t-d,--diff=REF_SO        run DiffTest with reference REF_SO\n");
         printf("\t-p,--port=PORT          run DiffTest with port PORT\n");
@@ -116,6 +136,10 @@ void init_monitor(int argc, char *argv[]) {
   /* Open the log file. */
   init_log(log_file);
 
+  IFDEF(CONFIG_FTRACE, init_ftrace_log(ftrace_log_file));
+  IFDEF(CONFIG_ETRACE, init_etrace_log(etrace_log_file));
+  IFDEF(CONFIG_MTRACE, init_mtrace_log(mtrace_log_file));
+  IFDEF(CONFIG_DTRACE, init_dtrace_log(dtrace_log_file));
   IFDEF(CONFIG_FTRACE, init_ftrace(elf_file));
 
   /* Initialize memory. */

@@ -17,30 +17,27 @@
 #include <cpu/difftest.h>
 #include "../local-include/reg.h"
 
+static bool check_reg(const char *name, word_t ref, word_t dut, vaddr_t pc) {
+  if (ref == dut) return true;
+  printf("difftest error at pc = 0x%08x: %s mismatch, ref = 0x%08x, dut = 0x%08x\n",
+      pc, name, ref, dut);
+  return false;
+}
+
 bool isa_difftest_checkregs(CPU_state *ref_r, vaddr_t pc) {
   for (int i = 0; i < 32; i++) {
-    if (ref_r->gpr[i] != cpu.gpr[i]) {
-      printf("difftest error at pc = 0x%08x: gpr[%d] mismatch, ref = 0x%08x, dut = 0x%08x\n", pc, i, ref_r->gpr[i], cpu.gpr[i]);
+    char name[8];
+    snprintf(name, sizeof(name), "gpr[%d]", i);
+    if (!check_reg(name, ref_r->gpr[i], cpu.gpr[i], pc)) {
       return false;
     }
   }
-  if (ref_r->pc != cpu.pc) {
-    printf("difftest error at pc = 0x%08x: pc mismatch, ref = 0x%08x, dut = 0x%08x\n", pc, ref_r->pc, cpu.pc);
-    return false;
-  }
-  if (ref_r->mstatus != cpu.mstatus) {
-    printf("difftest error at pc = 0x%08x: mstatus mismatch, ref = 0x%08x, dut = 0x%08x\n", pc, ref_r->mstatus, cpu.mstatus);
-    return false;
-  }
-  if (ref_r->mepc != cpu.mepc) {
-    printf("difftest error at pc = 0x%08x: mepc mismatch, ref = 0x%08x, dut = 0x%08x\n", pc, ref_r->mepc, cpu.mepc);
-    return false;
-  }
-  if (ref_r->mcause != cpu.mcause) {
-    printf("difftest error at pc = 0x%08x: mcause mismatch, ref = 0x%08x, dut = 0x%08x\n", pc, ref_r->mcause, cpu.mcause);
-    return false;
-  }
-  return true;
+
+  return check_reg("pc", ref_r->pc, cpu.pc, pc)
+      && check_reg("mstatus", ref_r->mstatus, cpu.mstatus, pc)
+      && check_reg("mtvec", ref_r->mtvec, cpu.mtvec, pc)
+      && check_reg("mepc", ref_r->mepc, cpu.mepc, pc)
+      && check_reg("mcause", ref_r->mcause, cpu.mcause, pc);
 }
 
 void isa_difftest_attach() {

@@ -73,5 +73,13 @@ uint64_t get_time();
     log_write(__VA_ARGS__); \
   } while (0)
 
+void init_ftrace_log(const char *log_file);
+void init_etrace_log(const char *log_file);
+void init_mtrace_log(const char *log_file);
+void init_dtrace_log(const char *log_file);
+void ftrace_write(const char *fmt, ...);
+void etrace_write(const char *fmt, ...);
+void mtrace_write(const char *fmt, ...);
+void dtrace_write(const char *fmt, ...);
 
 #endif

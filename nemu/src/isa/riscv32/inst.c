@@ -61,12 +61,6 @@ enum {
   CSR_MARCHID   = 0xF12,
 };
 
-enum {
-  MSTATUS_MIE  = (1u << 3),
-  MSTATUS_MPIE = (1u << 7),
-  MSTATUS_MPP  = (3u << 11),
-};
-
 static inline word_t csr_read(uint32_t addr) {
   switch (addr) {
     case CSR_MSTATUS: return cpu.mstatus;
@@ -89,11 +83,9 @@ static inline void csr_write(uint32_t addr, word_t data) {
   }
 }
 
-#if CONFIG_ETRACE
-static inline void etrace_log_mret(vaddr_t target) {
-  log_write("etrace: mret -> " FMT_WORD " mstatus=" FMT_WORD "\n", target, cpu.mstatus);
+static inline uint32_t csr_addr(const Decode *s) {
+  return BITS(s->isa.inst, 31, 20);
 }
-#endif
 
 static int decode_exec(Decode *s) {
   s->dnpc = s->snpc;
@@ -111,28 +103,22 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? ??? ????? 01101 11", lui    , U, R(rd) = imm);
   INSTPAT("??????? ????? ????? ??? ????? 00101 11", auipc  , U, R(rd) = s->pc + imm);
 
-#ifdef CONFIG_FTRACE
   INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal    , J,
       R(rd) = s->pc + 4;
       s->dnpc = s->pc + imm;
-      if (rd == 1 || rd == 5) {
-        ftrace_call(s->pc, s->dnpc);
-      }
+#ifdef CONFIG_FTRACE
+      if (rd == 1 || rd == 5) ftrace_call(s->pc, s->dnpc);
+#endif
   );
   INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr   , I,
       R(rd) = s->pc + 4;
       s->dnpc = (src1 + imm) & ~1;
+#ifdef CONFIG_FTRACE
       int rs1 = BITS(s->isa.inst, 19, 15);
-      if (rd == 0 && rs1 == 1 && imm == 0) {
-        ftrace_ret(s->pc);
-      } else if (rd == 1 || rd == 5) {
-        ftrace_call(s->pc, s->dnpc);
-      }
-  );
-#else
-  INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal    , J, R(rd) = s->pc + 4, s->dnpc = s->pc + imm);
-  INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr   , I, R(rd) = s->pc + 4, s->dnpc = (src1 + imm) & ~1);
+      if (rd == 0 && rs1 == 1 && imm == 0) ftrace_ret(s->pc);
+      else if (rd == 1 || rd == 5) ftrace_call(s->pc, s->dnpc);
 #endif
+  );
 
   INSTPAT("??????? ????? ????? 000 ????? 11000 11", beq    , B, if (src1 == src2) s->dnpc = s->pc + imm);
   INSTPAT("??????? ????? ????? 001 ????? 11000 11", bne    , B, if (src1 != src2) s->dnpc = s->pc + imm);
@@ -173,17 +159,15 @@ static int decode_exec(Decode *s) {
   INSTPAT("0000000 ????? ????? 111 ????? 01100 11", and    , R, R(rd) = src1 & src2);
 
   INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , N,
-      uint32_t inst = INSTPAT_INST(s);
-      uint32_t csr = BITS(inst, 31, 20);
-      uint32_t rs1 = BITS(inst, 19, 15);
+      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
+      uint32_t csr = csr_addr(s);
       word_t old = csr_read(csr);
       csr_write(csr, R(rs1));
       R(rd) = old;
   );
   INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , N,
-      uint32_t inst = INSTPAT_INST(s);
-      uint32_t csr = BITS(inst, 31, 20);
-      uint32_t rs1 = BITS(inst, 19, 15);
+      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
+      uint32_t csr = csr_addr(s);
       word_t old = csr_read(csr);
       if (rs1 != 0) {
         csr_write(csr, old | R(rs1));
@@ -191,9 +175,8 @@ static int decode_exec(Decode *s) {
       R(rd) = old;
   );
   INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc  , N,
-      uint32_t inst = INSTPAT_INST(s);
-      uint32_t csr = BITS(inst, 31, 20);
-      uint32_t rs1 = BITS(inst, 19, 15);
+      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
+      uint32_t csr = csr_addr(s);
       word_t old = csr_read(csr);
       if (rs1 != 0) {
         csr_write(csr, old & ~R(rs1));
@@ -201,17 +184,15 @@ static int decode_exec(Decode *s) {
       R(rd) = old;
   );
   INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , N,
-      uint32_t inst = INSTPAT_INST(s);
-      uint32_t csr = BITS(inst, 31, 20);
-      word_t zimm = BITS(inst, 19, 15);
+      uint32_t csr = csr_addr(s);
+      word_t zimm = BITS(s->isa.inst, 19, 15);
       word_t old = csr_read(csr);
       csr_write(csr, zimm);
       R(rd) = old;
   );
   INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , N,
-      uint32_t inst = INSTPAT_INST(s);
-      uint32_t csr = BITS(inst, 31, 20);
-      word_t zimm = BITS(inst, 19, 15);
+      uint32_t csr = csr_addr(s);
+      word_t zimm = BITS(s->isa.inst, 19, 15);
       word_t old = csr_read(csr);
       if (zimm != 0) {
         csr_write(csr, old | zimm);
@@ -219,9 +200,8 @@ static int decode_exec(Decode *s) {
       R(rd) = old;
   );
   INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci , N,
-      uint32_t inst = INSTPAT_INST(s);
-      uint32_t csr = BITS(inst, 31, 20);
-      word_t zimm = BITS(inst, 19, 15);
+      uint32_t csr = csr_addr(s);
+      word_t zimm = BITS(s->isa.inst, 19, 15);
       word_t old = csr_read(csr);
       if (zimm != 0) {
         csr_write(csr, old & ~zimm);
@@ -234,16 +214,7 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 001 ????? 00011 11", fence_i, N, );
 
   INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N, s->dnpc = isa_raise_intr(11, s->pc));
-  INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N,
-      word_t mstatus = cpu.mstatus;
-      word_t mpie = (mstatus & MSTATUS_MPIE) ? 1 : 0;
-      mstatus = (mstatus & ~MSTATUS_MIE) | (mpie ? MSTATUS_MIE : 0); // MIE <- MPIE
-      mstatus |= MSTATUS_MPIE;                                        // MPIE <- 1
-      mstatus &= ~MSTATUS_MPP;                                        // MPP <- U(0)
-      cpu.mstatus = mstatus;
-      s->dnpc = cpu.mepc;
-      IFONE(CONFIG_ETRACE, etrace_log_mret(s->dnpc));
-  );
+  INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N, s->dnpc = isa_mret());
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
 
   //RV32M

@@ -11,6 +11,7 @@ enum { DIFFTEST_TO_DUT = 0, DIFFTEST_TO_REF = 1 };
 typedef struct {
     uint32_t gpr[32];
     uint32_t pc;
+    // Must match nemu/src/isa/riscv32/include/isa-def.h.
     uint32_t mstatus;
     uint32_t mtvec;
     uint32_t mepc;
