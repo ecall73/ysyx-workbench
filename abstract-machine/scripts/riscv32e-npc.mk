@@ -2,6 +2,7 @@ include $(AM_HOME)/scripts/isa/riscv.mk
 include $(AM_HOME)/scripts/platform/npc.mk
 COMMON_CFLAGS += -march=rv32e_zicsr_zifencei -mabi=ilp32e  # overwrite
 LDFLAGS       += -melf32lriscv                    # overwrite
+KLIB_PICOLIBC_MULTILIB := rv32e/ilp32e
 
 AM_SRCS += riscv/npc/libgcc/div.S \
            riscv/npc/libgcc/muldi3.S \

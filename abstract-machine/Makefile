@@ -61,22 +61,10 @@ LIBS     := $(sort $(LIBS) am klib) # lazy evaluation ("=") causes infinite recu
 ifeq ($(KLIB_IMPL),picolibc)
 KLIB_EXTERNAL_LIBC := 1
 endif
-KLIB_MULTILIB_DIR_riscv32-nemu := rv32im/ilp32
-KLIB_MULTILIB_DIR_riscv32e-nemu := rv32em/ilp32e
-KLIB_MULTILIB_DIR_riscv32e-npc := rv32e/ilp32e
-KLIB_MULTILIB_DIR_riscv32e-ysyxsoc := rv32e/ilp32e
-KLIB_MULTILIB_DIR_riscv32e-ysyxsoc-psrammem := rv32e/ilp32e
-KLIB_MULTILIB_DIR := $(KLIB_MULTILIB_DIR_$(ARCH))
-KLIB_LIBC_FLAGS_riscv32-nemu := -march=rv32im -mabi=ilp32
-KLIB_LIBC_FLAGS_riscv32e-nemu := -march=rv32em -mabi=ilp32e
-KLIB_LIBC_FLAGS_riscv32e-npc := -march=rv32e -mabi=ilp32e
-KLIB_LIBC_FLAGS_riscv32e-ysyxsoc := -march=rv32e -mabi=ilp32e
-KLIB_LIBC_FLAGS_riscv32e-ysyxsoc-psrammem := -march=rv32e -mabi=ilp32e
-KLIB_LIBC_FLAGS := $(KLIB_LIBC_FLAGS_$(ARCH))
 ifeq ($(KLIB_IMPL),picolibc)
 KLIB_PICOLIBC_HOME ?= /usr/lib/picolibc/riscv64-unknown-elf
-KLIB_LIBC ?= $(KLIB_PICOLIBC_HOME)/lib/$(KLIB_MULTILIB_DIR)/libc.a
-KLIB_LIBGCC ?= /usr/lib/gcc/riscv64-unknown-elf/10.2.0/$(KLIB_MULTILIB_DIR)/libgcc.a
+KLIB_LIBC ?= $(KLIB_PICOLIBC_HOME)/lib/$(KLIB_PICOLIBC_MULTILIB)/libc.a
+KLIB_LIBGCC ?= /usr/lib/gcc/riscv64-unknown-elf/10.2.0/$(KLIB_PICOLIBC_MULTILIB)/libgcc.a
 endif
 LINKAGE   = $(OBJS)  # library archives are added by LIB_TEMPLATE below
 
@@ -164,7 +152,7 @@ ifneq ($(filter $(ARCH),native),)
 	@$(CXX) -o $@ -Wl,--whole-archive $(LINKAGE) -Wl,-no-whole-archive $(LDFLAGS_CXX)
 else
 ifeq ($(KLIB_EXTERNAL_LIBC),1)
-	@test -n "$(KLIB_MULTILIB_DIR)" || { echo "Unsupported ARCH=$(ARCH) for KLIB_IMPL=$(KLIB_IMPL)"; exit 1; }
+	@test -n "$(KLIB_PICOLIBC_MULTILIB)" || { echo "Unsupported ARCH=$(ARCH) for KLIB_IMPL=$(KLIB_IMPL)"; exit 1; }
 	@test -f "$(KLIB_LIBC)" || { echo "Missing libc for KLIB_IMPL=$(KLIB_IMPL): $(KLIB_LIBC)"; exit 1; }
 	@test -f "$(KLIB_LIBGCC)" || { echo "Missing libgcc for KLIB_IMPL=$(KLIB_IMPL): $(KLIB_LIBGCC)"; exit 1; }
 	@$(LD) $(LDFLAGS) -o $@ --start-group $(LINKAGE) $(KLIB_LIBC) $(KLIB_LIBGCC) --end-group
