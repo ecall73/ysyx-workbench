@@ -17,6 +17,8 @@ NEMUFLAGS += -l $(NEMU_LOG_DIR)/nemu-log.txt
 NEMUFLAGS += -f $(IMAGE).elf
 NEMUFLAGS += --ftrace-log=$(NEMU_LOG_DIR)/nemu-ftrace.txt
 NEMUFLAGS += --etrace-log=$(NEMU_LOG_DIR)/nemu-etrace.txt
+NEMUFLAGS += --mtrace-log=$(NEMU_LOG_DIR)/nemu-mtrace.txt
+NEMUFLAGS += --dtrace-log=$(NEMU_LOG_DIR)/nemu-dtrace.txt
 DEBUG ?= 0
 ifeq ($(filter 1 y yes true,$(DEBUG)),)
 NEMUFLAGS += -b

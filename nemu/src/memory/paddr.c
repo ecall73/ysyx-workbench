@@ -73,13 +73,13 @@ void init_mem() {
 #ifdef CONFIG_MTRACE
 static inline void mtrace_log_read(paddr_t addr, int len, word_t data) {
   if ((MTRACE_COND)) {
-    log_write("mtrace: R " FMT_PADDR " len=%d data=" FMT_WORD "\n", addr, len, data);
+    mtrace_write("mtrace: R " FMT_PADDR " len=%d data=" FMT_WORD "\n", addr, len, data);
   }
 }
 
 static inline void mtrace_log_write(paddr_t addr, int len, word_t data) {
   if ((MTRACE_COND)) {
-    log_write("mtrace: W " FMT_PADDR " len=%d data=" FMT_WORD "\n", addr, len, data);
+    mtrace_write("mtrace: W " FMT_PADDR " len=%d data=" FMT_WORD "\n", addr, len, data);
   }
 }
 #endif

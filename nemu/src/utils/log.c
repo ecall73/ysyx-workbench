@@ -22,6 +22,8 @@ extern uint64_t g_nr_guest_inst;
 FILE *log_fp = NULL;
 static FILE *ftrace_fp = NULL;
 static FILE *etrace_fp = NULL;
+static FILE *mtrace_fp = NULL;
+static FILE *dtrace_fp = NULL;
 
 void init_log(const char *log_file) {
   log_fp = stdout;
@@ -55,11 +57,28 @@ void init_etrace_log(const char *log_file) {
   etrace_fp = open_trace_log("etrace", log_file);
 }
 
+void init_mtrace_log(const char *log_file) {
+  mtrace_fp = open_trace_log("mtrace", log_file);
+}
+
+void init_dtrace_log(const char *log_file) {
+  dtrace_fp = open_trace_log("dtrace", log_file);
+}
+
 static void trace_vwrite(FILE *trace_fp, const char *fmt, va_list ap) {
-  FILE *fp = trace_fp != NULL ? trace_fp : log_fp;
-  if (log_enable() && fp != NULL) {
-    vfprintf(fp, fmt, ap);
-    fflush(fp);
+  if (!log_enable()) return;
+
+  if (log_fp != NULL) {
+    va_list log_ap;
+    va_copy(log_ap, ap);
+    vfprintf(log_fp, fmt, log_ap);
+    fflush(log_fp);
+    va_end(log_ap);
+  }
+
+  if (trace_fp != NULL) {
+    vfprintf(trace_fp, fmt, ap);
+    fflush(trace_fp);
   }
 }
 
@@ -74,6 +93,20 @@ void etrace_write(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   trace_vwrite(etrace_fp, fmt, ap);
+  va_end(ap);
+}
+
+void mtrace_write(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  trace_vwrite(mtrace_fp, fmt, ap);
+  va_end(ap);
+}
+
+void dtrace_write(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  trace_vwrite(dtrace_fp, fmt, ap);
   va_end(ap);
 }
 #endif
