@@ -22,17 +22,19 @@ word_t vaddr_ifetch(vaddr_t addr, int len) {
 
 word_t vaddr_read(vaddr_t addr, int len) {
   word_t data = paddr_read(addr, len);
-  IFDEF(CONFIG_MTRACE,
-      if ((MTRACE_COND)) {
-        mtrace_write("R " FMT_WORD " len=%d data=" FMT_WORD "\n", addr, len, data);
-      });
+#ifdef CONFIG_MTRACE
+  if ((MTRACE_COND)) {
+    mtrace_write("R " FMT_WORD " len=%d data=" FMT_WORD "\n", addr, len, data);
+  }
+#endif
   return data;
 }
 
 void vaddr_write(vaddr_t addr, int len, word_t data) {
   paddr_write(addr, len, data);
-  IFDEF(CONFIG_MTRACE,
-      if ((MTRACE_COND)) {
-        mtrace_write("W " FMT_WORD " len=%d data=" FMT_WORD "\n", addr, len, data);
-      });
+#ifdef CONFIG_MTRACE
+  if ((MTRACE_COND)) {
+    mtrace_write("W " FMT_WORD " len=%d data=" FMT_WORD "\n", addr, len, data);
+  }
+#endif
 }
