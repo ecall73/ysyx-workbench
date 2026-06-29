@@ -9,94 +9,12 @@
 #if !defined(__ISA_NATIVE__) || defined(__NATIVE_USE_KLIB__)
 int vfprintf(FILE *stream, const char *fmt, va_list ap) {
   (void)stream;
-  int count = 0;
-  for (const char *p = fmt; *p; ++p) {
-	if (*p != '%') {
-	  putch(*p);
-	  count++;
-	  continue;
-	}
-	p++;
-	if (*p == '%') {
-	  putch('%');
-	  count++;
-	  continue;
-	}
-	int width = 0, zero_pad = 0, left_align = 0;
-	while (*p == '0' || *p == '-') {
-	  if (*p == '0') zero_pad = 1;
-	  if (*p == '-') left_align = 1;
-	  p++;
-	}
-	if (left_align) zero_pad = 0;
-	while (*p >= '0' && *p <= '9') {
-	  width = width * 10 + (*p - '0');
-	  p++;
-	}
-	if (*p == '.') {
-	  p++;
-	  while (*p >= '0' && *p <= '9') p++;
-	}
-	int long_level = 0;
-	while (*p == 'l') { long_level++; p++; }
-	char spec = *p;
-	char buf[64], *str = buf;
-	int slen = 0, pad_len = 0;
-	switch (spec) {
-	  case 'd': case 'i': {
-		long long val = (long_level >= 2) ? va_arg(ap, long long) : (long_level == 1) ? va_arg(ap, long) : va_arg(ap, int);
-		int negative = val < 0;
-		unsigned long long uval;
-		if (negative) uval = (unsigned long long)(-(val + 1)) + 1;
-		else uval = (unsigned long long)val;
-		char *q = buf + sizeof(buf); *--q = '\0';
-		if (uval == 0) *--q = '0';
-		else { while (uval) { *--q = '0' + (uval % 10); uval /= 10; } }
-		if (negative) *--q = '-';
-		str = q; slen = (int)strlen(str);
-		break;
-	  }
-	  case 'u': {
-		unsigned long long uval = (long_level >= 2) ? va_arg(ap, unsigned long long) : (long_level == 1) ? va_arg(ap, unsigned long) : va_arg(ap, unsigned int);
-		char *q = buf + sizeof(buf); *--q = '\0';
-		if (uval == 0) *--q = '0';
-		else { while (uval) { *--q = '0' + (uval % 10); uval /= 10; } }
-		str = q; slen = (int)strlen(str);
-		break;
-	  }
-	  case 'x': case 'X': {
-		unsigned long long uval = (long_level >= 2) ? va_arg(ap, unsigned long long) : (long_level == 1) ? va_arg(ap, unsigned long) : va_arg(ap, unsigned int);
-		char *q = buf + sizeof(buf); *--q = '\0';
-		if (uval == 0) *--q = '0';
-		else { while (uval) { int d = uval % 16; *--q = (spec == 'X' ? "0123456789ABCDEF" : "0123456789abcdef")[d]; uval /= 16; } }
-		str = q; slen = (int)strlen(str);
-		break;
-	  }
-	  case 'c': {
-		buf[0] = (char)va_arg(ap, int); buf[1] = '\0'; str = buf; slen = 1; break;
-	  }
-	  case 's': {
-		str = (char *)va_arg(ap, char *); if (!str) str = "(null)"; slen = (int)strlen(str); break;
-	  }
-	  case 'p': {
-		unsigned long long uval = (uintptr_t)va_arg(ap, void *);
-		char *q = buf + sizeof(buf); *--q = '\0';
-		if (uval == 0) *--q = '0';
-		else { while (uval) { int d = uval % 16; *--q = "0123456789abcdef"[d]; uval /= 16; } }
-		*--q = 'x'; *--q = '0';
-		str = q; slen = (int)strlen(str);
-		break;
-	  }
-	  default: {
-		putch('%'); putch(spec); count += 2; continue;
-	  }
-	}
-	pad_len = width > slen ? width - slen : 0;
-	if (!left_align) { for (int i = 0; i < pad_len; ++i) { putch(zero_pad ? '0' : ' '); count++; } }
-	for (int i = 0; i < slen; ++i) { putch(str[i]); count++; }
-	if (left_align) { for (int i = 0; i < pad_len; ++i) { putch(' '); count++; } }
+  char buf[1024];
+  int ret = vsnprintf(buf, sizeof(buf), fmt, ap);
+  for (int i = 0; buf[i] != '\0'; i++) {
+    putch(buf[i]);
   }
-  return count;
+  return ret;
 }
 
 int printf(const char *fmt, ...) {
