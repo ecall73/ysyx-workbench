@@ -112,16 +112,18 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal    , J,
       R(rd) = s->pc + 4;
       s->dnpc = s->pc + imm;
-      IFDEF(CONFIG_FTRACE, if (rd == 1 || rd == 5) ftrace_call(s->pc, s->dnpc));
+#ifdef CONFIG_FTRACE
+      if (rd == 1 || rd == 5) ftrace_call(s->pc, s->dnpc);
+#endif
   );
   INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr   , I,
       R(rd) = s->pc + 4;
       s->dnpc = (src1 + imm) & ~1;
-      IFDEF(CONFIG_FTRACE,
+#ifdef CONFIG_FTRACE
       int rs1 = BITS(s->isa.inst, 19, 15);
       if (rd == 0 && rs1 == 1 && imm == 0) ftrace_ret(s->pc);
       else if (rd == 1 || rd == 5) ftrace_call(s->pc, s->dnpc);
-      )
+#endif
   );
 
   INSTPAT("??????? ????? ????? 000 ????? 11000 11", beq    , B, if (src1 == src2) s->dnpc = s->pc + imm);
@@ -226,7 +228,9 @@ static int decode_exec(Decode *s) {
       mstatus &= ~MSTATUS_MPP;                                        // MPP <- U(0)
       cpu.mstatus = mstatus;
       s->dnpc = cpu.mepc;
-      IFONE(CONFIG_ETRACE, etrace_write("mret -> " FMT_WORD " mstatus=" FMT_WORD "\n", s->dnpc, cpu.mstatus));
+#ifdef CONFIG_ETRACE
+      etrace_write("mret -> " FMT_WORD " mstatus=" FMT_WORD "\n", s->dnpc, cpu.mstatus);
+#endif
   );
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
 
