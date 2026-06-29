@@ -8,110 +8,43 @@
 
 #if !defined(__ISA_NATIVE__) || defined(__NATIVE_USE_KLIB__)
 
-typedef struct {
-  char *buf;
-  size_t cap;
-  size_t len;
-  bool console;
-} Output;
+int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
+  size_t len = 0;
 
-static void out_char(Output *out, char ch) {
-  if (out->console) {
-    putch(ch);
-  } else if (out->len + 1 < out->cap) {
-    out->buf[out->len] = ch;
-  }
-  out->len++;
-}
+#define PUTC(ch) do { \
+  if (out != NULL && len + 1 < n) out[len] = (ch); \
+  len++; \
+} while (0)
 
-static void out_repeat(Output *out, char ch, int count) {
-  while (count-- > 0) {
-    out_char(out, ch);
-  }
-}
+#define PUTS(s) do { \
+  const char *__s = (s); \
+  while (*__s != '\0') PUTC(*__s++); \
+} while (0)
 
-static unsigned long long read_unsigned(va_list *ap, int long_level) {
-  if (long_level >= 2) return va_arg(*ap, unsigned long long);
-  if (long_level == 1) return va_arg(*ap, unsigned long);
-  return va_arg(*ap, unsigned int);
-}
+#define PAD(ch, cnt) do { \
+  for (int __i = 0; __i < (cnt); __i++) PUTC(ch); \
+} while (0)
 
-static unsigned long long read_signed_abs(va_list *ap, int long_level, char *sign) {
-  long long val;
-  if (long_level >= 2) val = va_arg(*ap, long long);
-  else if (long_level == 1) val = va_arg(*ap, long);
-  else val = va_arg(*ap, int);
-
-  if (val < 0) {
-    *sign = '-';
-    return (unsigned long long)(-(val + 1)) + 1;
-  }
-  *sign = 0;
-  return (unsigned long long)val;
-}
-
-static int convert_number(char *buf, unsigned long long val, int base, bool upper) {
-  int len = 0;
-  const char *digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
-
-  if (val == 0) {
-    buf[len++] = '0';
-  } else {
-    while (val > 0) {
-      buf[len++] = digits[val % (unsigned)base];
-      val /= (unsigned)base;
-    }
-  }
-  return len;
-}
-
-static void out_string(Output *out, const char *s, int width, bool left_align) {
-  int len = (int)strlen(s);
-  int pad = width > len ? width - len : 0;
-
-  if (!left_align) out_repeat(out, ' ', pad);
-  while (*s != '\0') out_char(out, *s++);
-  if (left_align) out_repeat(out, ' ', pad);
-}
-
-static void out_number(Output *out, unsigned long long val, int base, bool upper,
-    char sign, const char *prefix, int width, bool left_align, bool zero_pad) {
-  char buf[64];
-  int len = convert_number(buf, val, base, upper);
-  int prefix_len = (int)strlen(prefix);
-  int body_len = len + prefix_len + (sign ? 1 : 0);
-  int pad = width > body_len ? width - body_len : 0;
-  char pad_ch = zero_pad && !left_align ? '0' : ' ';
-
-  if (!left_align && pad_ch == ' ') out_repeat(out, ' ', pad);
-  if (sign) out_char(out, sign);
-  while (*prefix != '\0') out_char(out, *prefix++);
-  if (!left_align && pad_ch == '0') out_repeat(out, '0', pad);
-  while (len > 0) out_char(out, buf[--len]);
-  if (left_align) out_repeat(out, ' ', pad);
-}
-
-static int format(Output *out, const char *fmt, va_list ap) {
   for (const char *p = fmt; *p != '\0'; p++) {
     if (*p != '%') {
-      out_char(out, *p);
+      PUTC(*p);
       continue;
     }
 
     p++;
     if (*p == '\0') break;
 
-    bool left_align = false;
-    bool zero_pad = false;
+    int left_align = 0;
+    int zero_pad = 0;
     int width = 0;
     int long_level = 0;
 
     while (*p == '-' || *p == '0') {
-      if (*p == '-') left_align = true;
-      if (*p == '0') zero_pad = true;
+      if (*p == '-') left_align = 1;
+      if (*p == '0') zero_pad = 1;
       p++;
     }
-    if (left_align) zero_pad = false;
+    if (left_align) zero_pad = 0;
 
     while (*p >= '0' && *p <= '9') {
       width = width * 10 + (*p - '0');
@@ -131,96 +64,138 @@ static int format(Output *out, const char *fmt, va_list ap) {
     char spec = *p;
     if (spec == '\0') break;
 
-    switch (spec) {
-      case '%':
-        out_char(out, '%');
-        break;
-      case 'c': {
-        char ch = (char)va_arg(ap, int);
-        int pad = width > 1 ? width - 1 : 0;
-        if (!left_align) out_repeat(out, ' ', pad);
-        out_char(out, ch);
-        if (left_align) out_repeat(out, ' ', pad);
-        break;
-      }
-      case 's': {
-        const char *s = va_arg(ap, const char *);
-        out_string(out, s != NULL ? s : "(null)", width, left_align);
-        break;
-      }
-      case 'd':
-      case 'i': {
-        char sign;
-        unsigned long long val = read_signed_abs(&ap, long_level, &sign);
-        out_number(out, val, 10, false, sign, "", width, left_align, zero_pad);
-        break;
-      }
-      case 'u': {
-        unsigned long long val = read_unsigned(&ap, long_level);
-        out_number(out, val, 10, false, 0, "", width, left_align, zero_pad);
-        break;
-      }
-      case 'x':
-      case 'X': {
-        unsigned long long val = read_unsigned(&ap, long_level);
-        out_number(out, val, 16, spec == 'X', 0, "", width, left_align, zero_pad);
-        break;
-      }
-      case 'p': {
-        unsigned long long val = (uintptr_t)va_arg(ap, void *);
-        out_number(out, val, 16, false, 0, "0x", width, left_align, zero_pad);
-        break;
-      }
-      default:
-        out_char(out, '%');
-        out_char(out, spec);
-        break;
+    if (spec == '%') {
+      PUTC('%');
+      continue;
     }
+
+    if (spec == 'c') {
+      char ch = (char)va_arg(ap, int);
+      int pad = width > 1 ? width - 1 : 0;
+      if (!left_align) PAD(' ', pad);
+      PUTC(ch);
+      if (left_align) PAD(' ', pad);
+      continue;
+    }
+
+    if (spec == 's') {
+      const char *s = va_arg(ap, const char *);
+      if (s == NULL) s = "(null)";
+      int slen = (int)strlen(s);
+      int pad = width > slen ? width - slen : 0;
+      if (!left_align) PAD(' ', pad);
+      PUTS(s);
+      if (left_align) PAD(' ', pad);
+      continue;
+    }
+
+    char numbuf[64];
+    int ndig = 0;
+    int base = 10;
+    int upper = 0;
+    char sign = 0;
+    const char *prefix = "";
+    unsigned long long val = 0;
+
+    if (spec == 'd' || spec == 'i') {
+      long long x;
+      if (long_level >= 2) x = va_arg(ap, long long);
+      else if (long_level == 1) x = va_arg(ap, long);
+      else x = va_arg(ap, int);
+
+      if (x < 0) {
+        sign = '-';
+        val = (unsigned long long)(-(x + 1)) + 1;
+      } else {
+        val = (unsigned long long)x;
+      }
+    } else if (spec == 'u' || spec == 'x' || spec == 'X') {
+      if (long_level >= 2) val = va_arg(ap, unsigned long long);
+      else if (long_level == 1) val = va_arg(ap, unsigned long);
+      else val = va_arg(ap, unsigned int);
+      if (spec == 'x' || spec == 'X') {
+        base = 16;
+        upper = spec == 'X';
+      }
+    } else if (spec == 'p') {
+      val = (uintptr_t)va_arg(ap, void *);
+      base = 16;
+      prefix = "0x";
+    } else {
+      PUTC('%');
+      PUTC(spec);
+      continue;
+    }
+
+    if (val == 0) {
+      numbuf[ndig++] = '0';
+    } else {
+      const char *digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
+      while (val > 0) {
+        numbuf[ndig++] = digits[val % (unsigned)base];
+        val /= (unsigned)base;
+      }
+    }
+
+    int prefix_len = (int)strlen(prefix);
+    int body_len = ndig + prefix_len + (sign ? 1 : 0);
+    int pad = width > body_len ? width - body_len : 0;
+    char pad_ch = zero_pad && !left_align ? '0' : ' ';
+
+    if (!left_align && pad_ch == ' ') PAD(' ', pad);
+    if (sign) PUTC(sign);
+    PUTS(prefix);
+    if (!left_align && pad_ch == '0') PAD('0', pad);
+    while (ndig > 0) PUTC(numbuf[--ndig]);
+    if (left_align) PAD(' ', pad);
   }
 
-  if (out->buf != NULL && out->cap > 0) {
-    size_t pos = out->len < out->cap - 1 ? out->len : out->cap - 1;
-    out->buf[pos] = '\0';
+  if (out != NULL && n > 0) {
+    size_t pos = len < n - 1 ? len : n - 1;
+    out[pos] = '\0';
   }
 
-  return (int)out->len;
+#undef PAD
+#undef PUTS
+#undef PUTC
+
+  return (int)len;
+}
+
+int snprintf(char *out, size_t n, const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  int ret = vsnprintf(out, n, fmt, ap);
+  va_end(ap);
+  return ret;
+}
+
+int vsprintf(char *out, const char *fmt, va_list ap) {
+  return vsnprintf(out, INT_MAX, fmt, ap);
+}
+
+int sprintf(char *out, const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  int ret = vsprintf(out, fmt, ap);
+  va_end(ap);
+  return ret;
 }
 
 int vfprintf(FILE *stream, const char *fmt, va_list ap) {
   (void)stream;
-  Output out = { .buf = NULL, .cap = 0, .len = 0, .console = true };
-  return format(&out, fmt, ap);
+  char buf[1024];
+  int ret = vsnprintf(buf, sizeof(buf), fmt, ap);
+  for (int i = 0; buf[i] != '\0'; i++) {
+    putch(buf[i]);
+  }
+  return ret;
 }
 
 int printf(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   int ret = vfprintf(NULL, fmt, ap);
-  va_end(ap);
-  return ret;
-}
-
-int vsnprintf(char *s, size_t n, const char *fmt, va_list ap) {
-  Output out = { .buf = s, .cap = n, .len = 0, .console = false };
-  return format(&out, fmt, ap);
-}
-
-int snprintf(char *s, size_t n, const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  int ret = vsnprintf(s, n, fmt, ap);
-  va_end(ap);
-  return ret;
-}
-
-int vsprintf(char *s, const char *fmt, va_list ap) {
-  return vsnprintf(s, INT_MAX, fmt, ap);
-}
-
-int sprintf(char *s, const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  int ret = vsprintf(s, fmt, ap);
   va_end(ap);
   return ret;
 }
