@@ -58,9 +58,7 @@ ARCHIVE   = $(WORK_DIR)/build/$(NAME)-$(ARCH).a
 ### Collect the files to be linked: object files (`.o`) and libraries (`.a`)
 OBJS      = $(addprefix $(DST_DIR)/, $(addsuffix .o, $(basename $(SRCS))))
 LIBS     := $(sort $(LIBS) am klib) # lazy evaluation ("=") causes infinite recursions
-ifeq ($(KLIB_IMPL),newlib)
-KLIB_EXTERNAL_LIBC := 1
-else ifeq ($(KLIB_IMPL),picolibc)
+ifeq ($(KLIB_IMPL),picolibc)
 KLIB_EXTERNAL_LIBC := 1
 endif
 KLIB_MULTILIB_DIR_riscv32-nemu := rv32im/ilp32
@@ -75,11 +73,7 @@ KLIB_LIBC_FLAGS_riscv32e-npc := -march=rv32e -mabi=ilp32e
 KLIB_LIBC_FLAGS_riscv32e-ysyxsoc := -march=rv32e -mabi=ilp32e
 KLIB_LIBC_FLAGS_riscv32e-ysyxsoc-psrammem := -march=rv32e -mabi=ilp32e
 KLIB_LIBC_FLAGS := $(KLIB_LIBC_FLAGS_$(ARCH))
-ifeq ($(KLIB_IMPL),newlib)
-KLIB_NEWLIB_CC ?= riscv64-unknown-elf-gcc
-KLIB_LIBC ?= $(shell $(KLIB_NEWLIB_CC) $(KLIB_LIBC_FLAGS) -print-file-name=libc.a)
-KLIB_LIBGCC ?= $(shell $(KLIB_NEWLIB_CC) $(KLIB_LIBC_FLAGS) -print-libgcc-file-name)
-else ifeq ($(KLIB_IMPL),picolibc)
+ifeq ($(KLIB_IMPL),picolibc)
 KLIB_PICOLIBC_HOME ?= /usr/lib/picolibc/riscv64-unknown-elf
 KLIB_LIBC ?= $(KLIB_PICOLIBC_HOME)/lib/$(KLIB_MULTILIB_DIR)/libc.a
 KLIB_LIBGCC ?= /usr/lib/gcc/riscv64-unknown-elf/10.2.0/$(KLIB_MULTILIB_DIR)/libgcc.a
@@ -110,9 +104,7 @@ CFLAGS   += -O2 -MMD -Wall -Werror $(INCFLAGS) \
             -DARCH_H=\"$(ARCH_H)\" \
             -fno-asynchronous-unwind-tables -fno-builtin -fno-stack-protector \
             -Wno-main -U_FORTIFY_SOURCE -fvisibility=hidden
-ifeq ($(KLIB_IMPL),newlib)
-CFLAGS   += -D__KLIB_USE_NEWLIB__
-else ifeq ($(KLIB_IMPL),picolibc)
+ifeq ($(KLIB_IMPL),picolibc)
 CFLAGS   += -D__KLIB_USE_PICOLIBC__ -isystem $(KLIB_PICOLIBC_HOME)/include
 endif
 CXXFLAGS +=  $(CFLAGS) -ffreestanding -fno-rtti -fno-exceptions

@@ -5,15 +5,11 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#if defined(__KLIB_USE_NEWLIB__) || defined(__KLIB_USE_PICOLIBC__)
-
 #ifdef __KLIB_USE_PICOLIBC__
 #include <stdio.h>
-#endif
 
 static char *brk = NULL;
 
-#ifdef __KLIB_USE_PICOLIBC__
 static int am_stdio_put(char ch, FILE *stream) {
   (void)stream;
   putch(ch);
@@ -31,7 +27,6 @@ static FILE am_stdout = FDEV_SETUP_STREAM(am_stdio_put, NULL, NULL, _FDEV_SETUP_
 FILE *const stdin = &am_stdin;
 FILE *const stdout = &am_stdout;
 FILE *const stderr = &am_stdout;
-#endif
 
 static void *am_sbrk(ptrdiff_t incr) {
   if (brk == NULL) brk = heap.start;
