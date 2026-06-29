@@ -11,21 +11,18 @@
 int vfprintf(FILE *stream, const char *fmt, va_list ap) {
   (void)stream;
   int count = 0;
-
   for (const char *p = fmt; *p; ++p) {
 	if (*p != '%') {
 	  putch(*p);
 	  count++;
 	  continue;
 	}
-
 	p++;
 	if (*p == '%') {
 	  putch('%');
 	  count++;
 	  continue;
 	}
-
 	int width = 0, zero_pad = 0, left_align = 0;
 	while (*p == '0' || *p == '-') {
 	  if (*p == '0') zero_pad = 1;
@@ -37,19 +34,15 @@ int vfprintf(FILE *stream, const char *fmt, va_list ap) {
 	  width = width * 10 + (*p - '0');
 	  p++;
 	}
-
 	if (*p == '.') {
 	  p++;
 	  while (*p >= '0' && *p <= '9') p++;
 	}
-
 	int long_level = 0;
 	while (*p == 'l') { long_level++; p++; }
-
 	char spec = *p;
 	char buf[64], *str = buf;
-	int slen = 0;
-
+	int slen = 0, pad_len = 0;
 	switch (spec) {
 	  case 'd': case 'i': {
 		long long val = (long_level >= 2) ? va_arg(ap, long long) : (long_level == 1) ? va_arg(ap, long) : va_arg(ap, int);
@@ -99,17 +92,11 @@ int vfprintf(FILE *stream, const char *fmt, va_list ap) {
 		putch('%'); putch(spec); count += 2; continue;
 	  }
 	}
-
-	int pad_len = width > slen ? width - slen : 0;
-	if (!left_align) {
-	  for (int i = 0; i < pad_len; i++) { putch(zero_pad ? '0' : ' '); count++; }
-	}
-	for (int i = 0; i < slen; i++) { putch(str[i]); count++; }
-	if (left_align) {
-	  for (int i = 0; i < pad_len; i++) { putch(' '); count++; }
-	}
+	pad_len = width > slen ? width - slen : 0;
+	if (!left_align) { for (int i = 0; i < pad_len; ++i) { putch(zero_pad ? '0' : ' '); count++; } }
+	for (int i = 0; i < slen; ++i) { putch(str[i]); count++; }
+	if (left_align) { for (int i = 0; i < pad_len; ++i) { putch(' '); count++; } }
   }
-
   return count;
 }
 
@@ -147,13 +134,25 @@ int snprintf(char *restrict s, size_t n, const char *restrict fmt, ...)
 	return ret;
 }
 
+static void append_char(char *out, size_t n, size_t *len, char ch) {
+	if (out != NULL && *len + 1 < n) {
+		out[*len] = ch;
+	}
+	(*len)++;
+}
+
+static void append_repeat(char *out, size_t n, size_t *len, char ch, int count) {
+	for (int i = 0; i < count; i++) {
+		append_char(out, n, len, ch);
+	}
+}
+
 int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
 	size_t len = 0;
 
 	for (const char *p = fmt; *p; p++) {
 		if (*p != '%') {
-			if (out != NULL && len + 1 < n) out[len] = *p;
-			len++;
+			append_char(out, n, &len, *p);
 			continue;
 		}
 
@@ -191,28 +190,15 @@ int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
 		if (spec == '\0') break;
 
 		if (spec == '%') {
-			if (out != NULL && len + 1 < n) out[len] = '%';
-			len++;
+			append_char(out, n, &len, '%');
 			continue;
 		}
 
 		if (spec == 'c') {
 			char ch = (char)va_arg(ap, int);
-			int pad_len = width > 1 ? width - 1 : 0;
-			if (!left_align) {
-				for (int i = 0; i < pad_len; i++) {
-					if (out != NULL && len + 1 < n) out[len] = ' ';
-					len++;
-				}
-			}
-			if (out != NULL && len + 1 < n) out[len] = ch;
-			len++;
-			if (left_align) {
-				for (int i = 0; i < pad_len; i++) {
-					if (out != NULL && len + 1 < n) out[len] = ' ';
-					len++;
-				}
-			}
+			if (!left_align) append_repeat(out, n, &len, ' ', width > 1 ? width - 1 : 0);
+			append_char(out, n, &len, ch);
+			if (left_align) append_repeat(out, n, &len, ' ', width > 1 ? width - 1 : 0);
 			continue;
 		}
 
@@ -220,23 +206,9 @@ int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
 			const char *s = va_arg(ap, const char *);
 			if (s == NULL) s = "(null)";
 			int slen = (int)strlen(s);
-			int pad_len = width > slen ? width - slen : 0;
-			if (!left_align) {
-				for (int i = 0; i < pad_len; i++) {
-					if (out != NULL && len + 1 < n) out[len] = ' ';
-					len++;
-				}
-			}
-			for (int i = 0; i < slen; i++) {
-				if (out != NULL && len + 1 < n) out[len] = s[i];
-				len++;
-			}
-			if (left_align) {
-				for (int i = 0; i < pad_len; i++) {
-					if (out != NULL && len + 1 < n) out[len] = ' ';
-					len++;
-				}
-			}
+			if (!left_align) append_repeat(out, n, &len, ' ', width > slen ? width - slen : 0);
+			for (int i = 0; i < slen; i++) append_char(out, n, &len, s[i]);
+			if (left_align) append_repeat(out, n, &len, ' ', width > slen ? width - slen : 0);
 			continue;
 		}
 
@@ -278,10 +250,8 @@ int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
 			prefix = "0x";
 			prefix_len = 2;
 		} else {
-			if (out != NULL && len + 1 < n) out[len] = '%';
-			len++;
-			if (out != NULL && len + 1 < n) out[len] = spec;
-			len++;
+			append_char(out, n, &len, '%');
+			append_char(out, n, &len, spec);
 			continue;
 		}
 
@@ -300,36 +270,12 @@ int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
 		int pad_len = width > body_len ? width - body_len : 0;
 		char pad_ch = (zero_pad && !left_align) ? '0' : ' ';
 
-		if (!left_align && pad_ch == ' ') {
-			for (int i = 0; i < pad_len; i++) {
-				if (out != NULL && len + 1 < n) out[len] = ' ';
-				len++;
-			}
-		}
-		if (sign) {
-			if (out != NULL && len + 1 < n) out[len] = sign;
-			len++;
-		}
-		for (int i = 0; i < prefix_len; i++) {
-			if (out != NULL && len + 1 < n) out[len] = prefix[i];
-			len++;
-		}
-		if (!left_align && pad_ch == '0') {
-			for (int i = 0; i < pad_len; i++) {
-				if (out != NULL && len + 1 < n) out[len] = '0';
-				len++;
-			}
-		}
-		for (int i = ndig - 1; i >= 0; i--) {
-			if (out != NULL && len + 1 < n) out[len] = numbuf[i];
-			len++;
-		}
-		if (left_align) {
-			for (int i = 0; i < pad_len; i++) {
-				if (out != NULL && len + 1 < n) out[len] = ' ';
-				len++;
-			}
-		}
+		if (!left_align && pad_ch == ' ') append_repeat(out, n, &len, ' ', pad_len);
+		if (sign) append_char(out, n, &len, sign);
+		for (int i = 0; i < prefix_len; i++) append_char(out, n, &len, prefix[i]);
+		if (!left_align && pad_ch == '0') append_repeat(out, n, &len, '0', pad_len);
+		for (int i = ndig - 1; i >= 0; i--) append_char(out, n, &len, numbuf[i]);
+		if (left_align) append_repeat(out, n, &len, ' ', pad_len);
 	}
 
 	if (n > 0 && out != NULL) {
