@@ -19,16 +19,16 @@
 
 static bool check_reg(const char *name, word_t ref, word_t dut, vaddr_t pc) {
   if (ref == dut) return true;
-  printf("difftest error at pc = 0x%08x: %s mismatch, ref = 0x%08x, dut = 0x%08x\n",
+  printf("difftest error at pc = " FMT_WORD ": %s mismatch, ref = " FMT_WORD ", dut = " FMT_WORD "\n",
       pc, name, ref, dut);
   return false;
 }
 
 bool isa_difftest_checkregs(CPU_state *ref_r, vaddr_t pc) {
-  for (int i = 0; i < 32; i++) {
-    char name[8];
-    snprintf(name, sizeof(name), "gpr[%d]", i);
-    if (!check_reg(name, ref_r->gpr[i], cpu.gpr[i], pc)) {
+  for (int i = 0; i < ARRLEN(cpu.gpr); i++) {
+    if (ref_r->gpr[i] != cpu.gpr[i]) {
+      printf("difftest error at pc = " FMT_WORD ": gpr[%d] mismatch, ref = " FMT_WORD ", dut = " FMT_WORD "\n",
+          pc, i, ref_r->gpr[i], cpu.gpr[i]);
       return false;
     }
   }
