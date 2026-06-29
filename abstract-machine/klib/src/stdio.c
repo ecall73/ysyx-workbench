@@ -11,9 +11,7 @@ int vfprintf(FILE *stream, const char *fmt, va_list ap) {
   (void)stream;
   char buf[1024];
   int ret = vsnprintf(buf, sizeof(buf), fmt, ap);
-  for (int i = 0; buf[i] != '\0'; i++) {
-    putch(buf[i]);
-  }
+  for (char *p = buf; *p; p++) putch(*p);
   return ret;
 }
 
@@ -107,10 +105,9 @@ int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
 
     if (spec == 'c') {
       char ch = (char)va_arg(ap, int);
-      int pad_len = width > 1 ? width - 1 : 0;
-      if (!left_align) append_repeat(out, n, &len, ' ', pad_len);
+      if (!left_align) append_repeat(out, n, &len, ' ', width > 1 ? width - 1 : 0);
       append_char(out, n, &len, ch);
-      if (left_align) append_repeat(out, n, &len, ' ', pad_len);
+      if (left_align) append_repeat(out, n, &len, ' ', width > 1 ? width - 1 : 0);
       continue;
     }
 
@@ -118,10 +115,9 @@ int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
       const char *s = va_arg(ap, const char *);
       if (s == NULL) s = "(null)";
       int slen = (int)strlen(s);
-      int pad_len = width > slen ? width - slen : 0;
-      if (!left_align) append_repeat(out, n, &len, ' ', pad_len);
+      if (!left_align) append_repeat(out, n, &len, ' ', width > slen ? width - slen : 0);
       for (int i = 0; i < slen; i++) append_char(out, n, &len, s[i]);
-      if (left_align) append_repeat(out, n, &len, ' ', pad_len);
+      if (left_align) append_repeat(out, n, &len, ' ', width > slen ? width - slen : 0);
       continue;
     }
 
@@ -131,7 +127,6 @@ int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
     int upper = 0;
     char sign = 0;
     const char *prefix = "";
-    int prefix_len = 0;
     unsigned long long u = 0;
 
     if (spec == 'd' || spec == 'i') {
@@ -145,12 +140,10 @@ int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
       } else {
         u = (unsigned long long)v;
       }
-      base = 10;
     } else if (spec == 'u') {
       if (long_level >= 2) u = va_arg(ap, unsigned long long);
       else if (long_level == 1) u = va_arg(ap, unsigned long);
       else u = va_arg(ap, unsigned int);
-      base = 10;
     } else if (spec == 'x' || spec == 'X') {
       if (long_level >= 2) u = va_arg(ap, unsigned long long);
       else if (long_level == 1) u = va_arg(ap, unsigned long);
@@ -161,7 +154,6 @@ int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
       u = (uintptr_t)va_arg(ap, void *);
       base = 16;
       prefix = "0x";
-      prefix_len = 2;
     } else {
       append_char(out, n, &len, '%');
       append_char(out, n, &len, spec);
@@ -179,22 +171,19 @@ int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
       }
     }
 
+    int prefix_len = prefix[0] ? 2 : 0;
     int body_len = ndig + prefix_len + (sign ? 1 : 0);
     int pad_len = width > body_len ? width - body_len : 0;
-    char pad_ch = (zero_pad && !left_align) ? '0' : ' ';
 
-    if (!left_align && pad_ch == ' ') append_repeat(out, n, &len, ' ', pad_len);
+    if (!left_align && !zero_pad) append_repeat(out, n, &len, ' ', pad_len);
     if (sign) append_char(out, n, &len, sign);
     for (int i = 0; i < prefix_len; i++) append_char(out, n, &len, prefix[i]);
-    if (!left_align && pad_ch == '0') append_repeat(out, n, &len, '0', pad_len);
+    if (!left_align && zero_pad) append_repeat(out, n, &len, '0', pad_len);
     for (int i = ndig - 1; i >= 0; i--) append_char(out, n, &len, numbuf[i]);
     if (left_align) append_repeat(out, n, &len, ' ', pad_len);
   }
 
-  if (n > 0 && out != NULL) {
-    size_t pos = (len < n - 1) ? len : (n - 1);
-    out[pos] = '\0';
-  }
+  if (n > 0 && out != NULL) out[len < n ? len : n - 1] = '\0';
 
   return (int)len;
 }
