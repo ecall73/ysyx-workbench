@@ -8,7 +8,7 @@
 #endif
 
 struct Context {
-  // Must match the trap frame layout in am/src/riscv/*/trap.S.
+  // Must match abstract-machine/am/src/riscv/{nemu,npc,ysyxsoc}/trap.S.
   uintptr_t gpr[NR_REGS], mcause, mstatus, mepc;
   void *pdir;
 };
