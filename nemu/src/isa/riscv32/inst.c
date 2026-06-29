@@ -61,12 +61,6 @@ enum {
   CSR_MARCHID   = 0xF12,
 };
 
-enum {
-  MSTATUS_MIE  = (1u << 3),
-  MSTATUS_MPIE = (1u << 7),
-  MSTATUS_MPP  = (3u << 11),
-};
-
 static inline word_t csr_read(uint32_t addr) {
   switch (addr) {
     case CSR_MSTATUS: return cpu.mstatus;
@@ -220,18 +214,7 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 001 ????? 00011 11", fence_i, N, );
 
   INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N, s->dnpc = isa_raise_intr(11, s->pc));
-  INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N,
-      word_t mstatus = cpu.mstatus;
-      word_t mpie = (mstatus & MSTATUS_MPIE) ? 1 : 0;
-      mstatus = (mstatus & ~MSTATUS_MIE) | (mpie ? MSTATUS_MIE : 0); // MIE <- MPIE
-      mstatus |= MSTATUS_MPIE;                                        // MPIE <- 1
-      mstatus &= ~MSTATUS_MPP;                                        // MPP <- U(0)
-      cpu.mstatus = mstatus;
-      s->dnpc = cpu.mepc;
-#ifdef CONFIG_ETRACE
-      etrace_write("mret -> " FMT_WORD " mstatus=" FMT_WORD "\n", s->dnpc, cpu.mstatus);
-#endif
-  );
+  INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N, s->dnpc = isa_mret());
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
 
   //RV32M
