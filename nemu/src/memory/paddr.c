@@ -84,14 +84,23 @@ static inline void mtrace_log_write(paddr_t addr, int len, word_t data) {
 }
 #endif
 
-word_t paddr_read(paddr_t addr, int len) {
+static word_t paddr_read_raw(paddr_t addr, int len) {
   word_t data = 0;
   if (likely(current_backend->read(addr, len, &data))) {
-    IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
     return data;
   }
   out_of_bound(addr);
   return 0;
+}
+
+word_t paddr_ifetch(paddr_t addr, int len) {
+  return paddr_read_raw(addr, len);
+}
+
+word_t paddr_read(paddr_t addr, int len) {
+  word_t data = paddr_read_raw(addr, len);
+  IFDEF(CONFIG_MTRACE, mtrace_log_read(addr, len, data));
+  return data;
 }
 
 void paddr_write(paddr_t addr, int len, word_t data) {
