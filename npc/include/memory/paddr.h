@@ -1,28 +1,36 @@
-#ifndef __NPC_MEMORY_PADDR_H__
-#define __NPC_MEMORY_PADDR_H__
+/***************************************************************************************
+* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
+*
+* NEMU is licensed under Mulan PSL v2.
+* You can use this software according to the terms and conditions of the Mulan PSL v2.
+* You may obtain a copy of Mulan PSL v2 at:
+*          http://license.coscl.org.cn/MulanPSL2
+*
+* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+*
+* See the Mulan PSL v2 for more details.
+***************************************************************************************/
 
-#include <stdint.h>
+#ifndef __MEMORY_PADDR_H__
+#define __MEMORY_PADDR_H__
 
-#define MEM_SIZE 0x8000000
-#define SERIAL_PORT 0x10000000
-#define RTC_ADDR    0x00100048
+#include <common.h>
 
-#define NPC_PMEM_BASE        0x80000000u
-#define NPC_PMEM_SIZE        MEM_SIZE
-#define NPC_FLASH_BASE       0x30000000u
-#define NPC_FLASH_SIZE       0x01000000u
-#define NPC_SRAM_BASE        0x0f000000u
-#define NPC_SRAM_SIZE        0x00002000u
-#define NPC_SDRAM_BASE       0xa0000000u
-#define NPC_SDRAM_SIZE       0x02000000u
-#define NPC_RESET_PC_NPC     NPC_PMEM_BASE
-#define NPC_RESET_PC_YSYXSOC NPC_FLASH_BASE
+#define PMEM_LEFT  ((paddr_t)CONFIG_MBASE)
+#define PMEM_RIGHT ((paddr_t)CONFIG_MBASE + CONFIG_MSIZE - 1)
+#define RESET_VECTOR (PMEM_LEFT + CONFIG_PC_RESET_OFFSET)
 
-uint8_t *guest_to_host(uint32_t paddr);
-uint32_t host_to_guest(uint8_t *haddr);
-bool in_pmem(uint32_t addr);
-uint32_t pmem_read_word(uint32_t addr);
-void pmem_write_word(uint32_t addr, uint32_t data, uint8_t wmask);
-uint8_t *pmem_base();
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+word_t paddr_read(paddr_t addr, int len);
+void paddr_write(paddr_t addr, int len, word_t data);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

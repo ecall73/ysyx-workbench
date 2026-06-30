@@ -1,20 +1,31 @@
+#***************************************************************************************
+# Copyright (c) 2014-2024 Zihao Yu, Nanjing University
+#
+# NEMU is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+#
+# See the Mulan PSL v2 for more details.
+#**************************************************************************************/
+
 COLOR_RED := $(shell echo "\033[1;31m")
 COLOR_END := $(shell echo "\033[0m")
 
-config-silent-goals := menuconfig savedefconfig help distclean clean sim-iverilog sim-iverilog-netlist
-config-silent-goals += $(filter %defconfig,$(MAKECMDGOALS))
-
-ifeq ($(filter $(config-silent-goals),$(MAKECMDGOALS)),)
 ifeq ($(wildcard .config),)
 $(warning $(COLOR_RED)Warning: .config does not exist!$(COLOR_END))
-$(warning $(COLOR_RED)To build the project, first run 'make menuconfig' or 'make ysyxsoc_defconfig'.$(COLOR_END))
-endif
+$(warning $(COLOR_RED)To build the project, first run 'make menuconfig'.$(COLOR_END))
 endif
 
-Q ?= @
-KCONFIG_PATH := $(NEMU_HOME)/tools/kconfig
-FIXDEP_PATH  := $(NEMU_HOME)/tools/fixdep
+Q            := @
+KCONFIG_PATH := $(NPC_HOME)/tools/kconfig
+FIXDEP_PATH  := $(NPC_HOME)/tools/fixdep
 Kconfig      := $(NPC_HOME)/Kconfig
+rm-distclean += include/generated include/config .config .config.old
 silent := -s
 
 CONF   := $(KCONFIG_PATH)/build/conf
@@ -41,15 +52,17 @@ savedefconfig: $(CONF)
 	$(Q)$< $(silent) --defconfig=configs/$@ $(Kconfig)
 	$(Q)$< $(silent) --syncconfig $(Kconfig)
 
-help:
-	@echo '  menuconfig       - Update current config with menuconfig'
-	@echo '  npc_defconfig    - Configure standalone NPC simulation'
-	@echo '  ysyxsoc_defconfig - Configure ysyxSoC simulation'
-	@echo '  build            - Build current Verilator simulator'
-	@echo '  sim/run          - Run current Verilator simulator'
-	@echo '  clean/distclean  - Remove build outputs/config outputs'
+.PHONY: menuconfig savedefconfig defconfig
 
-.PHONY: menuconfig savedefconfig defconfig help
+# Help text used by make help
+help:
+	@echo  '  menuconfig	  - Update current config utilising a menu based program'
+	@echo  '  savedefconfig   - Save current config as configs/defconfig (minimal config)'
+
+distclean: clean
+	-@rm -rf $(rm-distclean)
+
+.PHONY: help distclean
 
 define call_fixdep
 	@$(FIXDEP) $(1) $(2) unused > $(1).tmp

@@ -2,7 +2,7 @@ mainmenu "NPC Configuration Menu"
 
 choice
   prompt "Simulation platform"
-  default PLATFORM_YSYXSOC
+  default PLATFORM_NPC
 config PLATFORM_NPC
   bool "Standalone NPC"
 config PLATFORM_YSYXSOC
@@ -14,7 +14,69 @@ config PLATFORM
   default "npc" if PLATFORM_NPC
   default "ysyxsoc" if PLATFORM_YSYXSOC
 
+config ISA_riscv
+  bool
+  default y
+
+config ISA
+  string
+  default "riscv32"
+
+config ISA64
+  bool
+  default n
+
+choice
+  prompt "NPC execution engine"
+  default ENGINE_INTERPRETER
+config ENGINE_INTERPRETER
+  bool "RTL tick/commit"
+endchoice
+
+config ENGINE
+  string
+  default "interpreter" if ENGINE_INTERPRETER
+
+config MODE_SYSTEM
+  bool
+  default y
+
 menu "Build Options"
+choice
+  prompt "Compiler"
+  default CC_GPP
+config CC_GPP
+  bool "g++"
+endchoice
+
+config CC
+  string
+  default "g++"
+
+choice
+  prompt "Host optimization level"
+  default CC_O2
+config CC_O0
+  bool "O0"
+config CC_O1
+  bool "O1"
+config CC_O2
+  bool "O2"
+config CC_O3
+  bool "O3"
+endchoice
+
+config CC_OPT
+  string
+  default "-O0" if CC_O0
+  default "-O1" if CC_O1
+  default "-O2" if CC_O2
+  default "-O3" if CC_O3
+
+config CC_DEBUG
+  bool "Enable host debug information"
+  default n
+
 choice
   prompt "Verilator optimization level"
   default VERILATOR_O3
@@ -35,10 +97,6 @@ config VERILATOR_OPT
   default "-O2" if VERILATOR_O2
   default "-O3" if VERILATOR_O3
 
-config CC_DEBUG
-  bool "Enable host debug information"
-  default n
-
 config MAX_SIM_TIME
   int "Maximum simulation cycles"
   default 1000000000
@@ -46,52 +104,52 @@ endmenu
 
 menu "Testing and Debugging"
 config TRACE
-  bool "Enable trace infrastructure"
+  bool "Enable tracer"
   default y
 
 config TRACE_START
-  int "Trace start instruction count"
   depends on TRACE
+  int "When tracing is enabled (unit: number of instructions)"
   default 0
 
 config TRACE_END
-  int "Trace end instruction count"
   depends on TRACE
+  int "When tracing is disabled (unit: number of instructions)"
   default 10000
 
 config ITRACE
-  bool "Enable instruction trace"
   depends on TRACE
+  bool "Enable instruction tracer"
   default y
 
 config ITRACE_COND
-  string "Instruction trace condition"
   depends on ITRACE
+  string "Only trace instructions when the condition is true"
   default "true"
 
 config FTRACE
-  bool "Enable function trace"
   depends on TRACE
+  bool "Enable function tracer (ftrace)"
   default n
 
 config MTRACE
-  bool "Enable memory trace"
   depends on TRACE
+  bool "Enable memory tracer (mtrace)"
   default n
 
 config MTRACE_COND
-  string "Memory trace condition"
   depends on MTRACE
+  string "Only trace memory access when the condition is true"
   default "true"
 
 config DTRACE
-  bool "Enable device trace"
   depends on TRACE
+  bool "Enable device trace (dtrace)"
   default n
 
 config ETRACE
-  bool "Enable exception trace"
   depends on TRACE
+  bool "Enable exception trace (etrace)"
   default n
 
 config DIFFTEST
@@ -110,3 +168,5 @@ config WATCHPOINT
   bool "Enable watchpoint"
   default y
 endmenu
+
+source "src/memory/Kconfig"

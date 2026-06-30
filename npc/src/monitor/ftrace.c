@@ -1,12 +1,9 @@
-#include "common.h"
-#include "utils.h"
+#include <isa.h>
 
 #ifdef CONFIG_FTRACE
 
 #include <elf.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 typedef struct {
   vaddr_t start;
@@ -40,14 +37,14 @@ static void append_func_symbol(vaddr_t start, uint32_t size, const char *name) {
 
   if (nr_func_symbols == cap_func_symbols) {
     size_t new_cap = (cap_func_symbols == 0 ? 64 : cap_func_symbols * 2);
-    FuncSymbol *new_buf = (FuncSymbol *)realloc(func_symbols, new_cap * sizeof(FuncSymbol));
+    FuncSymbol *new_buf = realloc(func_symbols, new_cap * sizeof(FuncSymbol));
     Assert(new_buf != NULL, "ftrace: failed to expand symbol table to %zu entries", new_cap);
     func_symbols = new_buf;
     cap_func_symbols = new_cap;
   }
 
   size_t len = strlen(name);
-  char *name_copy = (char *)malloc(len + 1);
+  char *name_copy = malloc(len + 1);
   Assert(name_copy != NULL, "ftrace: failed to allocate symbol name");
   memcpy(name_copy, name, len + 1);
 
@@ -95,7 +92,7 @@ void init_ftrace(const char *elf_file) {
       "ftrace: failed to seek section headers in '%s'", elf_file);
 
   size_t shdr_bytes = ehdr.e_shnum * sizeof(Elf32_Shdr);
-  Elf32_Shdr *shdr = (Elf32_Shdr *)malloc(shdr_bytes);
+  Elf32_Shdr *shdr = malloc(shdr_bytes);
   Assert(shdr != NULL, "ftrace: failed to allocate section header table");
 
   nread = fread(shdr, 1, shdr_bytes, fp);

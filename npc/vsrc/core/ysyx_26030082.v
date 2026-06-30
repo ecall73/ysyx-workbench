@@ -107,7 +107,7 @@ module ysyx_26030082 #(
         input int unsigned mtvec,
         input int unsigned mepc,
         input int unsigned mcause,
-        input int unsigned gpr[16]
+        input int unsigned gpr[32]
     );
 `ifdef NPC_ENABLE_PERF
     import "DPI-C" function void npc_pmu_event(input int event_mask);
@@ -333,7 +333,7 @@ module ysyx_26030082 #(
     reg [31:0] commit_pc_d;
     reg [31:0] commit_inst_d;
     reg [31:0] commit_next_pc_d;
-    int unsigned commit_gpr[16];
+    int unsigned commit_gpr[32];
 
     always @(posedge clock) begin
         if (reset) begin
@@ -343,6 +343,9 @@ module ysyx_26030082 #(
                 commit_gpr[0] = 32'b0;
                 for (int i = 1; i < 16; i++) begin
                     commit_gpr[i] = exu.reg_bank[i];
+                end
+                for (int i = 16; i < 32; i++) begin
+                    commit_gpr[i] = 32'b0;
                 end
                 npc_commit(
                     commit_pc_d,

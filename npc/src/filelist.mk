@@ -1,4 +1,18 @@
-SRCS-y += src/main.cpp
-DIRS-y += src/cpu src/engine src/isa src/memory src/monitor src/utils
-DIRS-$(CONFIG_PLATFORM_NPC) += src/platform/npc
-DIRS-$(CONFIG_PLATFORM_YSYXSOC) += src/platform/ysyxsoc
+#***************************************************************************************
+# Copyright (c) 2014-2024 Zihao Yu, Nanjing University
+#
+# NEMU is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+#
+# See the Mulan PSL v2 for more details.
+#**************************************************************************************/
+
+SRCS-y += src/npc-main.c
+DIRS-y += src/cpu src/monitor src/utils
+DIRS-$(CONFIG_MODE_SYSTEM) += src/memory

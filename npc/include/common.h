@@ -1,47 +1,45 @@
-#ifndef __NPC_COMMON_H__
-#define __NPC_COMMON_H__
+/***************************************************************************************
+* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
+*
+* NEMU is licensed under Mulan PSL v2.
+* You can use this software according to the terms and conditions of the Mulan PSL v2.
+* You may obtain a copy of Mulan PSL v2 at:
+*          http://license.coscl.org.cn/MulanPSL2
+*
+* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+*
+* See the Mulan PSL v2 for more details.
+***************************************************************************************/
 
-#include <stdbool.h>
-#include <stddef.h>
+#ifndef __COMMON_H__
+#define __COMMON_H__
+
 #include <stdint.h>
 #include <inttypes.h>
-#include <stdio.h>
+#include <stdbool.h>
+#include <string.h>
+
+#include <generated/autoconf.h>
+#include <macro.h>
+
 #include <assert.h>
+#include <stdlib.h>
 
-#include "generated/autoconf.h"
-
-#define ANSI_FG_BLACK   "\33[1;30m"
-#define ANSI_FG_RED     "\33[1;31m"
-#define ANSI_FG_GREEN   "\33[1;32m"
-#define ANSI_FG_YELLOW  "\33[1;33m"
-#define ANSI_FG_BLUE    "\33[1;34m"
-#define ANSI_FG_MAGENTA "\33[1;35m"
-#define ANSI_FG_CYAN    "\33[1;36m"
-#define ANSI_FG_WHITE   "\33[1;37m"
-#define ANSI_BG_BLACK   "\33[1;40m"
-#define ANSI_BG_RED     "\33[1;41m"
-#define ANSI_BG_GREEN   "\33[1;42m"
-#define ANSI_BG_YELLOW  "\33[1;43m"
-#define ANSI_BG_BLUE    "\33[1;44m"
-#define ANSI_BG_MAGENTA "\33[1;45m"
-#define ANSI_BG_CYAN    "\33[1;46m"
-#define ANSI_BG_WHITE   "\33[1;47m"
-#define ANSI_NONE       "\33[0m"
-#define ANSI_FMT(str, fmt) fmt str ANSI_NONE
-
-typedef uint32_t word_t;
-typedef uint32_t vaddr_t;
-#define FMT_WORD "0x%08" PRIx32
-
-#define Assert(cond, format, ...) do { \
-  if (!(cond)) { \
-    fprintf(stderr, ANSI_FMT(format, ANSI_FG_RED) "\n", ##__VA_ARGS__); \
-    assert(cond); \
-  } \
-} while (0)
-
-#ifndef CONFIG_MAX_SIM_TIME
-#define CONFIG_MAX_SIM_TIME 1000000000
+#if CONFIG_MBASE + CONFIG_MSIZE > 0x100000000ul
+#define PMEM64 1
 #endif
+
+typedef MUXDEF(CONFIG_ISA64, uint64_t, uint32_t) word_t;
+typedef MUXDEF(CONFIG_ISA64, int64_t, int32_t)  sword_t;
+#define FMT_WORD MUXDEF(CONFIG_ISA64, "0x%016" PRIx64, "0x%08" PRIx32)
+
+typedef word_t vaddr_t;
+typedef MUXDEF(PMEM64, uint64_t, uint32_t) paddr_t;
+#define FMT_PADDR MUXDEF(PMEM64, "0x%016" PRIx64, "0x%08" PRIx32)
+typedef uint16_t ioaddr_t;
+
+#include <debug.h>
 
 #endif
