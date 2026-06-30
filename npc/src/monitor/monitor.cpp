@@ -186,6 +186,7 @@ void init_monitor(int argc, char **argv) {
 #endif
     }
     top->reset = 0;
+    npc_reset_dut_state(platform_reset_pc());
 
 #ifdef CONFIG_DIFFTEST
     init_difftest(diff_so_file, img_size, difftest_port);

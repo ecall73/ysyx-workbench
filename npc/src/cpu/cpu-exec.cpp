@@ -126,6 +126,20 @@ void npc_read_dut_state(DutState *state) {
     *state = g_commit_state;
 }
 
+void npc_reset_dut_state(uint32_t pc) {
+    g_commit_valid = false;
+    g_commit_pc = pc;
+    g_commit_inst = 0;
+    for (int i = 0; i < 32; i++) {
+        g_commit_state.gpr[i] = 0;
+    }
+    g_commit_state.pc = pc;
+    g_commit_state.mstatus = 0x00001800u;
+    g_commit_state.mtvec = 0x00000001u;
+    g_commit_state.mepc = 0;
+    g_commit_state.mcause = 0;
+}
+
 extern "C" void npc_pmu_event(int event_mask) {
 #ifdef CONFIG_PERF
     if (is_finished) {
