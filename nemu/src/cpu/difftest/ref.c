@@ -16,7 +16,6 @@
 #include <isa.h>
 #include <cpu/cpu.h>
 #include <difftest-def.h>
-#include <memory/paddr_internal.h>
 #include <memory/paddr.h>
 #include <string.h>
 
