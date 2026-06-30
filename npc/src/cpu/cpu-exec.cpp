@@ -84,36 +84,36 @@ static void pmu_on_commit(uint32_t inst) {
 #endif
 
 extern "C" void npc_commit(
-    int pc,
-    int inst,
-    int dnpc,
-    int mstatus,
-    int mtvec,
-    int mepc,
-    int mcause,
-    int *gpr
+    uint32_t commit_pc,
+    uint32_t commit_inst,
+    uint32_t commit_dnpc,
+    uint32_t mstatus,
+    uint32_t mtvec,
+    uint32_t mepc,
+    uint32_t mcause,
+    const uint32_t *gpr
 ) {
     if (is_finished) {
         return;
     }
 
     g_commit_valid = true;
-    g_commit_pc = (uint32_t)pc;
-    g_commit_inst = (uint32_t)inst;
-    g_commit_dnpc = (uint32_t)dnpc;
+    g_commit_pc = commit_pc;
+    g_commit_inst = commit_inst;
+    g_commit_dnpc = commit_dnpc;
     for (int i = 0; i < 16; i++) {
-        g_dut_state.gpr[i] = (uint32_t)gpr[i];
+        g_dut_state.gpr[i] = gpr[i];
     }
     for (int i = 16; i < 32; i++) {
         g_dut_state.gpr[i] = 0;
     }
-    g_dut_state.pc = (uint32_t)pc;
-    g_dut_state.mstatus = (uint32_t)mstatus;
-    g_dut_state.mtvec = (uint32_t)mtvec;
-    g_dut_state.mepc = (uint32_t)mepc;
-    g_dut_state.mcause = (uint32_t)mcause;
+    g_dut_state.pc = commit_dnpc;
+    g_dut_state.mstatus = mstatus;
+    g_dut_state.mtvec = mtvec;
+    g_dut_state.mepc = mepc;
+    g_dut_state.mcause = mcause;
 #ifdef CONFIG_PERF
-    pmu_on_commit((uint32_t)inst);
+    pmu_on_commit(commit_inst);
 #endif
 }
 

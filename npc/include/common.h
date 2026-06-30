@@ -130,14 +130,14 @@ void platform_difftest_memcpy(void (*ref_memcpy)(uint32_t, void *, size_t, bool)
 void platform_enable_ref_paddr(void (*enable_ysyxsoc_paddr)(void));
 
 extern "C" void npc_commit(
-    int pc,
-    int inst,
-    int dnpc,
-    int mstatus,
-    int mtvec,
-    int mepc,
-    int mcause,
-    int *gpr
+    uint32_t commit_pc,
+    uint32_t commit_inst,
+    uint32_t commit_dnpc,
+    uint32_t mstatus,
+    uint32_t mtvec,
+    uint32_t mepc,
+    uint32_t mcause,
+    const uint32_t *gpr
 );
 extern "C" void npc_pmu_event(int event_mask);
 extern "C" void npc_trace_read(int addr, int len, int data);

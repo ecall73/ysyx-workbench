@@ -100,14 +100,14 @@ module ysyx_26030082 #(
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
     import "DPI-C" function void npc_commit(
-        input int pc,
-        input int inst,
-        input int dnpc,
-        input int mstatus,
-        input int mtvec,
-        input int mepc,
-        input int mcause,
-        input int gpr[16]
+        input int unsigned commit_pc,
+        input int unsigned commit_inst,
+        input int unsigned commit_dnpc,
+        input int unsigned mstatus,
+        input int unsigned mtvec,
+        input int unsigned mepc,
+        input int unsigned mcause,
+        input int unsigned gpr[16]
     );
 `ifdef NPC_ENABLE_PERF
     import "DPI-C" function void npc_pmu_event(input int event_mask);
@@ -333,7 +333,7 @@ module ysyx_26030082 #(
     reg [31:0] commit_pc_d;
     reg [31:0] commit_inst_d;
     reg [31:0] commit_dnpc_d;
-    int commit_gpr[16];
+    int unsigned commit_gpr[16];
 
     always @(posedge clock) begin
         if (reset) begin
