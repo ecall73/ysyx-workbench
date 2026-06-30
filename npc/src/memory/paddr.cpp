@@ -20,16 +20,6 @@ static bool in_pmem(uint32_t addr) {
   return addr >= NPC_PMEM_BASE && addr < NPC_PMEM_BASE + NPC_PMEM_SIZE;
 }
 
-void platform_init() {}
-
-void platform_cleanup() {}
-
-void platform_update() {}
-
-void platform_set_external_idle(SimTop *top) {
-  (void)top;
-}
-
 long platform_load_image(const char *img_file) {
   FILE *fp = fopen(img_file, "rb");
   if (fp == NULL) return 0;
@@ -57,26 +47,12 @@ bool platform_in_comparable_mem(uint32_t addr) {
   return in_pmem(addr);
 }
 
-const char *platform_device_name(uint32_t addr) {
-  if (addr == SERIAL_PORT) return "uart";
-  if (addr == RTC_ADDR || addr == RTC_ADDR + 4) return "rtc";
-  return NULL;
-}
-
-uint32_t platform_reset_pc() {
-  return NPC_RESET_PC_NPC;
-}
-
 void platform_difftest_memcpy(void (*ref_memcpy)(uint32_t, void *, size_t, bool), bool direction) {
   if (img_size > 0) {
     ref_memcpy(NPC_PMEM_BASE, pmem, (size_t)img_size, direction);
   } else {
     Log("warning: no pmem image loaded before DiffTest init");
   }
-}
-
-void platform_enable_ref_paddr(void (*enable_ysyxsoc_paddr)(void)) {
-  (void)enable_ysyxsoc_paddr;
 }
 
 extern "C" int pmem_read(int raddr) {
