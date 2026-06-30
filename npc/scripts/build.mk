@@ -8,9 +8,6 @@ FTRACE ?= $(if $(CONFIG_FTRACE),1,0)
 MTRACE ?= $(if $(CONFIG_MTRACE),1,0)
 DTRACE ?= $(if $(CONFIG_DTRACE),1,0)
 ETRACE ?= $(if $(CONFIG_ETRACE),1,0)
-ifneq ($(filter 1,$(ITRACE) $(FTRACE) $(MTRACE) $(DTRACE) $(ETRACE)),)
-override TRACE := 1
-endif
 DEBUG_DEFAULT := $(if $(CONFIG_DEBUG),1,0)
 ifeq ($(origin DEBUG),command line)
 DEBUG := $(if $(filter 1 y yes true,$(DEBUG)),1,0)
@@ -50,6 +47,11 @@ $(error Unsupported DTRACE='$(DTRACE)'. Expected '0' or '1')
 endif
 ifneq ($(filter-out 0 1,$(ETRACE)),)
 $(error Unsupported ETRACE='$(ETRACE)'. Expected '0' or '1')
+endif
+ifeq ($(TRACE),0)
+ifneq ($(filter 1,$(ITRACE) $(FTRACE) $(MTRACE) $(DTRACE) $(ETRACE)),)
+$(error TRACE=0 disables trace infrastructure; enable TRACE=1 before enabling ITRACE/FTRACE/MTRACE/DTRACE/ETRACE)
+endif
 endif
 ifneq ($(filter-out 0 1,$(UART_STDOUT)),)
 $(error Unsupported UART_STDOUT='$(UART_STDOUT)'. Expected '0' or '1')
