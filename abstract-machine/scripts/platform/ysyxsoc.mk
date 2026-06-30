@@ -25,9 +25,6 @@ DEBUG ?= 0
 ifeq ($(filter 1 y yes true,$(DEBUG)),)
 YSYXSOCFLAGS += -b
 endif
-DIFF_REF_SO ?= $(NEMU_HOME)/build/riscv32-nemu-interpreter-so
-DIFF_PORT ?= 1234
-
 MAINARGS_MAX_LEN = 64
 MAINARGS_PLACEHOLDER = the_insert-arg_rule_in_Makefile_will_insert_mainargs_here
 CFLAGS += -DMAINARGS_MAX_LEN=$(MAINARGS_MAX_LEN) -DMAINARGS_PLACEHOLDER=$(MAINARGS_PLACEHOLDER)
@@ -41,6 +38,6 @@ image: image-dep
 	@$(OBJCOPY) -S -O binary $(IMAGE).elf $(IMAGE).bin
 
 run: insert-arg
-	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=ysyxsoc DIFF_REF_SO=$(DIFF_REF_SO) DIFF_PORT=$(DIFF_PORT) sim ARGS="$(YSYXSOCFLAGS)" IMG="$(IMAGE).bin"
+	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=ysyxsoc sim ARGS="$(YSYXSOCFLAGS)" IMG="$(IMAGE).bin"
 
 .PHONY: insert-arg

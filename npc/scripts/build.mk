@@ -11,7 +11,6 @@ ETRACE_ON := $(if $(CONFIG_ETRACE),1,0)
 DEBUG_DEFAULT := $(if $(CONFIG_DEBUG),1,0)
 DEBUG_ON := $(DEBUG_DEFAULT)
 UART_STDOUT ?= 1
-BATCH ?= 0
 
 VALID_SIM_MODES := npc ysyxsoc
 ifeq ($(filter $(SIM_MODE),$(VALID_SIM_MODES)),)
@@ -124,7 +123,6 @@ ifeq ($(ITRACE_ON),1)
 NPC_DEPS += $(CAPSTONE_SO)
 endif
 
-RUN_ARGS += $(if $(filter 1,$(BATCH)),-b,)
 RUN_ARGS += $(if $(filter 1,$(DIFFTEST_ON)),-d $(DIFF_REF_SO) -p $(DIFF_PORT),)
 
 ifeq ($(filter 1,$(DIFFTEST_ON)),1)
