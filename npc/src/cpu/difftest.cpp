@@ -62,12 +62,12 @@ static inline bool in_comparable_mem(uint32_t addr) {
     return platform_in_comparable_mem(addr);
 }
 
-static void copy_dut_state(RefCPUState *dut_r, const DutState *state) {
+static void copy_dut_state(RefCPUState *dut_r, const DutState *state, uint32_t pc) {
     memset(dut_r, 0, sizeof(*dut_r));
     for (int i = 0; i < 32; i++) {
         dut_r->gpr[i] = state->gpr[i];
     }
-    dut_r->pc = state->pc;
+    dut_r->pc = pc;
     dut_r->mstatus = state->mstatus;
     dut_r->mtvec = state->mtvec;
     dut_r->mepc = state->mepc;
@@ -196,7 +196,7 @@ void init_difftest(const char *ref_so_file, long img_size, int port) {
     Log("The result of every retired instruction will be compared with %s", ref_so_file);
 }
 
-bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, const DutState *dut_post) {
+bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, uint32_t dut_dnpc, const DutState *dut_post) {
     if (!difftest_enabled) {
         return true;
     }
@@ -219,7 +219,7 @@ bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, const DutState *dut_post)
 
     if (skip_reason == SKIP_MMIO || skip_reason == SKIP_COUNTER_CSR) {
         RefCPUState dut_ref_state;
-        copy_dut_state(&dut_ref_state, dut_post);
+        copy_dut_state(&dut_ref_state, dut_post, dut_dnpc);
         ref_difftest_regcpy(&dut_ref_state, DIFFTEST_TO_REF);
         return true;
     }
@@ -229,7 +229,7 @@ bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, const DutState *dut_post)
     RefCPUState ref_post;
     RefCPUState dut_ref_state;
     ref_difftest_regcpy(&ref_post, DIFFTEST_TO_DUT);
-    copy_dut_state(&dut_ref_state, dut_post);
+    copy_dut_state(&dut_ref_state, dut_post, dut_dnpc);
 
     return difftest_checkregs(&ref_post, &dut_ref_state, dut_pc);
 }

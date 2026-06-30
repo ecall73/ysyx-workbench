@@ -1,11 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "common.h"
 
-extern "C" int npc_get_gpr(int idx);
-extern "C" int npc_get_csr(int addr);
-extern "C" int npc_get_pc();
+extern "C" void npc_get_state(
+    int *pc,
+    int *mstatus,
+    int *mtvec,
+    int *mepc,
+    int *mcause,
+    int *gpr
+);
 
 static svScope get_cpu_dpi_scope() {
     static svScope g_cpu_dpi_scope = nullptr;
@@ -39,15 +45,24 @@ static svScope get_cpu_dpi_scope() {
 
 void npc_read_dut_state(DutState *state) {
     svScope prev = svSetScope(get_cpu_dpi_scope());
+    int pc = 0;
+    int mstatus = 0;
+    int mtvec = 0;
+    int mepc = 0;
+    int mcause = 0;
+    int gpr[16] = {};
 
-    for (int i = 0; i < 32; i++) {
-        state->gpr[i] = (uint32_t)npc_get_gpr(i);
+    npc_get_state(&pc, &mstatus, &mtvec, &mepc, &mcause, gpr);
+
+    memset(state, 0, sizeof(*state));
+    for (int i = 0; i < 16; i++) {
+        state->gpr[i] = (uint32_t)gpr[i];
     }
-    state->pc = (uint32_t)npc_get_pc();
-    state->mstatus = (uint32_t)npc_get_csr(0x300);
-    state->mtvec = (uint32_t)npc_get_csr(0x305);
-    state->mepc = (uint32_t)npc_get_csr(0x341);
-    state->mcause = (uint32_t)npc_get_csr(0x342);
+    state->pc = (uint32_t)pc;
+    state->mstatus = (uint32_t)mstatus;
+    state->mtvec = (uint32_t)mtvec;
+    state->mepc = (uint32_t)mepc;
+    state->mcause = (uint32_t)mcause;
 
     svSetScope(prev);
 }

@@ -284,7 +284,7 @@ void cpu_exec(uint64_t n) {
                 is_finished = true;
                 trap_pc = (int)commit_pc;
                 trap_a0 = (int)dut_post.gpr[10];
-            } else if (!difftest_step(commit_pc, commit_inst, &dut_post)) {
+            } else if (!difftest_step(commit_pc, commit_inst, commit_dnpc, &dut_post)) {
                 is_finished = true;
                 trap_pc = (int)commit_pc;
                 trap_a0 = -1;

@@ -103,34 +103,25 @@ module ysyx_26030082 #(
 `ifdef NPC_ENABLE_PERF
     import "DPI-C" function void npc_pmu_event(input int event_mask);
 `endif
-    export "DPI-C" function npc_get_gpr;
-    function int npc_get_gpr(input int idx);
+    export "DPI-C" function npc_get_state;
+    function void npc_get_state(
+        output int pc,
+        output int mstatus,
+        output int mtvec,
+        output int mepc,
+        output int mcause,
+        output int gpr[16]
+    );
         begin
-            if (idx == 0) begin
-                npc_get_gpr = 0;
-            end else if (idx > 0 && idx < 16) begin
-                npc_get_gpr = exu.reg_bank[idx];
-            end else begin
-                npc_get_gpr = 0;
+            pc = ex_pc;
+            mstatus = exu.csr_mstatus;
+            mtvec = exu.csr_mtvec;
+            mepc = exu.csr_mepc;
+            mcause = exu.csr_mcause;
+            gpr[0] = 32'b0;
+            for (int i = 1; i < 16; i++) begin
+                gpr[i] = exu.reg_bank[i];
             end
-        end
-    endfunction
-    export "DPI-C" function npc_get_csr;
-    function int npc_get_csr(input int addr);
-        begin
-            case (addr)
-                32'h300: npc_get_csr = exu.csr_mstatus;
-                32'h305: npc_get_csr = exu.csr_mtvec;
-                32'h341: npc_get_csr = exu.csr_mepc;
-                32'h342: npc_get_csr = exu.csr_mcause;
-                default: npc_get_csr = 0;
-            endcase
-        end
-    endfunction
-    export "DPI-C" function npc_get_pc;
-    function int npc_get_pc();
-        begin
-            npc_get_pc = ex_pc;
         end
     endfunction
 `endif
