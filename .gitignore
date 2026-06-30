@@ -1,5 +1,6 @@
 .*//fceux-am
 /nvboard
+/am-kernels
 .*/
 out/
 __pycache__/
