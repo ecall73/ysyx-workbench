@@ -129,7 +129,16 @@ uint32_t platform_reset_pc();
 void platform_difftest_memcpy(void (*ref_memcpy)(uint32_t, void *, size_t, bool), bool direction);
 void platform_enable_ref_paddr(void (*enable_ysyxsoc_paddr)(void));
 
-extern "C" void npc_commit(int pc, int inst, int dnpc);
+extern "C" void npc_commit(
+    int pc,
+    int inst,
+    int dnpc,
+    int mstatus,
+    int mtvec,
+    int mepc,
+    int mcause,
+    int *gpr
+);
 extern "C" void npc_pmu_event(int event_mask);
 extern "C" void npc_trace_read(int addr, int len, int data);
 extern "C" void npc_trace_write(int addr, int len, int data, int wstrb);

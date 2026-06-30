@@ -16,6 +16,7 @@ static bool g_commit_valid = false;
 static uint32_t g_commit_pc = 0;
 static uint32_t g_commit_inst = 0;
 static uint32_t g_commit_dnpc = 0;
+static DutState g_dut_state = {};
 static constexpr uint32_t kEcallInst = 0x00000073u;
 static constexpr uint32_t kMretInst = 0x30200073u;
 static constexpr uint32_t kEbreakInst = 0x00100073u;
@@ -82,7 +83,16 @@ static void pmu_on_commit(uint32_t inst) {
 }
 #endif
 
-extern "C" void npc_commit(int pc, int inst, int dnpc) {
+extern "C" void npc_commit(
+    int pc,
+    int inst,
+    int dnpc,
+    int mstatus,
+    int mtvec,
+    int mepc,
+    int mcause,
+    int *gpr
+) {
     if (is_finished) {
         return;
     }
@@ -91,9 +101,24 @@ extern "C" void npc_commit(int pc, int inst, int dnpc) {
     g_commit_pc = (uint32_t)pc;
     g_commit_inst = (uint32_t)inst;
     g_commit_dnpc = (uint32_t)dnpc;
+    for (int i = 0; i < 16; i++) {
+        g_dut_state.gpr[i] = (uint32_t)gpr[i];
+    }
+    for (int i = 16; i < 32; i++) {
+        g_dut_state.gpr[i] = 0;
+    }
+    g_dut_state.pc = (uint32_t)pc;
+    g_dut_state.mstatus = (uint32_t)mstatus;
+    g_dut_state.mtvec = (uint32_t)mtvec;
+    g_dut_state.mepc = (uint32_t)mepc;
+    g_dut_state.mcause = (uint32_t)mcause;
 #ifdef CONFIG_PERF
     pmu_on_commit((uint32_t)inst);
 #endif
+}
+
+void npc_read_dut_state(DutState *state) {
+    *state = g_dut_state;
 }
 
 extern "C" void npc_pmu_event(int event_mask) {
@@ -256,9 +281,8 @@ void cpu_exec(uint64_t n) {
             uint32_t commit_pc = g_commit_pc;
             uint32_t commit_inst = g_commit_inst;
             uint32_t commit_dnpc = g_commit_dnpc;
+            DutState dut_post = g_dut_state;
             g_commit_valid = false;
-            DutState dut_post;
-            npc_read_dut_state(&dut_post);
 
             g_nr_guest_inst++;
 #ifdef CONFIG_ITRACE

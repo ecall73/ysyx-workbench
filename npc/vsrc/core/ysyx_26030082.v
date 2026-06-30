@@ -99,31 +99,19 @@ module ysyx_26030082 #(
 `endif
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
-    import "DPI-C" function void npc_commit(input int pc, input int inst, input int dnpc);
+    import "DPI-C" function void npc_commit(
+        input int pc,
+        input int inst,
+        input int dnpc,
+        input int mstatus,
+        input int mtvec,
+        input int mepc,
+        input int mcause,
+        input int gpr[16]
+    );
 `ifdef NPC_ENABLE_PERF
     import "DPI-C" function void npc_pmu_event(input int event_mask);
 `endif
-    export "DPI-C" function npc_get_state;
-    function void npc_get_state(
-        output int pc,
-        output int mstatus,
-        output int mtvec,
-        output int mepc,
-        output int mcause,
-        output int gpr[16]
-    );
-        begin
-            pc = ex_pc;
-            mstatus = exu.csr_mstatus;
-            mtvec = exu.csr_mtvec;
-            mepc = exu.csr_mepc;
-            mcause = exu.csr_mcause;
-            gpr[0] = 32'b0;
-            for (int i = 1; i < 16; i++) begin
-                gpr[i] = exu.reg_bank[i];
-            end
-        end
-    endfunction
 `endif
 `endif
 
@@ -341,10 +329,39 @@ module ysyx_26030082 #(
 `ifndef __ICARUS__
     wire commit_is_ebreak = ex_inst == 32'h00100073;
     wire [31:0] commit_dnpc = (ex_redirect && !commit_is_ebreak) ? ex_redirect_pc : ex_pc + 32'd4;
+    reg commit_valid_d;
+    reg [31:0] commit_pc_d;
+    reg [31:0] commit_inst_d;
+    reg [31:0] commit_dnpc_d;
+    int commit_gpr[16];
 
     always @(posedge clock) begin
-        if (!reset && ex_out_valid) begin
-            npc_commit(ex_pc, ex_inst, commit_dnpc);
+        if (reset) begin
+            commit_valid_d <= 1'b0;
+        end else begin
+            if (commit_valid_d) begin
+                commit_gpr[0] = 32'b0;
+                for (int i = 1; i < 16; i++) begin
+                    commit_gpr[i] = exu.reg_bank[i];
+                end
+                npc_commit(
+                    commit_pc_d,
+                    commit_inst_d,
+                    commit_dnpc_d,
+                    exu.csr_mstatus,
+                    exu.csr_mtvec,
+                    exu.csr_mepc,
+                    exu.csr_mcause,
+                    commit_gpr
+                );
+            end
+
+            commit_valid_d <= ex_out_valid;
+            if (ex_out_valid) begin
+                commit_pc_d <= ex_pc;
+                commit_inst_d <= ex_inst;
+                commit_dnpc_d <= commit_dnpc;
+            end
         end
     end
 `endif
