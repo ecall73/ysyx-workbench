@@ -62,7 +62,7 @@ config TRACE_END
 config ITRACE
   bool "Enable instruction trace"
   depends on TRACE
-  default n
+  default y
 
 config ITRACE_COND
   string "Instruction trace condition"

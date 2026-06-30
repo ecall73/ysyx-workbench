@@ -20,9 +20,11 @@ static DutState g_dut_state = {};
 static constexpr uint32_t kEcallInst = 0x00000073u;
 static constexpr uint32_t kMretInst = 0x30200073u;
 static constexpr uint32_t kEbreakInst = 0x00100073u;
+static constexpr uint64_t kMaxInstToPrint = 10;
 
 static uint64_t g_timer_us = 0;
 static uint64_t g_nr_sim_cycle = 0;
+static bool g_print_step = false;
 
 #ifdef CONFIG_PERF
 enum PmuInstClass : uint8_t {
@@ -241,6 +243,8 @@ static void statistic() {
 #endif
 
 void cpu_exec(uint64_t n) {
+    g_print_step = (n < kMaxInstToPrint);
+
     if (is_finished) {
         printf("Program execution has ended. To restart the program, exit NPC and run again.\n");
         return;
@@ -290,6 +294,9 @@ void cpu_exec(uint64_t n) {
                 char disasm_buf[128];
                 disassemble(disasm_buf, sizeof(disasm_buf), commit_pc, commit_inst);
                 itrace_write("0x%08x: 0x%08x  %s\n", commit_pc, commit_inst, disasm_buf);
+                if (g_print_step) {
+                    printf("0x%08x: 0x%08x  %s\n", commit_pc, commit_inst, disasm_buf);
+                }
             }
 #endif
 #ifdef CONFIG_FTRACE
