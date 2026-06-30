@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include "memory/paddr.h"
 #include "platform/platform.h"
 
 void platform_init() {}

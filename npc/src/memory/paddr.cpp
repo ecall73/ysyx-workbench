@@ -4,6 +4,7 @@
 #include <time.h>
 
 #include "common.h"
+#include "memory/paddr.h"
 #include "platform/platform.h"
 #include "utils.h"
 

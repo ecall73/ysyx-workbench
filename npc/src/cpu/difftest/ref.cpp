@@ -3,7 +3,7 @@
 
 #include "common.h"
 #include "cpu/difftest.h"
-#include "platform/platform.h"
+#include "memory/paddr.h"
 #include "utils.h"
 #include "internal.h"
 

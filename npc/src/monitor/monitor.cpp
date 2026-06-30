@@ -8,6 +8,7 @@
 #include "verilated_vcd_c.h"
 #include "common.h"
 #include "cpu/difftest.h"
+#include "memory/paddr.h"
 #include "monitor/monitor.h"
 #include "monitor/sdb.h"
 #include "platform/platform.h"

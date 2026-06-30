@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "cpu/difftest.h"
+#include "memory/paddr.h"
 #include "platform/platform.h"
 #include "utils.h"
 #include "internal.h"
