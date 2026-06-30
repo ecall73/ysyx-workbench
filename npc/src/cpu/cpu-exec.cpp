@@ -18,9 +18,7 @@ static uint32_t g_commit_inst = 0;
 static uint32_t g_commit_dnpc = 0;
 static constexpr uint32_t kEbreakInst = 0x00100073u;
 
-#ifdef CONFIG_PERF
 static uint64_t g_timer_us = 0;
-#endif
 static uint64_t g_nr_sim_cycle = 0;
 
 #ifdef CONFIG_PERF
@@ -116,16 +114,17 @@ extern "C" void npc_pmu_event(int event_mask) {
 #endif
 }
 
-#ifdef CONFIG_PERF
 static uint64_t get_time_us() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_sec * 1000000 + (uint64_t)ts.tv_nsec / 1000;
 }
 
+#ifdef CONFIG_PERF
 static double ratio(uint64_t numerator, uint64_t denominator) {
     return denominator ? (double)numerator / (double)denominator : 0.0;
 }
+#endif
 
 static void statistic() {
     Log("host time spent = %" PRIu64 " us", g_timer_us);
@@ -144,6 +143,7 @@ static void statistic() {
         Log("Finish running in less than 1 us and can not calculate the simulation frequency");
     }
 
+#ifdef CONFIG_PERF
     uint64_t icache_hit = g_pmu.ifetch_fire;
     uint64_t icache_access = icache_hit + g_pmu.icache_miss;
     double icache_miss_rate = ratio(g_pmu.icache_miss, icache_access);
@@ -228,8 +228,8 @@ static void statistic() {
             kPmuClassName[i], g_ret_class_cnt[i], retire_mix);
     }
     PmuLog("+------------------+-------------+-----------+\n");
-}
 #endif
+}
 
 void cpu_exec(uint64_t n) {
     if (is_finished) {
@@ -237,9 +237,7 @@ void cpu_exec(uint64_t n) {
         return;
     }
 
-#ifdef CONFIG_PERF
     uint64_t timer_start = get_time_us();
-#endif
     bool need_report = false;
 
     bool run_forever = (n == (uint64_t)-1);
@@ -320,18 +318,14 @@ void cpu_exec(uint64_t n) {
         }
     }
 
-#ifdef CONFIG_PERF
     uint64_t timer_end = get_time_us();
     g_timer_us += timer_end - timer_start;
-#endif
 
     if (need_report) {
         Log("npc: %s at pc = 0x%08x",
             (trap_a0 == 0 ? ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)
                           : ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED)),
             trap_pc);
-#ifdef CONFIG_PERF
         statistic();
-#endif
     }
 }
