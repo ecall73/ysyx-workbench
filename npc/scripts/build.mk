@@ -1,3 +1,10 @@
+TRACE_FROM_CMD := $(filter command line,$(origin TRACE))
+ITRACE_FROM_CMD := $(filter command line,$(origin ITRACE))
+FTRACE_FROM_CMD := $(filter command line,$(origin FTRACE))
+MTRACE_FROM_CMD := $(filter command line,$(origin MTRACE))
+DTRACE_FROM_CMD := $(filter command line,$(origin DTRACE))
+ETRACE_FROM_CMD := $(filter command line,$(origin ETRACE))
+
 SIM_MODE ?= $(call remove_quote,$(CONFIG_PLATFORM))
 DIFF ?= $(if $(CONFIG_DIFFTEST),1,0)
 PERF ?= $(if $(CONFIG_PERF),1,0)
@@ -8,6 +15,24 @@ FTRACE ?= $(if $(CONFIG_FTRACE),1,0)
 MTRACE ?= $(if $(CONFIG_MTRACE),1,0)
 DTRACE ?= $(if $(CONFIG_DTRACE),1,0)
 ETRACE ?= $(if $(CONFIG_ETRACE),1,0)
+ifneq ($(TRACE_FROM_CMD),)
+$(error TRACE is configured by npc/.config; use 'make -C npc menuconfig' instead)
+endif
+ifneq ($(ITRACE_FROM_CMD),)
+$(error ITRACE is configured by npc/.config; use 'make -C npc menuconfig' instead)
+endif
+ifneq ($(FTRACE_FROM_CMD),)
+$(error FTRACE is configured by npc/.config; use 'make -C npc menuconfig' instead)
+endif
+ifneq ($(MTRACE_FROM_CMD),)
+$(error MTRACE is configured by npc/.config; use 'make -C npc menuconfig' instead)
+endif
+ifneq ($(DTRACE_FROM_CMD),)
+$(error DTRACE is configured by npc/.config; use 'make -C npc menuconfig' instead)
+endif
+ifneq ($(ETRACE_FROM_CMD),)
+$(error ETRACE is configured by npc/.config; use 'make -C npc menuconfig' instead)
+endif
 DEBUG_DEFAULT := $(if $(CONFIG_DEBUG),1,0)
 ifeq ($(origin DEBUG),command line)
 DEBUG := $(if $(filter 1 y yes true,$(DEBUG)),1,0)
@@ -47,11 +72,6 @@ $(error Unsupported DTRACE='$(DTRACE)'. Expected '0' or '1')
 endif
 ifneq ($(filter-out 0 1,$(ETRACE)),)
 $(error Unsupported ETRACE='$(ETRACE)'. Expected '0' or '1')
-endif
-ifeq ($(TRACE),0)
-ifneq ($(filter 1,$(ITRACE) $(FTRACE) $(MTRACE) $(DTRACE) $(ETRACE)),)
-$(error TRACE=0 disables trace infrastructure; enable TRACE=1 before enabling ITRACE/FTRACE/MTRACE/DTRACE/ETRACE)
-endif
 endif
 ifneq ($(filter-out 0 1,$(UART_STDOUT)),)
 $(error Unsupported UART_STDOUT='$(UART_STDOUT)'. Expected '0' or '1')

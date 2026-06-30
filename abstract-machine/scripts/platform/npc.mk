@@ -29,25 +29,6 @@ NPCFLAGS += -b
 endif
 DIFF_REF_SO ?= $(NEMU_HOME)/build/riscv32-nemu-interpreter-so
 DIFF_PORT ?= 1234
-NPC_TRACE_VARS :=
-ifneq ($(origin TRACE),undefined)
-NPC_TRACE_VARS += TRACE=$(TRACE)
-endif
-ifneq ($(origin ITRACE),undefined)
-NPC_TRACE_VARS += ITRACE=$(ITRACE)
-endif
-ifneq ($(origin FTRACE),undefined)
-NPC_TRACE_VARS += FTRACE=$(FTRACE)
-endif
-ifneq ($(origin MTRACE),undefined)
-NPC_TRACE_VARS += MTRACE=$(MTRACE)
-endif
-ifneq ($(origin DTRACE),undefined)
-NPC_TRACE_VARS += DTRACE=$(DTRACE)
-endif
-ifneq ($(origin ETRACE),undefined)
-NPC_TRACE_VARS += ETRACE=$(ETRACE)
-endif
 
 MAINARGS_MAX_LEN = 64
 MAINARGS_PLACEHOLDER = the_insert-arg_rule_in_Makefile_will_insert_mainargs_here
@@ -62,6 +43,6 @@ image: image-dep
 	@$(OBJCOPY) -S --set-section-flags .bss=alloc,contents -O binary $(IMAGE).elf $(IMAGE).bin
 
 run: insert-arg
-	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=npc DIFF=$(DIFF) PERF=$(PERF) WAVE=$(WAVE) DEBUG=$(DEBUG) $(NPC_TRACE_VARS) DIFF_REF_SO=$(DIFF_REF_SO) DIFF_PORT=$(DIFF_PORT) sim ARGS="$(NPCFLAGS)" IMG="$(IMAGE).bin"
+	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=npc DIFF=$(DIFF) PERF=$(PERF) WAVE=$(WAVE) DEBUG=$(DEBUG) DIFF_REF_SO=$(DIFF_REF_SO) DIFF_PORT=$(DIFF_PORT) sim ARGS="$(NPCFLAGS)" IMG="$(IMAGE).bin"
 
 .PHONY: insert-arg
