@@ -41,14 +41,16 @@ static int cmd_info(char *args) {
     if (args == NULL) {
         printf("Usage: info r (registers)\n");
     } else if (strcmp(args, "r") == 0) {
+        DutState state;
+        npc_read_dut_state(&state);
         for (int i = 0; i < (int)NR_GPR; i++) {
             printf(ANSI_FG_RED "(x%02d) " ANSI_FG_GREEN "%-4s " ANSI_FG_BLUE "0x%08x\t" ANSI_NONE,
-                i, regs[i], npc_read_dut_gpr(i));
+                i, regs[i], state.gpr[i]);
             if (i % 4 == 3) {
                 printf("\n");
             }
         }
-        printf("      " ANSI_FG_GREEN "PC   " ANSI_FG_BLUE "0x%08x\n" ANSI_NONE, npc_read_dut_pc());
+        printf("      " ANSI_FG_GREEN "PC   " ANSI_FG_BLUE "0x%08x\n" ANSI_NONE, state.pc);
     } else {
         printf("Unknown info type '%s'\n", args);
     }

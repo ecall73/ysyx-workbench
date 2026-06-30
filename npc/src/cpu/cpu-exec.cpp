@@ -19,9 +19,6 @@ static uint32_t g_commit_dnpc = 0;
 static constexpr uint32_t kEcallInst = 0x00000073u;
 static constexpr uint32_t kMretInst = 0x30200073u;
 static constexpr uint32_t kEbreakInst = 0x00100073u;
-static constexpr int kCsrMstatus = 0x300;
-static constexpr int kCsrMepc = 0x341;
-static constexpr int kCsrMcause = 0x342;
 
 static uint64_t g_timer_us = 0;
 static uint64_t g_nr_sim_cycle = 0;
@@ -260,6 +257,8 @@ void cpu_exec(uint64_t n) {
             uint32_t commit_inst = g_commit_inst;
             uint32_t commit_dnpc = g_commit_dnpc;
             g_commit_valid = false;
+            DutState dut_post;
+            npc_read_dut_state(&dut_post);
 
             g_nr_guest_inst++;
 #ifdef CONFIG_ITRACE
@@ -275,19 +274,17 @@ void cpu_exec(uint64_t n) {
 #ifdef CONFIG_ETRACE
             if (commit_inst == kEcallInst) {
                 etrace_write("ecall pc=0x%08x -> 0x%08x mstatus=0x%08x mepc=0x%08x mcause=0x%08x\n",
-                    commit_pc, commit_dnpc,
-                    npc_read_dut_csr(kCsrMstatus), npc_read_dut_csr(kCsrMepc), npc_read_dut_csr(kCsrMcause));
+                    commit_pc, commit_dnpc, dut_post.mstatus, dut_post.mepc, dut_post.mcause);
             } else if (commit_inst == kMretInst) {
                 etrace_write("mret pc=0x%08x -> 0x%08x mstatus=0x%08x mepc=0x%08x mcause=0x%08x\n",
-                    commit_pc, commit_dnpc,
-                    npc_read_dut_csr(kCsrMstatus), npc_read_dut_csr(kCsrMepc), npc_read_dut_csr(kCsrMcause));
+                    commit_pc, commit_dnpc, dut_post.mstatus, dut_post.mepc, dut_post.mcause);
             }
 #endif
             if (commit_inst == kEbreakInst) {
                 is_finished = true;
                 trap_pc = (int)commit_pc;
-                trap_a0 = (int)npc_read_dut_gpr(10);
-            } else if (!difftest_step(commit_pc, commit_inst, commit_dnpc)) {
+                trap_a0 = (int)dut_post.gpr[10];
+            } else if (!difftest_step(commit_pc, commit_inst, &dut_post)) {
                 is_finished = true;
                 trap_pc = (int)commit_pc;
                 trap_a0 = -1;

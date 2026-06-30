@@ -66,6 +66,15 @@ extern SimTop *g_top;
 extern VerilatedContext *g_contextp;
 extern VerilatedVcdC *g_tfp;
 
+typedef struct {
+  uint32_t gpr[32];
+  uint32_t pc;
+  uint32_t mstatus;
+  uint32_t mtvec;
+  uint32_t mepc;
+  uint32_t mcause;
+} DutState;
+
 const char *npc_log_file(const char *file);
 void _Log(const char *fmt, ...);
 void init_log(const char *log_file);
@@ -102,15 +111,10 @@ void sdb_set_batch_mode();
 void sdb_mainloop();
 
 void cpu_exec(uint64_t n);
-extern "C" int npc_get_gpr(int idx);
-extern "C" int npc_get_csr(int addr);
-extern "C" int npc_get_pc();
-uint32_t npc_read_dut_gpr(int idx);
-uint32_t npc_read_dut_csr(int addr);
-uint32_t npc_read_dut_pc();
+void npc_read_dut_state(DutState *state);
 
 void init_difftest(const char *ref_so_file, long img_size, int port);
-bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, uint32_t dut_dnpc);
+bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, const DutState *dut_post);
 bool difftest_is_enabled();
 
 void platform_init();

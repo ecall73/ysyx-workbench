@@ -62,16 +62,16 @@ static inline bool in_comparable_mem(uint32_t addr) {
     return platform_in_comparable_mem(addr);
 }
 
-static void collect_dut_state(RefCPUState *dut_r, uint32_t pc) {
+static void copy_dut_state(RefCPUState *dut_r, const DutState *state) {
     memset(dut_r, 0, sizeof(*dut_r));
     for (int i = 0; i < 32; i++) {
-        dut_r->gpr[i] = npc_read_dut_gpr(i);
+        dut_r->gpr[i] = state->gpr[i];
     }
-    dut_r->pc = pc;
-    dut_r->mstatus = npc_read_dut_csr(CSR_MSTATUS);
-    dut_r->mtvec = npc_read_dut_csr(CSR_MTVEC);
-    dut_r->mepc = npc_read_dut_csr(CSR_MEPC);
-    dut_r->mcause = npc_read_dut_csr(CSR_MCAUSE);
+    dut_r->pc = state->pc;
+    dut_r->mstatus = state->mstatus;
+    dut_r->mtvec = state->mtvec;
+    dut_r->mepc = state->mepc;
+    dut_r->mcause = state->mcause;
 }
 
 static SkipReason get_skip_reason(uint32_t inst, const RefCPUState *ref_pre) {
@@ -196,7 +196,7 @@ void init_difftest(const char *ref_so_file, long img_size, int port) {
     Log("The result of every retired instruction will be compared with %s", ref_so_file);
 }
 
-bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, uint32_t dut_dnpc) {
+bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, const DutState *dut_post) {
     if (!difftest_enabled) {
         return true;
     }
@@ -218,18 +218,18 @@ bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, uint32_t dut_dnpc) {
     SkipReason skip_reason = get_skip_reason(dut_inst, &ref_pre);
 
     if (skip_reason == SKIP_MMIO || skip_reason == SKIP_COUNTER_CSR) {
-        RefCPUState dut_post;
-        collect_dut_state(&dut_post, dut_dnpc);
-        ref_difftest_regcpy(&dut_post, DIFFTEST_TO_REF);
+        RefCPUState dut_ref_state;
+        copy_dut_state(&dut_ref_state, dut_post);
+        ref_difftest_regcpy(&dut_ref_state, DIFFTEST_TO_REF);
         return true;
     }
 
     ref_difftest_exec(1);
 
     RefCPUState ref_post;
-    RefCPUState dut_post;
+    RefCPUState dut_ref_state;
     ref_difftest_regcpy(&ref_post, DIFFTEST_TO_DUT);
-    collect_dut_state(&dut_post, dut_dnpc);
+    copy_dut_state(&dut_ref_state, dut_post);
 
-    return difftest_checkregs(&ref_post, &dut_post, dut_pc);
+    return difftest_checkregs(&ref_post, &dut_ref_state, dut_pc);
 }
