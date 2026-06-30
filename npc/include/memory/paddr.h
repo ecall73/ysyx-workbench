@@ -18,4 +18,11 @@
 #define NPC_RESET_PC_NPC     NPC_PMEM_BASE
 #define NPC_RESET_PC_YSYXSOC NPC_FLASH_BASE
 
+uint8_t *guest_to_host(uint32_t paddr);
+uint32_t host_to_guest(uint8_t *haddr);
+bool in_pmem(uint32_t addr);
+uint32_t pmem_read_word(uint32_t addr);
+void pmem_write_word(uint32_t addr, uint32_t data, uint8_t wmask);
+uint8_t *pmem_base();
+
 #endif

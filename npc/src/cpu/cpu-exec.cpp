@@ -26,6 +26,37 @@ static uint64_t g_timer_us = 0;
 static uint64_t g_nr_sim_cycle = 0;
 static bool g_print_step = false;
 
+#ifdef CONFIG_FTRACE
+static int32_t sext32(uint32_t val, int bits) {
+    uint32_t mask = 1u << (bits - 1);
+    return (int32_t)((val ^ mask) - mask);
+}
+
+static uint32_t jal_imm(uint32_t inst) {
+    uint32_t imm =
+        ((inst >> 31) & 0x1) << 20 |
+        ((inst >> 21) & 0x3ff) << 1 |
+        ((inst >> 20) & 0x1) << 11 |
+        ((inst >> 12) & 0xff) << 12;
+    return (uint32_t)sext32(imm, 21);
+}
+
+static void ftrace_commit(uint32_t pc, uint32_t inst, uint32_t dnpc) {
+    uint32_t opcode = inst & 0x7f;
+    uint32_t rd = (inst >> 7) & 0x1f;
+    uint32_t rs1 = (inst >> 15) & 0x1f;
+    int32_t imm = sext32((inst >> 20) & 0xfff, 12);
+
+    if (opcode == 0x6f && (rd == 1 || rd == 5)) {
+        ftrace_call(pc, pc + jal_imm(inst));
+    } else if ((inst & 0x707f) == 0x67 && rd == 0 && rs1 == 1 && imm == 0) {
+        ftrace_ret(pc);
+    } else if ((inst & 0x707f) == 0x67 && (rd == 1 || rd == 5)) {
+        ftrace_call(pc, dnpc);
+    }
+}
+#endif
+
 #ifdef CONFIG_PERF
 enum PmuInstClass : uint8_t {
     PMU_CLASS_LOAD = 0,
@@ -127,7 +158,7 @@ static bool trace_and_difftest(const RetiredInst *retired) {
     }
 #endif
 #ifdef CONFIG_FTRACE
-    ftrace_check(retired->commit_pc, retired->commit_inst, retired->state.pc);
+    ftrace_commit(retired->commit_pc, retired->commit_inst, retired->state.pc);
 #endif
 #ifdef CONFIG_ETRACE
     if (retired->commit_inst == kEcallInst) {

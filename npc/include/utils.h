@@ -4,6 +4,10 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern FILE *log_fp;
 
 const char *npc_log_file(const char *file);
@@ -30,9 +34,14 @@ void init_disasm();
 void disassemble(char *str, int size, uint32_t pc, uint32_t inst);
 
 void init_ftrace(const char *elf_file);
-void ftrace_check(uint32_t pc, uint32_t inst, uint32_t dnpc);
+void ftrace_call(vaddr_t pc, vaddr_t target);
+void ftrace_ret(vaddr_t pc);
 
-extern "C" void npc_trace_read(int addr, int len, int data);
-extern "C" void npc_trace_write(int addr, int len, int data, int wstrb);
+void npc_trace_read(int addr, int len, int data);
+void npc_trace_write(int addr, int len, int data, int wstrb);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

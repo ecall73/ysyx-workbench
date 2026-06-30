@@ -34,7 +34,7 @@ endif
 FILELIST_MK = $(shell find -L ./src -name "filelist.mk")
 include $(FILELIST_MK)
 
-SRCS-y += $(if $(DIRS-y),$(shell find -L $(DIRS-y) -name "*.cpp"),)
+SRCS-y += $(if $(DIRS-y),$(shell find -L $(DIRS-y) \( -name "*.cpp" -o -name "*.c" \)),)
 SRCS = $(sort $(SRCS-y))
 
 include $(NPC_HOME)/scripts/build.mk

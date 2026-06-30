@@ -4,7 +4,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include "generated/autoconf.h"
 
@@ -26,6 +28,17 @@
 #define ANSI_BG_WHITE   "\33[1;47m"
 #define ANSI_NONE       "\33[0m"
 #define ANSI_FMT(str, fmt) fmt str ANSI_NONE
+
+typedef uint32_t word_t;
+typedef uint32_t vaddr_t;
+#define FMT_WORD "0x%08" PRIx32
+
+#define Assert(cond, format, ...) do { \
+  if (!(cond)) { \
+    fprintf(stderr, ANSI_FMT(format, ANSI_FG_RED) "\n", ##__VA_ARGS__); \
+    assert(cond); \
+  } \
+} while (0)
 
 #ifndef CONFIG_MAX_SIM_TIME
 #define CONFIG_MAX_SIM_TIME 1000000000
