@@ -8,7 +8,6 @@
 #include "verilated_vcd_c.h"
 #include "common.h"
 #include "cpu/difftest.h"
-#include "memory/paddr.h"
 #include "monitor/monitor.h"
 #include "monitor/sdb.h"
 #include "platform/platform.h"
@@ -24,7 +23,6 @@ int trap_pc = 0;
 uint64_t g_nr_guest_inst = 0;
 
 bool sdb_batch_mode = false;
-bool sdb_quit = false;
 FILE *log_fp = NULL;
 
 static char *log_file = NULL;
@@ -51,6 +49,11 @@ static void welcome() {
         ANSI_FMT("OFF", ANSI_FG_RED)
 #endif
     );
+#ifdef CONFIG_TRACE
+    Log("If trace is enabled, a log file will be generated to record the trace. "
+        "This may lead to a large log file. If it is not necessary, you can "
+        "disable it in menuconfig");
+#endif
     Log("Build time: %s, %s", __TIME__, __DATE__);
     printf("Welcome to %s-NPC!\n", ANSI_FMT(NPC_BUILD_PLATFORM_NAME, ANSI_FG_YELLOW ANSI_BG_RED));
     printf("For help, type \"help\"\n");
@@ -116,15 +119,7 @@ static int parse_args(int argc, char **argv) {
     return 0;
 }
 
-void init_monitor(int argc, char **argv) {
-    parse_args(argc, argv);
-
-    VerilatedContext *contextp = new VerilatedContext;
-    contextp->commandArgs(argc, argv);
-
-    SimTop *top = new SimTop{contextp};
-    VerilatedVcdC *tfp = NULL;
-
+static void init_trace() {
     init_log(log_file);
 #ifdef CONFIG_FTRACE
     init_ftrace_log(ftrace_log_file);
@@ -142,24 +137,22 @@ void init_monitor(int argc, char **argv) {
 #ifdef CONFIG_ITRACE
     init_disasm();
 #endif
+}
 
-    long img_size = load_img();
-
+static VerilatedVcdC *init_wave(SimTop *top) {
 #ifdef CONFIG_WAVE
-    {
-        Verilated::traceEverOn(true);
-        tfp = new VerilatedVcdC;
-        top->trace(tfp, 99);
-        tfp->open("waveform.vcd");
-    }
+    Verilated::traceEverOn(true);
+    VerilatedVcdC *tfp = new VerilatedVcdC;
+    top->trace(tfp, 99);
+    tfp->open("waveform.vcd");
+    return tfp;
+#else
+    (void)top;
+    return NULL;
 #endif
+}
 
-    g_top = top;
-    g_contextp = contextp;
-    g_tfp = tfp;
-
-    platform_init();
-
+static void reset_dut(SimTop *top, VerilatedContext *contextp, VerilatedVcdC *tfp) {
     top->clock = 0;
     top->reset = 1;
     platform_set_external_idle(top);
@@ -187,6 +180,26 @@ void init_monitor(int argc, char **argv) {
 #endif
     }
     top->reset = 0;
+}
+
+void init_monitor(int argc, char **argv) {
+    parse_args(argc, argv);
+
+    VerilatedContext *contextp = new VerilatedContext;
+    contextp->commandArgs(argc, argv);
+
+    SimTop *top = new SimTop{contextp};
+    init_trace();
+
+    long img_size = load_img();
+    VerilatedVcdC *tfp = init_wave(top);
+
+    g_top = top;
+    g_contextp = contextp;
+    g_tfp = tfp;
+
+    platform_init();
+    reset_dut(top, contextp, tfp);
     npc_reset_dut_state(platform_reset_pc());
 
 #ifdef CONFIG_DIFFTEST

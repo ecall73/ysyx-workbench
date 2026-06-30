@@ -3,9 +3,6 @@
 
 #include "common.h"
 
-extern bool sdb_batch_mode;
-extern bool sdb_quit;
-
 uint32_t expr(char *e, bool *success);
 
 int new_wp(char *e);

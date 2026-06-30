@@ -5,8 +5,8 @@
 
 #include "common.h"
 #include "cpu/cpu.h"
-#include "memory/paddr.h"
 #include "monitor/sdb.h"
+#include "platform/platform.h"
 
 #define MAX_TOKENS 65536
 #define TOKEN_STR_SIZE 32

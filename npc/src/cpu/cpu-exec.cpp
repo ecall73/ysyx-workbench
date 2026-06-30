@@ -17,10 +17,6 @@
     _Log(ANSI_FMT(format, ANSI_FG_MAGENTA) "\n", ##__VA_ARGS__)
 #endif
 
-static bool g_commit_valid = false;
-static uint32_t g_commit_pc = 0;
-static uint32_t g_commit_inst = 0;
-static DutState g_commit_state = {};
 static constexpr uint32_t kEcallInst = 0x00000073u;
 static constexpr uint32_t kMretInst = 0x30200073u;
 static constexpr uint32_t kEbreakInst = 0x00100073u;
@@ -29,16 +25,6 @@ static constexpr uint64_t kMaxInstToPrint = 10;
 static uint64_t g_timer_us = 0;
 static uint64_t g_nr_sim_cycle = 0;
 static bool g_print_step = false;
-
-typedef struct {
-    uint32_t pc;
-    uint32_t inst;
-    DutState state;
-} RetiredInst;
-
-static bool program_has_ended() {
-    return npc_state == NPC_END || npc_state == NPC_ABORT || npc_state == NPC_QUIT;
-}
 
 #ifdef CONFIG_PERF
 enum PmuInstClass : uint8_t {
@@ -99,60 +85,9 @@ static void pmu_on_commit(uint32_t inst) {
 }
 #endif
 
-extern "C" void npc_commit(
-    uint32_t commit_pc,
-    uint32_t commit_inst,
-    uint32_t pc,
-    uint32_t mstatus,
-    uint32_t mtvec,
-    uint32_t mepc,
-    uint32_t mcause,
-    const uint32_t *gpr
-) {
-    if (program_has_ended()) {
-        return;
-    }
-
-    g_commit_valid = true;
-    g_commit_pc = commit_pc;
-    g_commit_inst = commit_inst;
-    for (int i = 0; i < 16; i++) {
-        g_commit_state.gpr[i] = gpr[i];
-    }
-    for (int i = 16; i < 32; i++) {
-        g_commit_state.gpr[i] = 0;
-    }
-    g_commit_state.pc = pc;
-    g_commit_state.mstatus = mstatus;
-    g_commit_state.mtvec = mtvec;
-    g_commit_state.mepc = mepc;
-    g_commit_state.mcause = mcause;
-#ifdef CONFIG_PERF
-    pmu_on_commit(commit_inst);
-#endif
-}
-
-void npc_read_dut_state(DutState *state) {
-    *state = g_commit_state;
-}
-
-void npc_reset_dut_state(uint32_t pc) {
-    g_commit_valid = false;
-    g_commit_pc = pc;
-    g_commit_inst = 0;
-    for (int i = 0; i < 32; i++) {
-        g_commit_state.gpr[i] = 0;
-    }
-    g_commit_state.pc = pc;
-    g_commit_state.mstatus = 0x00001800u;
-    g_commit_state.mtvec = 0x00000001u;
-    g_commit_state.mepc = 0;
-    g_commit_state.mcause = 0;
-}
-
 extern "C" void npc_pmu_event(int event_mask) {
 #ifdef CONFIG_PERF
-    if (program_has_ended()) {
+    if (npc_state == NPC_END || npc_state == NPC_ABORT || npc_state == NPC_QUIT) {
         return;
     }
 
@@ -178,44 +113,49 @@ static uint64_t get_time_us() {
 
 static bool trace_and_difftest(const RetiredInst *retired) {
     g_nr_guest_inst++;
+#ifdef CONFIG_PERF
+    pmu_on_commit(retired->commit_inst);
+#endif
 #ifdef CONFIG_ITRACE
     if ((ITRACE_COND)) {
         char disasm_buf[128];
-        disassemble(disasm_buf, sizeof(disasm_buf), retired->pc, retired->inst);
-        itrace_write("0x%08x: 0x%08x  %s\n", retired->pc, retired->inst, disasm_buf);
+        disassemble(disasm_buf, sizeof(disasm_buf), retired->commit_pc, retired->commit_inst);
+        itrace_write("0x%08x: 0x%08x  %s\n", retired->commit_pc, retired->commit_inst, disasm_buf);
         if (g_print_step) {
-            printf("0x%08x: 0x%08x  %s\n", retired->pc, retired->inst, disasm_buf);
+            printf("0x%08x: 0x%08x  %s\n", retired->commit_pc, retired->commit_inst, disasm_buf);
         }
     }
 #endif
 #ifdef CONFIG_FTRACE
-    ftrace_check(retired->pc, retired->inst, retired->state.pc);
+    ftrace_check(retired->commit_pc, retired->commit_inst, retired->state.pc);
 #endif
 #ifdef CONFIG_ETRACE
-    if (retired->inst == kEcallInst) {
+    if (retired->commit_inst == kEcallInst) {
         etrace_write("ecall pc=0x%08x -> 0x%08x mstatus=0x%08x mepc=0x%08x mcause=0x%08x\n",
-            retired->pc, retired->state.pc, retired->state.mstatus, retired->state.mepc, retired->state.mcause);
-    } else if (retired->inst == kMretInst) {
+            retired->commit_pc, retired->state.pc, retired->state.mstatus, retired->state.mepc, retired->state.mcause);
+    } else if (retired->commit_inst == kMretInst) {
         etrace_write("mret pc=0x%08x -> 0x%08x mstatus=0x%08x mepc=0x%08x mcause=0x%08x\n",
-            retired->pc, retired->state.pc, retired->state.mstatus, retired->state.mepc, retired->state.mcause);
+            retired->commit_pc, retired->state.pc, retired->state.mstatus, retired->state.mepc, retired->state.mcause);
     }
 #endif
-    if (retired->inst == kEbreakInst) {
-        npc_state = (retired->state.gpr[10] == 0) ? NPC_END : NPC_ABORT;
-        trap_pc = (int)retired->pc;
+    if (retired->commit_inst == kEbreakInst) {
+        npc_state = NPC_END;
+        trap_pc = (int)retired->commit_pc;
         trap_a0 = (int)retired->state.gpr[10];
     }
 #ifdef CONFIG_DIFFTEST
-    else if (!difftest_step(retired->pc, retired->inst, &retired->state)) {
+    else if (!difftest_step(retired->commit_pc, retired->commit_inst, &retired->state)) {
         npc_state = NPC_ABORT;
-        trap_pc = (int)retired->pc;
+        trap_pc = (int)retired->commit_pc;
         trap_a0 = -1;
     }
 #endif
+#ifdef CONFIG_WATCHPOINT
     if (wp_check()) {
         npc_state = NPC_STOP;
         return true;
     }
+#endif
     return npc_state != NPC_RUNNING;
 }
 
@@ -224,7 +164,7 @@ static double ratio(uint64_t numerator, uint64_t denominator) {
     return denominator ? (double)numerator / (double)denominator : 0.0;
 }
 
-static void statistic() {
+static void pmu_statistic() {
     uint64_t icache_hit = g_pmu.ifetch_fire;
     uint64_t icache_access = icache_hit + g_pmu.icache_miss;
     double icache_miss_rate = ratio(g_pmu.icache_miss, icache_access);
@@ -312,6 +252,87 @@ static void statistic() {
 }
 #endif
 
+static void statistic() {
+    Log("host time spent = %" PRIu64 " us", g_timer_us);
+    Log("total guest instructions = %" PRIu64, g_nr_guest_inst);
+    Log("total simulation cycles = %" PRIu64, g_nr_sim_cycle);
+
+    if (g_nr_sim_cycle > 0) {
+        Log("IPC = %.4f", (double)g_nr_guest_inst / (double)g_nr_sim_cycle);
+    } else {
+        Log("No simulation cycle counted, can not calculate IPC");
+    }
+
+    if (g_timer_us > 0) {
+        Log("simulation frequency = %" PRIu64 " inst/s", g_nr_guest_inst * 1000000 / g_timer_us);
+    } else {
+        Log("Finish running in less than 1 us and can not calculate the simulation frequency");
+    }
+#ifdef CONFIG_PERF
+    pmu_statistic();
+#endif
+}
+
+static void sim_cycle() {
+    g_top->clock = 0;
+    g_top->eval();
+    g_contextp->timeInc(1);
+#ifdef CONFIG_WAVE
+    if (g_tfp) g_tfp->dump(g_contextp->time());
+#endif
+
+    g_top->clock = 1;
+    g_top->eval();
+    g_contextp->timeInc(1);
+#ifdef CONFIG_WAVE
+    if (g_tfp) g_tfp->dump(g_contextp->time());
+#endif
+}
+
+static bool retire_pending_inst() {
+    RetiredInst retired;
+    if (!npc_fetch_retired_inst(&retired)) {
+        return false;
+    }
+
+    return trace_and_difftest(&retired);
+}
+
+static void execute(uint64_t n) {
+    bool run_forever = (n == (uint64_t)-1);
+    uint64_t start_inst = g_nr_guest_inst;
+
+    while (run_forever || g_nr_guest_inst - start_inst < n) {
+        if (npc_state != NPC_RUNNING || g_contextp->gotFinish()) {
+            break;
+        }
+
+        sim_cycle();
+        if (retire_pending_inst()) {
+            break;
+        }
+
+        if (npc_state != NPC_RUNNING || g_contextp->gotFinish()) {
+            break;
+        }
+
+        platform_update();
+        g_nr_sim_cycle++;
+
+        if (npc_state != NPC_RUNNING) {
+            break;
+        }
+
+        if (g_nr_sim_cycle > CONFIG_MAX_SIM_TIME) {
+            Log("Simulation timed out at cycle %" PRIu64, g_nr_sim_cycle);
+            npc_state = NPC_ABORT;
+            trap_a0 = -1;
+            trap_pc = 0;
+            break;
+        }
+    }
+}
+
 void cpu_exec(uint64_t n) {
     g_print_step = (n < kMaxInstToPrint);
 
@@ -327,95 +348,27 @@ void cpu_exec(uint64_t n) {
     }
 
     uint64_t timer_start = get_time_us();
-    bool need_report = false;
-
-    bool run_forever = (n == (uint64_t)-1);
-    uint64_t start_inst = g_nr_guest_inst;
-    while (1) {
-        if (!run_forever && (g_nr_guest_inst - start_inst >= n)) {
-            break;
-        }
-
-        if (npc_state != NPC_RUNNING || g_contextp->gotFinish()) {
-            need_report = (npc_state == NPC_END || npc_state == NPC_ABORT);
-            break;
-        }
-
-        g_top->clock = 0;
-        g_top->eval();
-        g_contextp->timeInc(1);
-#ifdef CONFIG_WAVE
-        if (g_tfp) g_tfp->dump(g_contextp->time());
-#endif
-
-        g_top->clock = 1;
-        g_top->eval();
-        g_contextp->timeInc(1);
-#ifdef CONFIG_WAVE
-        if (g_tfp) g_tfp->dump(g_contextp->time());
-#endif
-
-        if (g_commit_valid) {
-            RetiredInst retired = {g_commit_pc, g_commit_inst, g_commit_state};
-            g_commit_valid = false;
-            if (trace_and_difftest(&retired)) {
-                need_report = (npc_state == NPC_END || npc_state == NPC_ABORT);
-                break;
-            }
-        }
-        if (npc_state != NPC_RUNNING || g_contextp->gotFinish()) {
-            need_report = (npc_state == NPC_END || npc_state == NPC_ABORT);
-            break;
-        }
-
-        platform_update();
-        g_nr_sim_cycle++;
-
-        if (npc_state != NPC_RUNNING) {
-            need_report = (npc_state == NPC_END || npc_state == NPC_ABORT);
-            break;
-        }
-
-        if (g_nr_sim_cycle > CONFIG_MAX_SIM_TIME) {
-            Log("Simulation timed out at cycle %" PRIu64, g_nr_sim_cycle);
-            npc_state = NPC_ABORT;
-            trap_a0 = -1;
-            trap_pc = 0;
-            need_report = true;
-            break;
-        }
-    }
-
+    execute(n);
     uint64_t timer_end = get_time_us();
     g_timer_us += timer_end - timer_start;
 
-    if (npc_state == NPC_RUNNING) {
-        npc_state = NPC_STOP;
-    }
-
-    if (need_report) {
-        Log("npc: %s at pc = 0x%08x",
-            (npc_state == NPC_ABORT ? ANSI_FMT("ABORT", ANSI_FG_RED) :
-             (trap_a0 == 0 ? ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)
-                           : ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED))),
-            trap_pc);
-        Log("host time spent = %" PRIu64 " us", g_timer_us);
-        Log("total guest instructions = %" PRIu64, g_nr_guest_inst);
-        Log("total simulation cycles = %" PRIu64, g_nr_sim_cycle);
-
-        if (g_nr_sim_cycle > 0) {
-            Log("IPC = %.4f", (double)g_nr_guest_inst / (double)g_nr_sim_cycle);
-        } else {
-            Log("No simulation cycle counted, can not calculate IPC");
-        }
-
-        if (g_timer_us > 0) {
-            Log("simulation frequency = %" PRIu64 " inst/s", g_nr_guest_inst * 1000000 / g_timer_us);
-        } else {
-            Log("Finish running in less than 1 us and can not calculate the simulation frequency");
-        }
-#ifdef CONFIG_PERF
-        statistic();
-#endif
+    switch (npc_state) {
+        case NPC_RUNNING:
+            npc_state = NPC_STOP;
+            break;
+        case NPC_END:
+        case NPC_ABORT:
+            Log("npc: %s at pc = 0x%08x",
+                (npc_state == NPC_ABORT ? ANSI_FMT("ABORT", ANSI_FG_RED) :
+                 (trap_a0 == 0 ? ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)
+                               : ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED))),
+                trap_pc);
+            statistic();
+            break;
+        case NPC_QUIT:
+            statistic();
+            break;
+        default:
+            break;
     }
 }

@@ -18,6 +18,7 @@ struct FuncSymbol {
 static FuncSymbol *funcs = NULL;
 static size_t func_count = 0;
 static int call_depth = 0;
+static bool ftrace_ready = false;
 
 static int32_t sign_extend(uint32_t val, int bits) {
     uint32_t mask = 1u << (bits - 1);
@@ -59,6 +60,8 @@ static void free_symbols() {
     free(funcs);
     funcs = NULL;
     func_count = 0;
+    ftrace_ready = false;
+    call_depth = 0;
 }
 
 void init_ftrace(const char *elf_file) {
@@ -131,10 +134,19 @@ void init_ftrace(const char *elf_file) {
     free(strs);
     free(shdrs);
     fclose(fp);
-    Log("FTrace loaded %zu function symbols from %s", func_count, elf_file);
+    if (func_count > 0) {
+        ftrace_ready = true;
+        Log("FTrace loaded %zu function symbols from %s", func_count, elf_file);
+    } else {
+        Log("No function symbols found in ftrace ELF file: %s", elf_file);
+    }
 }
 
 void ftrace_check(uint32_t pc, uint32_t inst, uint32_t dnpc) {
+    if (!ftrace_ready) {
+        return;
+    }
+
     uint32_t rd = (inst >> 7) & 0x1f;
     uint32_t rs1 = (inst >> 15) & 0x1f;
     int32_t imm = (int32_t)jal_imm(inst);

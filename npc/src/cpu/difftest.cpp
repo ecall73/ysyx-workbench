@@ -1,11 +1,30 @@
+#include <assert.h>
+#include <dlfcn.h>
 #include <string.h>
 
 #include "common.h"
 #include "cpu/difftest.h"
-#include "memory/paddr.h"
 #include "platform/platform.h"
 #include "utils.h"
-#include "internal.h"
+
+static bool difftest_enabled = false;
+
+static void (*ref_difftest_memcpy)(uint32_t addr, void *buf, size_t n, bool direction) = NULL;
+static void (*ref_difftest_regcpy)(void *dut, bool direction) = NULL;
+static void (*ref_difftest_exec)(uint64_t n) = NULL;
+static void (*ref_difftest_raise_intr)(uint64_t NO) = NULL;
+
+enum { DIFFTEST_TO_DUT = 0, DIFFTEST_TO_REF = 1 };
+
+typedef struct {
+  uint32_t gpr[32];
+  uint32_t pc;
+  // Keep this order in sync with nemu/src/isa/riscv32/include/isa-def.h.
+  uint32_t mstatus;
+  uint32_t mtvec;
+  uint32_t mepc;
+  uint32_t mcause;
+} RefCPUState;
 
 enum SkipReason {
   SKIP_NONE = 0,
@@ -83,19 +102,54 @@ static SkipReason get_skip_reason(uint32_t inst, const RefCPUState *ref_pre) {
   return SKIP_NONE;
 }
 
-static void collect_dut_init_regs(RefCPUState *dut_r) {
-  memset(dut_r, 0, sizeof(*dut_r));
-  dut_r->pc = platform_reset_pc();
-  dut_r->mstatus = 0x00001800u;
-  dut_r->mtvec = 0x00000001u;
-  dut_r->mepc = 0;
-  dut_r->mcause = 0;
+static void init_ref_regs() {
+  RefCPUState dut_r;
+  memset(&dut_r, 0, sizeof(dut_r));
+  dut_r.pc = platform_reset_pc();
+  dut_r.mstatus = 0x00001800u;
+  dut_r.mtvec = 0x00000001u;
+  ref_difftest_regcpy(&dut_r, DIFFTEST_TO_REF);
 }
 
-void difftest_init_ref_regs() {
-  RefCPUState dut_r;
-  collect_dut_init_regs(&dut_r);
-  ref_difftest_regcpy(&dut_r, DIFFTEST_TO_REF);
+bool difftest_is_enabled() {
+  return difftest_enabled;
+}
+
+void init_difftest(const char *ref_so_file, long img_size, int port) {
+  (void)img_size;
+  if (ref_so_file == NULL) {
+    return;
+  }
+
+  void *handle = dlopen(ref_so_file, RTLD_LAZY);
+  assert(handle);
+
+  ref_difftest_memcpy = (void (*)(uint32_t, void *, size_t, bool))dlsym(handle, "difftest_memcpy");
+  assert(ref_difftest_memcpy);
+
+  ref_difftest_regcpy = (void (*)(void *, bool))dlsym(handle, "difftest_regcpy");
+  assert(ref_difftest_regcpy);
+
+  ref_difftest_exec = (void (*)(uint64_t))dlsym(handle, "difftest_exec");
+  assert(ref_difftest_exec);
+
+  ref_difftest_raise_intr = (void (*)(uint64_t))dlsym(handle, "difftest_raise_intr");
+  assert(ref_difftest_raise_intr);
+
+  void (*ref_difftest_init)(int) = (void (*)(int))dlsym(handle, "difftest_init");
+  assert(ref_difftest_init);
+
+  void (*ref_enable_ysyxsoc_paddr)(void) =
+      (void (*)(void))dlsym(handle, "difftest_enable_ysyxsoc_paddr");
+  platform_enable_ref_paddr(ref_enable_ysyxsoc_paddr);
+
+  ref_difftest_init(port);
+  platform_difftest_memcpy(ref_difftest_memcpy, DIFFTEST_TO_REF);
+  init_ref_regs();
+
+  difftest_enabled = true;
+  Log("Differential testing: %s", ANSI_FMT("ON", ANSI_FG_GREEN));
+  Log("The result of every retired instruction will be compared with %s", ref_so_file);
 }
 
 static bool difftest_checkregs(const RefCPUState *ref_r, const RefCPUState *dut_r, uint32_t dut_pc) {
@@ -150,6 +204,7 @@ bool difftest_step(uint32_t commit_pc, uint32_t commit_inst, const DutState *dut
   if (ref_pre.pc != commit_pc) {
     Log("difftest error at pc = 0x%08x: pc mismatch before exec, ref = 0x%08x, dut = 0x%08x",
         commit_pc, ref_pre.pc, commit_pc);
+    npc_reg_display();
     return false;
   }
 
@@ -169,5 +224,9 @@ bool difftest_step(uint32_t commit_pc, uint32_t commit_inst, const DutState *dut
   ref_difftest_regcpy(&ref_post, DIFFTEST_TO_DUT);
   copy_dut_state(&dut_ref_state, dut_state);
 
-  return difftest_checkregs(&ref_post, &dut_ref_state, commit_pc);
+  bool success = difftest_checkregs(&ref_post, &dut_ref_state, commit_pc);
+  if (!success) {
+    npc_reg_display();
+  }
+  return success;
 }

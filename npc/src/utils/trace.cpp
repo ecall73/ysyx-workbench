@@ -30,10 +30,6 @@ static bool trace_window_enabled() {
 #endif
 }
 
-bool npc_trace_enabled() {
-    return trace_window_enabled();
-}
-
 static void trace_vwrite(FILE *fp, const char *tag, const char *fmt, va_list ap) {
     if (!trace_window_enabled()) {
         return;

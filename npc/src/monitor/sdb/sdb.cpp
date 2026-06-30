@@ -6,12 +6,13 @@
 
 #include "common.h"
 #include "cpu/cpu.h"
-#include "memory/paddr.h"
 #include "monitor/sdb.h"
+#include "platform/platform.h"
 
 #define NR_CMD (sizeof(cmd_table) / sizeof(cmd_table[0]))
 
 static int cmd_help(char *args);
+static bool is_batch_mode = false;
 
 void init_regex();
 void init_wp_pool();
@@ -34,7 +35,6 @@ static char *rl_gets() {
 }
 
 static int cmd_q(char *args) {
-    sdb_quit = true;
     npc_state = NPC_QUIT;
     return -1;
 }
@@ -175,7 +175,7 @@ static int cmd_help(char *args) {
 }
 
 void sdb_set_batch_mode() {
-    sdb_batch_mode = true;
+    is_batch_mode = true;
 }
 
 void init_sdb() {
@@ -184,7 +184,7 @@ void init_sdb() {
 }
 
 void sdb_mainloop() {
-    if (sdb_batch_mode) {
+    if (is_batch_mode) {
         cmd_c(NULL);
         return;
     }

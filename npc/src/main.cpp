@@ -1,8 +1,6 @@
-#include "verilated.h"
 #include "monitor/monitor.h"
 
 int main(int argc, char **argv) {
-    Verilated::commandArgs(argc, argv);
     init_monitor(argc, argv);
     engine_start();
     npc_cleanup();

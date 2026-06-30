@@ -15,7 +15,6 @@ void close_log();
   _Log(ANSI_FMT("[%s:%d %s] " format, ANSI_FG_BLUE) "\n", \
        npc_log_file(__FILE__), __LINE__, __func__, ##__VA_ARGS__)
 
-bool npc_trace_enabled();
 void init_ftrace_log(const char *log_file);
 void init_etrace_log(const char *log_file);
 void init_mtrace_log(const char *log_file);

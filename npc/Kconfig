@@ -57,7 +57,7 @@ config TRACE_START
 config TRACE_END
   int "Trace end instruction count"
   depends on TRACE
-  default 100000
+  default 10000
 
 config ITRACE
   bool "Enable instruction trace"
@@ -105,4 +105,8 @@ config WAVE
 config PERF
   bool "Enable performance counters"
   default n
+
+config WATCHPOINT
+  bool "Enable watchpoint"
+  default y
 endmenu

@@ -1,6 +1,9 @@
 #ifndef __NPC_CPU_DIFFTEST_H__
 #define __NPC_CPU_DIFFTEST_H__
 
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "cpu/cpu.h"
 
 void init_difftest(const char *ref_so_file, long img_size, int port);
