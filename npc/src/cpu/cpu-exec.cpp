@@ -107,7 +107,7 @@ extern "C" void npc_commit(
     for (int i = 16; i < 32; i++) {
         g_dut_state.gpr[i] = 0;
     }
-    g_dut_state.pc = commit_dnpc;
+    g_dut_state.pc = commit_pc;
     g_dut_state.mstatus = mstatus;
     g_dut_state.mtvec = mtvec;
     g_dut_state.mepc = mepc;
