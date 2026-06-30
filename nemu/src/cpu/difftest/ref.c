@@ -49,10 +49,6 @@ __EXPORT void difftest_raise_intr(word_t NO) {
   assert(0);
 }
 
-__EXPORT void difftest_enable_ysyxsoc_paddr(void) {
-  nemu_enable_ysyxsoc_paddr();
-}
-
 __EXPORT void difftest_init(int port) {
   void init_mem();
   init_mem();

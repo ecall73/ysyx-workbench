@@ -15,6 +15,7 @@
 
 #include <memory/host.h>
 #include <memory/paddr_internal.h>
+#include <difftest-def.h>
 #include <device/mmio.h>
 #include <isa.h>
 
@@ -42,7 +43,7 @@ static void out_of_bound(paddr_t addr) {
       addr, PMEM_LEFT, PMEM_RIGHT, cpu.pc);
 }
 
-void nemu_enable_ysyxsoc_paddr(void) {
+__EXPORT void difftest_enable_ysyxsoc_paddr(void) {
   use_ysyxsoc_paddr = true;
 }
 
