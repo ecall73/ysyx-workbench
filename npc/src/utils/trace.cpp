@@ -117,9 +117,11 @@ void dtrace_write(const char *fmt, ...) {
     va_end(ap);
 }
 
+#ifdef CONFIG_MTRACE
 static int access_len_from_size(int size) {
     return 1 << (size & 0x3);
 }
+#endif
 
 extern "C" void npc_trace_read(int addr, int size, int data) {
 #ifdef CONFIG_MTRACE
@@ -129,7 +131,6 @@ extern "C" void npc_trace_read(int addr, int size, int data) {
     }
 #else
     (void)size;
-    (void)data;
 #endif
 
 #ifdef CONFIG_DTRACE
@@ -139,6 +140,7 @@ extern "C" void npc_trace_read(int addr, int size, int data) {
     }
 #else
     (void)addr;
+    (void)data;
 #endif
 }
 
@@ -151,7 +153,6 @@ extern "C" void npc_trace_write(int addr, int size, int data, int wstrb) {
     }
 #else
     (void)size;
-    (void)wstrb;
 #endif
 
 #ifdef CONFIG_DTRACE
@@ -163,6 +164,7 @@ extern "C" void npc_trace_write(int addr, int size, int data, int wstrb) {
 #else
     (void)addr;
     (void)data;
+    (void)wstrb;
 #endif
 }
 

@@ -7,6 +7,7 @@
 
 #include "common.h"
 
+#ifdef CONFIG_FTRACE
 struct FuncSymbol {
     uint32_t addr;
     uint32_t size;
@@ -60,9 +61,6 @@ static void free_symbols() {
 }
 
 void init_ftrace(const char *elf_file) {
-#ifndef CONFIG_FTRACE
-    (void)elf_file;
-#else
     free_symbols();
     if (elf_file == NULL) {
         Log("FTrace is enabled, but no ELF file is provided");
@@ -133,11 +131,9 @@ void init_ftrace(const char *elf_file) {
     free(shdrs);
     fclose(fp);
     Log("FTrace loaded %zu function symbols from %s", func_count, elf_file);
-#endif
 }
 
 void ftrace_check(uint32_t pc, uint32_t inst, uint32_t dnpc) {
-#ifdef CONFIG_FTRACE
     uint32_t rd = (inst >> 7) & 0x1f;
     uint32_t rs1 = (inst >> 15) & 0x1f;
     int32_t imm = (int32_t)jal_imm(inst);
@@ -152,9 +148,15 @@ void ftrace_check(uint32_t pc, uint32_t inst, uint32_t dnpc) {
         ftrace_write("0x%08x: %*scall [%s@0x%08x]\n", pc, call_depth * 2, "", find_func(dnpc), dnpc);
         call_depth++;
     }
+}
 #else
+void init_ftrace(const char *elf_file) {
+    (void)elf_file;
+}
+
+void ftrace_check(uint32_t pc, uint32_t inst, uint32_t dnpc) {
     (void)pc;
     (void)inst;
     (void)dnpc;
-#endif
 }
+#endif
