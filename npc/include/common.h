@@ -104,8 +104,10 @@ void sdb_mainloop();
 void cpu_exec(uint64_t n);
 extern "C" int npc_get_gpr(int idx);
 extern "C" int npc_get_csr(int addr);
+extern "C" int npc_get_pc();
 uint32_t npc_read_dut_gpr(int idx);
 uint32_t npc_read_dut_csr(int addr);
+uint32_t npc_read_dut_pc();
 
 void init_difftest(const char *ref_so_file, long img_size, int port);
 bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, uint32_t dut_dnpc);

@@ -13,6 +13,9 @@ static const char *regs[] = {
     "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
 };
 
+#define NR_CMD (sizeof(cmd_table) / sizeof(cmd_table[0]))
+#define NR_GPR (sizeof(regs) / sizeof(regs[0]))
+
 static int cmd_help(char *args);
 
 static int cmd_q(char *args) {
@@ -35,30 +38,43 @@ static int cmd_si(char *args) {
 }
 
 static int cmd_info(char *args) {
-    if (args != NULL && strcmp(args, "r") == 0) {
-        for (int i = 0; i < 32; i++) {
-            printf("%-4s 0x%08x\n", regs[i], npc_read_dut_gpr(i));
+    if (args == NULL) {
+        printf("Usage: info r (registers)\n");
+    } else if (strcmp(args, "r") == 0) {
+        for (int i = 0; i < (int)NR_GPR; i++) {
+            printf(ANSI_FG_RED "(x%02d) " ANSI_FG_GREEN "%-4s " ANSI_FG_BLUE "0x%08x\t" ANSI_NONE,
+                i, regs[i], npc_read_dut_gpr(i));
+            if (i % 4 == 3) {
+                printf("\n");
+            }
         }
+        printf("      " ANSI_FG_GREEN "PC   " ANSI_FG_BLUE "0x%08x\n" ANSI_NONE, npc_read_dut_pc());
+    } else {
+        printf("Unknown info type '%s'\n", args);
     }
     return 0;
 }
 
 static int cmd_x(char *args) {
     if (args == NULL) {
+        printf("Usage: x <N> <ADDR>\n");
         return 0;
     }
 
     int n;
     uint32_t base_addr;
-    if (sscanf(args, "%d %x", &n, &base_addr) == 2) {
-        for (int i = 0; i < n; i++) {
-            uint32_t addr = base_addr + i * 4;
-            uint32_t data = 0;
-            if (platform_read_word(addr, &data)) {
-                printf("0x%08x: 0x%08x\n", addr, data);
-            } else {
-                printf("0x%08x: unsupported\n", addr);
-            }
+    if (sscanf(args, "%d %x", &n, &base_addr) != 2) {
+        printf("Usage: x <N> <ADDR>\n");
+        return 0;
+    }
+
+    for (int i = 0; i < n; i++) {
+        uint32_t addr = base_addr + i * 4;
+        uint32_t data = 0;
+        if (platform_read_word(addr, &data)) {
+            printf(ANSI_FG_GREEN "0x%08x: " ANSI_FG_BLUE "0x%08x\n" ANSI_NONE, addr, data);
+        } else {
+            printf(ANSI_FG_GREEN "0x%08x: " ANSI_FG_BLUE "unsupported\n" ANSI_NONE, addr);
         }
     }
     return 0;
@@ -70,17 +86,27 @@ static struct {
     int (*handler)(char *);
 } cmd_table[] = {
     {"help", "Display information about all supported commands", cmd_help},
-    {"q", "Exit NPC", cmd_q},
     {"c", "Continue the execution of the program", cmd_c},
-    {"si", "Step one instruction exactly", cmd_si},
-    {"info", "Generic command for showing things about the program being debugged", cmd_info},
-    {"x", "Examine memory: x N ADDR", cmd_x},
+    {"q", "Exit NPC", cmd_q},
+    {"si", "Pause after executing [N] instructions", cmd_si},
+    {"info", "r: Print register status", cmd_info},
+    {"x", "Scan <N> words starting from <ADDR>", cmd_x},
 };
 
 static int cmd_help(char *args) {
-    (void)args;
-    for (int i = 0; i < (int)(sizeof(cmd_table) / sizeof(cmd_table[0])); i++) {
-        printf("%s - %s\n", cmd_table[i].name, cmd_table[i].description);
+    char *arg = args == NULL ? NULL : strtok(args, " ");
+    if (arg == NULL) {
+        for (int i = 0; i < (int)NR_CMD; i++) {
+            printf("%s - %s\n", cmd_table[i].name, cmd_table[i].description);
+        }
+    } else {
+        for (int i = 0; i < (int)NR_CMD; i++) {
+            if (strcmp(arg, cmd_table[i].name) == 0) {
+                printf("%s - %s\n", cmd_table[i].name, cmd_table[i].description);
+                return 0;
+            }
+        }
+        printf("Unknown command '%s'\n", arg);
     }
     return 0;
 }
@@ -111,7 +137,7 @@ void sdb_mainloop() {
         add_history(str);
 
         bool found = false;
-        for (int i = 0; i < (int)(sizeof(cmd_table) / sizeof(cmd_table[0])); i++) {
+        for (int i = 0; i < (int)NR_CMD; i++) {
             if (strcmp(cmd, cmd_table[i].name) == 0) {
                 if (cmd_table[i].handler(args) < 0) {
                     free(str);

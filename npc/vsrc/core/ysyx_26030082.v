@@ -127,6 +127,12 @@ module ysyx_26030082 #(
             endcase
         end
     endfunction
+    export "DPI-C" function npc_get_pc;
+    function int npc_get_pc();
+        begin
+            npc_get_pc = ifu.if_pc;
+        end
+    endfunction
 `endif
 `endif
 

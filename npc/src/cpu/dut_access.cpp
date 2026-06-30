@@ -46,3 +46,10 @@ uint32_t npc_read_dut_csr(int addr) {
     svSetScope(prev);
     return val;
 }
+
+uint32_t npc_read_dut_pc() {
+    svScope prev = svSetScope(get_cpu_dpi_scope());
+    uint32_t val = (uint32_t)npc_get_pc();
+    svSetScope(prev);
+    return val;
+}
