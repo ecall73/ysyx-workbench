@@ -163,6 +163,8 @@ module ysyx_26030082_exu (
         csr_mstatus[31:13], 2'b00, csr_mstatus[10:8],
         1'b1, csr_mstatus[6:4], csr_mstatus[7], csr_mstatus[2:0]
     };
+    wire        priv_redirect = opcode == OPCODE_SYSTEM && funct3 == F3_PRIV &&
+                                (csr_addr == F12_ECALL || csr_addr == F12_MRET);
     wire        mem_ren = opcode == OPCODE_LOAD;
     wire        mem_wen = opcode == OPCODE_STORE;
     assign ex_fence_i = opcode == OPCODE_MISC_MEM && funct3 == F3_FENCE_I;
@@ -297,7 +299,7 @@ module ysyx_26030082_exu (
     assign ex_redirect = opcode == OPCODE_BRANCH && branch_redirect ||
                          opcode == OPCODE_JAL ||
                          opcode == OPCODE_JALR ||
-                         opcode == OPCODE_SYSTEM && funct3 == F3_PRIV ||
+                         priv_redirect ||
                          ex_fence_i;
 
     // Redirect mux.

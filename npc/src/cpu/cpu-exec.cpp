@@ -297,14 +297,14 @@ void cpu_exec(uint64_t n) {
                     commit_pc, commit_dnpc, commit_mstatus, commit_mepc, commit_mcause);
             }
 #endif
-            if (!difftest_step(commit_pc, commit_inst, commit_dnpc)) {
-                is_finished = true;
-                trap_pc = (int)commit_pc;
-                trap_a0 = -1;
-            } else if (commit_inst == kEbreakInst) {
+            if (commit_inst == kEbreakInst) {
                 is_finished = true;
                 trap_pc = (int)commit_pc;
                 trap_a0 = (int)npc_read_dut_gpr(10);
+            } else if (!difftest_step(commit_pc, commit_inst, commit_dnpc)) {
+                is_finished = true;
+                trap_pc = (int)commit_pc;
+                trap_a0 = -1;
             }
         }
         if (is_finished || g_contextp->gotFinish()) {
