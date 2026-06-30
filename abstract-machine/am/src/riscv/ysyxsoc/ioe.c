@@ -21,12 +21,8 @@ static inline uint8_t uart_read8(uint32_t off) {
   return inb(UART_BASE + off);
 }
 
-static inline void uart_write8(uint32_t off, uint8_t val) {
-  outb(UART_BASE + off, val);
-}
-
 static void __am_uart_tx(AM_UART_TX_T *tx) {
-  uart_write8(UART_REG_THR, (uint8_t)tx->data);
+  putch((char)tx->data);
 }
 
 static void __am_uart_rx(AM_UART_RX_T *rx) {
