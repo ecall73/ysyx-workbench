@@ -36,6 +36,15 @@ module ysyx_26030082_exu (
     output            lsu_master_bready
 );
 
+`ifndef SYNTHESIS
+`ifndef __ICARUS__
+`ifdef NPC_ENABLE_ETRACE
+    import "DPI-C" function void npc_trace_ecall(input int pc, input int target, input int mstatus, input int mepc, input int mcause);
+    import "DPI-C" function void npc_trace_mret(input int pc, input int target, input int mstatus, input int mepc, input int mcause);
+`endif
+`endif
+`endif
+
     localparam [6:0] OPCODE_OP   = 7'b011_0011;
     localparam [6:0] OPCODE_OP_IMM   = 7'b001_0011;
     localparam [6:0] OPCODE_LOAD  = 7'b000_0011;
@@ -260,9 +269,27 @@ module ysyx_26030082_exu (
                             csr_mstatus[12:11] <= 2'b11;
                             csr_mepc <= ex_pc;
                             csr_mcause <= CAUSE_ECALL;
+`ifndef SYNTHESIS
+`ifndef __ICARUS__
+`ifdef NPC_ENABLE_ETRACE
+                            npc_trace_ecall(ex_pc, ex_redirect_pc,
+                                {csr_mstatus[31:13], 2'b11, csr_mstatus[10:8], csr_mstatus[3], csr_mstatus[6:4], 1'b0, csr_mstatus[2:0]},
+                                ex_pc, CAUSE_ECALL);
+`endif
+`endif
+`endif
                         end
                         F12_MRET: begin
                             csr_mstatus[3] <= csr_mstatus[7];
+`ifndef SYNTHESIS
+`ifndef __ICARUS__
+`ifdef NPC_ENABLE_ETRACE
+                            npc_trace_mret(ex_pc, ex_redirect_pc,
+                                {csr_mstatus[31:4], csr_mstatus[7], csr_mstatus[2:0]},
+                                csr_mepc, csr_mcause);
+`endif
+`endif
+`endif
                         end
                         default:;
                     endcase

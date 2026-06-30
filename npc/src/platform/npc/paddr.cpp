@@ -55,6 +55,12 @@ bool platform_in_comparable_mem(uint32_t addr) {
   return in_pmem(addr);
 }
 
+const char *platform_device_name(uint32_t addr) {
+  if (addr == SERIAL_PORT) return "uart";
+  if (addr == RTC_ADDR || addr == RTC_ADDR + 4) return "rtc";
+  return NULL;
+}
+
 uint32_t platform_reset_pc() {
   return NPC_RESET_PC_NPC;
 }

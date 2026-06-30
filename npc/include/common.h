@@ -69,10 +69,29 @@ extern VerilatedVcdC *g_tfp;
 const char *npc_log_file(const char *file);
 void _Log(const char *fmt, ...);
 void init_log(const char *log_file);
+void close_log();
 
 #define Log(format, ...) \
   _Log(ANSI_FMT("[%s:%d %s] " format, ANSI_FG_BLUE) "\n", \
        npc_log_file(__FILE__), __LINE__, __func__, ##__VA_ARGS__)
+
+bool npc_trace_enabled();
+void init_ftrace_log(const char *log_file);
+void init_etrace_log(const char *log_file);
+void init_mtrace_log(const char *log_file);
+void init_dtrace_log(const char *log_file);
+void close_trace_logs();
+void itrace_write(const char *fmt, ...);
+void ftrace_write(const char *fmt, ...);
+void etrace_write(const char *fmt, ...);
+void mtrace_write(const char *fmt, ...);
+void dtrace_write(const char *fmt, ...);
+
+void init_disasm();
+void disassemble(char *str, int size, uint32_t pc, uint32_t inst);
+
+void init_ftrace(const char *elf_file);
+void ftrace_check(uint32_t pc, uint32_t inst, uint32_t dnpc);
 
 void init_monitor(int argc, char **argv);
 void engine_start();
@@ -97,11 +116,16 @@ void platform_set_external_idle(SimTop *top);
 long platform_load_image(const char *img_file);
 bool platform_read_word(uint32_t addr, uint32_t *data);
 bool platform_in_comparable_mem(uint32_t addr);
+const char *platform_device_name(uint32_t addr);
 uint32_t platform_reset_pc();
 void platform_difftest_memcpy(void (*ref_memcpy)(uint32_t, void *, size_t, bool), bool direction);
 void platform_enable_ref_paddr(void (*enable_ysyxsoc_paddr)(void));
 
-extern "C" void npc_commit(int pc, int inst);
+extern "C" void npc_commit(int pc, int inst, int dnpc);
 extern "C" void npc_pmu_event(int event_mask);
+extern "C" void npc_trace_read(int addr, int len, int data);
+extern "C" void npc_trace_write(int addr, int len, int data, int wstrb);
+extern "C" void npc_trace_ecall(int pc, int target, int mstatus, int mepc, int mcause);
+extern "C" void npc_trace_mret(int pc, int target, int mstatus, int mepc, int mcause);
 
 #endif

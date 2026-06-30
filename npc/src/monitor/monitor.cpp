@@ -22,6 +22,11 @@ FILE *log_fp = NULL;
 
 static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file, int *diff_port) {
     char *log_file = NULL;
+    char *elf_file = NULL;
+    char *ftrace_log = NULL;
+    char *etrace_log = NULL;
+    char *mtrace_log = NULL;
+    char *dtrace_log = NULL;
     char *img_file = NULL;
     *diff_so_file = NULL;
     *diff_port = 1234;
@@ -51,12 +56,67 @@ static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file
             } else if (i + 1 < argc) {
                 log_file = argv[++i];
             }
+        } else if (strncmp(argv[i], "-f", 2) == 0) {
+            if (strlen(argv[i]) > 2) {
+                elf_file = argv[i] + 2;
+            } else if (i + 1 < argc) {
+                elf_file = argv[++i];
+            }
+        } else if (strncmp(argv[i], "-F", 2) == 0) {
+            if (strlen(argv[i]) > 2) {
+                ftrace_log = argv[i] + 2;
+            } else if (i + 1 < argc) {
+                ftrace_log = argv[++i];
+            }
+        } else if (strncmp(argv[i], "-E", 2) == 0) {
+            if (strlen(argv[i]) > 2) {
+                etrace_log = argv[i] + 2;
+            } else if (i + 1 < argc) {
+                etrace_log = argv[++i];
+            }
+        } else if (strncmp(argv[i], "-M", 2) == 0) {
+            if (strlen(argv[i]) > 2) {
+                mtrace_log = argv[i] + 2;
+            } else if (i + 1 < argc) {
+                mtrace_log = argv[++i];
+            }
+        } else if (strncmp(argv[i], "-D", 2) == 0) {
+            if (strlen(argv[i]) > 2) {
+                dtrace_log = argv[i] + 2;
+            } else if (i + 1 < argc) {
+                dtrace_log = argv[++i];
+            }
         } else if (argv[i][0] != '-') {
             img_file = argv[i];
         }
     }
 
     init_log(log_file);
+#ifdef CONFIG_ITRACE
+    init_disasm();
+#endif
+#ifdef CONFIG_FTRACE
+    init_ftrace_log(ftrace_log);
+    init_ftrace(elf_file);
+#else
+    (void)elf_file;
+    (void)ftrace_log;
+#endif
+#ifdef CONFIG_ETRACE
+    init_etrace_log(etrace_log);
+#else
+    (void)etrace_log;
+#endif
+#ifdef CONFIG_MTRACE
+    init_mtrace_log(mtrace_log);
+#else
+    (void)mtrace_log;
+#endif
+#ifdef CONFIG_DTRACE
+    init_dtrace_log(dtrace_log);
+#else
+    (void)dtrace_log;
+#endif
     if (img_file == NULL) {
         fprintf(stderr, "No image file specified\n");
         exit(1);
@@ -131,10 +191,8 @@ void init_monitor(int argc, char **argv) {
 void npc_cleanup() {
     platform_cleanup();
 
-    if (log_fp) {
-        fclose(log_fp);
-        log_fp = NULL;
-    }
+    close_trace_logs();
+    close_log();
 
 #ifdef CONFIG_WAVE
     if (g_tfp) {

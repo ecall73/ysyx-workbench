@@ -15,6 +15,7 @@
 static bool g_commit_valid = false;
 static uint32_t g_commit_pc = 0;
 static uint32_t g_commit_inst = 0;
+static uint32_t g_commit_dnpc = 0;
 static constexpr uint32_t kEbreakInst = 0x00100073u;
 
 #ifdef CONFIG_PERF
@@ -81,7 +82,7 @@ static void pmu_on_commit(uint32_t inst) {
 }
 #endif
 
-extern "C" void npc_commit(int pc, int inst) {
+extern "C" void npc_commit(int pc, int inst, int dnpc) {
     if (is_finished) {
         return;
     }
@@ -89,6 +90,7 @@ extern "C" void npc_commit(int pc, int inst) {
     g_commit_valid = true;
     g_commit_pc = (uint32_t)pc;
     g_commit_inst = (uint32_t)inst;
+    g_commit_dnpc = (uint32_t)dnpc;
 #ifdef CONFIG_PERF
     pmu_on_commit((uint32_t)inst);
 #endif
@@ -271,9 +273,20 @@ void cpu_exec(uint64_t n) {
         if (g_commit_valid) {
             uint32_t commit_pc = g_commit_pc;
             uint32_t commit_inst = g_commit_inst;
+            uint32_t commit_dnpc = g_commit_dnpc;
             g_commit_valid = false;
 
             g_nr_guest_inst++;
+#ifdef CONFIG_ITRACE
+            if ((ITRACE_COND)) {
+                char disasm_buf[128];
+                disassemble(disasm_buf, sizeof(disasm_buf), commit_pc, commit_inst);
+                itrace_write("0x%08x: 0x%08x  %s\n", commit_pc, commit_inst, disasm_buf);
+            }
+#endif
+#ifdef CONFIG_FTRACE
+            ftrace_check(commit_pc, commit_inst, commit_dnpc);
+#endif
             if (!difftest_step(commit_pc, commit_inst)) {
                 is_finished = true;
                 trap_pc = (int)commit_pc;

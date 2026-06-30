@@ -99,7 +99,11 @@ module ysyx_26030082 #(
 `endif
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
-    import "DPI-C" function void npc_commit(input int pc, input int inst);
+    import "DPI-C" function void npc_commit(input int pc, input int inst, input int dnpc);
+`ifdef NPC_ENABLE_MEMTRACE
+    import "DPI-C" function void npc_trace_read(input int addr, input int size, input int data);
+    import "DPI-C" function void npc_trace_write(input int addr, input int size, input int data, input int wstrb);
+`endif
 `ifdef NPC_ENABLE_PERF
     import "DPI-C" function void npc_pmu_event(input int event_mask);
 `endif
@@ -332,8 +336,16 @@ module ysyx_26030082 #(
 `ifndef __ICARUS__
     always @(posedge clock) begin
         if (!reset && ex_out_valid) begin
-            npc_commit(ex_pc, ex_inst);
+            npc_commit(ex_pc, ex_inst, ex_redirect ? ex_redirect_pc : ex_pc + 32'd4);
         end
+`ifdef NPC_ENABLE_MEMTRACE
+        if (!reset && lsu_master_rvalid && lsu_master_rready) begin
+            npc_trace_read(lsu_master_araddr, {29'b0, lsu_master_arsize}, lsu_master_rdata);
+        end
+        if (!reset && lsu_master_bvalid && lsu_master_bready) begin
+            npc_trace_write(lsu_master_awaddr, {29'b0, lsu_master_awsize}, lsu_master_wdata, {4'b0, lsu_master_wstrb});
+        end
+`endif
     end
 `endif
 `endif

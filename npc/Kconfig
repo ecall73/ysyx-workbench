@@ -44,7 +44,56 @@ config MAX_SIM_TIME
   default 1000000000
 endmenu
 
-menu "Simulation Features"
+menu "Testing and Debugging"
+config TRACE
+  bool "Enable trace infrastructure"
+  default y
+
+config TRACE_START
+  int "Trace start instruction count"
+  depends on TRACE
+  default 0
+
+config TRACE_END
+  int "Trace end instruction count"
+  depends on TRACE
+  default 10000
+
+config ITRACE
+  bool "Enable instruction trace"
+  depends on TRACE
+  default n
+
+config ITRACE_COND
+  string "Instruction trace condition"
+  depends on ITRACE
+  default "true"
+
+config FTRACE
+  bool "Enable function trace"
+  depends on TRACE
+  default n
+
+config MTRACE
+  bool "Enable memory trace"
+  depends on TRACE
+  default n
+
+config MTRACE_COND
+  string "Memory trace condition"
+  depends on MTRACE
+  default "true"
+
+config DTRACE
+  bool "Enable device trace"
+  depends on TRACE
+  default n
+
+config ETRACE
+  bool "Enable exception trace"
+  depends on TRACE
+  default n
+
 config DIFFTEST
   bool "Enable differential testing"
   default n
@@ -56,8 +105,4 @@ config WAVE
 config PERF
   bool "Enable performance counters"
   default n
-
-config UART_STDOUT_RTL
-  bool "Print UART from RTL"
-  default y
 endmenu

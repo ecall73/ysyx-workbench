@@ -92,6 +92,18 @@ bool platform_in_comparable_mem(uint32_t addr) {
          (addr >= NPC_SDRAM_BASE && addr < NPC_SDRAM_BASE + NPC_SDRAM_SIZE);
 }
 
+const char *platform_device_name(uint32_t addr) {
+  if (addr >= 0x02000000u && addr <= 0x0200ffffu) return "clint";
+  if (addr >= 0x10000000u && addr <= 0x10000fffu) return "uart16550";
+  if (addr >= 0x10001000u && addr <= 0x10001fffu) return "spi";
+  if (addr >= 0x10002000u && addr <= 0x1000200fu) return "gpio";
+  if (addr >= 0x10011000u && addr <= 0x10011007u) return "ps2";
+  if (addr >= 0x20000000u && addr <= 0x20000fffu) return "mrom";
+  if (addr >= 0x21000000u && addr <= 0x211fffffu) return "vga";
+  if (addr >= NPC_FLASH_BASE && addr < NPC_FLASH_BASE + NPC_FLASH_SIZE) return "flash";
+  return NULL;
+}
+
 uint32_t platform_reset_pc() {
   return NPC_RESET_PC_YSYXSOC;
 }

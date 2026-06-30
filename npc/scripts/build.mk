@@ -2,13 +2,19 @@ SIM_MODE ?= $(call remove_quote,$(CONFIG_PLATFORM))
 DIFF ?= $(if $(CONFIG_DIFFTEST),1,0)
 PERF ?= $(if $(CONFIG_PERF),1,0)
 WAVE ?= $(if $(CONFIG_WAVE),1,0)
+TRACE ?= $(if $(CONFIG_TRACE),1,0)
+ITRACE ?= $(if $(CONFIG_ITRACE),1,0)
+FTRACE ?= $(if $(CONFIG_FTRACE),1,0)
+MTRACE ?= $(if $(CONFIG_MTRACE),1,0)
+DTRACE ?= $(if $(CONFIG_DTRACE),1,0)
+ETRACE ?= $(if $(CONFIG_ETRACE),1,0)
 DEBUG_DEFAULT := $(if $(CONFIG_DEBUG),1,0)
 ifeq ($(origin DEBUG),command line)
 DEBUG := $(if $(filter 1 y yes true,$(DEBUG)),1,0)
 else
 DEBUG := $(DEBUG_DEFAULT)
 endif
-UART_STDOUT ?= $(if $(CONFIG_UART_STDOUT_RTL),1,0)
+UART_STDOUT ?= 1
 BATCH ?= 0
 
 VALID_SIM_MODES := npc ysyxsoc
@@ -23,6 +29,24 @@ $(error Unsupported PERF='$(PERF)'. Expected '0' or '1')
 endif
 ifneq ($(filter-out 0 1,$(WAVE)),)
 $(error Unsupported WAVE='$(WAVE)'. Expected '0' or '1')
+endif
+ifneq ($(filter-out 0 1,$(TRACE)),)
+$(error Unsupported TRACE='$(TRACE)'. Expected '0' or '1')
+endif
+ifneq ($(filter-out 0 1,$(ITRACE)),)
+$(error Unsupported ITRACE='$(ITRACE)'. Expected '0' or '1')
+endif
+ifneq ($(filter-out 0 1,$(FTRACE)),)
+$(error Unsupported FTRACE='$(FTRACE)'. Expected '0' or '1')
+endif
+ifneq ($(filter-out 0 1,$(MTRACE)),)
+$(error Unsupported MTRACE='$(MTRACE)'. Expected '0' or '1')
+endif
+ifneq ($(filter-out 0 1,$(DTRACE)),)
+$(error Unsupported DTRACE='$(DTRACE)'. Expected '0' or '1')
+endif
+ifneq ($(filter-out 0 1,$(ETRACE)),)
+$(error Unsupported ETRACE='$(ETRACE)'. Expected '0' or '1')
 endif
 ifneq ($(filter-out 0 1,$(UART_STDOUT)),)
 $(error Unsupported UART_STDOUT='$(UART_STDOUT)'. Expected '0' or '1')
@@ -44,6 +68,10 @@ NVBOARD_HOME ?= $(abspath ../nvboard)
 VERILATOR ?= verilator
 OBJCACHE ?=
 export OBJCACHE
+
+CAPSTONE_HOME = $(NPC_HOME)/tools/capstone
+CAPSTONE_SO = $(CAPSTONE_HOME)/repo/libcapstone.so.5
+comma := ,
 
 BUILD_DIR = $(NPC_HOME)/build/$(SIM_MODE)
 OBJ_DIR = $(BUILD_DIR)/obj_dir-perf$(PERF)-wave$(WAVE)
@@ -90,8 +118,14 @@ CFLAGS += $(INCLUDES) -MMD -Wall -Werror
 CFLAGS += -DTOP_NAME="\"V$(TOPNAME)\""
 CFLAGS += $(if $(filter npc,$(SIM_MODE)),-DNPC_BUILD_PLATFORM_NPC=1,-DNPC_BUILD_PLATFORM_YSYXSOC=1)
 CFLAGS += -DNPC_BUILD_PERF=$(PERF) -DNPC_BUILD_WAVE=$(WAVE)
+CFLAGS += -DNPC_BUILD_TRACE=$(TRACE) -DNPC_BUILD_ITRACE=$(ITRACE) -DNPC_BUILD_FTRACE=$(FTRACE)
+CFLAGS += -DNPC_BUILD_MTRACE=$(MTRACE) -DNPC_BUILD_DTRACE=$(DTRACE) -DNPC_BUILD_ETRACE=$(ETRACE)
+CFLAGS += -DITRACE_COND='$(if $(CONFIG_ITRACE_COND),$(subst ",,$(CONFIG_ITRACE_COND)),true)'
+CFLAGS += -DMTRACE_COND='$(if $(CONFIG_MTRACE_COND),$(subst ",,$(CONFIG_MTRACE_COND)),true)'
+CFLAGS += $(if $(filter 1,$(ITRACE)),-I$(CAPSTONE_HOME)/repo/include,)
 CFLAGS += $(if $(filter 1,$(DEBUG)),-Og -ggdb3,-O2)
 LDFLAGS += $(if $(filter 1,$(DEBUG)),-Og -ggdb3,-O2)
+LDFLAGS += $(if $(filter 1,$(ITRACE)),-Wl$(comma)-rpath$(comma)$(CAPSTONE_HOME)/repo $(CAPSTONE_SO),)
 LDFLAGS += -lreadline
 
 VERILATOR_CFLAGS += -MMD --build -cc \
@@ -102,9 +136,12 @@ VERILATOR_CFLAGS += -MMD --build -cc \
 VERILATOR_CFLAGS += $(if $(filter 1,$(WAVE)),--trace,)
 VERILOG_DEFINES += $(if $(filter 1,$(UART_STDOUT)),-DNPC_UART_STDOUT_RTL,)
 VERILOG_DEFINES += $(if $(filter 1,$(PERF)),-DNPC_ENABLE_PERF,)
+VERILOG_DEFINES += $(if $(filter 1,$(TRACE)),-DNPC_ENABLE_TRACE,)
+VERILOG_DEFINES += $(if $(filter 1,$(MTRACE) $(DTRACE)),-DNPC_ENABLE_MEMTRACE,)
+VERILOG_DEFINES += $(if $(filter 1,$(ETRACE)),-DNPC_ENABLE_ETRACE,)
 
 BUILD_CONFIG = $(BUILD_DIR)/.build_config.mk
-BUILD_CONFIG_TEXT := SIM_MODE=$(SIM_MODE) TOPNAME=$(TOPNAME) DIFF=$(DIFF) PERF=$(PERF) WAVE=$(WAVE) DEBUG=$(DEBUG) UART_STDOUT=$(UART_STDOUT) SRCS=$(SRCS)
+BUILD_CONFIG_TEXT := SIM_MODE=$(SIM_MODE) TOPNAME=$(TOPNAME) DIFF=$(DIFF) PERF=$(PERF) WAVE=$(WAVE) TRACE=$(TRACE) ITRACE=$(ITRACE) FTRACE=$(FTRACE) MTRACE=$(MTRACE) DTRACE=$(DTRACE) ETRACE=$(ETRACE) DEBUG=$(DEBUG) UART_STDOUT=$(UART_STDOUT) SRCS=$(SRCS)
 -include $(BUILD_CONFIG)
 
 ifneq ($(CONFIG_TEXT),$(BUILD_CONFIG_TEXT))
@@ -117,6 +154,9 @@ $(BUILD_CONFIG): | $(BUILD_DIR)
 endif
 
 NPC_DEPS = $(VSRCS) $(VHDRS) $(SRCS) $(MODE_EXTRA_DEPS) Makefile $(BUILD_CONFIG)
+ifeq ($(ITRACE),1)
+NPC_DEPS += $(CAPSTONE_SO)
+endif
 
 RUN_ARGS += $(if $(filter 1,$(BATCH)),-b,)
 RUN_ARGS += $(if $(filter 1,$(DIFF)),-d $(DIFF_REF_SO) -p $(DIFF_PORT),)
@@ -137,6 +177,9 @@ $(CPU_VERILOG): $(CPU_VSRCS) | $(VERILOG_BUILD_DIR)
 
 $(SRC_AUTO_BIND): $(NXDC_FILES) | $(BUILD_DIR)
 	python3 $(NVBOARD_HOME)/scripts/auto_pin_bind.py $^ $@
+
+$(CAPSTONE_SO):
+	$(MAKE) -C $(CAPSTONE_HOME)
 
 $(BIN): $(NPC_DEPS) | $(BUILD_DIR)
 	$(VERILATOR) $(VERILATOR_CFLAGS) $(VERILOG_DEFINES) $(INCLUDES) \
