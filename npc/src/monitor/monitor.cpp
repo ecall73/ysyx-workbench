@@ -36,6 +36,12 @@ static char *mtrace_log_file = NULL;
 static char *dtrace_log_file = NULL;
 static int difftest_port = 1234;
 
+#ifdef NPC_BUILD_PLATFORM_NPC
+#define NPC_BUILD_PLATFORM_NAME "npc"
+#else
+#define NPC_BUILD_PLATFORM_NAME "ysyxsoc"
+#endif
+
 static void welcome() {
     Log("Trace: %s",
 #ifdef CONFIG_TRACE
@@ -45,7 +51,7 @@ static void welcome() {
 #endif
     );
     Log("Build time: %s, %s", __TIME__, __DATE__);
-    printf("Welcome to %s-NPC!\n", ANSI_FMT(CONFIG_PLATFORM, ANSI_FG_YELLOW ANSI_BG_RED));
+    printf("Welcome to %s-NPC!\n", ANSI_FMT(NPC_BUILD_PLATFORM_NAME, ANSI_FG_YELLOW ANSI_BG_RED));
     printf("For help, type \"help\"\n");
 }
 
