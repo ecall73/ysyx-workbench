@@ -13,6 +13,15 @@ typedef struct {
   uint32_t mcause;
 } DutState;
 
+enum NpcState {
+  NPC_STOP,
+  NPC_RUNNING,
+  NPC_END,
+  NPC_ABORT,
+  NPC_QUIT,
+};
+
+extern NpcState npc_state;
 extern bool is_finished;
 extern int trap_a0;
 extern int trap_pc;

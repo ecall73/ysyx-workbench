@@ -30,6 +30,12 @@ static uint64_t g_timer_us = 0;
 static uint64_t g_nr_sim_cycle = 0;
 static bool g_print_step = false;
 
+typedef struct {
+    uint32_t pc;
+    uint32_t inst;
+    DutState state;
+} RetiredInst;
+
 #ifdef CONFIG_PERF
 enum PmuInstClass : uint8_t {
     PMU_CLASS_LOAD = 0,
@@ -166,6 +172,51 @@ static uint64_t get_time_us() {
     return (uint64_t)ts.tv_sec * 1000000 + (uint64_t)ts.tv_nsec / 1000;
 }
 
+static bool trace_and_difftest(const RetiredInst *retired) {
+    g_nr_guest_inst++;
+#ifdef CONFIG_ITRACE
+    if ((ITRACE_COND)) {
+        char disasm_buf[128];
+        disassemble(disasm_buf, sizeof(disasm_buf), retired->pc, retired->inst);
+        itrace_write("0x%08x: 0x%08x  %s\n", retired->pc, retired->inst, disasm_buf);
+        if (g_print_step) {
+            printf("0x%08x: 0x%08x  %s\n", retired->pc, retired->inst, disasm_buf);
+        }
+    }
+#endif
+#ifdef CONFIG_FTRACE
+    ftrace_check(retired->pc, retired->inst, retired->state.pc);
+#endif
+#ifdef CONFIG_ETRACE
+    if (retired->inst == kEcallInst) {
+        etrace_write("ecall pc=0x%08x -> 0x%08x mstatus=0x%08x mepc=0x%08x mcause=0x%08x\n",
+            retired->pc, retired->state.pc, retired->state.mstatus, retired->state.mepc, retired->state.mcause);
+    } else if (retired->inst == kMretInst) {
+        etrace_write("mret pc=0x%08x -> 0x%08x mstatus=0x%08x mepc=0x%08x mcause=0x%08x\n",
+            retired->pc, retired->state.pc, retired->state.mstatus, retired->state.mepc, retired->state.mcause);
+    }
+#endif
+    if (retired->inst == kEbreakInst) {
+        npc_state = (retired->state.gpr[10] == 0) ? NPC_END : NPC_ABORT;
+        is_finished = true;
+        trap_pc = (int)retired->pc;
+        trap_a0 = (int)retired->state.gpr[10];
+    }
+#ifdef CONFIG_DIFFTEST
+    else if (!difftest_step(retired->pc, retired->inst, &retired->state)) {
+        npc_state = NPC_ABORT;
+        is_finished = true;
+        trap_pc = (int)retired->pc;
+        trap_a0 = -1;
+    }
+#endif
+    if (wp_check()) {
+        npc_state = NPC_STOP;
+        return true;
+    }
+    return npc_state != NPC_RUNNING;
+}
+
 #ifdef CONFIG_PERF
 static double ratio(uint64_t numerator, uint64_t denominator) {
     return denominator ? (double)numerator / (double)denominator : 0.0;
@@ -262,6 +313,17 @@ static void statistic() {
 void cpu_exec(uint64_t n) {
     g_print_step = (n < kMaxInstToPrint);
 
+    switch (npc_state) {
+        case NPC_END:
+        case NPC_ABORT:
+        case NPC_QUIT:
+            printf("Program execution has ended. To restart the program, exit NPC and run again.\n");
+            return;
+        default:
+            npc_state = NPC_RUNNING;
+            break;
+    }
+
     if (is_finished) {
         printf("Program execution has ended. To restart the program, exit NPC and run again.\n");
         return;
@@ -277,10 +339,8 @@ void cpu_exec(uint64_t n) {
             break;
         }
 
-        if (is_finished || g_contextp->gotFinish()) {
-            if (is_finished) {
-                need_report = true;
-            }
+        if (npc_state != NPC_RUNNING || g_contextp->gotFinish()) {
+            need_report = (npc_state == NPC_END || npc_state == NPC_ABORT);
             break;
         }
 
@@ -299,65 +359,29 @@ void cpu_exec(uint64_t n) {
 #endif
 
         if (g_commit_valid) {
-            uint32_t commit_pc = g_commit_pc;
-            uint32_t commit_inst = g_commit_inst;
-            DutState dut_state = g_commit_state;
+            RetiredInst retired = {g_commit_pc, g_commit_inst, g_commit_state};
             g_commit_valid = false;
-
-            g_nr_guest_inst++;
-#ifdef CONFIG_ITRACE
-            if ((ITRACE_COND)) {
-                char disasm_buf[128];
-                disassemble(disasm_buf, sizeof(disasm_buf), commit_pc, commit_inst);
-                itrace_write("0x%08x: 0x%08x  %s\n", commit_pc, commit_inst, disasm_buf);
-                if (g_print_step) {
-                    printf("0x%08x: 0x%08x  %s\n", commit_pc, commit_inst, disasm_buf);
-                }
-            }
-#endif
-#ifdef CONFIG_FTRACE
-            ftrace_check(commit_pc, commit_inst, dut_state.pc);
-#endif
-#ifdef CONFIG_ETRACE
-            if (commit_inst == kEcallInst) {
-                etrace_write("ecall pc=0x%08x -> 0x%08x mstatus=0x%08x mepc=0x%08x mcause=0x%08x\n",
-                    commit_pc, dut_state.pc, dut_state.mstatus, dut_state.mepc, dut_state.mcause);
-            } else if (commit_inst == kMretInst) {
-                etrace_write("mret pc=0x%08x -> 0x%08x mstatus=0x%08x mepc=0x%08x mcause=0x%08x\n",
-                    commit_pc, dut_state.pc, dut_state.mstatus, dut_state.mepc, dut_state.mcause);
-            }
-#endif
-            if (commit_inst == kEbreakInst) {
-                is_finished = true;
-                trap_pc = (int)commit_pc;
-                trap_a0 = (int)dut_state.gpr[10];
-            }
-#ifdef CONFIG_DIFFTEST
-            else if (!difftest_step(commit_pc, commit_inst, &dut_state)) {
-                is_finished = true;
-                trap_pc = (int)commit_pc;
-                trap_a0 = -1;
-            }
-#endif
-            if (wp_check()) {
+            if (trace_and_difftest(&retired)) {
+                need_report = (npc_state == NPC_END || npc_state == NPC_ABORT);
                 break;
             }
         }
-        if (is_finished || g_contextp->gotFinish()) {
-            need_report = is_finished;
+        if (npc_state != NPC_RUNNING || g_contextp->gotFinish()) {
+            need_report = (npc_state == NPC_END || npc_state == NPC_ABORT);
             break;
         }
 
         platform_update();
         g_nr_sim_cycle++;
 
-        if (is_finished) {
-            need_report = true;
+        if (npc_state != NPC_RUNNING) {
+            need_report = (npc_state == NPC_END || npc_state == NPC_ABORT);
             break;
         }
 
         if (g_nr_sim_cycle > CONFIG_MAX_SIM_TIME) {
             Log("Simulation timed out at cycle %" PRIu64, g_nr_sim_cycle);
+            npc_state = NPC_ABORT;
             is_finished = true;
             trap_a0 = -1;
             trap_pc = 0;
@@ -369,10 +393,15 @@ void cpu_exec(uint64_t n) {
     uint64_t timer_end = get_time_us();
     g_timer_us += timer_end - timer_start;
 
+    if (npc_state == NPC_RUNNING) {
+        npc_state = NPC_STOP;
+    }
+
     if (need_report) {
         Log("npc: %s at pc = 0x%08x",
-            (trap_a0 == 0 ? ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)
-                          : ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED)),
+            (npc_state == NPC_ABORT ? ANSI_FMT("ABORT", ANSI_FG_RED) :
+             (trap_a0 == 0 ? ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)
+                           : ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED))),
             trap_pc);
         Log("host time spent = %" PRIu64 " us", g_timer_us);
         Log("total guest instructions = %" PRIu64, g_nr_guest_inst);

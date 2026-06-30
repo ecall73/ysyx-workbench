@@ -18,6 +18,7 @@ SimTop *g_top = NULL;
 VerilatedContext *g_contextp = NULL;
 VerilatedVcdC *g_tfp = NULL;
 
+NpcState npc_state = NPC_STOP;
 bool is_finished = false;
 int trap_a0 = 0;
 int trap_pc = 0;
@@ -226,5 +227,5 @@ void npc_cleanup() {
 }
 
 int is_exit_status_bad() {
-    return !(sdb_quit || (is_finished && trap_a0 == 0));
+    return !(npc_state == NPC_QUIT || (npc_state == NPC_END && trap_a0 == 0));
 }

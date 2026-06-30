@@ -35,6 +35,7 @@ static char *rl_gets() {
 
 static int cmd_q(char *args) {
     sdb_quit = true;
+    npc_state = NPC_QUIT;
     return -1;
 }
 
