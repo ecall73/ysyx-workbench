@@ -16,10 +16,9 @@
 #include <isa.h>
 
 enum {
-  MSTATUS_MIE      = (1u << 3),
-  MSTATUS_MPIE     = (1u << 7),
-  MSTATUS_MPP_MASK = (3u << 11),
-  MSTATUS_MPP_M    = (3u << 11),
+  MSTATUS_MIE  = (1u << 3),
+  MSTATUS_MPIE = (1u << 7),
+  MSTATUS_MPP  = (3u << 11),
 };
 
 vaddr_t isa_raise_intr(word_t NO, vaddr_t epc) {
@@ -27,7 +26,7 @@ vaddr_t isa_raise_intr(word_t NO, vaddr_t epc) {
   word_t mie = (mstatus & MSTATUS_MIE) ? 1 : 0;
   mstatus = (mstatus & ~MSTATUS_MPIE) | (mie ? MSTATUS_MPIE : 0);
   mstatus &= ~MSTATUS_MIE;
-  mstatus = (mstatus & ~MSTATUS_MPP_MASK) | MSTATUS_MPP_M;
+  mstatus = (mstatus & ~MSTATUS_MPP) | MSTATUS_MPP; // trap to M-mode
 
   cpu.mstatus = mstatus;
   cpu.mepc = epc;
@@ -45,7 +44,7 @@ vaddr_t isa_mret() {
   word_t mpie = (mstatus & MSTATUS_MPIE) ? 1 : 0;
   mstatus = (mstatus & ~MSTATUS_MIE) | (mpie ? MSTATUS_MIE : 0); // MIE <- MPIE
   mstatus |= MSTATUS_MPIE;                                        // MPIE <- 1
-  mstatus &= ~MSTATUS_MPP_MASK;                                   // MPP <- U(0)
+  mstatus &= ~MSTATUS_MPP;                                        // MPP <- U(0)
   cpu.mstatus = mstatus;
 
   vaddr_t target = cpu.mepc;

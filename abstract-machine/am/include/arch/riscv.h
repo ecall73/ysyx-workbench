@@ -8,9 +8,8 @@
 #endif
 
 struct Context {
-  // gpr/mcause/mstatus/mepc must match riscv/{nemu,npc,ysyxsoc}/trap.S.
+  // Must match abstract-machine/am/src/riscv/{nemu,npc,ysyxsoc}/trap.S.
   uintptr_t gpr[NR_REGS], mcause, mstatus, mepc;
-  // Reserved by the AM Context API; trap.S only reserves this slot.
   void *pdir;
 };
 

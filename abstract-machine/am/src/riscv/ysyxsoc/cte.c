@@ -4,10 +4,6 @@
 
 static Context* (*user_handler)(Event, Context*) = NULL;
 
-enum {
-  MSTATUS_MPP_M = (3u << 11),
-};
-
 static void __am_kcontext_start(void *entry, void *arg) {
   ((void (*)(void *))entry)(arg);
   halt(1);
@@ -48,7 +44,7 @@ Context *kcontext(Area kstack, void (*entry)(void *), void *arg) {
   assert(kstack.start <= (void *)c && (void *)c < kstack.end);
   *c = (Context) {0};
   c->mepc = (uintptr_t)__am_kcontext_start;
-  c->mstatus = MSTATUS_MPP_M;
+  c->mstatus = 0x1800;
   c->gpr[10] = (uintptr_t)entry; // a0: __am_kcontext_start(entry, arg)
   c->gpr[11] = (uintptr_t)arg;   // a1
   c->pdir = NULL;

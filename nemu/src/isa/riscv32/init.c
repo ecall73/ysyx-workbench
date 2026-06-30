@@ -26,17 +26,13 @@ static const uint32_t img [] = {
   0xdeadbeef,  // some data
 };
 
-enum {
-  MSTATUS_MPP_M = (3u << 11),
-};
-
 static void restart() {
   /* Set the initial program counter. */
   cpu.pc = RESET_VECTOR;
 
   /* The zero register is always 0. */
   cpu.gpr[0] = 0;
-  cpu.mstatus = MSTATUS_MPP_M;
+  cpu.mstatus = 0x1800;
   cpu.mtvec = 0;
   cpu.mepc = 0;
   cpu.mcause = 0;

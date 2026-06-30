@@ -31,7 +31,6 @@ f(30) f(31)
 #define PUSH(n) STORE concat(x, n), (n * XLEN)(sp);
 #define POP(n)  LOAD  concat(x, n), (n * XLEN)(sp);
 
-# Context layout: gpr + mcause/mstatus/mepc + pdir.
 #define CONTEXT_SIZE  ((NR_REGS + 3 + 1) * XLEN)
 #define OFFSET_SP     ( 2 * XLEN)
 #define OFFSET_CAUSE  ((NR_REGS + 0) * XLEN)

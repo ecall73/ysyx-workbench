@@ -53,14 +53,12 @@ static void decode_operand(Decode *s, int *rd, word_t *src1, word_t *src2, word_
 }
 
 enum {
-  CSR_MSTATUS       = 0x300,
-  CSR_MTVEC         = 0x305,
-  CSR_MEPC          = 0x341,
-  CSR_MCAUSE        = 0x342,
-  CSR_MVENDORID     = 0xF11,
-  CSR_MARCHID       = 0xF12,
-  CSR_MVENDORID_VAL = 0x79737978,
-  CSR_MARCHID_VAL   = 26030082,
+  CSR_MSTATUS = 0x300,
+  CSR_MTVEC   = 0x305,
+  CSR_MEPC    = 0x341,
+  CSR_MCAUSE  = 0x342,
+  CSR_MVENDORID = 0xF11,
+  CSR_MARCHID   = 0xF12,
 };
 
 static inline word_t csr_read(uint32_t addr) {
@@ -69,8 +67,8 @@ static inline word_t csr_read(uint32_t addr) {
     case CSR_MTVEC:   return cpu.mtvec;
     case CSR_MEPC:    return cpu.mepc;
     case CSR_MCAUSE:  return cpu.mcause;
-    case CSR_MVENDORID: return CSR_MVENDORID_VAL;
-    case CSR_MARCHID:   return CSR_MARCHID_VAL;
+    case CSR_MVENDORID: return 0x79737978;
+    case CSR_MARCHID:   return 26030082;
     default:          return 0;
   }
 }
