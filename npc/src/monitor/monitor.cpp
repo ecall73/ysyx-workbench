@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,6 +7,11 @@
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 #include "common.h"
+#include "cpu/difftest.h"
+#include "monitor/monitor.h"
+#include "monitor/sdb.h"
+#include "platform/platform.h"
+#include "utils.h"
 
 SimTop *g_top = NULL;
 VerilatedContext *g_contextp = NULL;
@@ -20,103 +26,30 @@ bool sdb_batch_mode = false;
 bool sdb_quit = false;
 FILE *log_fp = NULL;
 
-static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file, int *diff_port) {
-    char *log_file = NULL;
-    char *elf_file = NULL;
-    char *ftrace_log = NULL;
-    char *etrace_log = NULL;
-    char *mtrace_log = NULL;
-    char *dtrace_log = NULL;
-    char *img_file = NULL;
-    *diff_so_file = NULL;
-    *diff_port = 1234;
+static char *log_file = NULL;
+static char *diff_so_file = NULL;
+static char *img_file = NULL;
+static char *elf_file = NULL;
+static char *ftrace_log_file = NULL;
+static char *etrace_log_file = NULL;
+static char *mtrace_log_file = NULL;
+static char *dtrace_log_file = NULL;
+static int difftest_port = 1234;
 
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-b") == 0) {
-            sdb_set_batch_mode();
-        } else if (strncmp(argv[i], "-d", 2) == 0) {
-            if (strlen(argv[i]) > 2) {
-                *diff_so_file = argv[i] + 2;
-            } else if (i + 1 < argc) {
-                *diff_so_file = argv[++i];
-            }
-        } else if (strncmp(argv[i], "-p", 2) == 0) {
-            char *port_arg = NULL;
-            if (strlen(argv[i]) > 2) {
-                port_arg = argv[i] + 2;
-            } else if (i + 1 < argc) {
-                port_arg = argv[++i];
-            }
-            if (port_arg != NULL) {
-                sscanf(port_arg, "%d", diff_port);
-            }
-        } else if (strncmp(argv[i], "-l", 2) == 0) {
-            if (strlen(argv[i]) > 2) {
-                log_file = argv[i] + 2;
-            } else if (i + 1 < argc) {
-                log_file = argv[++i];
-            }
-        } else if (strncmp(argv[i], "-f", 2) == 0) {
-            if (strlen(argv[i]) > 2) {
-                elf_file = argv[i] + 2;
-            } else if (i + 1 < argc) {
-                elf_file = argv[++i];
-            }
-        } else if (strncmp(argv[i], "-F", 2) == 0) {
-            if (strlen(argv[i]) > 2) {
-                ftrace_log = argv[i] + 2;
-            } else if (i + 1 < argc) {
-                ftrace_log = argv[++i];
-            }
-        } else if (strncmp(argv[i], "-E", 2) == 0) {
-            if (strlen(argv[i]) > 2) {
-                etrace_log = argv[i] + 2;
-            } else if (i + 1 < argc) {
-                etrace_log = argv[++i];
-            }
-        } else if (strncmp(argv[i], "-M", 2) == 0) {
-            if (strlen(argv[i]) > 2) {
-                mtrace_log = argv[i] + 2;
-            } else if (i + 1 < argc) {
-                mtrace_log = argv[++i];
-            }
-        } else if (strncmp(argv[i], "-D", 2) == 0) {
-            if (strlen(argv[i]) > 2) {
-                dtrace_log = argv[i] + 2;
-            } else if (i + 1 < argc) {
-                dtrace_log = argv[++i];
-            }
-        } else if (argv[i][0] != '-') {
-            img_file = argv[i];
-        }
-    }
+static void welcome() {
+    Log("Trace: %s",
+#ifdef CONFIG_TRACE
+        ANSI_FMT("ON", ANSI_FG_GREEN)
+#else
+        ANSI_FMT("OFF", ANSI_FG_RED)
+#endif
+    );
+    Log("Build time: %s, %s", __TIME__, __DATE__);
+    printf("Welcome to %s-NPC!\n", ANSI_FMT(CONFIG_PLATFORM, ANSI_FG_YELLOW ANSI_BG_RED));
+    printf("For help, type \"help\"\n");
+}
 
-    init_log(log_file);
-#ifdef CONFIG_ITRACE
-    init_disasm();
-#endif
-#ifdef CONFIG_FTRACE
-    init_ftrace_log(ftrace_log);
-    init_ftrace(elf_file);
-#else
-    (void)elf_file;
-    (void)ftrace_log;
-#endif
-#ifdef CONFIG_ETRACE
-    init_etrace_log(etrace_log);
-#else
-    (void)etrace_log;
-#endif
-#ifdef CONFIG_MTRACE
-    init_mtrace_log(mtrace_log);
-#else
-    (void)mtrace_log;
-#endif
-#ifdef CONFIG_DTRACE
-    init_dtrace_log(dtrace_log);
-#else
-    (void)dtrace_log;
-#endif
+static long load_img() {
     if (img_file == NULL) {
         fprintf(stderr, "No image file specified\n");
         exit(1);
@@ -130,16 +63,80 @@ static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file
     return img_size;
 }
 
+static int parse_args(int argc, char **argv) {
+    const struct option table[] = {
+        {"batch",      no_argument,       NULL, 'b'},
+        {"log",        required_argument, NULL, 'l'},
+        {"diff",       required_argument, NULL, 'd'},
+        {"elf",        required_argument, NULL, 'f'},
+        {"ftrace-log", required_argument, NULL, 'F'},
+        {"etrace-log", required_argument, NULL, 'E'},
+        {"mtrace-log", required_argument, NULL, 'M'},
+        {"dtrace-log", required_argument, NULL, 'D'},
+        {"port",       required_argument, NULL, 'p'},
+        {"help",       no_argument,       NULL, 'h'},
+        {0,            0,                 NULL,  0 },
+    };
+
+    int o;
+    while ((o = getopt_long(argc, argv, "-bhf:F:E:M:D:l:d:p:", table, NULL)) != -1) {
+        switch (o) {
+            case 'b': sdb_set_batch_mode(); break;
+            case 'l': log_file = optarg; break;
+            case 'd': diff_so_file = optarg; break;
+            case 'f': elf_file = optarg; break;
+            case 'F': ftrace_log_file = optarg; break;
+            case 'E': etrace_log_file = optarg; break;
+            case 'M': mtrace_log_file = optarg; break;
+            case 'D': dtrace_log_file = optarg; break;
+            case 'p': sscanf(optarg, "%d", &difftest_port); break;
+            case 1: img_file = optarg; return 0;
+            default:
+                printf("Usage: %s [OPTION...] IMAGE\n\n", argv[0]);
+                printf("\t-b,--batch              run with batch mode\n");
+                printf("\t-l,--log=FILE           output log to FILE\n");
+                printf("\t-d,--diff=REF_SO        run DiffTest with reference REF_SO\n");
+                printf("\t-p,--port=PORT          run DiffTest with port PORT\n");
+                printf("\t-f,--elf=FILE           load ELF symbols for ftrace\n");
+                printf("\t-F,--ftrace-log=FILE    output ftrace to FILE\n");
+                printf("\t-E,--etrace-log=FILE    output etrace to FILE\n");
+                printf("\t-M,--mtrace-log=FILE    output mtrace to FILE\n");
+                printf("\t-D,--dtrace-log=FILE    output dtrace to FILE\n");
+                printf("\n");
+                exit(0);
+        }
+    }
+    return 0;
+}
+
 void init_monitor(int argc, char **argv) {
+    parse_args(argc, argv);
+
     VerilatedContext *contextp = new VerilatedContext;
     contextp->commandArgs(argc, argv);
 
     SimTop *top = new SimTop{contextp};
     VerilatedVcdC *tfp = NULL;
 
-    char *diff_so_file = NULL;
-    int diff_port = 1234;
-    long img_size = parse_args_and_load_image(argc, argv, &diff_so_file, &diff_port);
+    init_log(log_file);
+#ifdef CONFIG_FTRACE
+    init_ftrace_log(ftrace_log_file);
+    init_ftrace(elf_file);
+#endif
+#ifdef CONFIG_ETRACE
+    init_etrace_log(etrace_log_file);
+#endif
+#ifdef CONFIG_MTRACE
+    init_mtrace_log(mtrace_log_file);
+#endif
+#ifdef CONFIG_DTRACE
+    init_dtrace_log(dtrace_log_file);
+#endif
+#ifdef CONFIG_ITRACE
+    init_disasm();
+#endif
+
+    long img_size = load_img();
 
 #ifdef CONFIG_WAVE
     {
@@ -184,8 +181,15 @@ void init_monitor(int argc, char **argv) {
     }
     top->reset = 0;
 
-    init_difftest(diff_so_file, img_size, diff_port);
-    Log("Simulation started...");
+#ifdef CONFIG_DIFFTEST
+    init_difftest(diff_so_file, img_size, difftest_port);
+#else
+    (void)diff_so_file;
+    (void)difftest_port;
+    (void)img_size;
+#endif
+    init_sdb();
+    welcome();
 }
 
 void npc_cleanup() {

@@ -3,6 +3,9 @@
 #include <string.h>
 
 #include "common.h"
+#include "cpu/cpu.h"
+#include "platform/platform.h"
+#include "utils.h"
 
 #ifndef ITRACE_COND
 #define ITRACE_COND true

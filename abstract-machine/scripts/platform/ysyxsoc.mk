@@ -21,9 +21,6 @@ YSYXSOCFLAGS += -E $(shell dirname $(IMAGE).elf)/npc-etrace.txt
 YSYXSOCFLAGS += -M $(shell dirname $(IMAGE).elf)/npc-mtrace.txt
 YSYXSOCFLAGS += -D $(shell dirname $(IMAGE).elf)/npc-dtrace.txt
 
-DIFF ?= 0
-PERF ?= 0
-WAVE ?= 0
 DEBUG ?= 0
 ifeq ($(filter 1 y yes true,$(DEBUG)),)
 YSYXSOCFLAGS += -b
@@ -44,6 +41,6 @@ image: image-dep
 	@$(OBJCOPY) -S -O binary $(IMAGE).elf $(IMAGE).bin
 
 run: insert-arg
-	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=ysyxsoc DIFF=$(DIFF) PERF=$(PERF) WAVE=$(WAVE) DEBUG=$(DEBUG) DIFF_REF_SO=$(DIFF_REF_SO) DIFF_PORT=$(DIFF_PORT) sim ARGS="$(YSYXSOCFLAGS)" IMG="$(IMAGE).bin"
+	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=ysyxsoc DIFF_REF_SO=$(DIFF_REF_SO) DIFF_PORT=$(DIFF_PORT) sim ARGS="$(YSYXSOCFLAGS)" IMG="$(IMAGE).bin"
 
 .PHONY: insert-arg

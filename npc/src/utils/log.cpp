@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "utils.h"
 
 static FILE *open_log_file(const char *log_file, const char *name) {
     if (log_file == NULL) {

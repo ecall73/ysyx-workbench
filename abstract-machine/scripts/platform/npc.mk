@@ -20,9 +20,6 @@ NPCFLAGS += -E $(shell dirname $(IMAGE).elf)/npc-etrace.txt
 NPCFLAGS += -M $(shell dirname $(IMAGE).elf)/npc-mtrace.txt
 NPCFLAGS += -D $(shell dirname $(IMAGE).elf)/npc-dtrace.txt
 
-DIFF ?= 0
-PERF ?= 0
-WAVE ?= 0
 DEBUG ?= 0
 ifeq ($(filter 1 y yes true,$(DEBUG)),)
 NPCFLAGS += -b
@@ -43,6 +40,6 @@ image: image-dep
 	@$(OBJCOPY) -S --set-section-flags .bss=alloc,contents -O binary $(IMAGE).elf $(IMAGE).bin
 
 run: insert-arg
-	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=npc DIFF=$(DIFF) PERF=$(PERF) WAVE=$(WAVE) DEBUG=$(DEBUG) DIFF_REF_SO=$(DIFF_REF_SO) DIFF_PORT=$(DIFF_PORT) sim ARGS="$(NPCFLAGS)" IMG="$(IMAGE).bin"
+	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=npc DIFF_REF_SO=$(DIFF_REF_SO) DIFF_PORT=$(DIFF_PORT) sim ARGS="$(NPCFLAGS)" IMG="$(IMAGE).bin"
 
 .PHONY: insert-arg

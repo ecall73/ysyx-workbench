@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "utils.h"
 
 #ifdef CONFIG_FTRACE
 struct FuncSymbol {

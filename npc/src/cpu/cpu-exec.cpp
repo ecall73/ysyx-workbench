@@ -5,6 +5,11 @@
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 #include "common.h"
+#include "cpu/cpu.h"
+#include "cpu/difftest.h"
+#include "monitor/sdb.h"
+#include "platform/platform.h"
+#include "utils.h"
 
 #ifdef CONFIG_PERF
 // PMU report uses magenta so it can be visually separated from normal logs.
@@ -15,8 +20,7 @@
 static bool g_commit_valid = false;
 static uint32_t g_commit_pc = 0;
 static uint32_t g_commit_inst = 0;
-static uint32_t g_commit_next_pc = 0;
-static DutState g_dut_state = {};
+static DutState g_commit_state = {};
 static constexpr uint32_t kEcallInst = 0x00000073u;
 static constexpr uint32_t kMretInst = 0x30200073u;
 static constexpr uint32_t kEbreakInst = 0x00100073u;
@@ -102,25 +106,24 @@ extern "C" void npc_commit(
     g_commit_valid = true;
     g_commit_pc = commit_pc;
     g_commit_inst = commit_inst;
-    g_commit_next_pc = pc;
     for (int i = 0; i < 16; i++) {
-        g_dut_state.gpr[i] = gpr[i];
+        g_commit_state.gpr[i] = gpr[i];
     }
     for (int i = 16; i < 32; i++) {
-        g_dut_state.gpr[i] = 0;
+        g_commit_state.gpr[i] = 0;
     }
-    g_dut_state.pc = pc;
-    g_dut_state.mstatus = mstatus;
-    g_dut_state.mtvec = mtvec;
-    g_dut_state.mepc = mepc;
-    g_dut_state.mcause = mcause;
+    g_commit_state.pc = pc;
+    g_commit_state.mstatus = mstatus;
+    g_commit_state.mtvec = mtvec;
+    g_commit_state.mepc = mepc;
+    g_commit_state.mcause = mcause;
 #ifdef CONFIG_PERF
     pmu_on_commit(commit_inst);
 #endif
 }
 
 void npc_read_dut_state(DutState *state) {
-    *state = g_dut_state;
+    *state = g_commit_state;
 }
 
 extern "C" void npc_pmu_event(int event_mask) {
@@ -284,8 +287,7 @@ void cpu_exec(uint64_t n) {
         if (g_commit_valid) {
             uint32_t commit_pc = g_commit_pc;
             uint32_t commit_inst = g_commit_inst;
-            uint32_t pc = g_commit_next_pc;
-            DutState dut_post = g_dut_state;
+            DutState dut_state = g_commit_state;
             g_commit_valid = false;
 
             g_nr_guest_inst++;
@@ -300,25 +302,31 @@ void cpu_exec(uint64_t n) {
             }
 #endif
 #ifdef CONFIG_FTRACE
-            ftrace_check(commit_pc, commit_inst, pc);
+            ftrace_check(commit_pc, commit_inst, dut_state.pc);
 #endif
 #ifdef CONFIG_ETRACE
             if (commit_inst == kEcallInst) {
                 etrace_write("ecall pc=0x%08x -> 0x%08x mstatus=0x%08x mepc=0x%08x mcause=0x%08x\n",
-                    commit_pc, pc, dut_post.mstatus, dut_post.mepc, dut_post.mcause);
+                    commit_pc, dut_state.pc, dut_state.mstatus, dut_state.mepc, dut_state.mcause);
             } else if (commit_inst == kMretInst) {
                 etrace_write("mret pc=0x%08x -> 0x%08x mstatus=0x%08x mepc=0x%08x mcause=0x%08x\n",
-                    commit_pc, pc, dut_post.mstatus, dut_post.mepc, dut_post.mcause);
+                    commit_pc, dut_state.pc, dut_state.mstatus, dut_state.mepc, dut_state.mcause);
             }
 #endif
             if (commit_inst == kEbreakInst) {
                 is_finished = true;
                 trap_pc = (int)commit_pc;
-                trap_a0 = (int)dut_post.gpr[10];
-            } else if (!difftest_step(commit_pc, commit_inst, pc, &dut_post)) {
+                trap_a0 = (int)dut_state.gpr[10];
+            }
+#ifdef CONFIG_DIFFTEST
+            else if (!difftest_step(commit_pc, commit_inst, &dut_state)) {
                 is_finished = true;
                 trap_pc = (int)commit_pc;
                 trap_a0 = -1;
+            }
+#endif
+            if (wp_check()) {
+                break;
             }
         }
         if (is_finished || g_contextp->gotFinish()) {

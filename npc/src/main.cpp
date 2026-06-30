@@ -1,5 +1,5 @@
-#include "common.h"
 #include "verilated.h"
+#include "monitor/monitor.h"
 
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);

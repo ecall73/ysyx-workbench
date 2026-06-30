@@ -4,6 +4,8 @@
 #include <time.h>
 
 #include "common.h"
+#include "platform/platform.h"
+#include "utils.h"
 
 static uint8_t pmem[MEM_SIZE];
 static long img_size = 0;

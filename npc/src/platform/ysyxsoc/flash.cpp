@@ -6,6 +6,8 @@
 #include <nvboard.h>
 
 #include "common.h"
+#include "platform/platform.h"
+#include "utils.h"
 
 void nvboard_bind_all_pins(SimTop *top);
 

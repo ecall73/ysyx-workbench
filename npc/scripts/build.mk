@@ -1,77 +1,21 @@
-TRACE_FROM_CMD := $(filter command line,$(origin TRACE))
-ITRACE_FROM_CMD := $(filter command line,$(origin ITRACE))
-FTRACE_FROM_CMD := $(filter command line,$(origin FTRACE))
-MTRACE_FROM_CMD := $(filter command line,$(origin MTRACE))
-DTRACE_FROM_CMD := $(filter command line,$(origin DTRACE))
-ETRACE_FROM_CMD := $(filter command line,$(origin ETRACE))
-
 SIM_MODE ?= $(call remove_quote,$(CONFIG_PLATFORM))
-DIFF ?= $(if $(CONFIG_DIFFTEST),1,0)
-PERF ?= $(if $(CONFIG_PERF),1,0)
-WAVE ?= $(if $(CONFIG_WAVE),1,0)
-TRACE ?= $(if $(CONFIG_TRACE),1,0)
-ITRACE ?= $(if $(CONFIG_ITRACE),1,0)
-FTRACE ?= $(if $(CONFIG_FTRACE),1,0)
-MTRACE ?= $(if $(CONFIG_MTRACE),1,0)
-DTRACE ?= $(if $(CONFIG_DTRACE),1,0)
-ETRACE ?= $(if $(CONFIG_ETRACE),1,0)
-ifneq ($(TRACE_FROM_CMD),)
-$(error TRACE is configured by npc/.config; use 'make -C npc menuconfig' instead)
-endif
-ifneq ($(ITRACE_FROM_CMD),)
-$(error ITRACE is configured by npc/.config; use 'make -C npc menuconfig' instead)
-endif
-ifneq ($(FTRACE_FROM_CMD),)
-$(error FTRACE is configured by npc/.config; use 'make -C npc menuconfig' instead)
-endif
-ifneq ($(MTRACE_FROM_CMD),)
-$(error MTRACE is configured by npc/.config; use 'make -C npc menuconfig' instead)
-endif
-ifneq ($(DTRACE_FROM_CMD),)
-$(error DTRACE is configured by npc/.config; use 'make -C npc menuconfig' instead)
-endif
-ifneq ($(ETRACE_FROM_CMD),)
-$(error ETRACE is configured by npc/.config; use 'make -C npc menuconfig' instead)
-endif
+DIFFTEST_ON := $(if $(CONFIG_DIFFTEST),1,0)
+PERF_ON := $(if $(CONFIG_PERF),1,0)
+WAVE_ON := $(if $(CONFIG_WAVE),1,0)
+TRACE_ON := $(if $(CONFIG_TRACE),1,0)
+ITRACE_ON := $(if $(CONFIG_ITRACE),1,0)
+FTRACE_ON := $(if $(CONFIG_FTRACE),1,0)
+MTRACE_ON := $(if $(CONFIG_MTRACE),1,0)
+DTRACE_ON := $(if $(CONFIG_DTRACE),1,0)
+ETRACE_ON := $(if $(CONFIG_ETRACE),1,0)
 DEBUG_DEFAULT := $(if $(CONFIG_DEBUG),1,0)
-ifeq ($(origin DEBUG),command line)
-DEBUG := $(if $(filter 1 y yes true,$(DEBUG)),1,0)
-else
-DEBUG := $(DEBUG_DEFAULT)
-endif
+DEBUG_ON := $(DEBUG_DEFAULT)
 UART_STDOUT ?= 1
 BATCH ?= 0
 
 VALID_SIM_MODES := npc ysyxsoc
 ifeq ($(filter $(SIM_MODE),$(VALID_SIM_MODES)),)
 $(error Unsupported SIM_MODE='$(SIM_MODE)'. Expected one of: $(VALID_SIM_MODES))
-endif
-ifneq ($(filter-out 0 1,$(DIFF)),)
-$(error Unsupported DIFF='$(DIFF)'. Expected '0' or '1')
-endif
-ifneq ($(filter-out 0 1,$(PERF)),)
-$(error Unsupported PERF='$(PERF)'. Expected '0' or '1')
-endif
-ifneq ($(filter-out 0 1,$(WAVE)),)
-$(error Unsupported WAVE='$(WAVE)'. Expected '0' or '1')
-endif
-ifneq ($(filter-out 0 1,$(TRACE)),)
-$(error Unsupported TRACE='$(TRACE)'. Expected '0' or '1')
-endif
-ifneq ($(filter-out 0 1,$(ITRACE)),)
-$(error Unsupported ITRACE='$(ITRACE)'. Expected '0' or '1')
-endif
-ifneq ($(filter-out 0 1,$(FTRACE)),)
-$(error Unsupported FTRACE='$(FTRACE)'. Expected '0' or '1')
-endif
-ifneq ($(filter-out 0 1,$(MTRACE)),)
-$(error Unsupported MTRACE='$(MTRACE)'. Expected '0' or '1')
-endif
-ifneq ($(filter-out 0 1,$(DTRACE)),)
-$(error Unsupported DTRACE='$(DTRACE)'. Expected '0' or '1')
-endif
-ifneq ($(filter-out 0 1,$(ETRACE)),)
-$(error Unsupported ETRACE='$(ETRACE)'. Expected '0' or '1')
 endif
 ifneq ($(filter-out 0 1,$(UART_STDOUT)),)
 $(error Unsupported UART_STDOUT='$(UART_STDOUT)'. Expected '0' or '1')
@@ -99,7 +43,7 @@ CAPSTONE_SO = $(CAPSTONE_HOME)/repo/libcapstone.so.5
 comma := ,
 
 BUILD_DIR = $(NPC_HOME)/build/$(SIM_MODE)
-OBJ_DIR = $(BUILD_DIR)/obj_dir-perf$(PERF)-wave$(WAVE)
+OBJ_DIR = $(BUILD_DIR)/obj_dir-perf$(PERF_ON)-wave$(WAVE_ON)
 VERILOG_BUILD_DIR = $(NPC_HOME)/build
 CPU_VERILOG = $(abspath $(VERILOG_BUILD_DIR)/ysyx_26030082.v)
 
@@ -142,15 +86,12 @@ INCLUDES = $(addprefix -I, $(INC_PATH))
 CFLAGS += $(INCLUDES) -MMD -Wall -Werror
 CFLAGS += -DTOP_NAME="\"V$(TOPNAME)\""
 CFLAGS += $(if $(filter npc,$(SIM_MODE)),-DNPC_BUILD_PLATFORM_NPC=1,-DNPC_BUILD_PLATFORM_YSYXSOC=1)
-CFLAGS += -DNPC_BUILD_PERF=$(PERF) -DNPC_BUILD_WAVE=$(WAVE)
-CFLAGS += -DNPC_BUILD_TRACE=$(TRACE) -DNPC_BUILD_ITRACE=$(ITRACE) -DNPC_BUILD_FTRACE=$(FTRACE)
-CFLAGS += -DNPC_BUILD_MTRACE=$(MTRACE) -DNPC_BUILD_DTRACE=$(DTRACE) -DNPC_BUILD_ETRACE=$(ETRACE)
 CFLAGS += -DITRACE_COND='$(if $(CONFIG_ITRACE_COND),$(subst ",,$(CONFIG_ITRACE_COND)),true)'
 CFLAGS += -DMTRACE_COND='$(if $(CONFIG_MTRACE_COND),$(subst ",,$(CONFIG_MTRACE_COND)),true)'
-CFLAGS += $(if $(filter 1,$(ITRACE)),-I$(CAPSTONE_HOME)/repo/include,)
-CFLAGS += $(if $(filter 1,$(DEBUG)),-Og -ggdb3,-O2)
-LDFLAGS += $(if $(filter 1,$(DEBUG)),-Og -ggdb3,-O2)
-LDFLAGS += $(if $(filter 1,$(ITRACE)),-Wl$(comma)-rpath$(comma)$(CAPSTONE_HOME)/repo $(CAPSTONE_SO),)
+CFLAGS += $(if $(filter 1,$(ITRACE_ON)),-I$(CAPSTONE_HOME)/repo/include,)
+CFLAGS += $(if $(filter 1,$(DEBUG_ON)),-Og -ggdb3,-O2)
+LDFLAGS += $(if $(filter 1,$(DEBUG_ON)),-Og -ggdb3,-O2)
+LDFLAGS += $(if $(filter 1,$(ITRACE_ON)),-Wl$(comma)-rpath$(comma)$(CAPSTONE_HOME)/repo $(CAPSTONE_SO),)
 LDFLAGS += -lreadline
 
 VERILATOR_CFLAGS += -MMD --build -cc \
@@ -158,15 +99,15 @@ VERILATOR_CFLAGS += -MMD --build -cc \
 	-Wno-PINMISSING -Wno-WIDTHEXPAND \
 	--timescale "1ns/1ns" --no-timing --autoflush \
 	-MAKEFLAGS "VM_DEFAULT_RULES=0"
-VERILATOR_CFLAGS += $(if $(filter 1,$(WAVE)),--trace,)
+VERILATOR_CFLAGS += $(if $(filter 1,$(WAVE_ON)),--trace,)
 VERILOG_DEFINES += $(if $(filter 1,$(UART_STDOUT)),-DNPC_UART_STDOUT_RTL,)
-VERILOG_DEFINES += $(if $(filter 1,$(PERF)),-DNPC_ENABLE_PERF,)
-VERILOG_DEFINES += $(if $(filter 1,$(TRACE)),-DNPC_ENABLE_TRACE,)
-VERILOG_DEFINES += $(if $(filter 1,$(MTRACE) $(DTRACE)),-DNPC_ENABLE_MEMTRACE,)
-VERILOG_DEFINES += $(if $(filter 1,$(ETRACE)),-DNPC_ENABLE_ETRACE,)
+VERILOG_DEFINES += $(if $(filter 1,$(PERF_ON)),-DNPC_ENABLE_PERF,)
+VERILOG_DEFINES += $(if $(filter 1,$(TRACE_ON)),-DNPC_ENABLE_TRACE,)
+VERILOG_DEFINES += $(if $(filter 1,$(MTRACE_ON) $(DTRACE_ON)),-DNPC_ENABLE_MEMTRACE,)
+VERILOG_DEFINES += $(if $(filter 1,$(ETRACE_ON)),-DNPC_ENABLE_ETRACE,)
 
 BUILD_CONFIG = $(BUILD_DIR)/.build_config.mk
-BUILD_CONFIG_TEXT := SIM_MODE=$(SIM_MODE) TOPNAME=$(TOPNAME) DIFF=$(DIFF) PERF=$(PERF) WAVE=$(WAVE) TRACE=$(TRACE) TRACE_START=$(CONFIG_TRACE_START) TRACE_END=$(CONFIG_TRACE_END) ITRACE=$(ITRACE) ITRACE_COND=$(CONFIG_ITRACE_COND) FTRACE=$(FTRACE) MTRACE=$(MTRACE) MTRACE_COND=$(CONFIG_MTRACE_COND) DTRACE=$(DTRACE) ETRACE=$(ETRACE) DEBUG=$(DEBUG) UART_STDOUT=$(UART_STDOUT) SRCS=$(SRCS)
+BUILD_CONFIG_TEXT := SIM_MODE=$(SIM_MODE) TOPNAME=$(TOPNAME) DIFFTEST=$(DIFFTEST_ON) PERF=$(PERF_ON) WAVE=$(WAVE_ON) TRACE=$(TRACE_ON) TRACE_START=$(CONFIG_TRACE_START) TRACE_END=$(CONFIG_TRACE_END) ITRACE=$(ITRACE_ON) ITRACE_COND=$(CONFIG_ITRACE_COND) FTRACE=$(FTRACE_ON) MTRACE=$(MTRACE_ON) MTRACE_COND=$(CONFIG_MTRACE_COND) DTRACE=$(DTRACE_ON) ETRACE=$(ETRACE_ON) DEBUG=$(DEBUG_ON) UART_STDOUT=$(UART_STDOUT) SRCS=$(SRCS)
 -include $(BUILD_CONFIG)
 
 ifneq ($(CONFIG_TEXT),$(BUILD_CONFIG_TEXT))
@@ -178,18 +119,17 @@ $(BUILD_CONFIG): | $(BUILD_DIR)
 	@:
 endif
 
-NPC_DEPS = $(VSRCS) $(VHDRS) $(SRCS) $(MODE_EXTRA_DEPS) Makefile $(BUILD_CONFIG) $(NPC_HOME)/include/generated/autoconf.h
-ifeq ($(ITRACE),1)
+NPC_DEPS = $(VSRCS) $(VHDRS) $(SRCS) $(MODE_EXTRA_DEPS) Makefile $(NPC_HOME)/scripts/build.mk $(BUILD_CONFIG) $(NPC_HOME)/include/generated/autoconf.h
+ifeq ($(ITRACE_ON),1)
 NPC_DEPS += $(CAPSTONE_SO)
 endif
 
 RUN_ARGS += $(if $(filter 1,$(BATCH)),-b,)
-RUN_ARGS += $(if $(filter 1,$(DIFF)),-d $(DIFF_REF_SO) -p $(DIFF_PORT),)
-RUN_ARGS += $(if $(IMG),$(IMG),)
+RUN_ARGS += $(if $(filter 1,$(DIFFTEST_ON)),-d $(DIFF_REF_SO) -p $(DIFF_PORT),)
 
-ifeq ($(filter 1,$(DIFF)),1)
+ifeq ($(filter 1,$(DIFFTEST_ON)),1)
 ifeq ($(strip $(NEMU_HOME)),)
-$(error NEMU_HOME is required when DIFF=1)
+$(error NEMU_HOME is required when CONFIG_DIFFTEST=y)
 endif
 endif
 
@@ -218,7 +158,7 @@ build: $(BIN)
 
 sim run: $(BIN)
 	$(call git_commit, "sim RTL") # DO NOT REMOVE THIS LINE!!!
-	@$^ $(RUN_ARGS) $(ARGS)
+	@$^ $(RUN_ARGS) $(ARGS) $(IMG)
 
 verilog: $(CPU_VERILOG)
 

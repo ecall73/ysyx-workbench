@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "common.h"
+#include "utils.h"
 
 #ifdef CONFIG_ITRACE
 #include <capstone/capstone.h>
