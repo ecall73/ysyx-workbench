@@ -50,18 +50,7 @@ void __am_gpu_fbdraw(AM_GPU_FBDRAW_T *ctl) {
   uint32_t *dst = dst_base + y0 * screen_w + x0;
 
   for (int j = 0; j < copy_h; j++) {
-    int i = 0;
-    for (; i + 8 <= copy_w; i += 8) {
-      dst[i + 0] = src[i + 0];
-      dst[i + 1] = src[i + 1];
-      dst[i + 2] = src[i + 2];
-      dst[i + 3] = src[i + 3];
-      dst[i + 4] = src[i + 4];
-      dst[i + 5] = src[i + 5];
-      dst[i + 6] = src[i + 6];
-      dst[i + 7] = src[i + 7];
-    }
-    for (; i < copy_w; i++) {
+    for (int i = 0; i < copy_w; i++) {
       dst[i] = src[i];
     }
     src += src_w;

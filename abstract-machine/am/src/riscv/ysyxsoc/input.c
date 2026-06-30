@@ -102,8 +102,7 @@ void __am_input_keybrd(AM_INPUT_KEYBRD_T *kbd) {
   kbd->keydown = false;
   kbd->keycode = AM_KEY_NONE;
 
-  // Consume prefix bytes (E0/F0) in one call and return only when
-  // either no data is available or a concrete key event is decoded.
+  // 0x00 means no data; E0/F0 prefixes are kept for the next scan code.
   for (int i = 0; i < 8; i++) {
     uint8_t sc = (uint8_t)(inl(KBD_ADDR) & 0xffu);
     if (sc == 0x00) {

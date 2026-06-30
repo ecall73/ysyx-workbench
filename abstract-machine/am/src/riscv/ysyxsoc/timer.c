@@ -7,17 +7,6 @@ static uint64_t boot_mtime = 0;
 #error "NPC_CPU_FREQ_HZ must be divisible by 1,000,000"
 #endif
 
-static uint64_t read_rtc_us() {
-  uint32_t hi1, hi2, lo;
-  do {
-    hi1 = inl(RTC_ADDR + 4);
-    lo = inl(RTC_ADDR);
-    hi2 = inl(RTC_ADDR + 4);
-  } while (hi1 != hi2);
-
-  return ((uint64_t)hi2 << 32) | lo;
-}
-
 static uint64_t read_mtime() {
   uint32_t hi1, hi2, lo;
   do {
@@ -83,5 +72,5 @@ void __am_timer_uptime(AM_TIMER_UPTIME_T *uptime) {
 }
 
 void __am_timer_rtc(AM_TIMER_RTC_T *rtc) {
-  epoch_to_utc(read_rtc_us() / 1000000, rtc);
+  epoch_to_utc(read_mtime() / NPC_CLINT_CYCLES_PER_US / 1000000, rtc);
 }
