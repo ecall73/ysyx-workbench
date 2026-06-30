@@ -36,6 +36,10 @@ typedef struct {
     DutState state;
 } RetiredInst;
 
+static bool program_has_ended() {
+    return npc_state == NPC_END || npc_state == NPC_ABORT || npc_state == NPC_QUIT;
+}
+
 #ifdef CONFIG_PERF
 enum PmuInstClass : uint8_t {
     PMU_CLASS_LOAD = 0,
@@ -105,7 +109,7 @@ extern "C" void npc_commit(
     uint32_t mcause,
     const uint32_t *gpr
 ) {
-    if (is_finished) {
+    if (program_has_ended()) {
         return;
     }
 
@@ -148,7 +152,7 @@ void npc_reset_dut_state(uint32_t pc) {
 
 extern "C" void npc_pmu_event(int event_mask) {
 #ifdef CONFIG_PERF
-    if (is_finished) {
+    if (program_has_ended()) {
         return;
     }
 
@@ -198,14 +202,12 @@ static bool trace_and_difftest(const RetiredInst *retired) {
 #endif
     if (retired->inst == kEbreakInst) {
         npc_state = (retired->state.gpr[10] == 0) ? NPC_END : NPC_ABORT;
-        is_finished = true;
         trap_pc = (int)retired->pc;
         trap_a0 = (int)retired->state.gpr[10];
     }
 #ifdef CONFIG_DIFFTEST
     else if (!difftest_step(retired->pc, retired->inst, &retired->state)) {
         npc_state = NPC_ABORT;
-        is_finished = true;
         trap_pc = (int)retired->pc;
         trap_a0 = -1;
     }
@@ -324,11 +326,6 @@ void cpu_exec(uint64_t n) {
             break;
     }
 
-    if (is_finished) {
-        printf("Program execution has ended. To restart the program, exit NPC and run again.\n");
-        return;
-    }
-
     uint64_t timer_start = get_time_us();
     bool need_report = false;
 
@@ -382,7 +379,6 @@ void cpu_exec(uint64_t n) {
         if (g_nr_sim_cycle > CONFIG_MAX_SIM_TIME) {
             Log("Simulation timed out at cycle %" PRIu64, g_nr_sim_cycle);
             npc_state = NPC_ABORT;
-            is_finished = true;
             trap_a0 = -1;
             trap_pc = 0;
             need_report = true;

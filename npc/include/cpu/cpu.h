@@ -22,7 +22,6 @@ enum NpcState {
 };
 
 extern NpcState npc_state;
-extern bool is_finished;
 extern int trap_a0;
 extern int trap_pc;
 extern uint64_t g_nr_guest_inst;
