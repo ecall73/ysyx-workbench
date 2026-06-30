@@ -8,6 +8,9 @@ FTRACE ?= $(if $(CONFIG_FTRACE),1,0)
 MTRACE ?= $(if $(CONFIG_MTRACE),1,0)
 DTRACE ?= $(if $(CONFIG_DTRACE),1,0)
 ETRACE ?= $(if $(CONFIG_ETRACE),1,0)
+ifneq ($(filter 1,$(ITRACE) $(FTRACE) $(MTRACE) $(DTRACE) $(ETRACE)),)
+TRACE := 1
+endif
 DEBUG_DEFAULT := $(if $(CONFIG_DEBUG),1,0)
 ifeq ($(origin DEBUG),command line)
 DEBUG := $(if $(filter 1 y yes true,$(DEBUG)),1,0)
