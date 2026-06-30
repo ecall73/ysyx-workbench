@@ -58,11 +58,13 @@ static inline bool in_comparable_mem(uint32_t addr) {
     return platform_in_comparable_mem(addr);
 }
 
-static void collect_dut_gprs(RefCPUState *dut_r) {
+static void collect_dut_state(RefCPUState *dut_r, uint32_t pc) {
     memset(dut_r, 0, sizeof(*dut_r));
     for (int i = 0; i < 32; i++) {
         dut_r->gpr[i] = npc_read_dut_gpr(i);
     }
+    dut_r->pc = pc;
+    npc_collect_commit_csrs(&dut_r->mstatus, &dut_r->mtvec, &dut_r->mepc, &dut_r->mcause);
 }
 
 static SkipReason get_skip_reason(uint32_t inst, const RefCPUState *ref_pre) {
@@ -116,6 +118,31 @@ static bool difftest_checkregs(const RefCPUState *ref_r, const RefCPUState *dut_
             return false;
         }
     }
+    if (ref_r->pc != dut_r->pc) {
+        Log("difftest error at pc = 0x%08x: pc mismatch, ref = 0x%08x, dut = 0x%08x",
+            dut_pc, ref_r->pc, dut_r->pc);
+        return false;
+    }
+    if (ref_r->mstatus != dut_r->mstatus) {
+        Log("difftest error at pc = 0x%08x: mstatus mismatch, ref = 0x%08x, dut = 0x%08x",
+            dut_pc, ref_r->mstatus, dut_r->mstatus);
+        return false;
+    }
+    if (ref_r->mtvec != dut_r->mtvec) {
+        Log("difftest error at pc = 0x%08x: mtvec mismatch, ref = 0x%08x, dut = 0x%08x",
+            dut_pc, ref_r->mtvec, dut_r->mtvec);
+        return false;
+    }
+    if (ref_r->mepc != dut_r->mepc) {
+        Log("difftest error at pc = 0x%08x: mepc mismatch, ref = 0x%08x, dut = 0x%08x",
+            dut_pc, ref_r->mepc, dut_r->mepc);
+        return false;
+    }
+    if (ref_r->mcause != dut_r->mcause) {
+        Log("difftest error at pc = 0x%08x: mcause mismatch, ref = 0x%08x, dut = 0x%08x",
+            dut_pc, ref_r->mcause, dut_r->mcause);
+        return false;
+    }
     return true;
 }
 
@@ -162,7 +189,7 @@ void init_difftest(const char *ref_so_file, long img_size, int port) {
     Log("The result of every retired instruction will be compared with %s", ref_so_file);
 }
 
-bool difftest_step(uint32_t dut_pc, uint32_t dut_inst) {
+bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, uint32_t dut_dnpc) {
     if (!difftest_enabled) {
         return true;
     }
@@ -185,13 +212,8 @@ bool difftest_step(uint32_t dut_pc, uint32_t dut_inst) {
 
     if (skip_reason == SKIP_MMIO || skip_reason == SKIP_COUNTER_CSR) {
         RefCPUState dut_post;
-        collect_dut_gprs(&dut_post);
-
-        for (int i = 0; i < 32; i++) {
-            ref_pre.gpr[i] = dut_post.gpr[i];
-        }
-        ref_pre.pc = dut_pc + 4;
-        ref_difftest_regcpy(&ref_pre, DIFFTEST_TO_REF);
+        collect_dut_state(&dut_post, dut_dnpc);
+        ref_difftest_regcpy(&dut_post, DIFFTEST_TO_REF);
         return true;
     }
 
@@ -200,7 +222,7 @@ bool difftest_step(uint32_t dut_pc, uint32_t dut_inst) {
     RefCPUState ref_post;
     RefCPUState dut_post;
     ref_difftest_regcpy(&ref_post, DIFFTEST_TO_DUT);
-    collect_dut_gprs(&dut_post);
+    collect_dut_state(&dut_post, dut_dnpc);
 
     return difftest_checkregs(&ref_post, &dut_post, dut_pc);
 }

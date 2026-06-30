@@ -14,6 +14,10 @@ module ysyx_26030082_exu (
     output            ex_redirect,
     output reg [31:0] ex_redirect_pc,
     output            ex_fence_i,
+    output     [31:0] commit_mstatus,
+    output     [31:0] commit_mtvec,
+    output     [31:0] commit_mepc,
+    output     [31:0] commit_mcause,
 
     output     [31:0] lsu_master_araddr,
     output     [ 2:0] lsu_master_arsize,
@@ -35,15 +39,6 @@ module ysyx_26030082_exu (
     input             lsu_master_bvalid,
     output            lsu_master_bready
 );
-
-`ifndef SYNTHESIS
-`ifndef __ICARUS__
-`ifdef NPC_ENABLE_ETRACE
-    import "DPI-C" function void npc_trace_ecall(input int pc, input int target, input int mstatus, input int mepc, input int mcause);
-    import "DPI-C" function void npc_trace_mret(input int pc, input int target, input int mstatus, input int mepc, input int mcause);
-`endif
-`endif
-`endif
 
     localparam [6:0] OPCODE_OP   = 7'b011_0011;
     localparam [6:0] OPCODE_OP_IMM   = 7'b001_0011;
@@ -126,6 +121,10 @@ module ysyx_26030082_exu (
     reg  [31:0] csr_mepc;
     reg  [31:0] csr_mcause;
     reg  [31:0] csr_rdata;
+    reg  [31:0] csr_next_mstatus;
+    reg  [31:0] csr_next_mtvec;
+    reg  [31:0] csr_next_mepc;
+    reg  [31:0] csr_next_mcause;
 
     // Memory.
     reg         rd_state;
@@ -156,6 +155,14 @@ module ysyx_26030082_exu (
 
     wire [31:0] pc4 = ex_pc + 32'd4;
     wire [31:0] csr_src_data = funct3[2] ? imm : rf_rdata1;
+    wire [31:0] ecall_mstatus = {
+        csr_mstatus[31:13], 2'b11, csr_mstatus[10:8],
+        csr_mstatus[3], csr_mstatus[6:4], 1'b0, csr_mstatus[2:0]
+    };
+    wire [31:0] mret_mstatus = {
+        csr_mstatus[31:13], 2'b00, csr_mstatus[10:8],
+        1'b1, csr_mstatus[6:4], csr_mstatus[7], csr_mstatus[2:0]
+    };
     wire        mem_ren = opcode == OPCODE_LOAD;
     wire        mem_wen = opcode == OPCODE_STORE;
     assign ex_fence_i = opcode == OPCODE_MISC_MEM && funct3 == F3_FENCE_I;
@@ -214,6 +221,68 @@ module ysyx_26030082_exu (
     end
 
     always @(*) begin
+        csr_next_mstatus = csr_mstatus;
+        csr_next_mtvec   = csr_mtvec;
+        csr_next_mepc    = csr_mepc;
+        csr_next_mcause  = csr_mcause;
+
+        if (opcode == OPCODE_SYSTEM) begin
+            case (funct3)
+                F3_PRIV: begin
+                    case (csr_addr)
+                        F12_ECALL: begin
+                            csr_next_mstatus = ecall_mstatus;
+                            csr_next_mepc = ex_pc;
+                            csr_next_mcause = CAUSE_ECALL;
+                        end
+                        F12_MRET: begin
+                            csr_next_mstatus = mret_mstatus;
+                        end
+                        default:;
+                    endcase
+                end
+
+                F3_CSRRW, F3_CSRRWI: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_next_mstatus = csr_src_data;
+                        CSR_MTVEC:   csr_next_mtvec   = csr_src_data;
+                        CSR_MEPC:    csr_next_mepc    = csr_src_data;
+                        CSR_MCAUSE:  csr_next_mcause  = csr_src_data;
+                        default:;
+                    endcase
+                end
+
+                F3_CSRRS, F3_CSRRSI: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_next_mstatus = or_result;
+                        CSR_MTVEC:   csr_next_mtvec   = or_result;
+                        CSR_MEPC:    csr_next_mepc    = or_result;
+                        CSR_MCAUSE:  csr_next_mcause  = or_result;
+                        default:;
+                    endcase
+                end
+
+                F3_CSRRC, F3_CSRRCI: begin
+                    case (csr_addr)
+                        CSR_MSTATUS: csr_next_mstatus = and_result;
+                        CSR_MTVEC:   csr_next_mtvec   = and_result;
+                        CSR_MEPC:    csr_next_mepc    = and_result;
+                        CSR_MCAUSE:  csr_next_mcause  = and_result;
+                        default:;
+                    endcase
+                end
+
+                default:;
+            endcase
+        end
+    end
+
+    assign commit_mstatus = csr_next_mstatus;
+    assign commit_mtvec   = csr_next_mtvec;
+    assign commit_mepc    = csr_next_mepc;
+    assign commit_mcause  = csr_next_mcause;
+
+    always @(*) begin
         case (funct3)
             F3_BEQ:  branch_redirect = cmp_eq;
             F3_BNE:  branch_redirect = ~cmp_eq;
@@ -259,75 +328,11 @@ module ysyx_26030082_exu (
             csr_mtvec   <= 32'h1;
             csr_mepc    <= 32'h0;
             csr_mcause  <= 32'h0;
-        end else if (ex_out_valid && opcode == OPCODE_SYSTEM) begin
-            case (funct3)
-                F3_PRIV: begin
-                    case (csr_addr)
-                        F12_ECALL: begin
-                            csr_mstatus[3] <= 1'b0;
-                            csr_mstatus[7] <= csr_mstatus[3];
-                            csr_mstatus[12:11] <= 2'b11;
-                            csr_mepc <= ex_pc;
-                            csr_mcause <= CAUSE_ECALL;
-`ifndef SYNTHESIS
-`ifndef __ICARUS__
-`ifdef NPC_ENABLE_ETRACE
-                            npc_trace_ecall(ex_pc, ex_redirect_pc,
-                                {csr_mstatus[31:13], 2'b11, csr_mstatus[10:8], csr_mstatus[3], csr_mstatus[6:4], 1'b0, csr_mstatus[2:0]},
-                                ex_pc, CAUSE_ECALL);
-`endif
-`endif
-`endif
-                        end
-                        F12_MRET: begin
-                            csr_mstatus[3] <= csr_mstatus[7];
-`ifndef SYNTHESIS
-`ifndef __ICARUS__
-`ifdef NPC_ENABLE_ETRACE
-                            npc_trace_mret(ex_pc, ex_redirect_pc,
-                                {csr_mstatus[31:4], csr_mstatus[7], csr_mstatus[2:0]},
-                                csr_mepc, csr_mcause);
-`endif
-`endif
-`endif
-                        end
-                        default:;
-                    endcase
-                end
-
-                F3_CSRRW, F3_CSRRWI: begin
-                    case (csr_addr)
-                        CSR_MSTATUS: csr_mstatus <= csr_src_data;
-                        CSR_MTVEC:   csr_mtvec   <= csr_src_data;
-                        CSR_MEPC:    csr_mepc    <= csr_src_data;
-                        CSR_MCAUSE:  csr_mcause  <= csr_src_data;
-                        default:;
-                    endcase
-                end
-
-                F3_CSRRS, F3_CSRRSI: begin
-                    case (csr_addr)
-                        CSR_MSTATUS: csr_mstatus <= or_result;
-                        CSR_MTVEC:   csr_mtvec   <= or_result;
-                        CSR_MEPC:    csr_mepc    <= or_result;
-                        CSR_MCAUSE:  csr_mcause  <= or_result;
-                        default:;
-                    endcase
-                end
-
-                F3_CSRRC, F3_CSRRCI: begin
-                    case (csr_addr)
-                        CSR_MSTATUS: csr_mstatus <= and_result;
-                        CSR_MTVEC:   csr_mtvec   <= and_result;
-                        CSR_MEPC:    csr_mepc    <= and_result;
-                        CSR_MCAUSE:  csr_mcause  <= and_result;
-                        default:;
-                    endcase
-                end
-
-                default: begin
-                end
-            endcase
+        end else if (ex_out_valid) begin
+            csr_mstatus <= csr_next_mstatus;
+            csr_mtvec   <= csr_next_mtvec;
+            csr_mepc    <= csr_next_mepc;
+            csr_mcause  <= csr_next_mcause;
         end
     end
 

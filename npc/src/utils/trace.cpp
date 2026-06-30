@@ -167,29 +167,3 @@ extern "C" void npc_trace_write(int addr, int size, int data, int wstrb) {
     (void)wstrb;
 #endif
 }
-
-extern "C" void npc_trace_ecall(int pc, int target, int mstatus, int mepc, int mcause) {
-#ifdef CONFIG_ETRACE
-    etrace_write("ecall pc=0x%08x -> 0x%08x mstatus=0x%08x mepc=0x%08x mcause=0x%08x\n",
-        (uint32_t)pc, (uint32_t)target, (uint32_t)mstatus, (uint32_t)mepc, (uint32_t)mcause);
-#else
-    (void)pc;
-    (void)target;
-    (void)mstatus;
-    (void)mepc;
-    (void)mcause;
-#endif
-}
-
-extern "C" void npc_trace_mret(int pc, int target, int mstatus, int mepc, int mcause) {
-#ifdef CONFIG_ETRACE
-    etrace_write("mret pc=0x%08x -> 0x%08x mstatus=0x%08x mepc=0x%08x mcause=0x%08x\n",
-        (uint32_t)pc, (uint32_t)target, (uint32_t)mstatus, (uint32_t)mepc, (uint32_t)mcause);
-#else
-    (void)pc;
-    (void)target;
-    (void)mstatus;
-    (void)mepc;
-    (void)mcause;
-#endif
-}

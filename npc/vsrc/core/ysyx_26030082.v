@@ -99,7 +99,9 @@ module ysyx_26030082 #(
 `endif
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
-    import "DPI-C" function void npc_commit(input int pc, input int inst, input int dnpc);
+    import "DPI-C" function void npc_commit(input int pc, input int inst, input int dnpc,
+                                            input int mstatus, input int mtvec,
+                                            input int mepc, input int mcause);
 `ifdef NPC_ENABLE_MEMTRACE
     import "DPI-C" function void npc_trace_read(input int addr, input int size, input int data);
     import "DPI-C" function void npc_trace_write(input int addr, input int size, input int data, input int wstrb);
@@ -173,6 +175,10 @@ module ysyx_26030082 #(
     wire        lsu_master_bvalid;
     wire        lsu_master_bready;
     reg  [63:0] mtime;
+    wire [31:0] commit_mstatus;
+    wire [31:0] commit_mtvec;
+    wire [31:0] commit_mepc;
+    wire [31:0] commit_mcause;
 
 ////////////////////////////////////////////////////////////////
 
@@ -244,6 +250,10 @@ module ysyx_26030082 #(
         .ex_redirect        (ex_redirect),
         .ex_redirect_pc     (ex_redirect_pc),
         .ex_fence_i         (ex_fence_i),
+        .commit_mstatus     (commit_mstatus),
+        .commit_mtvec       (commit_mtvec),
+        .commit_mepc        (commit_mepc),
+        .commit_mcause      (commit_mcause),
 
         .lsu_master_araddr  (lsu_master_araddr),
         .lsu_master_arsize  (lsu_master_arsize),
@@ -336,7 +346,8 @@ module ysyx_26030082 #(
 `ifndef __ICARUS__
     always @(posedge clock) begin
         if (!reset && ex_out_valid) begin
-            npc_commit(ex_pc, ex_inst, ex_redirect ? ex_redirect_pc : ex_pc + 32'd4);
+            npc_commit(ex_pc, ex_inst, ex_redirect ? ex_redirect_pc : ex_pc + 32'd4,
+                commit_mstatus, commit_mtvec, commit_mepc, commit_mcause);
         end
 `ifdef NPC_ENABLE_MEMTRACE
         if (!reset && lsu_master_rvalid && lsu_master_rready) begin
