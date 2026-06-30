@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "npc.h"
+#include "common.h"
 
 static const char *regs[] = {
     "$0", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
@@ -35,7 +35,9 @@ static int cmd_si(char *args) {
 
 static int cmd_info(char *args) {
     if (args != NULL && strcmp(args, "r") == 0) {
-        printf("Register dump is unavailable in ysyxSoC bring-up mode.\n");
+        for (int i = 0; i < 32; i++) {
+            printf("%-4s 0x%08x\n", regs[i], npc_read_dut_gpr(i));
+        }
     }
     return 0;
 }
@@ -50,11 +52,11 @@ static int cmd_x(char *args) {
     if (sscanf(args, "%d %x", &n, &base_addr) == 2) {
         for (int i = 0; i < n; i++) {
             uint32_t addr = base_addr + i * 4;
-            if (check_bound(addr, "SDB")) {
-                int index = addr - NPC_PMEM_BASE;
-                printf("0x%08x: 0x%08x\n", addr, *(uint32_t *)&pmem[index]);
+            uint32_t data = 0;
+            if (platform_read_word(addr, &data)) {
+                printf("0x%08x: 0x%08x\n", addr, data);
             } else {
-                printf("0x%08x: OUT OF BOUNDS\n", addr);
+                printf("0x%08x: unsupported\n", addr);
             }
         }
     }

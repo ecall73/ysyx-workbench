@@ -4,17 +4,9 @@
 
 #include "verilated.h"
 #include "verilated_vcd_c.h"
-#include "npc.h"
-#include "sim_mode.h"
-#ifdef NPC_SIM_MODE_YSYXSOC
-#include <nvboard.h>
-#endif
+#include "common.h"
 
-#ifndef NPC_ENABLE_PERF
-#define NPC_ENABLE_PERF 1
-#endif
-
-#if NPC_ENABLE_PERF
+#ifdef CONFIG_PERF
 // PMU report uses magenta so it can be visually separated from normal logs.
 #define PmuLog(format, ...) \
     _Log(ANSI_FMT(format, ANSI_FG_MAGENTA) "\n", ##__VA_ARGS__)
@@ -25,12 +17,12 @@ static uint32_t g_commit_pc = 0;
 static uint32_t g_commit_inst = 0;
 static constexpr uint32_t kEbreakInst = 0x00100073u;
 
-#if NPC_ENABLE_PERF
+#ifdef CONFIG_PERF
 static uint64_t g_timer_us = 0;
 #endif
 static uint64_t g_nr_sim_cycle = 0;
 
-#if NPC_ENABLE_PERF
+#ifdef CONFIG_PERF
 enum PmuInstClass : uint8_t {
     PMU_CLASS_LOAD = 0,
     PMU_CLASS_MISC_MEM,
@@ -97,13 +89,13 @@ extern "C" void npc_commit(int pc, int inst) {
     g_commit_valid = true;
     g_commit_pc = (uint32_t)pc;
     g_commit_inst = (uint32_t)inst;
-#if NPC_ENABLE_PERF
+#ifdef CONFIG_PERF
     pmu_on_commit((uint32_t)inst);
 #endif
 }
 
 extern "C" void npc_pmu_event(int event_mask) {
-#if NPC_ENABLE_PERF
+#ifdef CONFIG_PERF
     if (is_finished) {
         return;
     }
@@ -122,7 +114,7 @@ extern "C" void npc_pmu_event(int event_mask) {
 #endif
 }
 
-#if NPC_ENABLE_PERF
+#ifdef CONFIG_PERF
 static uint64_t get_time_us() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -243,7 +235,7 @@ void cpu_exec(uint64_t n) {
         return;
     }
 
-#if NPC_ENABLE_PERF
+#ifdef CONFIG_PERF
     uint64_t timer_start = get_time_us();
 #endif
     bool need_report = false;
@@ -265,14 +257,14 @@ void cpu_exec(uint64_t n) {
         g_top->clock = 0;
         g_top->eval();
         g_contextp->timeInc(1);
-#if NPC_ENABLE_WAVE
+#ifdef CONFIG_WAVE
         if (g_tfp) g_tfp->dump(g_contextp->time());
 #endif
 
         g_top->clock = 1;
         g_top->eval();
         g_contextp->timeInc(1);
-#if NPC_ENABLE_WAVE
+#ifdef CONFIG_WAVE
         if (g_tfp) g_tfp->dump(g_contextp->time());
 #endif
 
@@ -297,9 +289,7 @@ void cpu_exec(uint64_t n) {
             break;
         }
 
-#ifdef NPC_SIM_MODE_YSYXSOC
-        nvboard_update();
-#endif
+        platform_update();
         g_nr_sim_cycle++;
 
         if (is_finished) {
@@ -307,7 +297,7 @@ void cpu_exec(uint64_t n) {
             break;
         }
 
-        if (g_nr_sim_cycle > MAX_SIM_TIME) {
+        if (g_nr_sim_cycle > CONFIG_MAX_SIM_TIME) {
             Log("Simulation timed out at cycle %" PRIu64, g_nr_sim_cycle);
             is_finished = true;
             trap_a0 = -1;
@@ -317,7 +307,7 @@ void cpu_exec(uint64_t n) {
         }
     }
 
-#if NPC_ENABLE_PERF
+#ifdef CONFIG_PERF
     uint64_t timer_end = get_time_us();
     g_timer_us += timer_end - timer_start;
 #endif
@@ -327,7 +317,7 @@ void cpu_exec(uint64_t n) {
             (trap_a0 == 0 ? ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)
                           : ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED)),
             trap_pc);
-#if NPC_ENABLE_PERF
+#ifdef CONFIG_PERF
         statistic();
 #endif
     }

@@ -1,4 +1,4 @@
-#include "npc.h"
+#include "common.h"
 #include "verilated.h"
 
 int main(int argc, char **argv) {

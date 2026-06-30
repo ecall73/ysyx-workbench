@@ -1,20 +1,11 @@
 #include <assert.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "verilated.h"
 #include "verilated_vcd_c.h"
-#include "npc.h"
-#include "sim_mode.h"
-#ifdef NPC_SIM_MODE_YSYXSOC
-#include <nvboard.h>
-void nvboard_bind_all_pins(SimTop* top);
-#endif
-
-#ifndef NPC_ENABLE_WAVE
-#define NPC_ENABLE_WAVE 0
-#endif
+#include "common.h"
 
 SimTop *g_top = NULL;
 VerilatedContext *g_contextp = NULL;
@@ -65,39 +56,17 @@ static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file
     }
 
     init_log(log_file);
-
-#ifdef NPC_SIM_MODE_YSYXSOC
     if (img_file == NULL) {
-        fprintf(stderr, "Missing flash boot image. Please pass a ysyxsoc image path.\n");
+        fprintf(stderr, "No image file specified\n");
         exit(1);
     }
 
-    flash_init_default_image();
-    if (!flash_load_boot_image(img_file)) {
-        fprintf(stderr, "Failed to load flash boot image: %s\n", img_file);
+    long img_size = platform_load_image(img_file);
+    if (img_size <= 0) {
+        fprintf(stderr, "Failed to load image file: %s\n", img_file);
         exit(1);
     }
-
-    uint32_t boot_base = 0;
-    const uint8_t *boot_img = NULL;
-    size_t boot_size = 0;
-    if (!flash_get_boot_image_info(&boot_base, &boot_img, &boot_size) || boot_img == NULL || boot_size == 0) {
-        fprintf(stderr, "Failed to query loaded flash boot image information\n");
-        exit(1);
-    }
-    return (long)boot_size;
-#else
-    if (img_file != NULL) {
-        long img_size = load_image(img_file);
-        if (img_size <= 0) {
-            fprintf(stderr, "Failed to load image file: %s\n", img_file);
-            exit(1);
-        }
-        return img_size;
-    }
-    fprintf(stderr, "No image file specified\n");
-    exit(1);
-#endif
+    return img_size;
 }
 
 void init_monitor(int argc, char **argv) {
@@ -111,7 +80,7 @@ void init_monitor(int argc, char **argv) {
     int diff_port = 1234;
     long img_size = parse_args_and_load_image(argc, argv, &diff_so_file, &diff_port);
 
-#if NPC_ENABLE_WAVE
+#ifdef CONFIG_WAVE
     {
         Verilated::traceEverOn(true);
         tfp = new VerilatedVcdC;
@@ -124,17 +93,14 @@ void init_monitor(int argc, char **argv) {
     g_contextp = contextp;
     g_tfp = tfp;
 
-#ifdef NPC_SIM_MODE_YSYXSOC
-    nvboard_bind_all_pins(top);
-    nvboard_init();
-#endif
+    platform_init();
 
     top->clock = 0;
     top->reset = 1;
-    sim_set_external_idle(top);
+    platform_set_external_idle(top);
     top->eval();
     contextp->timeInc(1);
-#if NPC_ENABLE_WAVE
+#ifdef CONFIG_WAVE
     if (tfp) tfp->dump(contextp->time());
 #endif
 
@@ -144,14 +110,14 @@ void init_monitor(int argc, char **argv) {
         top->clock = 1;
         top->eval();
         contextp->timeInc(1);
-#if NPC_ENABLE_WAVE
+#ifdef CONFIG_WAVE
         if (tfp) tfp->dump(contextp->time());
 #endif
 
         top->clock = 0;
         top->eval();
         contextp->timeInc(1);
-#if NPC_ENABLE_WAVE
+#ifdef CONFIG_WAVE
         if (tfp) tfp->dump(contextp->time());
 #endif
     }
@@ -162,16 +128,14 @@ void init_monitor(int argc, char **argv) {
 }
 
 void npc_cleanup() {
-#ifdef NPC_SIM_MODE_YSYXSOC
-    nvboard_quit();
-#endif
+    platform_cleanup();
 
     if (log_fp) {
         fclose(log_fp);
         log_fp = NULL;
     }
 
-#if NPC_ENABLE_WAVE
+#ifdef CONFIG_WAVE
     if (g_tfp) {
         g_tfp->close();
         delete g_tfp;

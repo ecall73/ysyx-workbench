@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "npc.h"
+#include "common.h"
 
 uint32_t npc_read_dut_gpr(int idx) {
     static svScope g_cpu_dpi_scope = nullptr;
     if (g_cpu_dpi_scope == nullptr) {
-#ifdef NPC_SIM_MODE_NPC
+#ifdef CONFIG_PLATFORM_NPC
         const char *candidates[] = {
             "top.Core_cpu",
             "TOP.top.Core_cpu",

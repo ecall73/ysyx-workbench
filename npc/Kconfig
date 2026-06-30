@@ -1,0 +1,63 @@
+mainmenu "NPC Configuration Menu"
+
+choice
+  prompt "Simulation platform"
+  default PLATFORM_YSYXSOC
+config PLATFORM_NPC
+  bool "Standalone NPC"
+config PLATFORM_YSYXSOC
+  bool "NPC in ysyxSoC"
+endchoice
+
+config PLATFORM
+  string
+  default "npc" if PLATFORM_NPC
+  default "ysyxsoc" if PLATFORM_YSYXSOC
+
+menu "Build Options"
+choice
+  prompt "Verilator optimization level"
+  default VERILATOR_O3
+config VERILATOR_O0
+  bool "O0"
+config VERILATOR_O1
+  bool "O1"
+config VERILATOR_O2
+  bool "O2"
+config VERILATOR_O3
+  bool "O3"
+endchoice
+
+config VERILATOR_OPT
+  string
+  default "-O0" if VERILATOR_O0
+  default "-O1" if VERILATOR_O1
+  default "-O2" if VERILATOR_O2
+  default "-O3" if VERILATOR_O3
+
+config DEBUG
+  bool "Enable host debug information"
+  default n
+
+config MAX_SIM_TIME
+  int "Maximum simulation cycles"
+  default 1000000000
+endmenu
+
+menu "Simulation Features"
+config DIFFTEST
+  bool "Enable differential testing"
+  default n
+
+config WAVE
+  bool "Enable waveform"
+  default n
+
+config PERF
+  bool "Enable performance counters"
+  default n
+
+config UART_STDOUT_RTL
+  bool "Print UART from RTL"
+  default y
+endmenu

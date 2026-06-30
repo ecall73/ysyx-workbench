@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "npc.h"
+#include "common.h"
 
 const char *npc_log_file(const char *file) {
     // Keep file prefix concise, similar to NEMU's src-relative style.

@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "npc.h"
+#include "common.h"
 
 enum { DIFFTEST_TO_DUT = 0, DIFFTEST_TO_REF = 1 };
 
@@ -55,13 +55,7 @@ static inline int32_t sext32(uint32_t val, int bits) {
 }
 
 static inline bool in_comparable_mem(uint32_t addr) {
-#ifdef NPC_SIM_MODE_NPC
-    return ((addr >= NPC_PMEM_BASE) && (addr < (NPC_PMEM_BASE + NPC_PMEM_SIZE)));
-#else
-    return ((addr >= NPC_FLASH_BASE) && (addr < (NPC_FLASH_BASE + NPC_FLASH_SIZE))) ||
-           ((addr >= NPC_SRAM_BASE) && (addr < (NPC_SRAM_BASE + NPC_SRAM_SIZE))) ||
-           ((addr >= NPC_SDRAM_BASE) && (addr < (NPC_SDRAM_BASE + NPC_SDRAM_SIZE)));
-#endif
+    return platform_in_comparable_mem(addr);
 }
 
 static void collect_dut_gprs(RefCPUState *dut_r) {
@@ -107,11 +101,7 @@ static SkipReason get_skip_reason(uint32_t inst, const RefCPUState *ref_pre) {
 
 static void collect_dut_init_regs(RefCPUState *dut_r) {
     memset(dut_r, 0, sizeof(*dut_r));
-#ifdef NPC_SIM_MODE_NPC
-    dut_r->pc = NPC_RESET_PC_NPC;
-#else
-    dut_r->pc = NPC_RESET_PC_YSYXSOC;
-#endif
+    dut_r->pc = platform_reset_pc();
     dut_r->mstatus = 0x00001800u;
     dut_r->mtvec = 0x00000001u;
     dut_r->mepc = 0;
@@ -158,30 +148,10 @@ void init_difftest(const char *ref_so_file, long img_size, int port) {
     assert(ref_difftest_init);
 
     ref_difftest_enable_ysyxsoc_paddr = (void (*)(void))dlsym(ref_handle, "difftest_enable_ysyxsoc_paddr");
-#ifndef NPC_SIM_MODE_NPC
-    assert(ref_difftest_enable_ysyxsoc_paddr);
-    ref_difftest_enable_ysyxsoc_paddr();
-#endif
+    platform_enable_ref_paddr(ref_difftest_enable_ysyxsoc_paddr);
 
     ref_difftest_init(port);
-
-#ifdef NPC_SIM_MODE_NPC
-    if (img_size > 0) {
-        ref_difftest_memcpy(NPC_PMEM_BASE, pmem, (size_t)img_size, DIFFTEST_TO_REF);
-    } else {
-        Log("warning: no pmem image loaded before DiffTest init");
-    }
-#else
-    uint32_t flash_base = 0;
-    const uint8_t *flash_img = NULL;
-    size_t flash_size = 0;
-    bool has_flash_boot = flash_get_boot_image_info(&flash_base, &flash_img, &flash_size);
-    if (has_flash_boot && flash_size > 0) {
-        ref_difftest_memcpy(flash_base, (void *)flash_img, flash_size, DIFFTEST_TO_REF);
-    } else {
-        Log("warning: no flash boot image loaded before DiffTest init");
-    }
-#endif
+    platform_difftest_memcpy(ref_difftest_memcpy, DIFFTEST_TO_REF);
 
     RefCPUState dut_r;
     collect_dut_init_regs(&dut_r);

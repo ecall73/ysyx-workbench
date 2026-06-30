@@ -15,33 +15,17 @@ LDFLAGS   += --defsym=_pmem_start=0x30000000 --defsym=_entry_offset=0x0
 LDFLAGS   += --gc-sections -e _start
 
 YSYXSOCFLAGS += -l $(shell dirname $(IMAGE).elf)/npc-log.txt
-DEBUG ?= 0
-ifeq ($(filter 1 y yes true,$(DEBUG)),)
+BATCH ?= 1
+ifneq ($(filter 1 y yes true,$(BATCH)),)
 YSYXSOCFLAGS += -b
 endif
 
 DIFF ?= 0
 PERF ?= 0
 WAVE ?= 0
+DEBUG ?= 0
 DIFF_REF_SO ?= $(NEMU_HOME)/build/riscv32-nemu-interpreter-so
 DIFF_PORT ?= 1234
-
-ifneq ($(filter-out 0 1,$(DIFF)),)
-$(error Unsupported DIFF='$(DIFF)'. Expected '0' or '1')
-endif
-ifneq ($(filter-out 0 1,$(PERF)),)
-$(error Unsupported PERF='$(PERF)'. Expected '0' or '1')
-endif
-ifneq ($(filter-out 0 1,$(WAVE)),)
-$(error Unsupported WAVE='$(WAVE)'. Expected '0' or '1')
-endif
-
-ifeq ($(DIFF),1)
-ifeq ($(strip $(NEMU_HOME)),)
-$(error NEMU_HOME is required when DIFF=1)
-endif
-YSYXSOCFLAGS += -d $(DIFF_REF_SO) -p $(DIFF_PORT)
-endif
 
 MAINARGS_MAX_LEN = 64
 MAINARGS_PLACEHOLDER = the_insert-arg_rule_in_Makefile_will_insert_mainargs_here
@@ -56,6 +40,6 @@ image: image-dep
 	@$(OBJCOPY) -S -O binary $(IMAGE).elf $(IMAGE).bin
 
 run: insert-arg
-	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=ysyxsoc DIFF=0 PERF=$(PERF) WAVE=$(WAVE) sim ARGS="$(YSYXSOCFLAGS) $(IMAGE).bin"
+	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=ysyxsoc DIFF=$(DIFF) PERF=$(PERF) WAVE=$(WAVE) DEBUG=$(DEBUG) BATCH=$(BATCH) DIFF_REF_SO=$(DIFF_REF_SO) DIFF_PORT=$(DIFF_PORT) sim ARGS="$(YSYXSOCFLAGS)" IMG="$(IMAGE).bin"
 
 .PHONY: insert-arg
