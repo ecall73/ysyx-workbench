@@ -99,13 +99,7 @@ module ysyx_26030082 #(
 `endif
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
-    import "DPI-C" function void npc_commit(input int pc, input int inst, input int dnpc,
-                                            input int mstatus, input int mtvec,
-                                            input int mepc, input int mcause);
-`ifdef NPC_ENABLE_MEMTRACE
-    import "DPI-C" function void npc_trace_read(input int addr, input int size, input int data);
-    import "DPI-C" function void npc_trace_write(input int addr, input int size, input int data, input int wstrb);
-`endif
+    import "DPI-C" function void npc_commit(input int pc, input int inst, input int dnpc);
 `ifdef NPC_ENABLE_PERF
     import "DPI-C" function void npc_pmu_event(input int event_mask);
 `endif
@@ -119,6 +113,18 @@ module ysyx_26030082 #(
             end else begin
                 npc_get_gpr = 0;
             end
+        end
+    endfunction
+    export "DPI-C" function npc_get_csr;
+    function int npc_get_csr(input int addr);
+        begin
+            case (addr)
+                32'h300: npc_get_csr = exu.csr_mstatus;
+                32'h305: npc_get_csr = exu.csr_mtvec;
+                32'h341: npc_get_csr = exu.csr_mepc;
+                32'h342: npc_get_csr = exu.csr_mcause;
+                default: npc_get_csr = 0;
+            endcase
         end
     endfunction
 `endif
@@ -175,10 +181,6 @@ module ysyx_26030082 #(
     wire        lsu_master_bvalid;
     wire        lsu_master_bready;
     reg  [63:0] mtime;
-    wire [31:0] commit_mstatus;
-    wire [31:0] commit_mtvec;
-    wire [31:0] commit_mepc;
-    wire [31:0] commit_mcause;
 
 ////////////////////////////////////////////////////////////////
 
@@ -250,10 +252,6 @@ module ysyx_26030082 #(
         .ex_redirect        (ex_redirect),
         .ex_redirect_pc     (ex_redirect_pc),
         .ex_fence_i         (ex_fence_i),
-        .commit_mstatus     (commit_mstatus),
-        .commit_mtvec       (commit_mtvec),
-        .commit_mepc        (commit_mepc),
-        .commit_mcause      (commit_mcause),
 
         .lsu_master_araddr  (lsu_master_araddr),
         .lsu_master_arsize  (lsu_master_arsize),
@@ -344,19 +342,13 @@ module ysyx_26030082 #(
 
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
+    wire commit_is_ebreak = ex_inst == 32'h00100073;
+    wire [31:0] commit_dnpc = (ex_redirect && !commit_is_ebreak) ? ex_redirect_pc : ex_pc + 32'd4;
+
     always @(posedge clock) begin
         if (!reset && ex_out_valid) begin
-            npc_commit(ex_pc, ex_inst, ex_redirect ? ex_redirect_pc : ex_pc + 32'd4,
-                commit_mstatus, commit_mtvec, commit_mepc, commit_mcause);
+            npc_commit(ex_pc, ex_inst, commit_dnpc);
         end
-`ifdef NPC_ENABLE_MEMTRACE
-        if (!reset && lsu_master_rvalid && lsu_master_rready) begin
-            npc_trace_read(lsu_master_araddr, {29'b0, lsu_master_arsize}, lsu_master_rdata);
-        end
-        if (!reset && lsu_master_bvalid && lsu_master_bready) begin
-            npc_trace_write(lsu_master_awaddr, {29'b0, lsu_master_awsize}, lsu_master_wdata, {4'b0, lsu_master_wstrb});
-        end
-`endif
     end
 `endif
 `endif

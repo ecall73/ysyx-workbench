@@ -103,7 +103,9 @@ void sdb_mainloop();
 
 void cpu_exec(uint64_t n);
 extern "C" int npc_get_gpr(int idx);
+extern "C" int npc_get_csr(int addr);
 uint32_t npc_read_dut_gpr(int idx);
+uint32_t npc_read_dut_csr(int addr);
 
 void init_difftest(const char *ref_so_file, long img_size, int port);
 bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, uint32_t dut_dnpc);
@@ -121,9 +123,7 @@ uint32_t platform_reset_pc();
 void platform_difftest_memcpy(void (*ref_memcpy)(uint32_t, void *, size_t, bool), bool direction);
 void platform_enable_ref_paddr(void (*enable_ysyxsoc_paddr)(void));
 
-void npc_collect_commit_csrs(uint32_t *mstatus, uint32_t *mtvec, uint32_t *mepc, uint32_t *mcause);
-extern "C" void npc_commit(int pc, int inst, int dnpc,
-                           int mstatus, int mtvec, int mepc, int mcause);
+extern "C" void npc_commit(int pc, int inst, int dnpc);
 extern "C" void npc_pmu_event(int event_mask);
 extern "C" void npc_trace_read(int addr, int len, int data);
 extern "C" void npc_trace_write(int addr, int len, int data, int wstrb);

@@ -35,6 +35,10 @@ enum SkipReason {
 };
 
 #define CSR_MCYCLE      0xB00u
+#define CSR_MSTATUS     0x300u
+#define CSR_MTVEC       0x305u
+#define CSR_MEPC        0x341u
+#define CSR_MCAUSE      0x342u
 #define CSR_MCYCLEH     0xB80u
 #define CSR_MINSTRET    0xB02u
 #define CSR_MINSTRETH   0xB82u
@@ -64,7 +68,10 @@ static void collect_dut_state(RefCPUState *dut_r, uint32_t pc) {
         dut_r->gpr[i] = npc_read_dut_gpr(i);
     }
     dut_r->pc = pc;
-    npc_collect_commit_csrs(&dut_r->mstatus, &dut_r->mtvec, &dut_r->mepc, &dut_r->mcause);
+    dut_r->mstatus = npc_read_dut_csr(CSR_MSTATUS);
+    dut_r->mtvec = npc_read_dut_csr(CSR_MTVEC);
+    dut_r->mepc = npc_read_dut_csr(CSR_MEPC);
+    dut_r->mcause = npc_read_dut_csr(CSR_MCAUSE);
 }
 
 static SkipReason get_skip_reason(uint32_t inst, const RefCPUState *ref_pre) {

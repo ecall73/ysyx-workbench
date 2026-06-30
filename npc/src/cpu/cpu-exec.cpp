@@ -16,13 +16,12 @@ static bool g_commit_valid = false;
 static uint32_t g_commit_pc = 0;
 static uint32_t g_commit_inst = 0;
 static uint32_t g_commit_dnpc = 0;
-static uint32_t g_commit_mstatus = 0;
-static uint32_t g_commit_mtvec = 0;
-static uint32_t g_commit_mepc = 0;
-static uint32_t g_commit_mcause = 0;
 static constexpr uint32_t kEcallInst = 0x00000073u;
 static constexpr uint32_t kMretInst = 0x30200073u;
 static constexpr uint32_t kEbreakInst = 0x00100073u;
+static constexpr int kCsrMstatus = 0x300;
+static constexpr int kCsrMepc = 0x341;
+static constexpr int kCsrMcause = 0x342;
 
 static uint64_t g_timer_us = 0;
 static uint64_t g_nr_sim_cycle = 0;
@@ -86,15 +85,7 @@ static void pmu_on_commit(uint32_t inst) {
 }
 #endif
 
-void npc_collect_commit_csrs(uint32_t *mstatus, uint32_t *mtvec, uint32_t *mepc, uint32_t *mcause) {
-    *mstatus = g_commit_mstatus;
-    *mtvec = g_commit_mtvec;
-    *mepc = g_commit_mepc;
-    *mcause = g_commit_mcause;
-}
-
-extern "C" void npc_commit(int pc, int inst, int dnpc,
-                           int mstatus, int mtvec, int mepc, int mcause) {
+extern "C" void npc_commit(int pc, int inst, int dnpc) {
     if (is_finished) {
         return;
     }
@@ -103,10 +94,6 @@ extern "C" void npc_commit(int pc, int inst, int dnpc,
     g_commit_pc = (uint32_t)pc;
     g_commit_inst = (uint32_t)inst;
     g_commit_dnpc = (uint32_t)dnpc;
-    g_commit_mstatus = (uint32_t)mstatus;
-    g_commit_mtvec = (uint32_t)mtvec;
-    g_commit_mepc = (uint32_t)mepc;
-    g_commit_mcause = (uint32_t)mcause;
 #ifdef CONFIG_PERF
     pmu_on_commit((uint32_t)inst);
 #endif
@@ -272,9 +259,6 @@ void cpu_exec(uint64_t n) {
             uint32_t commit_pc = g_commit_pc;
             uint32_t commit_inst = g_commit_inst;
             uint32_t commit_dnpc = g_commit_dnpc;
-            uint32_t commit_mstatus = g_commit_mstatus;
-            uint32_t commit_mepc = g_commit_mepc;
-            uint32_t commit_mcause = g_commit_mcause;
             g_commit_valid = false;
 
             g_nr_guest_inst++;
@@ -291,10 +275,12 @@ void cpu_exec(uint64_t n) {
 #ifdef CONFIG_ETRACE
             if (commit_inst == kEcallInst) {
                 etrace_write("ecall pc=0x%08x -> 0x%08x mstatus=0x%08x mepc=0x%08x mcause=0x%08x\n",
-                    commit_pc, commit_dnpc, commit_mstatus, commit_mepc, commit_mcause);
+                    commit_pc, commit_dnpc,
+                    npc_read_dut_csr(kCsrMstatus), npc_read_dut_csr(kCsrMepc), npc_read_dut_csr(kCsrMcause));
             } else if (commit_inst == kMretInst) {
                 etrace_write("mret pc=0x%08x -> 0x%08x mstatus=0x%08x mepc=0x%08x mcause=0x%08x\n",
-                    commit_pc, commit_dnpc, commit_mstatus, commit_mepc, commit_mcause);
+                    commit_pc, commit_dnpc,
+                    npc_read_dut_csr(kCsrMstatus), npc_read_dut_csr(kCsrMepc), npc_read_dut_csr(kCsrMcause));
             }
 #endif
             if (commit_inst == kEbreakInst) {
