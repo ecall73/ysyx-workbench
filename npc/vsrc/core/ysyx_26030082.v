@@ -102,7 +102,7 @@ module ysyx_26030082 #(
     import "DPI-C" function void npc_commit(
         input int unsigned commit_pc,
         input int unsigned commit_inst,
-        input int unsigned commit_dnpc,
+        input int unsigned pc,
         input int unsigned mstatus,
         input int unsigned mtvec,
         input int unsigned mepc,
@@ -328,11 +328,11 @@ module ysyx_26030082 #(
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
     wire commit_is_ebreak = ex_inst == 32'h00100073;
-    wire [31:0] commit_dnpc = (ex_redirect && !commit_is_ebreak) ? ex_redirect_pc : ex_pc + 32'd4;
+    wire [31:0] commit_next_pc = (ex_redirect && !commit_is_ebreak) ? ex_redirect_pc : ex_pc + 32'd4;
     reg commit_valid_d;
     reg [31:0] commit_pc_d;
     reg [31:0] commit_inst_d;
-    reg [31:0] commit_dnpc_d;
+    reg [31:0] commit_next_pc_d;
     int unsigned commit_gpr[16];
 
     always @(posedge clock) begin
@@ -347,7 +347,7 @@ module ysyx_26030082 #(
                 npc_commit(
                     commit_pc_d,
                     commit_inst_d,
-                    commit_dnpc_d,
+                    commit_next_pc_d,
                     exu.csr_mstatus,
                     exu.csr_mtvec,
                     exu.csr_mepc,
@@ -360,7 +360,7 @@ module ysyx_26030082 #(
             if (ex_out_valid) begin
                 commit_pc_d <= ex_pc;
                 commit_inst_d <= ex_inst;
-                commit_dnpc_d <= commit_dnpc;
+                commit_next_pc_d <= commit_next_pc;
             end
         end
     end
