@@ -196,30 +196,30 @@ void init_difftest(const char *ref_so_file, long img_size, int port) {
     Log("The result of every retired instruction will be compared with %s", ref_so_file);
 }
 
-bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, uint32_t dut_dnpc, const DutState *dut_post) {
+bool difftest_step(uint32_t commit_pc, uint32_t commit_inst, uint32_t pc, const DutState *dut_post) {
     if (!difftest_enabled) {
         return true;
     }
 
-    if (!in_comparable_mem(dut_pc)) {
-        Log("difftest detached: DUT enters unsupported ref execute region at pc = 0x%08x", dut_pc);
+    if (!in_comparable_mem(commit_pc)) {
+        Log("difftest detached: DUT enters unsupported ref execute region at pc = 0x%08x", commit_pc);
         difftest_enabled = false;
         return true;
     }
 
     RefCPUState ref_pre;
     ref_difftest_regcpy(&ref_pre, DIFFTEST_TO_DUT);
-    if (ref_pre.pc != dut_pc) {
+    if (ref_pre.pc != commit_pc) {
         Log("difftest error at pc = 0x%08x: pc mismatch before exec, ref = 0x%08x, dut = 0x%08x",
-            dut_pc, ref_pre.pc, dut_pc);
+            commit_pc, ref_pre.pc, commit_pc);
         return false;
     }
 
-    SkipReason skip_reason = get_skip_reason(dut_inst, &ref_pre);
+    SkipReason skip_reason = get_skip_reason(commit_inst, &ref_pre);
 
     if (skip_reason == SKIP_MMIO || skip_reason == SKIP_COUNTER_CSR) {
         RefCPUState dut_ref_state;
-        copy_dut_state(&dut_ref_state, dut_post, dut_dnpc);
+        copy_dut_state(&dut_ref_state, dut_post, pc);
         ref_difftest_regcpy(&dut_ref_state, DIFFTEST_TO_REF);
         return true;
     }
@@ -229,7 +229,7 @@ bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, uint32_t dut_dnpc, const 
     RefCPUState ref_post;
     RefCPUState dut_ref_state;
     ref_difftest_regcpy(&ref_post, DIFFTEST_TO_DUT);
-    copy_dut_state(&dut_ref_state, dut_post, dut_dnpc);
+    copy_dut_state(&dut_ref_state, dut_post, pc);
 
-    return difftest_checkregs(&ref_post, &dut_ref_state, dut_pc);
+    return difftest_checkregs(&ref_post, &dut_ref_state, commit_pc);
 }

@@ -86,7 +86,7 @@ static void pmu_on_commit(uint32_t inst) {
 extern "C" void npc_commit(
     uint32_t commit_pc,
     uint32_t commit_inst,
-    uint32_t commit_dnpc,
+    uint32_t pc,
     uint32_t mstatus,
     uint32_t mtvec,
     uint32_t mepc,
@@ -100,14 +100,14 @@ extern "C" void npc_commit(
     g_commit_valid = true;
     g_commit_pc = commit_pc;
     g_commit_inst = commit_inst;
-    g_commit_dnpc = commit_dnpc;
+    g_commit_dnpc = pc;
     for (int i = 0; i < 16; i++) {
         g_dut_state.gpr[i] = gpr[i];
     }
     for (int i = 16; i < 32; i++) {
         g_dut_state.gpr[i] = 0;
     }
-    g_dut_state.pc = commit_pc;
+    g_dut_state.pc = pc;
     g_dut_state.mstatus = mstatus;
     g_dut_state.mtvec = mtvec;
     g_dut_state.mepc = mepc;

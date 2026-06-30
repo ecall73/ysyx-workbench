@@ -114,7 +114,7 @@ void cpu_exec(uint64_t n);
 void npc_read_dut_state(DutState *state);
 
 void init_difftest(const char *ref_so_file, long img_size, int port);
-bool difftest_step(uint32_t dut_pc, uint32_t dut_inst, uint32_t dut_dnpc, const DutState *dut_post);
+bool difftest_step(uint32_t commit_pc, uint32_t commit_inst, uint32_t pc, const DutState *dut_post);
 bool difftest_is_enabled();
 
 void platform_init();
@@ -132,7 +132,7 @@ void platform_enable_ref_paddr(void (*enable_ysyxsoc_paddr)(void));
 extern "C" void npc_commit(
     uint32_t commit_pc,
     uint32_t commit_inst,
-    uint32_t commit_dnpc,
+    uint32_t pc,
     uint32_t mstatus,
     uint32_t mtvec,
     uint32_t mepc,
