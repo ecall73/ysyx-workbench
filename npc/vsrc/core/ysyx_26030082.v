@@ -99,22 +99,27 @@ module ysyx_26030082 #(
 `endif
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
-    import "DPI-C" function void npc_commit(input int pc, input int inst);
+    import "DPI-C" function void npc_commit(
+        input int unsigned commit_pc,
+        input int unsigned commit_inst,
+        input int unsigned pc,
+        input int unsigned mstatus,
+        input int unsigned mtvec,
+        input int unsigned mepc,
+        input int unsigned mcause,
+        input int unsigned gpr[32]
+    );
+    import "DPI-C" function void npc_bus_trace(
+        input int is_write,
+        input int addr,
+        input int data,
+        input int len
+    );
+/*
 `ifdef NPC_ENABLE_PERF
     import "DPI-C" function void npc_pmu_event(input int event_mask);
 `endif
-    export "DPI-C" function npc_get_gpr;
-    function int npc_get_gpr(input int idx);
-        begin
-            if (idx == 0) begin
-                npc_get_gpr = 0;
-            end else if (idx > 0 && idx < 16) begin
-                npc_get_gpr = exu.reg_bank[idx];
-            end else begin
-                npc_get_gpr = 0;
-            end
-        end
-    endfunction
+*/
 `endif
 `endif
 
@@ -330,14 +335,78 @@ module ysyx_26030082 #(
 
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
+    wire lsu_r_fire = lsu_master_rvalid && lsu_master_rready;
+    wire lsu_b_fire = lsu_master_bvalid && lsu_master_bready;
+    reg [31:0] trace_raddr;
+    reg [ 2:0] trace_rsize;
+    reg [31:0] trace_waddr;
+    reg [ 2:0] trace_wsize;
+    reg [31:0] trace_wdata;
+
     always @(posedge clock) begin
-        if (!reset && ex_out_valid) begin
-            npc_commit(ex_pc, ex_inst);
+        if (lsu_master_arvalid && lsu_master_arready) begin
+            trace_raddr <= lsu_master_araddr;
+            trace_rsize <= lsu_master_arsize;
+        end
+        if (lsu_master_awvalid && lsu_master_awready) begin
+            trace_waddr <= lsu_master_awaddr;
+            trace_wsize <= lsu_master_awsize;
+        end
+        if (lsu_master_wvalid && lsu_master_wready) begin
+            trace_wdata <= lsu_master_wdata;
+        end
+        if (!reset && lsu_r_fire) begin
+            npc_bus_trace(0, trace_raddr, lsu_master_rdata, 1 << trace_rsize);
+        end
+        if (!reset && lsu_b_fire) begin
+            npc_bus_trace(1, trace_waddr, trace_wdata, 1 << trace_wsize);
+        end
+    end
+
+    wire commit_is_ebreak = ex_inst == 32'h00100073;
+    wire [31:0] commit_next_pc = (ex_redirect && !commit_is_ebreak) ? ex_redirect_pc : ex_pc + 32'd4;
+    reg commit_valid_d;
+    reg [31:0] commit_pc_d;
+    reg [31:0] commit_inst_d;
+    reg [31:0] commit_next_pc_d;
+    int unsigned commit_gpr[32];
+
+    always @(posedge clock) begin
+        if (reset) begin
+            commit_valid_d <= 1'b0;
+        end else begin
+            if (commit_valid_d) begin
+                commit_gpr[0] = 32'b0;
+                for (int i = 1; i < 16; i++) begin
+                    commit_gpr[i] = exu.reg_bank[i];
+                end
+                for (int i = 16; i < 32; i++) begin
+                    commit_gpr[i] = 32'b0;
+                end
+                npc_commit(
+                    commit_pc_d,
+                    commit_inst_d,
+                    commit_next_pc_d,
+                    exu.csr_mstatus,
+                    exu.csr_mtvec,
+                    exu.csr_mepc,
+                    exu.csr_mcause,
+                    commit_gpr
+                );
+            end
+
+            commit_valid_d <= ex_out_valid;
+            if (ex_out_valid) begin
+                commit_pc_d <= ex_pc;
+                commit_inst_d <= ex_inst;
+                commit_next_pc_d <= commit_next_pc;
+            end
         end
     end
 `endif
 `endif
 
+/*
     // ================================================================
     // PMU hooks (simulation-only, kept at module tail to avoid clutter)
     // ================================================================
@@ -414,6 +483,7 @@ module ysyx_26030082 #(
 `endif
 `endif
 `endif
+*/
 
 
     wire _unused_ok = &{1'b0,

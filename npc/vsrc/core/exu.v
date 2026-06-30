@@ -263,6 +263,8 @@ module ysyx_26030082_exu (
                         end
                         F12_MRET: begin
                             csr_mstatus[3] <= csr_mstatus[7];
+                            csr_mstatus[7] <= 1'b1;
+                            csr_mstatus[12:11] <= 2'b00;
                         end
                         default:;
                     endcase

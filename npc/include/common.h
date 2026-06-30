@@ -2,39 +2,24 @@
 #define __COMMON_H__
 
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+
+#include <generated/autoconf.h>
+#include <macro.h>
+
 #include <assert.h>
-#include "sim_mode.h"
-#include "verilated.h"
-#include "verilated_vcd_c.h"
+#include <stdlib.h>
 
-// Memory size 128MB
-#define MEM_SIZE 0x8000000
-#define MAX_SIM_TIME 100000000
-#define SERIAL_PORT 0x10000000
-#define RTC_ADDR    0x00100048
+typedef uint32_t word_t;
+typedef int32_t sword_t;
+#define FMT_WORD "0x%08" PRIx32
 
-extern uint8_t pmem[MEM_SIZE];
-extern SimTop* g_top;
-extern VerilatedContext* g_contextp;
-extern VerilatedVcdC* g_tfp;
+typedef word_t vaddr_t;
+typedef uint32_t paddr_t;
+#define FMT_PADDR "0x%08" PRIx32
 
-extern bool is_finished;
-extern int trap_a0;
-extern int trap_pc;
-extern bool sdb_batch_mode;
-
-// memory
-bool check_bound(int addr, const char* type);
-long load_image(char *img_file);
-
-// cpu
-void cpu_exec(uint64_t n);
-
-// sdb
-void sdb_mainloop();
+#include <debug.h>
 
 #endif
