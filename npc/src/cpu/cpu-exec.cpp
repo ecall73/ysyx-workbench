@@ -124,26 +124,8 @@ static uint64_t get_time_us() {
 static double ratio(uint64_t numerator, uint64_t denominator) {
     return denominator ? (double)numerator / (double)denominator : 0.0;
 }
-#endif
 
 static void statistic() {
-    Log("host time spent = %" PRIu64 " us", g_timer_us);
-    Log("total guest instructions = %" PRIu64, g_nr_guest_inst);
-    Log("total simulation cycles = %" PRIu64, g_nr_sim_cycle);
-
-    if (g_nr_sim_cycle > 0) {
-        Log("IPC = %.4f", (double)g_nr_guest_inst / (double)g_nr_sim_cycle);
-    } else {
-        Log("No simulation cycle counted, can not calculate IPC");
-    }
-
-    if (g_timer_us > 0) {
-        Log("simulation frequency = %" PRIu64 " inst/s", g_nr_guest_inst * 1000000 / g_timer_us);
-    } else {
-        Log("Finish running in less than 1 us and can not calculate the simulation frequency");
-    }
-
-#ifdef CONFIG_PERF
     uint64_t icache_hit = g_pmu.ifetch_fire;
     uint64_t icache_access = icache_hit + g_pmu.icache_miss;
     double icache_miss_rate = ratio(g_pmu.icache_miss, icache_access);
@@ -228,8 +210,8 @@ static void statistic() {
             kPmuClassName[i], g_ret_class_cnt[i], retire_mix);
     }
     PmuLog("+------------------+-------------+-----------+\n");
-#endif
 }
+#endif
 
 void cpu_exec(uint64_t n) {
     if (is_finished) {
@@ -326,6 +308,23 @@ void cpu_exec(uint64_t n) {
             (trap_a0 == 0 ? ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)
                           : ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED)),
             trap_pc);
+        Log("host time spent = %" PRIu64 " us", g_timer_us);
+        Log("total guest instructions = %" PRIu64, g_nr_guest_inst);
+        Log("total simulation cycles = %" PRIu64, g_nr_sim_cycle);
+
+        if (g_nr_sim_cycle > 0) {
+            Log("IPC = %.4f", (double)g_nr_guest_inst / (double)g_nr_sim_cycle);
+        } else {
+            Log("No simulation cycle counted, can not calculate IPC");
+        }
+
+        if (g_timer_us > 0) {
+            Log("simulation frequency = %" PRIu64 " inst/s", g_nr_guest_inst * 1000000 / g_timer_us);
+        } else {
+            Log("Finish running in less than 1 us and can not calculate the simulation frequency");
+        }
+#ifdef CONFIG_PERF
         statistic();
+#endif
     }
 }
