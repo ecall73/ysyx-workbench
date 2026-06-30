@@ -20,10 +20,13 @@ static FILE *open_log_file(const char *log_file, const char *name) {
 }
 
 const char *npc_log_file(const char *file) {
-    // Keep file prefix concise, similar to NEMU's src-relative style.
     const char *anchor = strstr(file, "/npc/");
     if (anchor != NULL) {
         return anchor + 5;  // strip "/npc/"
+    }
+    anchor = strstr(file, "/src/");
+    if (anchor != NULL) {
+        return anchor + 1;
     }
     return file;
 }
