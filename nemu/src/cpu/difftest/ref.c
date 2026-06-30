@@ -16,7 +16,6 @@
 #include <isa.h>
 #include <cpu/cpu.h>
 #include <difftest-def.h>
-#include <memory/paddr_internal.h>
 #include <memory/paddr.h>
 #include <string.h>
 
@@ -47,10 +46,6 @@ __EXPORT void difftest_exec(uint64_t n) {
 
 __EXPORT void difftest_raise_intr(word_t NO) {
   assert(0);
-}
-
-__EXPORT void difftest_enable_ysyxsoc_paddr(void) {
-  nemu_select_ysyxsoc_paddr_backend();
 }
 
 __EXPORT void difftest_init(int port) {
