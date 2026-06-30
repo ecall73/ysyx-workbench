@@ -19,15 +19,14 @@ NPCFLAGS += -F $(shell dirname $(IMAGE).elf)/npc-ftrace.txt
 NPCFLAGS += -E $(shell dirname $(IMAGE).elf)/npc-etrace.txt
 NPCFLAGS += -M $(shell dirname $(IMAGE).elf)/npc-mtrace.txt
 NPCFLAGS += -D $(shell dirname $(IMAGE).elf)/npc-dtrace.txt
-BATCH ?= 1
-ifneq ($(filter 1 y yes true,$(BATCH)),)
-NPCFLAGS += -b
-endif
 
 DIFF ?= 0
 PERF ?= 0
 WAVE ?= 0
 DEBUG ?= 0
+ifeq ($(filter 1 y yes true,$(DEBUG)),)
+NPCFLAGS += -b
+endif
 DIFF_REF_SO ?= $(NEMU_HOME)/build/riscv32-nemu-interpreter-so
 DIFF_PORT ?= 1234
 NPC_TRACE_VARS :=
@@ -63,6 +62,6 @@ image: image-dep
 	@$(OBJCOPY) -S --set-section-flags .bss=alloc,contents -O binary $(IMAGE).elf $(IMAGE).bin
 
 run: insert-arg
-	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=npc DIFF=$(DIFF) PERF=$(PERF) WAVE=$(WAVE) DEBUG=$(DEBUG) BATCH=$(BATCH) $(NPC_TRACE_VARS) DIFF_REF_SO=$(DIFF_REF_SO) DIFF_PORT=$(DIFF_PORT) sim ARGS="$(NPCFLAGS)" IMG="$(IMAGE).bin"
+	$(MAKE) -C $(AM_HOME)/../npc SIM_MODE=npc DIFF=$(DIFF) PERF=$(PERF) WAVE=$(WAVE) DEBUG=$(DEBUG) $(NPC_TRACE_VARS) DIFF_REF_SO=$(DIFF_REF_SO) DIFF_PORT=$(DIFF_PORT) sim ARGS="$(NPCFLAGS)" IMG="$(IMAGE).bin"
 
 .PHONY: insert-arg
