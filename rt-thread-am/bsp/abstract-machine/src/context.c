@@ -22,21 +22,14 @@ static void rt_kthread_bootstrap(void *arg) {
   halt(1);
 }
 
-static kctx_switch_req_t *kctx_get_switch_req(rt_thread_t self) {
-  if (self == RT_NULL || self->user_data == 0) {
-    return RT_NULL;
-  }
-  return (kctx_switch_req_t *)(uintptr_t)self->user_data;
-}
-
 static Context* ev_handler(Event e, Context *c) {
   switch (e.event) {
     case EVENT_YIELD: {
       rt_thread_t self = rt_thread_self();
-      kctx_switch_req_t *req = kctx_get_switch_req(self);
-      if (req == RT_NULL) {
+      if (self == RT_NULL || self->user_data == 0) {
         return c;
       }
+      kctx_switch_req_t *req = (kctx_switch_req_t *)(uintptr_t)self->user_data;
       if (req->from != RT_NULL) {
         *req->from = c;
       }
