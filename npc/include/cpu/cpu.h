@@ -21,6 +21,8 @@ extern uint64_t g_nr_guest_inst;
 void cpu_exec(uint64_t n);
 void npc_reset_dut_state(uint32_t pc);
 void npc_read_dut_state(DutState *state);
+void npc_reg_display();
+uint32_t npc_reg_str2val(const char *s, bool *success);
 
 // commit_pc/commit_inst identify the retired instruction.
 // pc and CSR/GPR values are the architectural state after that retirement.

@@ -9,15 +9,7 @@
 #include "monitor/sdb.h"
 #include "platform/platform.h"
 
-static const char *regs[] = {
-    "$0", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
-    "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
-    "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7",
-    "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
-};
-
 #define NR_CMD (sizeof(cmd_table) / sizeof(cmd_table[0]))
-#define NR_GPR (sizeof(regs) / sizeof(regs[0]))
 
 static int cmd_help(char *args);
 
@@ -39,19 +31,6 @@ static char *rl_gets() {
     }
 
     return line_read;
-}
-
-static void npc_reg_display() {
-    DutState state;
-    npc_read_dut_state(&state);
-    for (int i = 0; i < (int)NR_GPR; i++) {
-        printf(ANSI_FG_RED "(x%02d) " ANSI_FG_GREEN "%-4s " ANSI_FG_BLUE "0x%08x\t" ANSI_NONE,
-            i, regs[i], state.gpr[i]);
-        if (i % 4 == 3) {
-            printf("\n");
-        }
-    }
-    printf("      " ANSI_FG_GREEN "PC   " ANSI_FG_BLUE "0x%08x\n" ANSI_NONE, state.pc);
 }
 
 static int cmd_q(char *args) {

@@ -60,15 +60,6 @@ static regex_t re[NR_REGEX] = {};
 static Token tokens[MAX_TOKENS] = {};
 static int nr_token = 0;
 
-static const char *regs[] = {
-  "$0", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
-  "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
-  "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7",
-  "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
-};
-
-#define NR_GPR (sizeof(regs) / sizeof(regs[0]))
-
 void init_regex() {
   char error_msg[128];
   for (int i = 0; i < (int)NR_REGEX; i++) {
@@ -117,33 +108,6 @@ static bool make_token(char *e) {
   return true;
 }
 
-static bool reg_str2val(const char *s, uint32_t *val) {
-  DutState state;
-  npc_read_dut_state(&state);
-
-  if (strcmp(s, "$pc") == 0 || strcmp(s, "$PC") == 0) {
-    *val = state.pc;
-    return true;
-  }
-
-  if (s[0] == '$' && s[1] == 'x') {
-    int reg_idx = -1;
-    if (sscanf(s + 2, "%d", &reg_idx) == 1 && reg_idx >= 0 && reg_idx < (int)NR_GPR) {
-      *val = state.gpr[reg_idx];
-      return true;
-    }
-  }
-
-  for (int i = 0; i < (int)NR_GPR; i++) {
-    if (s[0] == '$' && strcmp(s + 1, regs[i]) == 0) {
-      *val = state.gpr[i];
-      return true;
-    }
-  }
-
-  return false;
-}
-
 static bool check_parentheses(int p, int q) {
   if (tokens[p].type != '(' || tokens[q].type != ')') {
     return false;
@@ -166,14 +130,10 @@ static uint32_t eval(int p, int q, bool *success) {
     *success = false;
     return 0;
   } else if (p == q) {
-    uint32_t val = 0;
     switch (tokens[p].type) {
       case TK_HEX: return strtoul(tokens[p].str, NULL, 16);
       case TK_DEC: return strtoul(tokens[p].str, NULL, 10);
-      case TK_REG:
-        if (reg_str2val(tokens[p].str, &val)) return val;
-        *success = false;
-        return 0;
+      case TK_REG: return npc_reg_str2val(tokens[p].str, success);
       default:
         *success = false;
         return 0;
