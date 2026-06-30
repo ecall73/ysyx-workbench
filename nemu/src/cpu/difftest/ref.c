@@ -50,7 +50,7 @@ __EXPORT void difftest_raise_intr(word_t NO) {
 }
 
 __EXPORT void difftest_enable_ysyxsoc_paddr(void) {
-  nemu_select_ysyxsoc_paddr_backend();
+  nemu_enable_ysyxsoc_paddr();
 }
 
 __EXPORT void difftest_init(int port) {

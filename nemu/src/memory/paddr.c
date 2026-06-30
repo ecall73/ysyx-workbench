@@ -15,6 +15,8 @@
 
 #include <memory/host.h>
 #include <memory/paddr_internal.h>
+#include <device/mmio.h>
+#include <isa.h>
 
 #if   defined(CONFIG_PMEM_MALLOC)
 static uint8_t *pmem = NULL;
@@ -22,32 +24,26 @@ static uint8_t *pmem = NULL;
 static uint8_t pmem[CONFIG_MSIZE] PG_ALIGN = {};
 #endif
 
-static const NemuPaddrBackendOps *current_backend = NULL;
+static bool use_ysyxsoc_paddr = false;
 
 uint8_t* guest_to_host(paddr_t paddr) { return pmem + paddr - CONFIG_MBASE; }
 paddr_t host_to_guest(uint8_t *haddr) { return haddr - pmem + CONFIG_MBASE; }
 
-uint8_t *nemu_pmem_base(void) {
-  return pmem;
+static word_t pmem_read(paddr_t addr, int len) {
+  return host_read(guest_to_host(addr), len);
 }
 
-bool nemu_in_region_range(paddr_t addr, int len, paddr_t base, uint32_t size) {
-  if (len <= 0) return false;
-  if (addr < base) return false;
-  uint64_t off = (uint64_t)(addr - base);
-  return off + (uint64_t)len <= (uint64_t)size;
+static void pmem_write(paddr_t addr, int len, word_t data) {
+  host_write(guest_to_host(addr), len, data);
 }
 
-word_t nemu_host_read_region(uint8_t *space, paddr_t addr, paddr_t base, int len) {
-  return host_read(space + (addr - base), len);
+static void out_of_bound(paddr_t addr) {
+  panic("address = " FMT_PADDR " is out of bound of pmem [" FMT_PADDR ", " FMT_PADDR "] at pc = " FMT_WORD,
+      addr, PMEM_LEFT, PMEM_RIGHT, cpu.pc);
 }
 
-void nemu_host_write_region(uint8_t *space, paddr_t addr, paddr_t base, int len, word_t data) {
-  host_write(space + (addr - base), len, data);
-}
-
-void nemu_select_ysyxsoc_paddr_backend(void) {
-  current_backend = nemu_ysyxsoc_paddr_backend();
+void nemu_enable_ysyxsoc_paddr(void) {
+  use_ysyxsoc_paddr = true;
 }
 
 void init_mem() {
@@ -56,28 +52,42 @@ void init_mem() {
   assert(pmem);
 #endif
   IFDEF(CONFIG_MEM_RANDOM, memset(pmem, rand(), CONFIG_MSIZE));
-  if (current_backend == NULL) {
-    current_backend = nemu_native_paddr_backend();
+
+  if (use_ysyxsoc_paddr) {
+    ysyxsoc_paddr_init();
+    Log("memory backend = ysyxsoc");
+    ysyxsoc_paddr_log_ranges();
+  } else {
+    Log("physical memory area [" FMT_PADDR ", " FMT_PADDR "]", PMEM_LEFT, PMEM_RIGHT);
   }
-  if (current_backend->init != NULL) {
-    current_backend->init();
-  }
-  Log("memory backend = %s", current_backend->name);
-  current_backend->log_ranges();
 }
 
 word_t paddr_read(paddr_t addr, int len) {
-  word_t data = 0;
-  if (likely(current_backend->read(addr, len, &data))) {
-    return data;
+  if (use_ysyxsoc_paddr) {
+    word_t data = 0;
+    if (likely(ysyxsoc_paddr_read(addr, len, &data))) {
+      return data;
+    }
+    ysyxsoc_paddr_out_of_bound(addr);
+    return 0;
   }
-  current_backend->out_of_bound(addr);
+
+  if (likely(in_pmem(addr))) return pmem_read(addr, len);
+  IFDEF(CONFIG_DEVICE, return mmio_read(addr, len));
+  out_of_bound(addr);
   return 0;
 }
 
 void paddr_write(paddr_t addr, int len, word_t data) {
-  if (likely(current_backend->write(addr, len, data))) {
+  if (use_ysyxsoc_paddr) {
+    if (likely(ysyxsoc_paddr_write(addr, len, data))) {
+      return;
+    }
+    ysyxsoc_paddr_out_of_bound(addr);
     return;
   }
-  current_backend->out_of_bound(addr);
+
+  if (likely(in_pmem(addr))) { pmem_write(addr, len, data); return; }
+  IFDEF(CONFIG_DEVICE, mmio_write(addr, len, data); return);
+  out_of_bound(addr);
 }
