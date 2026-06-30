@@ -35,7 +35,7 @@ config VERILATOR_OPT
   default "-O2" if VERILATOR_O2
   default "-O3" if VERILATOR_O3
 
-config DEBUG
+config CC_DEBUG
   bool "Enable host debug information"
   default n
 

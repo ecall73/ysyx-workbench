@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,7 +14,7 @@ static FILE *open_log_file(const char *log_file, const char *name) {
     FILE *fp = fopen(log_file, "w");
     if (fp == NULL) {
         printf("Failed to open %s log file %s\n", name, log_file);
-        return NULL;
+        assert(fp);
     }
     return fp;
 }
@@ -42,17 +43,24 @@ void _Log(const char *fmt, ...) {
 }
 
 void init_log(const char *log_file) {
-    log_fp = open_log_file(log_file, "main");
+    log_fp = stdout;
+    if (log_file != NULL) {
+        log_fp = open_log_file(log_file, "main");
+    }
     Log("Log is written to %s", log_file ? log_file : "stdout");
 }
 
 void close_log() {
-    if (log_fp != NULL) {
+    if (log_fp != NULL && log_fp != stdout) {
         fclose(log_fp);
-        log_fp = NULL;
     }
+    log_fp = NULL;
 }
 
 FILE *npc_open_trace_log(const char *log_file, const char *name) {
-    return open_log_file(log_file, name);
+    FILE *fp = open_log_file(log_file, name);
+    if (fp != NULL) {
+        Log("%s trace is written to %s", name, log_file);
+    }
+    return fp;
 }

@@ -48,7 +48,7 @@ static void trace_vwrite(FILE *fp, const char *tag, const char *fmt, va_list ap)
         va_end(log_ap);
     }
 
-    if (fp != NULL && fp != log_fp) {
+    if (fp != NULL) {
         fprintf(fp, "[%s] ", tag);
         vfprintf(fp, fmt, ap);
         fflush(fp);
