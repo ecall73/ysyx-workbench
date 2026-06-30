@@ -60,6 +60,7 @@ extern int trap_a0;
 extern int trap_pc;
 extern uint64_t g_nr_guest_inst;
 extern bool sdb_batch_mode;
+extern bool sdb_quit;
 extern FILE *log_fp;
 extern SimTop *g_top;
 extern VerilatedContext *g_contextp;

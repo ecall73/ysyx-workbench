@@ -17,6 +17,7 @@ int trap_pc = 0;
 uint64_t g_nr_guest_inst = 0;
 
 bool sdb_batch_mode = false;
+bool sdb_quit = false;
 FILE *log_fp = NULL;
 
 static long parse_args_and_load_image(int argc, char **argv, char **diff_so_file, int *diff_port) {
@@ -155,5 +156,5 @@ void npc_cleanup() {
 }
 
 int is_exit_status_bad() {
-    return !(is_finished && trap_a0 == 0);
+    return !(sdb_quit || (is_finished && trap_a0 == 0));
 }

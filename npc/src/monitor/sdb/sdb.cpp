@@ -16,6 +16,7 @@ static const char *regs[] = {
 static int cmd_help(char *args);
 
 static int cmd_q(char *args) {
+    sdb_quit = true;
     return -1;
 }
 
