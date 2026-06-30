@@ -1,9 +1,14 @@
 COLOR_RED := $(shell echo "\033[1;31m")
 COLOR_END := $(shell echo "\033[0m")
 
+config-silent-goals := menuconfig savedefconfig help distclean clean sim-iverilog sim-iverilog-netlist
+config-silent-goals += $(filter %defconfig,$(MAKECMDGOALS))
+
+ifeq ($(filter $(config-silent-goals),$(MAKECMDGOALS)),)
 ifeq ($(wildcard .config),)
 $(warning $(COLOR_RED)Warning: .config does not exist!$(COLOR_END))
 $(warning $(COLOR_RED)To build the project, first run 'make menuconfig' or 'make ysyxsoc_defconfig'.$(COLOR_END))
+endif
 endif
 
 Q ?= @

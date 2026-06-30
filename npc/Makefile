@@ -14,8 +14,12 @@ include $(NPC_HOME)/scripts/config.mk
 
 config-targets := menuconfig savedefconfig help distclean clean
 config-targets += $(filter %defconfig,$(MAKECMDGOALS))
+iverilog-targets := sim-iverilog sim-iverilog-netlist
 
 ifeq ($(filter $(config-targets),$(MAKECMDGOALS)),)
+ifneq ($(filter $(iverilog-targets),$(MAKECMDGOALS)),)
+SIM_MODE ?= npc
+endif
 SIM_MODE ?= $(call remove_quote,$(CONFIG_PLATFORM))
 ifeq ($(SIM_MODE),npc)
 CONFIG_PLATFORM_NPC := y
