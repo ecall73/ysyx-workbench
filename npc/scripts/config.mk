@@ -26,8 +26,8 @@ $(MCONF):
 $(FIXDEP):
 	$(Q)$(MAKE) $(silent) -C $(FIXDEP_PATH)
 
-$(NPC_HOME)/.config: $(CONF) $(NPC_HOME)/configs/npc_defconfig
-	$(Q)$< $(silent) --defconfig=$(NPC_HOME)/configs/npc_defconfig $(Kconfig)
+$(NPC_HOME)/.config: $(CONF)
+	$(Q)$< $(silent) --defconfig=./configs/npc_defconfig $(Kconfig)
 
 $(NPC_HOME)/include/config/auto.conf $(NPC_HOME)/include/generated/autoconf.h: $(NPC_HOME)/.config $(CONF) $(FIXDEP) $(Kconfig)
 	$(Q)$(CONF) $(silent) --syncconfig $(Kconfig)
@@ -37,10 +37,10 @@ menuconfig: $(MCONF) $(CONF) $(FIXDEP)
 	$(Q)$(CONF) $(silent) --syncconfig $(Kconfig)
 
 savedefconfig: $(CONF)
-	$(Q)$< $(silent) --$@=$(NPC_HOME)/configs/npc_defconfig $(Kconfig)
+	$(Q)$< $(silent) --$@=./configs/npc_defconfig $(Kconfig)
 
 %defconfig: $(CONF) $(FIXDEP)
-	$(Q)$< $(silent) --defconfig=$(NPC_HOME)/configs/$@ $(Kconfig)
+	$(Q)$< $(silent) --defconfig=./configs/$@ $(Kconfig)
 	$(Q)$< $(silent) --syncconfig $(Kconfig)
 
 .PHONY: menuconfig savedefconfig defconfig
