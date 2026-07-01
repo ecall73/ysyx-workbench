@@ -43,10 +43,16 @@ typedef uintptr_t PTE;
 
 _Static_assert(MMIO_BASE == DEVICE_BASE,
     "NPC AM device aliases expect MMIO_BASE == DEVICE_BASE");
+_Static_assert(DEVICE_BASE == 0x10000000,
+    "NPC AM device base must match the simulator MMIO map");
 _Static_assert(SERIAL_PORT == DEVICE_BASE,
     "NPC AM serial port must be at DEVICE_BASE");
+_Static_assert(RTC_ADDR == 0x00100048,
+    "NPC AM RTC address must match the simulator MMIO map");
 _Static_assert((RTC_ADDR & 0x3) == 0,
     "NPC AM RTC MMIO address must be word aligned");
+_Static_assert(CLINT_BASE == 0x02000000 && CLINT_MTIME == 0x0200bff8,
+    "NPC AM CLINT addresses must match the simulator MMIO map");
 _Static_assert(CLINT_MTIMEH == CLINT_MTIME + 4,
     "NPC AM CLINT mtime high word must follow low word");
 _Static_assert((CLINT_MTIME & 0x3) == 0 && (CLINT_MTIMEH & 0x3) == 0,
