@@ -4,6 +4,14 @@
 #include <klib-macros.h>
 #include <riscv/riscv.h>
 
+#if __riscv_xlen != 32
+#error "riscv32e-ysyxsoc must be built with a 32-bit RISC-V target"
+#endif
+
+#ifndef __riscv_e
+#error "riscv32e-ysyxsoc must be built with RV32E"
+#endif
+
 // ysyxSoC canonical address map
 #define CLINT_BASE          0x02000000u
 #define CLINT_END           0x0200ffffu
@@ -68,5 +76,26 @@ extern char _heap_end;
 typedef uintptr_t PTE;
 
 #define PGSIZE    4096
+
+_Static_assert(CLINT_MTIME >= CLINT_BASE && CLINT_MTIMEH <= CLINT_END,
+    "ysyxSoC AM CLINT mtime aliases must stay inside CLINT range");
+_Static_assert(CLINT_MTIMEH == CLINT_MTIME + 4,
+    "ysyxSoC AM CLINT mtime high word must follow low word");
+_Static_assert(RTC_ADDR == CLINT_MTIME,
+    "ysyxSoC AM RTC alias must use CLINT mtime");
+_Static_assert(SERIAL_PORT >= UART_BASE && SERIAL_PORT <= UART_END,
+    "ysyxSoC AM serial alias must stay inside UART range");
+_Static_assert((UART_BASE + UART_REG_LSR) <= UART_END,
+    "ysyxSoC AM UART register offsets must stay inside UART range");
+_Static_assert(KBD_ADDR == PS2_BASE,
+    "ysyxSoC AM keyboard alias must use PS/2 base");
+_Static_assert(FB_ADDR == VGA_BASE && VGACTL_ADDR == VGA_BASE,
+    "ysyxSoC AM GPU aliases must use VGA base");
+_Static_assert((GPIO_BASE + 0x8u) <= GPIO_END,
+    "ysyxSoC AM GPIO LED/SW/SEG offsets must stay inside GPIO range");
+_Static_assert(NPC_CPU_FREQ_HZ % 1000000ull == 0,
+    "ysyxSoC AM timer conversion requires an integral cycles/us ratio");
+_Static_assert(NPC_CLINT_CYCLES_PER_US > 0,
+    "ysyxSoC AM timer conversion requires nonzero cycles/us");
 
 #endif

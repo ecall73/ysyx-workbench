@@ -4,6 +4,14 @@
 #include <klib-macros.h>
 #include <riscv/riscv.h>
 
+#if __riscv_xlen != 32
+#error "riscv32e-npc must be built with a 32-bit RISC-V target"
+#endif
+
+#ifndef __riscv_e
+#error "riscv32e-npc must be built with RV32E"
+#endif
+
 // Keep NPC device layout independent from NEMU.
 #define DEVICE_BASE 0x10000000
 #define MMIO_BASE   DEVICE_BASE
@@ -32,5 +40,20 @@ extern char _pmem_start;
 typedef uintptr_t PTE;
 
 #define PGSIZE    4096
+
+_Static_assert(MMIO_BASE == DEVICE_BASE,
+    "NPC AM device aliases expect MMIO_BASE == DEVICE_BASE");
+_Static_assert(SERIAL_PORT == DEVICE_BASE,
+    "NPC AM serial port must be at DEVICE_BASE");
+_Static_assert((RTC_ADDR & 0x3) == 0,
+    "NPC AM RTC MMIO address must be word aligned");
+_Static_assert(CLINT_MTIMEH == CLINT_MTIME + 4,
+    "NPC AM CLINT mtime high word must follow low word");
+_Static_assert((CLINT_MTIME & 0x3) == 0 && (CLINT_MTIMEH & 0x3) == 0,
+    "NPC AM CLINT mtime addresses must be word aligned");
+_Static_assert(NPC_CPU_FREQ_HZ % 1000000ull == 0,
+    "NPC AM timer conversion requires an integral cycles/us ratio");
+_Static_assert(NPC_CLINT_CYCLES_PER_US > 0,
+    "NPC AM timer conversion requires nonzero cycles/us");
 
 #endif
