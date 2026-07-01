@@ -460,18 +460,28 @@ module top
     end
 
 `ifndef SYNTHESIS
+`ifndef __ICARUS__
     always @(posedge clock) begin
         if (!reset) begin
             if (axi_arvalid && axi_arready && (ar_sel != SEL_PMEM) &&
                 ((axi_arlen != 8'h00) || (axi_arburst != 2'b00))) begin
                 $fatal(1, "top: MMIO burst read is not supported addr=%08x", axi_araddr);
             end
+            if (axi_arvalid && axi_arready && (axi_arsize > 3'd2)) begin
+                $fatal(1, "top: unsupported read size addr=%08x size=%0d", axi_araddr, axi_arsize);
+            end
             if (axi_awvalid && axi_awready &&
                 ((axi_awlen != 8'h00) || (axi_awburst != 2'b00))) begin
                 $fatal(1, "top: burst write is not supported addr=%08x", axi_awaddr);
             end
+            if (axi_awvalid && axi_awready && (axi_awsize > 3'd2)) begin
+                $fatal(1, "top: unsupported write size addr=%08x size=%0d", axi_awaddr, axi_awsize);
+            end
             if (axi_wvalid && axi_wready && (axi_wlast != 1'b1)) begin
                 $fatal(1, "top: WLAST must be 1 for single-beat write");
+            end
+            if (axi_wvalid && axi_wready && (axi_wstrb == 4'b0000)) begin
+                $fatal(1, "top: zero write strobe data=%08x", axi_wdata);
             end
             if (axi_arvalid && axi_arready && (ar_sel == SEL_PMEM) &&
                 (axi_arburst != 2'b00) && (axi_arburst != 2'b01)) begin
@@ -479,6 +489,7 @@ module top
             end
         end
     end
+`endif
 `endif
 
     wire _unused_ok;

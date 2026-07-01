@@ -122,9 +122,9 @@ module ysyx_26030082_axi4lite_arbiter (
     assign io_master_wvalid = lsu_master_wvalid;
     assign io_master_bready = lsu_master_bready;
 
-    always @(posedge clock) begin
-        if (reset) begin
-            rd_state <= R_IDLE;
+	    always @(posedge clock) begin
+	        if (reset) begin
+	            rd_state <= R_IDLE;
             rd_owner_ifu <= 1'b0;
         end else begin
             case (rd_state)
@@ -160,6 +160,37 @@ module ysyx_26030082_axi4lite_arbiter (
             endcase
         end
     end
+
+`ifndef SYNTHESIS
+`ifndef __ICARUS__
+    always @(posedge clock) begin
+        if (!reset) begin
+            if (ifu_master_arvalid &&
+                (ifu_master_araddr[1:0] != 2'b00 ||
+                 ifu_master_arburst != 2'b01 ||
+                 ifu_master_arlen != 8'd3)) begin
+                $fatal(1, "arbiter: bad IFU read request addr=%08x len=%0d burst=%0b",
+                    ifu_master_araddr, ifu_master_arlen, ifu_master_arburst);
+            end
+            if (lsu_master_arvalid && lsu_master_arsize > 3'd2) begin
+                $fatal(1, "arbiter: bad LSU read size addr=%08x size=%0d",
+                    lsu_master_araddr, lsu_master_arsize);
+            end
+            if (lsu_r_fire && !io_master_rlast) begin
+                $fatal(1, "arbiter: LSU single-beat read response without rlast");
+            end
+            if (lsu_master_awvalid && lsu_master_awsize > 3'd2) begin
+                $fatal(1, "arbiter: bad LSU write size addr=%08x size=%0d",
+                    lsu_master_awaddr, lsu_master_awsize);
+            end
+            if (lsu_master_wvalid && lsu_master_wstrb == 4'b0000) begin
+                $fatal(1, "arbiter: zero LSU write strobe addr=%08x data=%08x",
+                    lsu_master_awaddr, lsu_master_wdata);
+            end
+        end
+    end
+`endif
+`endif
 
     wire _unused_ok = &{1'b0, io_master_rid, io_master_bid};
 

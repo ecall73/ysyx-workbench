@@ -7,6 +7,7 @@
 #include <memory/host.h>
 #include <memory/paddr.h>
 #include <isa.h>
+#include <difftest-def.h>
 #include <platform/platform.h>
 #include <sim_top.h>
 
@@ -64,7 +65,8 @@ long platform_load_image(const char *img_file) {
   Assert(size > 0 && size <= NPC_FLASH_SIZE, "bad image size %ld", size);
   size_t nread = fread(flash, 1, (size_t)size, fp);
   fclose(fp);
-  assert(nread == (size_t)size);
+  Assert(nread == (size_t)size,
+      "failed to read image '%s': size=%ld nread=%zu", img_file, size, nread);
   flash_size = size;
   /*
   Log("Flash boot image loaded: %s, size = %ld, base = 0x%08x", img_file, size, NPC_FLASH_BASE);
@@ -158,20 +160,30 @@ void platform_trace_write(paddr_t addr, int len, word_t data) {
 }
 
 void platform_difftest_memcpy(void (*ref_memcpy)(paddr_t, void *, size_t, bool), bool direction) {
+  Assert(ref_memcpy != NULL,
+      "platform_difftest_memcpy with null callback: direction=%d flash_size=%ld",
+      direction, flash_size);
+  Assert(direction == DIFFTEST_TO_DUT || direction == DIFFTEST_TO_REF,
+      "platform_difftest_memcpy with bad direction: direction=%d flash_size=%ld",
+      direction, flash_size);
+  Assert(flash_size >= 0 && flash_size <= NPC_FLASH_SIZE,
+      "platform_difftest_memcpy with bad flash size: flash_size=%ld capacity=%u",
+      flash_size, NPC_FLASH_SIZE);
   if (flash_size > 0) ref_memcpy(NPC_FLASH_BASE, flash, (size_t)flash_size, direction);
 }
 
 void platform_enable_ref_paddr(void (*enable_ysyxsoc_paddr)(void)) {
-  assert(enable_ysyxsoc_paddr);
+  Assert(enable_ysyxsoc_paddr != NULL,
+      "Can not find DiffTest symbol 'difftest_enable_ysyxsoc_paddr'");
   enable_ysyxsoc_paddr();
 }
 
 extern "C" void flash_read(int addr, int *data) {
   uint32_t off = (uint32_t)addr & ~0x3u;
-  if (off > NPC_FLASH_SIZE - 4) {
-    *data = -1;
-    return;
-  }
+  Assert(data != NULL, "flash_read with null data pointer: addr=0x%08x", (uint32_t)addr);
+  Assert(off <= NPC_FLASH_SIZE - 4,
+      "flash_read out of range: addr=0x%08x off=0x%08x flash_size=%u pc=" FMT_WORD,
+      (uint32_t)addr, off, NPC_FLASH_SIZE, cpu.pc);
   *data = (int)host_read(flash + off, 4);
 }
 
@@ -182,13 +194,17 @@ extern "C" void mrom_read(int raddr, int *rdata) {
 
 extern "C" int sdram_read16(unsigned int word_addr) {
   uint32_t off = word_addr * 2u;
-  if (off > NPC_SDRAM_SIZE - 2) return 0;
+  Assert(off <= NPC_SDRAM_SIZE - 2,
+      "sdram_read16 out of range: word_addr=0x%08x off=0x%08x sdram_size=%u pc=" FMT_WORD,
+      word_addr, off, NPC_SDRAM_SIZE, cpu.pc);
   return (int)host_read(sdram + off, 2);
 }
 
 extern "C" void sdram_write16(unsigned int word_addr, unsigned int data, unsigned int mask) {
   uint32_t off = word_addr * 2u;
-  if (off > NPC_SDRAM_SIZE - 2) return;
+  Assert(off <= NPC_SDRAM_SIZE - 2,
+      "sdram_write16 out of range: word_addr=0x%08x off=0x%08x data=0x%08x mask=0x%08x pc=" FMT_WORD,
+      word_addr, off, data, mask, cpu.pc);
   if (mask & 0x1u) sdram[off] = data & 0xffu;
   if (mask & 0x2u) sdram[off + 1] = (data >> 8) & 0xffu;
 }
