@@ -183,12 +183,7 @@ void init_monitor(int argc, char *argv[]) {
 static long load_img() {
   extern char bin_start, bin_end;
   size_t size = &bin_end - &bin_start;
-  uint64_t image_capacity = (uint64_t)PMEM_RIGHT - (uint64_t)RESET_VECTOR + 1;
-  Assert((uint64_t)size <= image_capacity,
-      "AM image is too large: size=%zu reset_vector=" FMT_PADDR
-      " capacity=%" PRIu64 " pmem=[" FMT_PADDR ", " FMT_PADDR "]",
-      size, RESET_VECTOR, image_capacity, PMEM_LEFT, PMEM_RIGHT);
-  Log("img size = %zu", size);
+  Log("img size = %ld", size);
   memcpy(guest_to_host(RESET_VECTOR), &bin_start, size);
   return size;
 }

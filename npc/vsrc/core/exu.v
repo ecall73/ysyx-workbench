@@ -173,6 +173,19 @@ module ysyx_26030082_exu (
                           ({32{opcode == OPCODE_SYSTEM && (funct3 == F3_CSRRC || funct3 == F3_CSRRCI)}} & ~csr_src_data);
 
     wire [31:0] cmp_rhs = opcode == OPCODE_OP_IMM ? imm : rf_rdata2;
+    wire csr_supported = csr_addr == CSR_MSTATUS ||
+                         csr_addr == CSR_MTVEC ||
+                         csr_addr == CSR_MEPC ||
+                         csr_addr == CSR_MCAUSE ||
+                         csr_addr == CSR_MVENDORID ||
+                         csr_addr == CSR_MARCHID;
+    wire csr_readonly = csr_addr == CSR_MVENDORID || csr_addr == CSR_MARCHID;
+    wire csr_write_req = funct3 == F3_CSRRW || funct3 == F3_CSRRWI ||
+                         ((funct3 == F3_CSRRS || funct3 == F3_CSRRSI ||
+                           funct3 == F3_CSRRC || funct3 == F3_CSRRCI) && rf_raddr1 != 5'd0);
+    wire load_funct3_ok = funct3 == F3_LB || funct3 == F3_LH || funct3 == F3_LW ||
+                          funct3 == F3_LBU || funct3 == F3_LHU;
+    wire store_funct3_ok = funct3 == F3_SB || funct3 == F3_SH || funct3 == F3_SW;
 
 
 /////////////////////////
@@ -487,5 +500,53 @@ module ysyx_26030082_exu (
             reg_bank[rf_waddr[3:0]] <= rf_wdata;
         end
     end
+
+`ifndef SYNTHESIS
+    always @(posedge clock) begin
+        if (!reset && ex_in_valid) begin
+            if (ex_pc[1:0] != 2'b00) begin
+                $fatal(1, "exu: unaligned commit pc pc=%08x inst=%08x", ex_pc, ex_inst);
+            end
+            if (ex_out_valid && ex_redirect && (ex_inst != 32'h0010_0073) &&
+                (ex_redirect_pc[1:0] != 2'b00)) begin
+                $fatal(1, "exu: unaligned redirect pc=%08x inst=%08x target=%08x",
+                    ex_pc, ex_inst, ex_redirect_pc);
+            end
+            if (opcode == OPCODE_SYSTEM && funct3 == F3_PRIV &&
+                csr_addr != F12_ECALL && csr_addr != F12_MRET && ex_inst != 32'h0010_0073) begin
+                $fatal(1, "exu: unsupported privileged system inst pc=%08x inst=%08x funct12=%03x",
+                    ex_pc, ex_inst, csr_addr);
+            end
+            if (opcode == OPCODE_SYSTEM && funct3 != F3_PRIV && !csr_supported) begin
+                $fatal(1, "exu: unsupported CSR pc=%08x inst=%08x csr=%03x",
+                    ex_pc, ex_inst, csr_addr);
+            end
+            if (opcode == OPCODE_SYSTEM && csr_write_req && csr_readonly) begin
+                $fatal(1, "exu: write read-only CSR pc=%08x inst=%08x csr=%03x",
+                    ex_pc, ex_inst, csr_addr);
+            end
+            if (mem_ren && !load_funct3_ok) begin
+                $fatal(1, "exu: unsupported load funct3 pc=%08x inst=%08x funct3=%0d",
+                    ex_pc, ex_inst, funct3);
+            end
+            if (mem_wen && !store_funct3_ok) begin
+                $fatal(1, "exu: unsupported store funct3 pc=%08x inst=%08x funct3=%0d",
+                    ex_pc, ex_inst, funct3);
+            end
+            if (lsu_master_arvalid && lsu_master_arsize > 3'd2) begin
+                $fatal(1, "exu: bad LSU read size pc=%08x inst=%08x addr=%08x size=%0d",
+                    ex_pc, ex_inst, lsu_master_araddr, lsu_master_arsize);
+            end
+            if (lsu_master_awvalid && lsu_master_awsize > 3'd2) begin
+                $fatal(1, "exu: bad LSU write size pc=%08x inst=%08x addr=%08x size=%0d",
+                    ex_pc, ex_inst, lsu_master_awaddr, lsu_master_awsize);
+            end
+            if (lsu_master_wvalid && lsu_master_wstrb == 4'b0000) begin
+                $fatal(1, "exu: zero LSU write strobe pc=%08x inst=%08x addr=%08x",
+                    ex_pc, ex_inst, lsu_master_awaddr);
+            end
+        end
+    end
+`endif
 
 endmodule

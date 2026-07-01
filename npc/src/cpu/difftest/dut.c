@@ -39,23 +39,26 @@ static bool should_skip_ref(uint32_t inst, const CPU_state *ref) {
 }
 
 void init_difftest(char *ref_so_file, long img_size, int port) {
-  assert(ref_so_file != NULL);
+  Assert(ref_so_file != NULL, "DiffTest is enabled but ref_so_file is NULL");
+  Assert(img_size >= 0,
+      "DiffTest image size is negative: img_size=%ld", img_size);
 
   void *handle;
   handle = dlopen(ref_so_file, RTLD_LAZY);
-  assert(handle);
+  Assert(handle != NULL, "Can not open DiffTest reference '%s': %s",
+      ref_so_file, dlerror());
 
   ref_difftest_memcpy = dlsym(handle, "difftest_memcpy");
-  assert(ref_difftest_memcpy);
+  Assert(ref_difftest_memcpy, "Can not find DiffTest symbol 'difftest_memcpy'");
 
   ref_difftest_regcpy = dlsym(handle, "difftest_regcpy");
-  assert(ref_difftest_regcpy);
+  Assert(ref_difftest_regcpy, "Can not find DiffTest symbol 'difftest_regcpy'");
 
   ref_difftest_exec = dlsym(handle, "difftest_exec");
-  assert(ref_difftest_exec);
+  Assert(ref_difftest_exec, "Can not find DiffTest symbol 'difftest_exec'");
 
   void (*ref_difftest_init)(int) = dlsym(handle, "difftest_init");
-  assert(ref_difftest_init);
+  Assert(ref_difftest_init, "Can not find DiffTest symbol 'difftest_init'");
   void (*ref_enable_ysyxsoc_paddr)(void) = dlsym(handle, "difftest_enable_ysyxsoc_paddr");
 
   Log("Differential testing: %s", ANSI_FMT("ON", ANSI_FG_GREEN));
@@ -75,8 +78,11 @@ static void checkregs(CPU_state *ref, vaddr_t pc) {
 }
 
 void difftest_step(vaddr_t pc, vaddr_t dnpc, uint32_t inst) {
-  (void)dnpc;
   CPU_state ref_r;
+  Assert((pc & 0x3) == 0 && (dnpc & 0x3) == 0,
+      "DiffTest step pc is unaligned: pc=" FMT_WORD " dnpc=" FMT_WORD
+      " inst=0x%08x",
+      pc, dnpc, inst);
 
   ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT);
   if (should_skip_ref(inst, &ref_r)) {
@@ -86,6 +92,10 @@ void difftest_step(vaddr_t pc, vaddr_t dnpc, uint32_t inst) {
 
   ref_difftest_exec(1);
   ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT);
+  Assert((ref_r.pc & 0x3) == 0,
+      "DiffTest ref pc is unaligned: ref_pc=" FMT_WORD
+      " dut_pc=" FMT_WORD " dut_npc=" FMT_WORD " inst=0x%08x",
+      ref_r.pc, pc, dnpc, inst);
 
   checkregs(&ref_r, pc);
 }

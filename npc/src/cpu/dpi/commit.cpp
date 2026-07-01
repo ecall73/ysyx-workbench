@@ -1,6 +1,12 @@
 #include <cpu/cpu.h>
 #include <isa.h>
 
+enum {
+  MSTATUS_MIE  = (1u << 3),
+  MSTATUS_MPIE = (1u << 7),
+  MSTATUS_MPP  = (3u << 11),
+};
+
 static bool commit_valid = false;
 static vaddr_t commit_pc = 0;
 static uint32_t commit_inst = 0;
@@ -20,6 +26,29 @@ extern "C" void npc_commit(
     const uint32_t *gpr
 ) {
   if (program_has_ended()) return;
+  Assert(!commit_valid,
+      "DPI commit overwrites an unconsumed commit: old_pc=" FMT_WORD
+      " new_pc=" FMT_WORD " new_inst=0x%08x",
+      commit_pc, retired_pc, retired_inst);
+  Assert(gpr != NULL, "DPI commit with null GPR pointer: pc=" FMT_WORD " inst=0x%08x",
+      retired_pc, retired_inst);
+  Assert((retired_pc & 0x3) == 0 && (pc & 0x3) == 0,
+      "DPI commit pc is unaligned: retired_pc=" FMT_WORD " pc=" FMT_WORD
+      " inst=0x%08x",
+      retired_pc, pc, retired_inst);
+  if (retired_inst == 0x00000073) {
+    Assert(mepc == retired_pc && mcause == 11 && pc == (mtvec & ~0x3u)
+        && (mstatus & MSTATUS_MIE) == 0 && (mstatus & MSTATUS_MPP) == MSTATUS_MPP,
+        "bad ecall commit state: retired_pc=" FMT_WORD " pc=" FMT_WORD
+        " inst=0x%08x mstatus=" FMT_WORD " mtvec=" FMT_WORD
+        " mepc=" FMT_WORD " mcause=" FMT_WORD,
+        retired_pc, pc, retired_inst, mstatus, mtvec, mepc, mcause);
+  } else if (retired_inst == 0x30200073) {
+    Assert(pc == mepc && (mstatus & MSTATUS_MPIE) != 0 && (mstatus & MSTATUS_MPP) == 0,
+        "bad mret commit state: retired_pc=" FMT_WORD " pc=" FMT_WORD
+        " inst=0x%08x mstatus=" FMT_WORD " mepc=" FMT_WORD,
+        retired_pc, pc, retired_inst, mstatus, mepc);
+  }
 
   commit_valid = true;
   commit_pc = retired_pc;
@@ -40,6 +69,8 @@ extern "C" void npc_commit(
 }
 
 bool npc_fetch_commit(vaddr_t *pc, uint32_t *inst) {
+  Assert(pc != NULL && inst != NULL, "npc_fetch_commit with null output: pc=%p inst=%p",
+      pc, inst);
   if (!commit_valid) return false;
   *pc = commit_pc;
   *inst = commit_inst;
@@ -48,6 +79,7 @@ bool npc_fetch_commit(vaddr_t *pc, uint32_t *inst) {
 }
 
 void npc_reset_commit_state(vaddr_t pc) {
+  Assert((pc & 0x3) == 0, "reset commit pc is unaligned: pc=" FMT_WORD, pc);
   commit_valid = false;
   commit_pc = pc;
   commit_inst = 0;

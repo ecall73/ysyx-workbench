@@ -3,6 +3,7 @@
 
 #include <memory/paddr.h>
 #include <isa.h>
+#include <difftest-def.h>
 #include <memory/host.h>
 #include <platform/platform.h>
 
@@ -31,7 +32,7 @@ long platform_load_image(const char *img_file) {
   fseek(fp, 0, SEEK_SET);
   Assert(size > 0 && size <= NPC_PMEM_SIZE, "bad image size %ld", size);
   int ret = fread(pmem, size, 1, fp);
-  assert(ret == 1);
+  Assert(ret == 1, "failed to read image '%s': size=%ld ret=%d", img_file, size, ret);
   fclose(fp);
   img_size = size;
   /*
@@ -99,6 +100,15 @@ void platform_trace_write(paddr_t addr, int len, word_t data) {
 }
 
 void platform_difftest_memcpy(void (*ref_memcpy)(paddr_t, void *, size_t, bool), bool direction) {
+  Assert(ref_memcpy != NULL,
+      "platform_difftest_memcpy with null callback: direction=%d img_size=%ld",
+      direction, img_size);
+  Assert(direction == DIFFTEST_TO_DUT || direction == DIFFTEST_TO_REF,
+      "platform_difftest_memcpy with bad direction: direction=%d img_size=%ld",
+      direction, img_size);
+  Assert(img_size >= 0 && img_size <= NPC_PMEM_SIZE,
+      "platform_difftest_memcpy with bad image size: img_size=%ld capacity=%u",
+      img_size, NPC_PMEM_SIZE);
   if (img_size > 0) ref_memcpy(NPC_PMEM_BASE, pmem, (size_t)img_size, direction);
 }
 
@@ -113,7 +123,12 @@ extern "C" int pmem_read(int raddr) {
 
 extern "C" void pmem_write(int waddr, int wdata, unsigned char wmask) {
   uint32_t aligned = (uint32_t)waddr & ~0x3u;
-  if (!in_npc_pmem(aligned) || aligned > NPC_PMEM_BASE + NPC_PMEM_SIZE - 4) return;
+  Assert((wmask & 0xf0u) == 0 && (wmask & 0x0fu) != 0,
+      "DPI pmem_write with bad mask: waddr=0x%08x wdata=0x%08x wmask=0x%02x pc=" FMT_WORD,
+      (uint32_t)waddr, (uint32_t)wdata, wmask, cpu.pc);
+  Assert(in_npc_pmem(aligned) && aligned <= NPC_PMEM_BASE + NPC_PMEM_SIZE - 4,
+      "DPI pmem_write out of range: waddr=0x%08x aligned=0x%08x wmask=0x%02x pc=" FMT_WORD,
+      (uint32_t)waddr, aligned, wmask, cpu.pc);
   uint8_t *p = pmem + aligned - NPC_PMEM_BASE;
   for (int i = 0; i < 4; i++) {
     if (wmask & (1u << i)) p[i] = (uint8_t)((uint32_t)wdata >> (i * 8));
