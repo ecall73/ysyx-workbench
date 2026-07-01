@@ -14,6 +14,7 @@ void assert_fail_msg();
 #endif
 
 static inline const char *log_file_path(const char *file) {
+  static char path[256];
   const char *p = strstr(file, "/npc/");
   if (p != NULL) return p + 1;
 
@@ -21,6 +22,10 @@ static inline const char *log_file_path(const char *file) {
   if (p != NULL) return p;
 
   p = strstr(file, "src/");
+  if (p != NULL) {
+    snprintf(path, sizeof(path), "npc/%s", p);
+    return path;
+  }
   return p != NULL ? p : file;
 }
 
