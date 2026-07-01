@@ -46,6 +46,7 @@ endif
 
 INCLUDES = $(addprefix -I, $(INC_PATH))
 CFLAGS := -MMD -Wall -Werror $(INCLUDES) $(CFLAGS)
+CFLAGS += -fmacro-prefix-map=./../../../../=
 CFLAGS += -DTOP_NAME=\"V$(TOPNAME)\"
 CFLAGS += $(if $(filter npc,$(SIM_MODE)),-DNPC_BUILD_PLATFORM_NPC=1,-DNPC_BUILD_PLATFORM_YSYXSOC=1)
 CFLAGS += $(if $(CONFIG_ITRACE),-I$(CAPSTONE_HOME)/repo/include,)
