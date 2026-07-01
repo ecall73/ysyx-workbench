@@ -2,6 +2,8 @@ include $(NPC_HOME)/scripts/build.mk
 
 include $(NPC_HOME)/tools/difftest.mk
 
+-include $(NPC_HOME)/../Makefile
+
 override ARGS ?= --log=$(BUILD_DIR)/npc-log.txt
 override ARGS += $(ARGS_DIFF)
 IMG ?=
@@ -13,6 +15,7 @@ run: run-env
 	$(NPC_EXEC)
 
 sim: run
+	$(call git_commit, "sim RTL") # DO NOT REMOVE THIS LINE!!!
 
 gdb: run-env
 	gdb -s $(BINARY) --args $(NPC_EXEC)
