@@ -13,3 +13,9 @@
 	path = nvboard
 	url = git@github.com:NJU-ProjectN/nvboard.git
 	branch = master
+[submodule "riscv-tests-am"]
+	path = riscv-tests-am
+	url = https://github.com/NJU-ProjectN/riscv-tests-am.git
+[submodule "riscv-arch-test-am"]
+	path = riscv-arch-test-am
+	url = https://github.com/NJU-ProjectN/riscv-arch-test-am.git
