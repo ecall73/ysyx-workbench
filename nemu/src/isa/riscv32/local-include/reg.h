@@ -16,10 +16,11 @@
 #ifndef __RISCV_REG_H__
 #define __RISCV_REG_H__
 
-#include <common.h>
+#include <isa.h>
 
 static inline int check_reg_idx(int idx) {
-  IFDEF(CONFIG_RT_CHECK, assert(idx >= 0 && idx < MUXDEF(CONFIG_RVE, 16, 32)));
+  IFDEF(CONFIG_RT_CHECK, Assert(idx >= 0 && idx < (int)ARRLEN(cpu.gpr),
+      "bad gpr index: idx=%d nr_gpr=%d pc=" FMT_WORD, idx, (int)ARRLEN(cpu.gpr), cpu.pc));
   return idx;
 }
 

@@ -61,7 +61,48 @@ enum {
   CSR_MARCHID   = 0xF12,
 };
 
-static inline word_t csr_read(uint32_t addr) {
+static inline const char *csr_name(uint32_t addr) {
+  switch (addr) {
+    case CSR_MSTATUS: return "mstatus";
+    case CSR_MTVEC:   return "mtvec";
+    case CSR_MEPC:    return "mepc";
+    case CSR_MCAUSE:  return "mcause";
+    case CSR_MVENDORID: return "mvendorid";
+    case CSR_MARCHID:   return "marchid";
+    default: return "unknown";
+  }
+}
+
+static inline bool csr_is_readable(uint32_t addr) {
+  switch (addr) {
+    case CSR_MSTATUS:
+    case CSR_MTVEC:
+    case CSR_MEPC:
+    case CSR_MCAUSE:
+    case CSR_MVENDORID:
+    case CSR_MARCHID:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static inline bool csr_is_writable(uint32_t addr) {
+  switch (addr) {
+    case CSR_MSTATUS:
+    case CSR_MTVEC:
+    case CSR_MEPC:
+    case CSR_MCAUSE:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static inline word_t csr_read(const Decode *s, uint32_t addr) {
+  Assert(csr_is_readable(addr),
+      "read unsupported CSR: pc=" FMT_WORD " inst=0x%08x csr=0x%03x(%s)",
+      s->pc, s->isa.inst, addr, csr_name(addr));
   switch (addr) {
     case CSR_MSTATUS: return cpu.mstatus;
     case CSR_MTVEC:   return cpu.mtvec;
@@ -69,17 +110,20 @@ static inline word_t csr_read(uint32_t addr) {
     case CSR_MCAUSE:  return cpu.mcause;
     case CSR_MVENDORID: return 0x79737978;
     case CSR_MARCHID:   return 26030082;
-    default:          return 0;
+    default: panic("unreachable CSR read: csr=0x%03x", addr);
   }
 }
 
-static inline void csr_write(uint32_t addr, word_t data) {
+static inline void csr_write(const Decode *s, uint32_t addr, word_t data) {
+  Assert(csr_is_writable(addr),
+      "write unsupported or read-only CSR: pc=" FMT_WORD " inst=0x%08x csr=0x%03x(%s) data=" FMT_WORD,
+      s->pc, s->isa.inst, addr, csr_name(addr), data);
   switch (addr) {
     case CSR_MSTATUS: cpu.mstatus = data; break;
     case CSR_MTVEC:   cpu.mtvec   = data; break;
     case CSR_MEPC:    cpu.mepc    = data; break;
     case CSR_MCAUSE:  cpu.mcause  = data; break;
-    default: break;
+    default: panic("unreachable CSR write: csr=0x%03x data=" FMT_WORD, addr, data);
   }
 }
 
@@ -143,71 +187,79 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 100 ????? 00100 11", xori   , I, R(rd) = src1 ^ imm);
   INSTPAT("??????? ????? ????? 110 ????? 00100 11", ori    , I, R(rd) = src1 | imm);
   INSTPAT("??????? ????? ????? 111 ????? 00100 11", andi   , I, R(rd) = src1 & imm);
-  INSTPAT("0000000 ????? ????? 001 ????? 00100 11", slli   , I, R(rd) = src1 << imm);
-  INSTPAT("0000000 ????? ????? 101 ????? 00100 11", srli   , I, R(rd) = src1 >> imm);
-  INSTPAT("0100000 ????? ????? 101 ????? 00100 11", srai   , I, R(rd) = (sword_t)src1 >> imm);
+  INSTPAT("0000000 ????? ????? 001 ????? 00100 11", slli   , I,
+      Assert((imm & ~(word_t)0x1f) == 0,
+          "bad slli shamt: pc=" FMT_WORD " inst=0x%08x imm=" FMT_WORD, s->pc, s->isa.inst, imm);
+      R(rd) = src1 << imm);
+  INSTPAT("0000000 ????? ????? 101 ????? 00100 11", srli   , I,
+      Assert((imm & ~(word_t)0x1f) == 0,
+          "bad srli shamt: pc=" FMT_WORD " inst=0x%08x imm=" FMT_WORD, s->pc, s->isa.inst, imm);
+      R(rd) = src1 >> imm);
+  INSTPAT("0100000 ????? ????? 101 ????? 00100 11", srai   , I,
+      word_t shamt = BITS(s->isa.inst, 24, 20);
+      R(rd) = (sword_t)src1 >> shamt);
 
   INSTPAT("0000000 ????? ????? 000 ????? 01100 11", add    , R, R(rd) = src1 + src2);
   INSTPAT("0100000 ????? ????? 000 ????? 01100 11", sub    , R, R(rd) = src1 - src2);
-  INSTPAT("0000000 ????? ????? 001 ????? 01100 11", sll    , R, R(rd) = src1 << src2);
+  INSTPAT("0000000 ????? ????? 001 ????? 01100 11", sll    , R, R(rd) = src1 << (src2 & 0x1f));
   INSTPAT("0000000 ????? ????? 010 ????? 01100 11", slt    , R, R(rd) = (sword_t)src1 < (sword_t)src2);
   INSTPAT("0000000 ????? ????? 011 ????? 01100 11", sltu   , R, R(rd) = src1 < src2);
   INSTPAT("0000000 ????? ????? 100 ????? 01100 11", xor    , R, R(rd) = src1 ^ src2);
-  INSTPAT("0000000 ????? ????? 101 ????? 01100 11", srl    , R, R(rd) = src1 >> src2);
-  INSTPAT("0100000 ????? ????? 101 ????? 01100 11", sra    , R, R(rd) = (sword_t)src1 >> src2);
+  INSTPAT("0000000 ????? ????? 101 ????? 01100 11", srl    , R, R(rd) = src1 >> (src2 & 0x1f));
+  INSTPAT("0100000 ????? ????? 101 ????? 01100 11", sra    , R, R(rd) = (sword_t)src1 >> (src2 & 0x1f));
   INSTPAT("0000000 ????? ????? 110 ????? 01100 11", or     , R, R(rd) = src1 | src2);
   INSTPAT("0000000 ????? ????? 111 ????? 01100 11", and    , R, R(rd) = src1 & src2);
 
   INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , N,
-      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
-      uint32_t csr = csr_addr(s);
-      word_t old = csr_read(csr);
-      csr_write(csr, R(rs1));
-      R(rd) = old;
-  );
+	      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
+	      uint32_t csr = csr_addr(s);
+	      word_t old = csr_read(s, csr);
+	      csr_write(s, csr, R(rs1));
+	      R(rd) = old;
+	  );
   INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , N,
-      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
-      uint32_t csr = csr_addr(s);
-      word_t old = csr_read(csr);
-      if (rs1 != 0) {
-        csr_write(csr, old | R(rs1));
-      }
-      R(rd) = old;
-  );
+	      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
+	      uint32_t csr = csr_addr(s);
+	      word_t old = csr_read(s, csr);
+	      if (rs1 != 0) {
+	        csr_write(s, csr, old | R(rs1));
+	      }
+	      R(rd) = old;
+	  );
   INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc  , N,
-      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
-      uint32_t csr = csr_addr(s);
-      word_t old = csr_read(csr);
-      if (rs1 != 0) {
-        csr_write(csr, old & ~R(rs1));
-      }
-      R(rd) = old;
-  );
+	      uint32_t rs1 = BITS(s->isa.inst, 19, 15);
+	      uint32_t csr = csr_addr(s);
+	      word_t old = csr_read(s, csr);
+	      if (rs1 != 0) {
+	        csr_write(s, csr, old & ~R(rs1));
+	      }
+	      R(rd) = old;
+	  );
   INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , N,
-      uint32_t csr = csr_addr(s);
-      word_t zimm = BITS(s->isa.inst, 19, 15);
-      word_t old = csr_read(csr);
-      csr_write(csr, zimm);
-      R(rd) = old;
-  );
+	      uint32_t csr = csr_addr(s);
+	      word_t zimm = BITS(s->isa.inst, 19, 15);
+	      word_t old = csr_read(s, csr);
+	      csr_write(s, csr, zimm);
+	      R(rd) = old;
+	  );
   INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , N,
-      uint32_t csr = csr_addr(s);
-      word_t zimm = BITS(s->isa.inst, 19, 15);
-      word_t old = csr_read(csr);
-      if (zimm != 0) {
-        csr_write(csr, old | zimm);
-      }
-      R(rd) = old;
-  );
+	      uint32_t csr = csr_addr(s);
+	      word_t zimm = BITS(s->isa.inst, 19, 15);
+	      word_t old = csr_read(s, csr);
+	      if (zimm != 0) {
+	        csr_write(s, csr, old | zimm);
+	      }
+	      R(rd) = old;
+	  );
   INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci , N,
-      uint32_t csr = csr_addr(s);
-      word_t zimm = BITS(s->isa.inst, 19, 15);
-      word_t old = csr_read(csr);
-      if (zimm != 0) {
-        csr_write(csr, old & ~zimm);
-      }
-      R(rd) = old;
-  );
+	      uint32_t csr = csr_addr(s);
+	      word_t zimm = BITS(s->isa.inst, 19, 15);
+	      word_t old = csr_read(s, csr);
+	      if (zimm != 0) {
+	        csr_write(s, csr, old & ~zimm);
+	      }
+	      R(rd) = old;
+	  );
 
   // MISC-MEM: model fence/fence.i as architectural NOP in the interpreter.
   INSTPAT("??????? ????? ????? 000 ????? 00011 11", fence  , N, );
@@ -231,11 +283,21 @@ static int decode_exec(Decode *s) {
   INSTPAT_END();
 
   R(0) = 0; // reset $zero to 0
+  Assert(cpu.gpr[0] == 0,
+      "x0 invariant violated after execute: pc=" FMT_WORD " inst=0x%08x x0=" FMT_WORD,
+      s->pc, s->isa.inst, cpu.gpr[0]);
+  Assert((s->dnpc & 0x3) == 0,
+      "unaligned dnpc after execute: pc=" FMT_WORD " inst=0x%08x dnpc=" FMT_WORD,
+      s->pc, s->isa.inst, s->dnpc);
 
   return 0;
 }
 
 int isa_exec_once(Decode *s) {
+  Assert((s->pc & 0x3) == 0, "unaligned ifetch pc: pc=" FMT_WORD, s->pc);
   s->isa.inst = inst_fetch(&s->snpc, 4);
+  Assert(s->snpc == s->pc + 4,
+      "unexpected snpc after ifetch: pc=" FMT_WORD " snpc=" FMT_WORD " inst=0x%08x",
+      s->pc, s->snpc, s->isa.inst);
   return decode_exec(s);
 }

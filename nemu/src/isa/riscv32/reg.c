@@ -23,7 +23,7 @@ const char *regs[] = {
   "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
 };
 
-#define NR_GPR ARRLEN(regs)
+#define NR_GPR ((int)ARRLEN(cpu.gpr))
 
 void isa_reg_display() {
   for (int i = 0; i < NR_GPR; i ++) {
