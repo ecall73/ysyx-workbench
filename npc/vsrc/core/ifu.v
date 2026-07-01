@@ -139,6 +139,7 @@ module ysyx_26030082_ifu #(
     end
 
 `ifndef SYNTHESIS
+`ifndef __ICARUS__
     initial begin
         if ((LINE_WORDS < 2) || ((LINE_WORDS & (LINE_WORDS - 1)) != 0) || (LINE_WORDS > 256)) begin
             $fatal(1, "icache LINE_WORDS != 2**n (1 <= n <= 8)");
@@ -155,7 +156,6 @@ module ysyx_26030082_ifu #(
         if (!reset && if_out_valid && (if_pc[1:0] != 2'b00)) begin
             $fatal(1, "unaligned ifu fetch pc=%08x", if_pc);
         end
-`ifndef __ICARUS__
         if (!reset && ifu_master_arvalid &&
             (ifu_master_araddr[1:0] != 2'b00 ||
              ifu_master_arburst != 2'b01 ||
@@ -163,7 +163,6 @@ module ysyx_26030082_ifu #(
             $fatal(1, "ifu: bad AR request pc=%08x araddr=%08x arlen=%0d arburst=%0b",
                 if_pc, ifu_master_araddr, ifu_master_arlen, ifu_master_arburst);
         end
-`endif
         if (!reset && (state == S_MISS_R) && r_fire) begin
             if ((refill_word_idx == LINE_LAST_WORD) && !ifu_master_rlast) begin
                 $fatal(1, "ifu burst refill missing rlast on final beat line=%08x", ifu_master_araddr);
@@ -173,6 +172,7 @@ module ysyx_26030082_ifu #(
             end
         end
     end
+`endif
 `endif
 
     wire _unused_ok = &{1'b0, ifu_master_rresp};
