@@ -69,7 +69,9 @@ static inline word_t csr_read(uint32_t addr) {
     case CSR_MCAUSE:  return cpu.mcause;
     case CSR_MVENDORID: return 0x79737978;
     case CSR_MARCHID:   return 26030082;
-    default:          return 0;
+    default:
+      Assert(0, "read unsupported CSR: pc=" FMT_WORD " csr=0x%03x", cpu.pc, addr);
+      return 0;
   }
 }
 
@@ -79,7 +81,13 @@ static inline void csr_write(uint32_t addr, word_t data) {
     case CSR_MTVEC:   cpu.mtvec   = data; break;
     case CSR_MEPC:    cpu.mepc    = data; break;
     case CSR_MCAUSE:  cpu.mcause  = data; break;
-    default: break;
+    case CSR_MVENDORID:
+    case CSR_MARCHID:
+      Assert(0, "write read-only CSR: pc=" FMT_WORD " csr=0x%03x data=" FMT_WORD, cpu.pc, addr, data);
+      break;
+    default:
+      Assert(0, "write unsupported CSR: pc=" FMT_WORD " csr=0x%03x data=" FMT_WORD, cpu.pc, addr, data);
+      break;
   }
 }
 
@@ -231,11 +239,18 @@ static int decode_exec(Decode *s) {
   INSTPAT_END();
 
   R(0) = 0; // reset $zero to 0
+  Assert((s->dnpc & 0x3) == 0,
+      "unaligned dnpc after execute: pc=" FMT_WORD " inst=0x%08x dnpc=" FMT_WORD,
+      s->pc, s->isa.inst, s->dnpc);
 
   return 0;
 }
 
 int isa_exec_once(Decode *s) {
+  Assert((s->pc & 0x3) == 0, "unaligned ifetch pc: pc=" FMT_WORD, s->pc);
   s->isa.inst = inst_fetch(&s->snpc, 4);
+  Assert(s->snpc == s->pc + 4,
+      "unexpected snpc after ifetch: pc=" FMT_WORD " snpc=" FMT_WORD " inst=0x%08x",
+      s->pc, s->snpc, s->isa.inst);
   return decode_exec(s);
 }

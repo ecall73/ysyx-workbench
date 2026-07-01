@@ -28,11 +28,36 @@ static uint8_t pmem[CONFIG_MSIZE] PG_ALIGN = {};
 
 static bool use_ysyxsoc_paddr = false;
 
+static bool valid_access_len(int len) {
+  switch (len) {
+    case 1: case 2: case 4:
+      return true;
+    IFDEF(CONFIG_ISA64, case 8: return true);
+    default:
+      return false;
+  }
+}
+
 /*
  * Native NEMU memory map
  */
-uint8_t* guest_to_host(paddr_t paddr) { return pmem + paddr - CONFIG_MBASE; }
-paddr_t host_to_guest(uint8_t *haddr) { return haddr - pmem + CONFIG_MBASE; }
+uint8_t* guest_to_host(paddr_t paddr) {
+  IFDEF(CONFIG_RT_CHECK, Assert(in_pmem(paddr),
+      "guest_to_host out of pmem: paddr=" FMT_PADDR " pc=" FMT_WORD, paddr, cpu.pc));
+  return pmem + paddr - CONFIG_MBASE;
+}
+
+paddr_t host_to_guest(uint8_t *haddr) {
+  IFDEF(CONFIG_RT_CHECK, {
+    uintptr_t host = (uintptr_t)haddr;
+    uintptr_t left = (uintptr_t)pmem;
+    uintptr_t right = left + CONFIG_MSIZE;
+    Assert(host >= left && host < right,
+        "host address is out of native pmem: haddr=%p pmem=[%p, %p)",
+        haddr, (void *)left, (void *)right);
+  });
+  return haddr - pmem + CONFIG_MBASE;
+}
 
 static word_t pmem_read(paddr_t addr, int len) {
   return host_read(guest_to_host(addr), len);
@@ -136,7 +161,8 @@ __EXPORT void difftest_enable_ysyxsoc_paddr(void) {
 void init_mem() {
 #if   defined(CONFIG_PMEM_MALLOC)
   pmem = malloc(CONFIG_MSIZE);
-  assert(pmem);
+  Assert(pmem != NULL, "Can not allocate physical memory: size=%" PRIu64,
+      (uint64_t)CONFIG_MSIZE);
 #endif
   IFDEF(CONFIG_MEM_RANDOM, memset(pmem, rand(), CONFIG_MSIZE));
 
@@ -150,6 +176,8 @@ void init_mem() {
 }
 
 word_t paddr_read(paddr_t addr, int len) {
+  IFDEF(CONFIG_RT_CHECK, Assert(valid_access_len(len),
+      "invalid memory read length: pc=" FMT_WORD " addr=" FMT_PADDR " len=%d", cpu.pc, addr, len));
   if (use_ysyxsoc_paddr) {
     word_t data = 0;
     if (likely(ysyxsoc_paddr_read(addr, len, &data))) {
@@ -166,6 +194,8 @@ word_t paddr_read(paddr_t addr, int len) {
 }
 
 void paddr_write(paddr_t addr, int len, word_t data) {
+  IFDEF(CONFIG_RT_CHECK, Assert(valid_access_len(len),
+      "invalid memory write length: pc=" FMT_WORD " addr=" FMT_PADDR " len=%d data=" FMT_WORD, cpu.pc, addr, len, data));
   if (use_ysyxsoc_paddr) {
     if (likely(ysyxsoc_paddr_write(addr, len, data))) {
       return;

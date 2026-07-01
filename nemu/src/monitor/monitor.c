@@ -66,12 +66,18 @@ static long load_img() {
 
   fseek(fp, 0, SEEK_END);
   long size = ftell(fp);
+  Assert(size >= 0, "Can not get size of image '%s'", img_file);
+  uint64_t image_capacity = (uint64_t)PMEM_RIGHT - (uint64_t)RESET_VECTOR + 1;
+  Assert((uint64_t)size <= image_capacity,
+      "Image is too large: file='%s' size=%ld reset_vector=" FMT_PADDR
+      " capacity=%" PRIu64 " pmem=[" FMT_PADDR ", " FMT_PADDR "]",
+      img_file, size, RESET_VECTOR, image_capacity, PMEM_LEFT, PMEM_RIGHT);
 
   Log("The image is %s, size = %ld", img_file, size);
 
   fseek(fp, 0, SEEK_SET);
   int ret = fread(guest_to_host(RESET_VECTOR), size, 1, fp);
-  assert(ret == 1);
+  Assert(ret == 1, "Failed to read image '%s': size=%ld ret=%d", img_file, size, ret);
 
   fclose(fp);
   return size;

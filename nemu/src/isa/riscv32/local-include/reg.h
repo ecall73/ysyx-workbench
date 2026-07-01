@@ -19,7 +19,8 @@
 #include <common.h>
 
 static inline int check_reg_idx(int idx) {
-  IFDEF(CONFIG_RT_CHECK, assert(idx >= 0 && idx < MUXDEF(CONFIG_RVE, 16, 32)));
+  IFDEF(CONFIG_RT_CHECK, Assert(idx >= 0 && idx < MUXDEF(CONFIG_RVE, 16, 32),
+      "bad gpr index: idx=%d nr_gpr=%d", idx, MUXDEF(CONFIG_RVE, 16, 32)));
   return idx;
 }
 

@@ -19,7 +19,21 @@
 #include <memory/paddr.h>
 #include <string.h>
 
+#if defined(CONFIG_ISA_riscv)
+_Static_assert(DIFFTEST_REG_SIZE == sizeof(CPU_state),
+    "RISC-V DiffTest register copy size must match CPU_state");
+#endif
+
 __EXPORT void difftest_memcpy(paddr_t addr, void *buf, size_t n, bool direction) {
+  Assert(buf != NULL,
+      "difftest_memcpy with null buffer: addr=" FMT_PADDR " n=%zu direction=%d",
+      addr, n, direction);
+  Assert(direction == DIFFTEST_TO_DUT || direction == DIFFTEST_TO_REF,
+      "difftest_memcpy with bad direction: addr=" FMT_PADDR " n=%zu direction=%d",
+      addr, n, direction);
+  Assert(n == 0 || (uint64_t)addr + (uint64_t)n - 1 >= (uint64_t)addr,
+      "difftest_memcpy address overflow: addr=" FMT_PADDR " n=%zu direction=%d",
+      addr, n, direction);
   uint8_t *p = (uint8_t *)buf;
   if (direction == DIFFTEST_TO_REF) {
     for (size_t i = 0; i < n; i++) {
@@ -33,6 +47,9 @@ __EXPORT void difftest_memcpy(paddr_t addr, void *buf, size_t n, bool direction)
 }
 
 __EXPORT void difftest_regcpy(void *dut, bool direction) {
+  Assert(dut != NULL, "difftest_regcpy with null buffer: direction=%d", direction);
+  Assert(direction == DIFFTEST_TO_DUT || direction == DIFFTEST_TO_REF,
+      "difftest_regcpy with bad direction: direction=%d", direction);
   if (direction == DIFFTEST_TO_REF) {
     memcpy(&cpu, dut, DIFFTEST_REG_SIZE);
   } else {
@@ -45,7 +62,7 @@ __EXPORT void difftest_exec(uint64_t n) {
 }
 
 __EXPORT void difftest_raise_intr(word_t NO) {
-  assert(0);
+  panic("unexpected difftest_raise_intr: NO=" FMT_WORD " pc=" FMT_WORD, NO, cpu.pc);
 }
 
 __EXPORT void difftest_init(int port) {

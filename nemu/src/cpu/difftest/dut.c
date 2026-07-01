@@ -52,6 +52,9 @@ void difftest_skip_ref() {
 //   Let REF run `nr_ref` instructions first.
 //   We expect that DUT will catch up with REF within `nr_dut` instructions.
 void difftest_skip_dut(int nr_ref, int nr_dut) {
+  Assert(nr_ref >= 0 && nr_dut >= 0,
+      "bad difftest_skip_dut arguments: nr_ref=%d nr_dut=%d skip_dut_nr_inst=%d",
+      nr_ref, nr_dut, skip_dut_nr_inst);
   skip_dut_nr_inst += nr_dut;
 
   while (nr_ref -- > 0) {
@@ -60,26 +63,34 @@ void difftest_skip_dut(int nr_ref, int nr_dut) {
 }
 
 void init_difftest(char *ref_so_file, long img_size, int port) {
-  assert(ref_so_file != NULL);
+  Assert(ref_so_file != NULL, "DiffTest is enabled but ref_so_file is NULL");
+  Assert(img_size >= 0,
+      "DiffTest image size is negative: img_size=%ld reset_vector=" FMT_PADDR,
+      img_size, RESET_VECTOR);
+  Assert((uint64_t)img_size <= (uint64_t)PMEM_RIGHT - (uint64_t)RESET_VECTOR + 1,
+      "DiffTest image is too large: img_size=%ld reset_vector=" FMT_PADDR
+      " pmem=[" FMT_PADDR ", " FMT_PADDR "]",
+      img_size, RESET_VECTOR, PMEM_LEFT, PMEM_RIGHT);
 
   void *handle;
   handle = dlopen(ref_so_file, RTLD_LAZY);
-  assert(handle);
+  Assert(handle != NULL, "Can not open DiffTest reference '%s': %s",
+      ref_so_file, dlerror());
 
   ref_difftest_memcpy = dlsym(handle, "difftest_memcpy");
-  assert(ref_difftest_memcpy);
+  Assert(ref_difftest_memcpy, "Can not find DiffTest symbol 'difftest_memcpy'");
 
   ref_difftest_regcpy = dlsym(handle, "difftest_regcpy");
-  assert(ref_difftest_regcpy);
+  Assert(ref_difftest_regcpy, "Can not find DiffTest symbol 'difftest_regcpy'");
 
   ref_difftest_exec = dlsym(handle, "difftest_exec");
-  assert(ref_difftest_exec);
+  Assert(ref_difftest_exec, "Can not find DiffTest symbol 'difftest_exec'");
 
   ref_difftest_raise_intr = dlsym(handle, "difftest_raise_intr");
-  assert(ref_difftest_raise_intr);
+  Assert(ref_difftest_raise_intr, "Can not find DiffTest symbol 'difftest_raise_intr'");
 
   void (*ref_difftest_init)(int) = dlsym(handle, "difftest_init");
-  assert(ref_difftest_init);
+  Assert(ref_difftest_init, "Can not find DiffTest symbol 'difftest_init'");
 
   Log("Differential testing: %s", ANSI_FMT("ON", ANSI_FG_GREEN));
   Log("The result of every instruction will be compared with %s. "
@@ -104,6 +115,10 @@ void difftest_step(vaddr_t pc, vaddr_t npc) {
 
   if (skip_dut_nr_inst > 0) {
     ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT);
+    Assert((ref_r.pc & 0x3) == 0,
+        "DiffTest ref pc is unaligned while catching up: ref_pc=" FMT_WORD
+        " dut_pc=" FMT_WORD " npc=" FMT_WORD,
+        ref_r.pc, pc, npc);
     if (ref_r.pc == npc) {
       skip_dut_nr_inst = 0;
       checkregs(&ref_r, npc);
@@ -124,6 +139,9 @@ void difftest_step(vaddr_t pc, vaddr_t npc) {
 
   ref_difftest_exec(1);
   ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT);
+  Assert((ref_r.pc & 0x3) == 0,
+      "DiffTest ref pc is unaligned: ref_pc=" FMT_WORD " dut_pc=" FMT_WORD " npc=" FMT_WORD,
+      ref_r.pc, pc, npc);
 
   checkregs(&ref_r, pc);
 }
