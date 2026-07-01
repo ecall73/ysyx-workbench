@@ -1,18 +1,3 @@
-/***************************************************************************************
-* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
-*
-* NEMU is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-*
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-*
-* See the Mulan PSL v2 for more details.
-***************************************************************************************/
-
 #include <dlfcn.h>
 #include <capstone/capstone.h>
 #include <common.h>
@@ -48,13 +33,13 @@ void init_disasm() {
 
   cs_arch arch = CS_ARCH_RISCV;
   cs_mode mode = (cs_mode)(CS_MODE_RISCV32 | CS_MODE_RISCVC);
-	int ret = cs_open_dl(arch, mode, &handle);
+  int ret = cs_open_dl(arch, mode, &handle);
   assert(ret == CS_ERR_OK);
 }
 
 void disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte) {
-	cs_insn *insn;
-	size_t count = cs_disasm_dl(handle, code, nbyte, pc, 0, &insn);
+  cs_insn *insn;
+  size_t count = cs_disasm_dl(handle, code, nbyte, pc, 0, &insn);
   assert(count == 1);
   int ret = snprintf(str, size, "%s", insn->mnemonic);
   if (insn->op_str[0] != '\0') {

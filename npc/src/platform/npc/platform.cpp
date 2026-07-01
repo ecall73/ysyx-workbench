@@ -1,6 +1,5 @@
 #include <assert.h>
 #include <stdio.h>
-#include <string.h>
 
 #include <memory/paddr.h>
 #include <isa.h>
@@ -15,7 +14,7 @@ static bool in_npc_pmem(uint32_t addr) {
 }
 
 void platform_log_memory() {
-  Log("physical memory area [0x%08x, 0x%08x]", NPC_PMEM_BASE, NPC_PMEM_BASE + NPC_PMEM_SIZE - 1);
+  Log("Memory: PMEM [0x%08x, 0x%08x]", NPC_PMEM_BASE, NPC_PMEM_BASE + NPC_PMEM_SIZE - 1);
 }
 
 void platform_init() {}
@@ -35,7 +34,9 @@ long platform_load_image(const char *img_file) {
   assert(ret == 1);
   fclose(fp);
   img_size = size;
+  /*
   Log("The image is %s, size = %ld", img_file, size);
+  */
   return size;
 }
 
@@ -56,13 +57,45 @@ void platform_out_of_bound(paddr_t addr) {
       addr, NPC_PMEM_BASE, NPC_PMEM_BASE + NPC_PMEM_SIZE - 1, cpu.pc);
 }
 
-const char *platform_device_name(uint32_t addr) {
-  if (addr == 0x10000000u) return "uart";
+static const char *platform_device_name(uint32_t addr) {
+  if (addr >= 0x10000000u && addr <= 0x10000fffu) return "UART";
   return NULL;
 }
 
+#ifdef CONFIG_MTRACE
+static const char *platform_memory_name(uint32_t addr) {
+  return in_npc_pmem(addr) ? "PMEM" : NULL;
+}
+#endif
+
 bool platform_in_comparable_mem(paddr_t addr) {
   return in_npc_pmem(addr);
+}
+
+void platform_trace_read(paddr_t addr, int len, word_t data) {
+#ifdef CONFIG_MTRACE
+  const char *mem = platform_memory_name(addr);
+  if ((MTRACE_COND) && mem != NULL) {
+    mtrace_write(FMT_WORD " R %d " FMT_WORD " [%s]\n", addr, len, data, mem);
+  }
+#endif
+  const char *name = platform_device_name(addr);
+  if (name != NULL) {
+    IFDEF(CONFIG_DTRACE, dtrace_write(FMT_WORD " R %d " FMT_WORD " [%s]\n", addr, len, data, name));
+  }
+}
+
+void platform_trace_write(paddr_t addr, int len, word_t data) {
+#ifdef CONFIG_MTRACE
+  const char *mem = platform_memory_name(addr);
+  if ((MTRACE_COND) && mem != NULL) {
+    mtrace_write(FMT_WORD " W %d " FMT_WORD " [%s]\n", addr, len, data, mem);
+  }
+#endif
+  const char *name = platform_device_name(addr);
+  if (name != NULL) {
+    IFDEF(CONFIG_DTRACE, dtrace_write(FMT_WORD " W %d " FMT_WORD " [%s]\n", addr, len, data, name));
+  }
 }
 
 void platform_difftest_memcpy(void (*ref_memcpy)(paddr_t, void *, size_t, bool), bool direction) {

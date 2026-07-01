@@ -13,10 +13,19 @@
 void nvboard_bind_all_pins(SimTop *top);
 
 static uint8_t flash[NPC_FLASH_SIZE];
+static uint8_t sdram[NPC_SDRAM_SIZE];
 static long flash_size = 0;
 
 static bool in_flash(uint32_t addr) {
   return addr >= NPC_FLASH_BASE && addr < NPC_FLASH_BASE + NPC_FLASH_SIZE;
+}
+
+static bool in_sdram(uint32_t addr) {
+  return addr >= NPC_SDRAM_BASE && addr < NPC_SDRAM_BASE + NPC_SDRAM_SIZE;
+}
+
+static bool in_range32(uint32_t addr, uint32_t base, uint32_t end) {
+  return addr >= base && addr <= end;
 }
 
 static bool in_range(uint32_t addr, int len, uint32_t base, uint32_t size) {
@@ -24,7 +33,8 @@ static bool in_range(uint32_t addr, int len, uint32_t base, uint32_t size) {
 }
 
 void platform_log_memory() {
-  Log("ysyxsoc flash area [0x%08x, 0x%08x]", NPC_FLASH_BASE, NPC_FLASH_BASE + NPC_FLASH_SIZE - 1);
+  Log("Memory: Flash [0x%08x, 0x%08x]", NPC_FLASH_BASE, NPC_FLASH_BASE + NPC_FLASH_SIZE - 1);
+  Log("Memory: SDRAM [0x%08x, 0x%08x]", NPC_SDRAM_BASE, NPC_SDRAM_BASE + NPC_SDRAM_SIZE - 1);
 }
 
 void platform_init() {
@@ -45,6 +55,7 @@ uint32_t platform_reset_pc() { return NPC_RESET_PC_YSYXSOC; }
 
 long platform_load_image(const char *img_file) {
   memset(flash, 0xff, sizeof(flash));
+  memset(sdram, 0, sizeof(sdram));
   FILE *fp = fopen(img_file, "rb");
   Assert(fp, "Can not open '%s'", img_file);
   fseek(fp, 0, SEEK_END);
@@ -55,42 +66,95 @@ long platform_load_image(const char *img_file) {
   fclose(fp);
   assert(nread == (size_t)size);
   flash_size = size;
+  /*
   Log("Flash boot image loaded: %s, size = %ld, base = 0x%08x", img_file, size, NPC_FLASH_BASE);
+  */
   return size;
 }
 
 bool platform_read(paddr_t addr, int len, word_t *data) {
-  if (!in_range(addr, len, NPC_FLASH_BASE, NPC_FLASH_SIZE)) return false;
-  *data = host_read(flash + addr - NPC_FLASH_BASE, len);
-  return true;
+  if (in_range(addr, len, NPC_FLASH_BASE, NPC_FLASH_SIZE)) {
+    *data = host_read(flash + addr - NPC_FLASH_BASE, len);
+    return true;
+  }
+  if (in_range(addr, len, NPC_SDRAM_BASE, NPC_SDRAM_SIZE)) {
+    *data = host_read(sdram + addr - NPC_SDRAM_BASE, len);
+    return true;
+  }
+  return false;
 }
 
 bool platform_write(paddr_t addr, int len, word_t data) {
-  if (!in_range(addr, len, NPC_FLASH_BASE, NPC_FLASH_SIZE)) return false;
-  host_write(flash + addr - NPC_FLASH_BASE, len, data);
-  return true;
+  if (in_range(addr, len, NPC_FLASH_BASE, NPC_FLASH_SIZE)) {
+    host_write(flash + addr - NPC_FLASH_BASE, len, data);
+    return true;
+  }
+  if (in_range(addr, len, NPC_SDRAM_BASE, NPC_SDRAM_SIZE)) {
+    host_write(sdram + addr - NPC_SDRAM_BASE, len, data);
+    return true;
+  }
+  return false;
 }
 
 void platform_out_of_bound(paddr_t addr) {
-  panic("address = " FMT_PADDR " is out of bound of ysyxSoC flash [0x%08x, 0x%08x] at pc = " FMT_WORD,
-      addr, NPC_FLASH_BASE, NPC_FLASH_BASE + NPC_FLASH_SIZE - 1, cpu.pc);
+  panic("address = " FMT_PADDR " is out of bound of ysyxSoC memory. flash [0x%08x, 0x%08x], "
+      "sdram [0x%08x, 0x%08x], pc = " FMT_WORD,
+      addr, NPC_FLASH_BASE, NPC_FLASH_BASE + NPC_FLASH_SIZE - 1,
+      NPC_SDRAM_BASE, NPC_SDRAM_BASE + NPC_SDRAM_SIZE - 1, cpu.pc);
 }
 
-const char *platform_device_name(uint32_t addr) {
-  if (addr >= 0x02000000u && addr <= 0x0200ffffu) return "clint";
-  if (addr >= 0x10000000u && addr <= 0x10000fffu) return "uart16550";
-  if (addr >= 0x10011000u && addr <= 0x10011007u) return "ps2";
-  if (addr >= 0x21000000u && addr <= 0x211fffffu) return "vga";
-  if (in_flash(addr)) return "flash";
-  if (addr >= NPC_SRAM_BASE && addr < NPC_SRAM_BASE + NPC_SRAM_SIZE) return "sram";
-  if (addr >= NPC_SDRAM_BASE && addr < NPC_SDRAM_BASE + NPC_SDRAM_SIZE) return "sdram";
+static const char *platform_device_name(uint32_t addr) {
+  if (in_range32(addr, 0x10000000u, 0x10000fffu)) return "UART16550";
+  if (in_range32(addr, 0x10001000u, 0x10001fffu)) return "SPI";
+  if (in_range32(addr, 0x10002000u, 0x1000200fu)) return "GPIO";
+  if (in_range32(addr, 0x10011000u, 0x10011007u)) return "PS2";
+  if (in_range32(addr, 0x21000000u, 0x211fffffu)) return "VGA";
+  if (in_range32(addr, 0x40000000u, 0x7fffffffu)) return "ChipLink MMIO";
   return NULL;
 }
 
 bool platform_in_comparable_mem(paddr_t addr) {
   return in_flash(addr)
       || (addr >= NPC_SRAM_BASE && addr < NPC_SRAM_BASE + NPC_SRAM_SIZE)
-      || (addr >= NPC_SDRAM_BASE && addr < NPC_SDRAM_BASE + NPC_SDRAM_SIZE);
+      || in_sdram(addr);
+}
+
+#ifdef CONFIG_MTRACE
+static const char *platform_memory_name(uint32_t addr) {
+  if (in_range32(addr, 0x0f000000u, 0x0fffffffu)) return "SRAM";
+  if (in_range32(addr, 0x20000000u, 0x20000fffu)) return "MROM";
+  if (in_range32(addr, 0x30000000u, 0x3fffffffu)) return "Flash";
+  if (in_range32(addr, 0x80000000u, 0x9fffffffu)) return "PSRAM";
+  if (in_range32(addr, 0xa0000000u, 0xbfffffffu)) return "SDRAM";
+  if (in_range32(addr, 0xc0000000u, 0xffffffffu)) return "ChipLink MEM";
+  return NULL;
+}
+#endif
+
+void platform_trace_read(paddr_t addr, int len, word_t data) {
+#ifdef CONFIG_MTRACE
+  const char *mem = platform_memory_name(addr);
+  if ((MTRACE_COND) && mem != NULL) {
+    mtrace_write(FMT_WORD " R %d " FMT_WORD " [%s]\n", addr, len, data, mem);
+  }
+#endif
+  const char *name = platform_device_name(addr);
+  if (name != NULL) {
+    IFDEF(CONFIG_DTRACE, dtrace_write(FMT_WORD " R %d " FMT_WORD " [%s]\n", addr, len, data, name));
+  }
+}
+
+void platform_trace_write(paddr_t addr, int len, word_t data) {
+#ifdef CONFIG_MTRACE
+  const char *mem = platform_memory_name(addr);
+  if ((MTRACE_COND) && mem != NULL) {
+    mtrace_write(FMT_WORD " W %d " FMT_WORD " [%s]\n", addr, len, data, mem);
+  }
+#endif
+  const char *name = platform_device_name(addr);
+  if (name != NULL) {
+    IFDEF(CONFIG_DTRACE, dtrace_write(FMT_WORD " W %d " FMT_WORD " [%s]\n", addr, len, data, name));
+  }
 }
 
 void platform_difftest_memcpy(void (*ref_memcpy)(paddr_t, void *, size_t, bool), bool direction) {
@@ -114,4 +178,17 @@ extern "C" void flash_read(int addr, int *data) {
 extern "C" void mrom_read(int raddr, int *rdata) {
   (void)raddr;
   *rdata = 0x00000013;
+}
+
+extern "C" int sdram_read16(unsigned int word_addr) {
+  uint32_t off = word_addr * 2u;
+  if (off > NPC_SDRAM_SIZE - 2) return 0;
+  return (int)host_read(sdram + off, 2);
+}
+
+extern "C" void sdram_write16(unsigned int word_addr, unsigned int data, unsigned int mask) {
+  uint32_t off = word_addr * 2u;
+  if (off > NPC_SDRAM_SIZE - 2) return;
+  if (mask & 0x1u) sdram[off] = data & 0xffu;
+  if (mask & 0x2u) sdram[off + 1] = (data >> 8) & 0xffu;
 }

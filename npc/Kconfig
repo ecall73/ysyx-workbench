@@ -1,30 +1,6 @@
 mainmenu "NPC Configuration Menu"
 
-choice
-  prompt "Simulation platform"
-  default PLATFORM_NPC
-config PLATFORM_NPC
-  bool "Standalone NPC"
-config PLATFORM_YSYXSOC
-  bool "NPC in ysyxSoC"
-endchoice
-
-config PLATFORM
-  string
-  default "npc" if PLATFORM_NPC
-  default "ysyxsoc" if PLATFORM_YSYXSOC
-
 menu "Build Options"
-choice
-  prompt "Compiler"
-  default CC_GPP
-config CC_GPP
-  bool "g++"
-endchoice
-
-config CC
-  string
-  default "g++"
 
 choice
   prompt "Host optimization level"
@@ -73,12 +49,17 @@ config VERILATOR_OPT
 config MAX_SIM_TIME
   int "Maximum simulation cycles"
   default 1000000000
+
+config MAX_NO_COMMIT_CYCLES
+  int "Maximum cycles without an instruction commit"
+  default 1000
+
 endmenu
 
 menu "Testing and Debugging"
 config TRACE
   bool "Enable tracer"
-  default y
+  default n
 
 config TRACE_START
   depends on TRACE
@@ -88,12 +69,12 @@ config TRACE_START
 config TRACE_END
   depends on TRACE
   int "When tracing is disabled (unit: number of instructions)"
-  default 10000
+  default 1000000
 
 config ITRACE
   depends on TRACE
   bool "Enable instruction tracer"
-  default y
+  default n
 
 config ITRACE_COND
   depends on ITRACE
@@ -131,10 +112,6 @@ config DIFFTEST
 
 config WAVE
   bool "Enable waveform"
-  default n
-
-config PERF
-  bool "Enable performance counters"
   default n
 
 config WATCHPOINT

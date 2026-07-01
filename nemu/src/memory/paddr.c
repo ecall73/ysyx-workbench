@@ -72,7 +72,7 @@ static bool in_region(paddr_t addr, int len, paddr_t base, uint32_t size) {
 }
 
 static void ysyxsoc_paddr_init(void) {
-  memset(flash, 0, sizeof(flash));
+  memset(flash, 0xff, sizeof(flash));
   memset(sram, 0, sizeof(sram));
   memset(sdram, 0, sizeof(sdram));
 }

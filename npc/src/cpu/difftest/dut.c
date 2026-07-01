@@ -1,18 +1,3 @@
-/***************************************************************************************
-* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
-*
-* NEMU is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-*
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-*
-* See the Mulan PSL v2 for more details.
-***************************************************************************************/
-
 #include <dlfcn.h>
 
 #include <isa.h>
@@ -22,13 +7,11 @@
 #include <difftest-def.h>
 #include <platform/platform.h>
 
-void (*ref_difftest_memcpy)(paddr_t addr, void *buf, size_t n, bool direction) = NULL;
-void (*ref_difftest_regcpy)(void *dut, bool direction) = NULL;
-void (*ref_difftest_exec)(uint64_t n) = NULL;
-
 #ifdef CONFIG_DIFFTEST
 
-static int skip_dut_nr_inst = 0;
+static void (*ref_difftest_memcpy)(paddr_t addr, void *buf, size_t n, bool direction) = NULL;
+static void (*ref_difftest_regcpy)(void *dut, bool direction) = NULL;
+static void (*ref_difftest_exec)(uint64_t n) = NULL;
 
 #define OPCODE_LOAD  0x03u
 #define OPCODE_STORE 0x23u
@@ -55,20 +38,6 @@ static bool should_skip_ref(uint32_t inst, const CPU_state *ref) {
   return !platform_in_comparable_mem(ref->gpr[rs1] + imm);
 }
 
-// this is used to deal with instruction packing in REF.
-// Sometimes letting REF step once will execute multiple instructions.
-// We should skip checking until NPC's pc catches up with REF's pc.
-// The semantic is
-//   Let REF run `nr_ref` instructions first.
-//   We expect that DUT will catch up with REF within `nr_dut` instructions.
-void difftest_skip_dut(int nr_ref, int nr_dut) {
-  skip_dut_nr_inst += nr_dut;
-
-  while (nr_ref -- > 0) {
-    ref_difftest_exec(1);
-  }
-}
-
 void init_difftest(char *ref_so_file, long img_size, int port) {
   assert(ref_so_file != NULL);
 
@@ -90,9 +59,6 @@ void init_difftest(char *ref_so_file, long img_size, int port) {
   void (*ref_enable_ysyxsoc_paddr)(void) = dlsym(handle, "difftest_enable_ysyxsoc_paddr");
 
   Log("Differential testing: %s", ANSI_FMT("ON", ANSI_FG_GREEN));
-  Log("The result of every instruction will be compared with %s. "
-      "This will help you a lot for debugging, but also significantly reduce the performance. "
-      "If it is not necessary, you can turn it off in menuconfig.", ref_so_file);
 
   platform_enable_ref_paddr(ref_enable_ysyxsoc_paddr);
   ref_difftest_init(port);
@@ -108,21 +74,9 @@ static void checkregs(CPU_state *ref, vaddr_t pc) {
   }
 }
 
-void difftest_step(vaddr_t pc, vaddr_t npc, uint32_t inst) {
+void difftest_step(vaddr_t pc, vaddr_t dnpc, uint32_t inst) {
+  (void)dnpc;
   CPU_state ref_r;
-
-  if (skip_dut_nr_inst > 0) {
-    ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT);
-    if (ref_r.pc == npc) {
-      skip_dut_nr_inst = 0;
-      checkregs(&ref_r, npc);
-      return;
-    }
-    skip_dut_nr_inst --;
-    if (skip_dut_nr_inst == 0)
-      panic("can not catch up with ref.pc = " FMT_WORD " at pc = " FMT_WORD, ref_r.pc, pc);
-    return;
-  }
 
   ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT);
   if (should_skip_ref(inst, &ref_r)) {
@@ -136,5 +90,9 @@ void difftest_step(vaddr_t pc, vaddr_t npc, uint32_t inst) {
   checkregs(&ref_r, pc);
 }
 #else
-void init_difftest(char *ref_so_file, long img_size, int port) { }
+void init_difftest(char *ref_so_file, long img_size, int port) {
+  (void)ref_so_file;
+  (void)img_size;
+  (void)port;
+}
 #endif

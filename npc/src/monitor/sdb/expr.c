@@ -1,18 +1,3 @@
-/***************************************************************************************
-* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
-*
-* NEMU is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-*
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-*
-* See the Mulan PSL v2 for more details.
-***************************************************************************************/
-
 #include <isa.h>
 
 /* We use the POSIX regex functions to process regular expressions.
@@ -106,10 +91,12 @@ static bool make_token(char *e) {
         char *substr_start = e + position;
         int substr_len = pmatch.rm_eo;
 
+        /*
         #ifdef DEBUG
         Log("match rules[%d] = \"%s\" at position %d with len %d: %.*s",
             i, rules[i].regex, position, substr_len, substr_len, substr_start);
         #endif
+        */
 
         position += substr_len;
 
@@ -229,10 +216,9 @@ static word_t eval(int p, int q, bool *success) {
     word_t val1 = eval(p, op - 1, success);
     if (!*success) return 0;
 
-    // Short-circuit evaluation for logical operators
     if (tokens[op].type == TK_OR && val1) return 1;
     if (tokens[op].type == TK_AND && !val1) return 0;
-    
+
     word_t val2 = eval(op + 1, q, success);
     if (!*success) return 0;
 
@@ -240,7 +226,7 @@ static word_t eval(int p, int q, bool *success) {
       case '+': return val1 + val2;
       case '-': return val1 - val2;
       case '*': return val1 * val2;
-      case '/': 
+      case '/':
         if (val2 == 0) {
           #ifdef DEBUG
             Log("Division by zero");
@@ -249,7 +235,7 @@ static word_t eval(int p, int q, bool *success) {
           return 0;
         }
         return val1 / val2;
-      case '%': 
+      case '%':
         if (val2 == 0) {
           #ifdef DEBUG
             Log("Division by zero");

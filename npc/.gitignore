@@ -9,9 +9,9 @@
 !*.v
 !*.nxdc
 !*.md
+/README.md
 !configs/*_defconfig
 !.gitignore
-!README.md
 !Kconfig
 include/config
 include/generated

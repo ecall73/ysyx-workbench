@@ -16,7 +16,6 @@ void sdb_set_batch_mode();
 void init_disasm();
 void disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
 bool wp_check();
-void assert_fail_msg();
 
 #ifdef __cplusplus
 }

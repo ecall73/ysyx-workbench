@@ -1,18 +1,3 @@
-/***************************************************************************************
-* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
-*
-* NEMU is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-*
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-*
-* See the Mulan PSL v2 for more details.
-***************************************************************************************/
-
 #ifndef __ISA_RISCV_H__
 #define __ISA_RISCV_H__
 
@@ -21,7 +6,7 @@
 typedef struct {
   word_t gpr[32];
   vaddr_t pc;
-  // Must match npc/include/difftest-def.h and npc/src/isa/riscv32/difftest/dut.c.
+  // Must match NEMU's RISC-V CPU_state layout and npc/src/isa/riscv32/difftest/dut.c.
   word_t mstatus, mtvec, mepc, mcause;
 } riscv32_CPU_state;
 
@@ -29,7 +14,5 @@ typedef struct {
 typedef struct {
   uint32_t inst;
 } riscv32_ISADecodeInfo;
-
-#define isa_mmu_check(vaddr, len, type) (MMU_DIRECT)
 
 #endif

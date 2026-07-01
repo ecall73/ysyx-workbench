@@ -1,18 +1,3 @@
-/***************************************************************************************
-* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
-*
-* NEMU is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-*
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-*
-* See the Mulan PSL v2 for more details.
-***************************************************************************************/
-
 #include <cpu/cpu.h>
 #include <cpu/decode.h>
 #include <cpu/difftest.h>
@@ -34,17 +19,45 @@ CPU_state cpu = {};
 uint64_t g_nr_guest_inst = 0;
 static uint64_t g_timer = 0; // unit: us
 static uint64_t g_nr_sim_cycle = 0;
+static uint64_t g_no_commit_cycle = 0;
 static bool g_print_step = false;
 
 extern VerilatedContext *g_contextp;
 extern VerilatedVcdC *g_tfp;
 bool npc_fetch_commit(vaddr_t *pc, uint32_t *inst);
 
+static void ftrace_commit(vaddr_t pc, vaddr_t dnpc, uint32_t inst) {
+#ifdef CONFIG_FTRACE
+  uint32_t opcode = inst & 0x7fu;
+  int rd = BITS(inst, 11, 7);
+  int rs1 = BITS(inst, 19, 15);
+  if (opcode == 0x6f) {
+    if (rd == 1 || rd == 5) ftrace_call(pc, dnpc);
+  } else if (opcode == 0x67) {
+    if (rd == 0 && rs1 == 1) ftrace_ret(pc);
+    else if (rd == 1 || rd == 5) ftrace_call(pc, dnpc);
+  }
+#endif
+}
+
+static void etrace_commit(vaddr_t pc, vaddr_t dnpc, uint32_t inst) {
+#ifdef CONFIG_ETRACE
+  if (inst == 0x00000073) {
+    etrace_write("raise NO=11 epc=" FMT_WORD " -> mtvec=" FMT_WORD
+        " mstatus=" FMT_WORD "\n", pc, dnpc, cpu.mstatus);
+  } else if (inst == 0x30200073) {
+    etrace_write("mret -> " FMT_WORD " mstatus=" FMT_WORD "\n", dnpc, cpu.mstatus);
+  }
+#endif
+}
+
 static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 #ifdef CONFIG_ITRACE_COND
-  if (ITRACE_COND) { log_write("%s\n", _this->logbuf); }
+  if (ITRACE_COND) { itrace_write("%s\n", _this->logbuf); }
 #endif
   if (g_print_step) { IFDEF(CONFIG_ITRACE, puts(_this->logbuf)); }
+  ftrace_commit(_this->pc, dnpc, _this->isa.inst);
+  etrace_commit(_this->pc, dnpc, _this->isa.inst);
   IFDEF(CONFIG_DIFFTEST, difftest_step(_this->pc, dnpc, _this->isa.inst));
 
 #ifdef CONFIG_WATCHPOINT
@@ -71,6 +84,17 @@ static void tick_once() {
   g_contextp->timeInc(1);
   dump_wave();
   g_nr_sim_cycle ++;
+  g_no_commit_cycle ++;
+
+  if (g_nr_sim_cycle >= CONFIG_MAX_SIM_TIME) {
+    Log("NPC reaches maximum simulation cycles: %" PRIu64, g_nr_sim_cycle);
+    npc_state.state = NPC_ABORT;
+  } else if (g_no_commit_cycle >= CONFIG_MAX_NO_COMMIT_CYCLES) {
+    Log("NPC has no instruction commit for %" PRIu64 " cycles at pc = " FMT_WORD,
+        g_no_commit_cycle, cpu.pc);
+    npc_state.state = NPC_ABORT;
+    npc_state.halt_pc = cpu.pc;
+  }
 }
 
 static bool exec_once(Decode *s) {
@@ -79,16 +103,18 @@ static bool exec_once(Decode *s) {
   do {
     tick_once();
     platform_update();
-  } while (!npc_fetch_commit(&pc, &inst) && !Verilated::gotFinish());
+  } while (npc_state.state == NPC_RUNNING
+      && !npc_fetch_commit(&pc, &inst) && !Verilated::gotFinish());
 
-  if (Verilated::gotFinish()) {
+  if (npc_state.state != NPC_RUNNING) {
+    return false;
+  } else if (Verilated::gotFinish()) {
     npc_state.state = NPC_ABORT;
     return false;
   }
+  g_no_commit_cycle = 0;
 
   s->pc = pc;
-  s->snpc = pc + 4;
-  s->dnpc = cpu.pc;
   s->isa.inst = inst;
 #ifdef CONFIG_ITRACE
   char *p = s->logbuf;

@@ -20,9 +20,19 @@
 #include <stdio.h>
 #include <utils.h>
 
+static inline const char *log_file_path(const char *file) {
+  const char *p = strstr(file, "/nemu/");
+  if (p != NULL) return p + 1;
+
+  p = strstr(file, "nemu/");
+  if (p != NULL) return p;
+
+  return file;
+}
+
 #define Log(format, ...) \
     _Log(ANSI_FMT("[%s:%d %s] " format, ANSI_FG_BLUE) "\n", \
-        __FILE__, __LINE__, __func__, ## __VA_ARGS__)
+        log_file_path(__FILE__), __LINE__, __func__, ## __VA_ARGS__)
 
 #define Assert(cond, format, ...) \
   do { \
