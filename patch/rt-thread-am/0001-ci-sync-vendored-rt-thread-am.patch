@@ -1,14 +1,15 @@
-From 13ef68db7d73e2e889dcf7f150ca93e82a285e98 Mon Sep 17 00:00:00 2001
+From 138867f34bb904cd0f441c9c5250992d8375720a Mon Sep 17 00:00:00 2001
 From: ysyx-ci-local <ci-local@ysyx.org>
-Date: Sun, 21 Jun 2026 21:20:02 +0800
+Date: Wed, 1 Jul 2026 21:29:54 +0800
 Subject: [PATCH] ci: sync vendored rt-thread-am
 
 ---
- bsp/abstract-machine/Makefile         |  7 ++-
- bsp/abstract-machine/extra-ysyxsoc.ld | 47 +++++++++++++++
- bsp/abstract-machine/src/context.c    | 86 +++++++++++++++++++++++++--
- bsp/abstract-machine/src/uart.c       | 10 +++-
- 4 files changed, 143 insertions(+), 7 deletions(-)
+ bsp/abstract-machine/Makefile             |  7 +-
+ bsp/abstract-machine/extra-ysyxsoc.ld     | 47 ++++++++++++++
+ bsp/abstract-machine/integrate-am-apps.py |  2 +-
+ bsp/abstract-machine/src/context.c        | 79 +++++++++++++++++++++--
+ bsp/abstract-machine/src/uart.c           | 10 ++-
+ 5 files changed, 137 insertions(+), 8 deletions(-)
  create mode 100644 bsp/abstract-machine/extra-ysyxsoc.ld
 
 diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
@@ -82,11 +83,24 @@ index 0000000..b6a2bc8
 +  }
 +}
 +INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 8968df3..fec3b78 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -11,7 +11,7 @@ app_dir_list = [
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
+   AM_KERNELS_HOME / "kernels" / "typing-game",
+   AM_KERNELS_HOME / "kernels" / "snake",
+-  AM_KERNELS_HOME / ".." / "fceux-am",
++#  AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+ if len(sys.argv) != 3:
 diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
-index ee38829..45db2ce 100644
+index ee38829..cffcd2a 100644
 --- a/bsp/abstract-machine/src/context.c
 +++ b/bsp/abstract-machine/src/context.c
-@@ -2,8 +2,53 @@
+@@ -2,8 +2,46 @@
  #include <klib.h>
  #include <rtthread.h>
  
@@ -110,21 +124,14 @@ index ee38829..45db2ce 100644
 +  halt(1);
 +}
 +
-+static kctx_switch_req_t *kctx_get_switch_req(rt_thread_t self) {
-+  if (self == RT_NULL || self->user_data == 0) {
-+    return RT_NULL;
-+  }
-+  return (kctx_switch_req_t *)(uintptr_t)self->user_data;
-+}
-+
  static Context* ev_handler(Event e, Context *c) {
    switch (e.event) {
 +    case EVENT_YIELD: {
 +      rt_thread_t self = rt_thread_self();
-+      kctx_switch_req_t *req = kctx_get_switch_req(self);
-+      if (req == RT_NULL) {
++      if (self == RT_NULL || self->user_data == 0) {
 +        return c;
 +      }
++      kctx_switch_req_t *req = (kctx_switch_req_t *)(uintptr_t)self->user_data;
 +      if (req->from != RT_NULL) {
 +        *req->from = c;
 +      }
@@ -140,7 +147,7 @@ index ee38829..45db2ce 100644
      default: printf("Unhandled event ID = %d\n", e.event); assert(0);
    }
    return c;
-@@ -14,18 +59,49 @@ void __am_cte_init() {
+@@ -14,18 +52,49 @@ void __am_cte_init() {
  }
  
  void rt_hw_context_switch_to(rt_ubase_t to) {
