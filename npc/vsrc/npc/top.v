@@ -460,6 +460,7 @@ module top
     end
 
 `ifndef SYNTHESIS
+`ifndef __ICARUS__
     always @(posedge clock) begin
         if (!reset) begin
             if (axi_arvalid && axi_arready && (ar_sel != SEL_PMEM) &&
@@ -488,6 +489,7 @@ module top
             end
         end
     end
+`endif
 `endif
 
     wire _unused_ok;

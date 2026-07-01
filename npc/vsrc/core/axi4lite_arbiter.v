@@ -162,6 +162,7 @@ module ysyx_26030082_axi4lite_arbiter (
     end
 
 `ifndef SYNTHESIS
+`ifndef __ICARUS__
     always @(posedge clock) begin
         if (!reset) begin
             if (ifu_master_arvalid &&
@@ -188,6 +189,7 @@ module ysyx_26030082_axi4lite_arbiter (
             end
         end
     end
+`endif
 `endif
 
     wire _unused_ok = &{1'b0, io_master_rid, io_master_bid};

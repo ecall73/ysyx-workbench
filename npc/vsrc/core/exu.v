@@ -173,19 +173,6 @@ module ysyx_26030082_exu (
                           ({32{opcode == OPCODE_SYSTEM && (funct3 == F3_CSRRC || funct3 == F3_CSRRCI)}} & ~csr_src_data);
 
     wire [31:0] cmp_rhs = opcode == OPCODE_OP_IMM ? imm : rf_rdata2;
-    wire csr_supported = csr_addr == CSR_MSTATUS ||
-                         csr_addr == CSR_MTVEC ||
-                         csr_addr == CSR_MEPC ||
-                         csr_addr == CSR_MCAUSE ||
-                         csr_addr == CSR_MVENDORID ||
-                         csr_addr == CSR_MARCHID;
-    wire csr_readonly = csr_addr == CSR_MVENDORID || csr_addr == CSR_MARCHID;
-    wire csr_write_req = funct3 == F3_CSRRW || funct3 == F3_CSRRWI ||
-                         ((funct3 == F3_CSRRS || funct3 == F3_CSRRSI ||
-                           funct3 == F3_CSRRC || funct3 == F3_CSRRCI) && rf_raddr1 != 5'd0);
-    wire load_funct3_ok = funct3 == F3_LB || funct3 == F3_LH || funct3 == F3_LW ||
-                          funct3 == F3_LBU || funct3 == F3_LHU;
-    wire store_funct3_ok = funct3 == F3_SB || funct3 == F3_SH || funct3 == F3_SW;
 
 
 /////////////////////////
@@ -502,6 +489,21 @@ module ysyx_26030082_exu (
     end
 
 `ifndef SYNTHESIS
+`ifndef __ICARUS__
+    wire csr_supported = csr_addr == CSR_MSTATUS ||
+                         csr_addr == CSR_MTVEC ||
+                         csr_addr == CSR_MEPC ||
+                         csr_addr == CSR_MCAUSE ||
+                         csr_addr == CSR_MVENDORID ||
+                         csr_addr == CSR_MARCHID;
+    wire csr_readonly = csr_addr == CSR_MVENDORID || csr_addr == CSR_MARCHID;
+    wire csr_write_req = funct3 == F3_CSRRW || funct3 == F3_CSRRWI ||
+                         ((funct3 == F3_CSRRS || funct3 == F3_CSRRSI ||
+                           funct3 == F3_CSRRC || funct3 == F3_CSRRCI) && rf_raddr1 != 5'd0);
+    wire load_funct3_ok = funct3 == F3_LB || funct3 == F3_LH || funct3 == F3_LW ||
+                          funct3 == F3_LBU || funct3 == F3_LHU;
+    wire store_funct3_ok = funct3 == F3_SB || funct3 == F3_SH || funct3 == F3_SW;
+
     always @(posedge clock) begin
         if (!reset && ex_in_valid) begin
             if (ex_pc[1:0] != 2'b00) begin
@@ -547,6 +549,7 @@ module ysyx_26030082_exu (
             end
         end
     end
+`endif
 `endif
 
 endmodule
