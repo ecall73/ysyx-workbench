@@ -62,15 +62,6 @@ void difftest_skip_dut(int nr_ref, int nr_dut) {
   }
 }
 
-static void *checked_dlsym(void *handle, const char *name) {
-  dlerror();
-  void *sym = dlsym(handle, name);
-  const char *err = dlerror();
-  Assert(sym != NULL && err == NULL, "Can not find DiffTest symbol '%s': %s",
-      name, err ? err : "unknown error");
-  return sym;
-}
-
 void init_difftest(char *ref_so_file, long img_size, int port) {
   Assert(ref_so_file != NULL, "DiffTest is enabled but ref_so_file is NULL");
   Assert(img_size >= 0,
@@ -86,15 +77,20 @@ void init_difftest(char *ref_so_file, long img_size, int port) {
   Assert(handle != NULL, "Can not open DiffTest reference '%s': %s",
       ref_so_file, dlerror());
 
-  ref_difftest_memcpy = checked_dlsym(handle, "difftest_memcpy");
+  ref_difftest_memcpy = dlsym(handle, "difftest_memcpy");
+  Assert(ref_difftest_memcpy, "Can not find DiffTest symbol 'difftest_memcpy'");
 
-  ref_difftest_regcpy = checked_dlsym(handle, "difftest_regcpy");
+  ref_difftest_regcpy = dlsym(handle, "difftest_regcpy");
+  Assert(ref_difftest_regcpy, "Can not find DiffTest symbol 'difftest_regcpy'");
 
-  ref_difftest_exec = checked_dlsym(handle, "difftest_exec");
+  ref_difftest_exec = dlsym(handle, "difftest_exec");
+  Assert(ref_difftest_exec, "Can not find DiffTest symbol 'difftest_exec'");
 
-  ref_difftest_raise_intr = checked_dlsym(handle, "difftest_raise_intr");
+  ref_difftest_raise_intr = dlsym(handle, "difftest_raise_intr");
+  Assert(ref_difftest_raise_intr, "Can not find DiffTest symbol 'difftest_raise_intr'");
 
-  void (*ref_difftest_init)(int) = checked_dlsym(handle, "difftest_init");
+  void (*ref_difftest_init)(int) = dlsym(handle, "difftest_init");
+  Assert(ref_difftest_init, "Can not find DiffTest symbol 'difftest_init'");
 
   Log("Differential testing: %s", ANSI_FMT("ON", ANSI_FG_GREEN));
   Log("The result of every instruction will be compared with %s. "

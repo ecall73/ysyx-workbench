@@ -28,10 +28,6 @@ static uint8_t pmem[CONFIG_MSIZE] PG_ALIGN = {};
 
 static bool use_ysyxsoc_paddr = false;
 
-static const char *memory_backend_name(void) {
-  return use_ysyxsoc_paddr ? "ysyxsoc" : "native";
-}
-
 static bool valid_access_len(int len) {
   switch (len) {
     case 1: case 2: case 4:
@@ -42,32 +38,12 @@ static bool valid_access_len(int len) {
   }
 }
 
-static bool in_range(paddr_t addr, int len, paddr_t base, uint64_t size) {
-  if (len <= 0) return false;
-  if (addr < base) return false;
-  uint64_t off = (uint64_t)(addr - base);
-  return off + (uint64_t)len <= size;
-}
-
-static void check_access_len(const char *op, paddr_t addr, int len, word_t data) {
-  IFDEF(CONFIG_RT_CHECK, Assert(valid_access_len(len),
-      "invalid memory access length: op=%s backend=%s pc=" FMT_WORD " addr=" FMT_PADDR
-      " len=%d data=" FMT_WORD,
-      op, memory_backend_name(), cpu.pc, addr, len, data));
-}
-
-static void check_native_pmem_access(const char *op, paddr_t addr, int len) {
-  IFDEF(CONFIG_RT_CHECK, Assert(in_range(addr, len, CONFIG_MBASE, CONFIG_MSIZE),
-      "native pmem access is out of range: op=%s pc=" FMT_WORD " addr=" FMT_PADDR
-      " len=%d pmem=[" FMT_PADDR ", " FMT_PADDR "]",
-      op, cpu.pc, addr, len, PMEM_LEFT, PMEM_RIGHT));
-}
-
 /*
  * Native NEMU memory map
  */
 uint8_t* guest_to_host(paddr_t paddr) {
-  check_native_pmem_access("guest_to_host", paddr, 1);
+  IFDEF(CONFIG_RT_CHECK, Assert(in_pmem(paddr),
+      "guest_to_host out of pmem: paddr=" FMT_PADDR " pc=" FMT_WORD, paddr, cpu.pc));
   return pmem + paddr - CONFIG_MBASE;
 }
 
@@ -91,10 +67,9 @@ static void pmem_write(paddr_t addr, int len, word_t data) {
   host_write(guest_to_host(addr), len, data);
 }
 
-static void out_of_bound(const char *op, paddr_t addr, int len) {
-  panic("address = " FMT_PADDR " len=%d is out of bound of pmem [" FMT_PADDR ", " FMT_PADDR
-      "] at pc = " FMT_WORD " backend=%s op=%s",
-      addr, len, PMEM_LEFT, PMEM_RIGHT, cpu.pc, memory_backend_name(), op);
+static void out_of_bound(paddr_t addr) {
+  panic("address = " FMT_PADDR " is out of bound of pmem [" FMT_PADDR ", " FMT_PADDR "] at pc = " FMT_WORD,
+      addr, PMEM_LEFT, PMEM_RIGHT, cpu.pc);
 }
 
 /*
@@ -115,7 +90,10 @@ static uint8_t sram[SRAM_SIZE] = {};
 static uint8_t sdram[SDRAM_SIZE] = {};
 
 static bool in_region(paddr_t addr, int len, paddr_t base, uint32_t size) {
-  return in_range(addr, len, base, size);
+  if (len <= 0) return false;
+  if (addr < base) return false;
+  uint64_t off = (uint64_t)(addr - base);
+  return off + (uint64_t)len <= (uint64_t)size;
 }
 
 static void ysyxsoc_paddr_init(void) {
@@ -170,10 +148,10 @@ static void ysyxsoc_paddr_log_ranges(void) {
   Log("SDRAM area [0x%08x, 0x%08x]", SDRAM_BASE, SDRAM_RIGHT);
 }
 
-static void ysyxsoc_paddr_out_of_bound(const char *op, paddr_t addr, int len) {
-  panic("address = " FMT_PADDR " len=%d is out of bound for ysyxsoc memory. op=%s valid ranges: "
-      "flash[0x%08x, 0x%08x], sram[0x%08x, 0x%08x], sdram[0x%08x, 0x%08x], pc = " FMT_WORD,
-      addr, len, op, FLASH_BASE, FLASH_RIGHT, SRAM_BASE, SRAM_RIGHT, SDRAM_BASE, SDRAM_RIGHT, cpu.pc);
+static void ysyxsoc_paddr_out_of_bound(paddr_t addr) {
+  panic("address = " FMT_PADDR " is out of bound for ysyxsoc memory. valid ranges: flash[0x%08x, 0x%08x], "
+      "sram[0x%08x, 0x%08x], sdram[0x%08x, 0x%08x], pc = " FMT_WORD,
+      addr, FLASH_BASE, FLASH_RIGHT, SRAM_BASE, SRAM_RIGHT, SDRAM_BASE, SDRAM_RIGHT, cpu.pc);
 }
 
 __EXPORT void difftest_enable_ysyxsoc_paddr(void) {
@@ -198,35 +176,35 @@ void init_mem() {
 }
 
 word_t paddr_read(paddr_t addr, int len) {
-  check_access_len("read", addr, len, 0);
+  IFDEF(CONFIG_RT_CHECK, Assert(valid_access_len(len),
+      "invalid memory read length: pc=" FMT_WORD " addr=" FMT_PADDR " len=%d", cpu.pc, addr, len));
   if (use_ysyxsoc_paddr) {
     word_t data = 0;
     if (likely(ysyxsoc_paddr_read(addr, len, &data))) {
       return data;
     }
-    ysyxsoc_paddr_out_of_bound("read", addr, len);
+    ysyxsoc_paddr_out_of_bound(addr);
     return 0;
   }
 
-  if (likely(in_range(addr, len, CONFIG_MBASE, CONFIG_MSIZE))) return pmem_read(addr, len);
-  if (in_pmem(addr)) out_of_bound("read", addr, len);
+  if (likely(in_pmem(addr))) return pmem_read(addr, len);
   IFDEF(CONFIG_DEVICE, return mmio_read(addr, len));
-  out_of_bound("read", addr, len);
+  out_of_bound(addr);
   return 0;
 }
 
 void paddr_write(paddr_t addr, int len, word_t data) {
-  check_access_len("write", addr, len, data);
+  IFDEF(CONFIG_RT_CHECK, Assert(valid_access_len(len),
+      "invalid memory write length: pc=" FMT_WORD " addr=" FMT_PADDR " len=%d data=" FMT_WORD, cpu.pc, addr, len, data));
   if (use_ysyxsoc_paddr) {
     if (likely(ysyxsoc_paddr_write(addr, len, data))) {
       return;
     }
-    ysyxsoc_paddr_out_of_bound("write", addr, len);
+    ysyxsoc_paddr_out_of_bound(addr);
     return;
   }
 
-  if (likely(in_range(addr, len, CONFIG_MBASE, CONFIG_MSIZE))) { pmem_write(addr, len, data); return; }
-  if (in_pmem(addr)) out_of_bound("write", addr, len);
+  if (likely(in_pmem(addr))) { pmem_write(addr, len, data); return; }
   IFDEF(CONFIG_DEVICE, mmio_write(addr, len, data); return);
-  out_of_bound("write", addr, len);
+  out_of_bound(addr);
 }

@@ -76,10 +76,8 @@ static long load_img() {
   Log("The image is %s, size = %ld", img_file, size);
 
   fseek(fp, 0, SEEK_SET);
-  if (size > 0) {
-    int ret = fread(guest_to_host(RESET_VECTOR), size, 1, fp);
-    Assert(ret == 1, "Failed to read image '%s': size=%ld ret=%d", img_file, size, ret);
-  }
+  int ret = fread(guest_to_host(RESET_VECTOR), size, 1, fp);
+  Assert(ret == 1, "Failed to read image '%s': size=%ld ret=%d", img_file, size, ret);
 
   fclose(fp);
   return size;
