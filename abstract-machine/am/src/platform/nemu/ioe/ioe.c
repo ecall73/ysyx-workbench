@@ -46,6 +46,8 @@ static void *lut[128] = {
   [AM_NET_CONFIG  ] = __am_net_config,
 };
 
+_Static_assert(AM_NET_CONFIG < LENGTH(lut), "NEMU IOE LUT is too small");
+
 static void fail(void *buf) { panic("access nonexist register"); }
 
 bool ioe_init() {

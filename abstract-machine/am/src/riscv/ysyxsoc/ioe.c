@@ -64,6 +64,8 @@ static void *lut[128] = {
   [AM_GPIO_SEG]     = __am_gpio_seg,
 };
 
+_Static_assert(AM_GPIO_SEG < LENGTH(lut), "ysyxSoC IOE LUT is too small");
+
 static void fail(void *buf) { panic("access nonexist register"); }
 
 bool ioe_init() {

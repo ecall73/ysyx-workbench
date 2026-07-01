@@ -25,6 +25,8 @@ static void *lut[128] = {
   [AM_UART_RX]      = __am_uart_rx,
 };
 
+_Static_assert(AM_UART_RX < LENGTH(lut), "NPC IOE LUT is too small");
+
 static void fail(void *buf) { panic("access nonexist register"); }
 
 bool ioe_init() {

@@ -47,4 +47,11 @@ typedef uintptr_t PTE;
 
 #define PGSIZE    4096
 
+_Static_assert((SERIAL_PORT & 0x0) == 0, "SERIAL_PORT alignment check");
+_Static_assert((RTC_ADDR & 0x3) == 0, "RTC_ADDR must be word aligned");
+_Static_assert((VGACTL_ADDR & 0x3) == 0, "VGACTL_ADDR must be word aligned");
+_Static_assert((KBD_ADDR & 0x3) == 0, "KBD_ADDR must be word aligned");
+_Static_assert((FB_ADDR & 0x3) == 0, "FB_ADDR must be word aligned");
+_Static_assert(PGSIZE == 4096, "RISC-V AM assumes 4KB pages");
+
 #endif
