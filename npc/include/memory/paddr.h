@@ -17,10 +17,11 @@
 #define __MEMORY_PADDR_H__
 
 #include <common.h>
+#include <platform/platform.h>
 
-#define PMEM_LEFT  ((paddr_t)CONFIG_MBASE)
-#define PMEM_RIGHT ((paddr_t)CONFIG_MBASE + CONFIG_MSIZE - 1)
-#define RESET_VECTOR (PMEM_LEFT + CONFIG_PC_RESET_OFFSET)
+#define PMEM_LEFT  ((paddr_t)NPC_PMEM_BASE)
+#define PMEM_RIGHT ((paddr_t)NPC_PMEM_BASE + NPC_PMEM_SIZE - 1)
+#define RESET_VECTOR ((paddr_t)NPC_RESET_PC_NPC)
 
 #ifdef __cplusplus
 extern "C" {

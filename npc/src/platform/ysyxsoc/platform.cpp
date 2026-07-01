@@ -87,6 +87,10 @@ const char *platform_device_name(uint32_t addr) {
   return NULL;
 }
 
+bool platform_in_comparable_mem(paddr_t addr) {
+  return in_flash(addr);
+}
+
 void platform_difftest_memcpy(void (*ref_memcpy)(paddr_t, void *, size_t, bool), bool direction) {
   if (flash_size > 0) ref_memcpy(NPC_FLASH_BASE, flash, (size_t)flash_size, direction);
 }

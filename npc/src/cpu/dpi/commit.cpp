@@ -54,7 +54,7 @@ void npc_reset_commit_state(vaddr_t pc) {
   memset(&cpu, 0, sizeof(cpu));
   cpu.pc = pc;
   cpu.mstatus = 0x1800;
-  cpu.mtvec = 0;
+  cpu.mtvec = 1;
   cpu.mepc = 0;
   cpu.mcause = 0;
 }

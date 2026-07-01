@@ -42,6 +42,7 @@ bool platform_read(paddr_t addr, int len, word_t *data);
 bool platform_write(paddr_t addr, int len, word_t data);
 void platform_out_of_bound(paddr_t addr);
 const char *platform_device_name(uint32_t addr);
+bool platform_in_comparable_mem(paddr_t addr);
 void platform_difftest_memcpy(void (*ref_memcpy)(paddr_t, void *, size_t, bool), bool direction);
 void platform_enable_ref_paddr(void (*enable_ysyxsoc_paddr)(void));
 

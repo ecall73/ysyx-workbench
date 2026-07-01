@@ -15,15 +15,18 @@
 
 include $(NPC_HOME)/scripts/build.mk
 
+include $(NPC_HOME)/tools/difftest.mk
+
 compile_git:
 	@:
 $(BINARY):: compile_git
 
 override ARGS ?= --log=$(BUILD_DIR)/npc-log.txt
+override ARGS += $(ARGS_DIFF)
 IMG ?=
 NPC_EXEC := $(BINARY) $(ARGS) $(IMG)
 
-run-env: $(BINARY)
+run-env: $(BINARY) $(DIFF_REF_SO)
 
 run: run-env
 	$(NPC_EXEC)

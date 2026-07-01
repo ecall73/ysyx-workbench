@@ -46,7 +46,6 @@ enum { MEM_RET_OK, MEM_RET_FAIL, MEM_RET_CROSS_PAGE };
 
 // difftest
 bool isa_difftest_checkregs(CPU_state *ref_r, vaddr_t pc);
-void isa_difftest_attach();
 
 #ifdef __cplusplus
 }

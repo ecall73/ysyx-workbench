@@ -22,21 +22,6 @@ config ISA
   string
   default "riscv32"
 
-config ISA64
-  bool
-  default n
-
-choice
-  prompt "NPC execution engine"
-  default ENGINE_INTERPRETER
-config ENGINE_INTERPRETER
-  bool "RTL tick/commit"
-endchoice
-
-config ENGINE
-  string
-  default "interpreter" if ENGINE_INTERPRETER
-
 config MODE_SYSTEM
   bool
   default y
@@ -168,5 +153,3 @@ config WATCHPOINT
   bool "Enable watchpoint"
   default y
 endmenu
-
-source "src/memory/Kconfig"

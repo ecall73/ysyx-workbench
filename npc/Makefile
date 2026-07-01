@@ -14,6 +14,7 @@
 #**************************************************************************************/
 
 NPC_HOME ?= $(abspath .)
+NEMU_HOME ?= $(abspath ../nemu)
 YSYX_SOC_HOME ?= $(abspath ../ysyxSoC)
 NVBOARD_HOME ?= $(abspath ../nvboard)
 
@@ -27,7 +28,7 @@ endif
 remove_quote = $(patsubst "%",%,$(1))
 
 GUEST_ISA ?= $(call remove_quote,$(CONFIG_ISA))
-ENGINE ?= $(call remove_quote,$(CONFIG_ENGINE))
+ENGINE := interpreter
 SIM_MODE ?= $(call remove_quote,$(CONFIG_PLATFORM))
 DEBUG_ENABLED := $(if $(filter 1 y yes true,$(DEBUG)),1,$(if $(filter 1 y yes true,$(debug)),1,$(if $(CONFIG_CC_DEBUG),1,)))
 UART_STDOUT ?= 1

@@ -24,7 +24,7 @@ IVERILOG_NETLIST_LOG = $(abspath $(IVERILOG_NETLIST_BUILD_DIR)/sim.log)
 IVERILOG_NETLIST_TMPDIR = $(abspath $(IVERILOG_NETLIST_BUILD_DIR)/tmp)
 IVERILOG_NETLIST_TB = $(abspath ./vsrc/iverilog/tb_iverilog_netlist.v)
 
-WAVE_PLUSARG = $(if $(filter 1,$(WAVE)),+WAVE=1,)
+WAVE_PLUSARG = $(if $(CONFIG_WAVE),+WAVE=1,)
 BIN2HEX = python3 -c 'from pathlib import Path; import sys; data = Path(sys.argv[1]).read_bytes(); Path(sys.argv[2]).write_text("\n".join(f"{b:02x}" for b in data) + "\n")'
 
 $(IVERILOG_BUILD_DIR) $(IVERILOG_NETLIST_BUILD_DIR):

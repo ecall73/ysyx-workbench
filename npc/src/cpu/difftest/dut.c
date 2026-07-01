@@ -32,6 +32,31 @@ void (*ref_difftest_raise_intr)(uint64_t NO) = NULL;
 static bool is_skip_ref = false;
 static int skip_dut_nr_inst = 0;
 
+#define OPCODE_LOAD  0x03u
+#define OPCODE_STORE 0x23u
+
+static inline sword_t sext(uint32_t val, int bits) {
+  uint32_t mask = 1u << (bits - 1);
+  return (sword_t)((val ^ mask) - mask);
+}
+
+static bool should_skip_ref(uint32_t inst, const CPU_state *ref) {
+  uint32_t opcode = inst & 0x7fu;
+  if (opcode != OPCODE_LOAD && opcode != OPCODE_STORE) {
+    return false;
+  }
+
+  uint32_t rs1 = BITS(inst, 19, 15);
+  sword_t imm = 0;
+  if (opcode == OPCODE_LOAD) {
+    imm = sext(BITS(inst, 31, 20), 12);
+  } else {
+    imm = sext((BITS(inst, 31, 25) << 5) | BITS(inst, 11, 7), 12);
+  }
+
+  return !platform_in_comparable_mem(ref->gpr[rs1] + imm);
+}
+
 // this is used to let ref skip instructions which
 // can not produce consistent behavior with NPC
 void difftest_skip_ref() {
@@ -102,7 +127,7 @@ static void checkregs(CPU_state *ref, vaddr_t pc) {
   }
 }
 
-void difftest_step(vaddr_t pc, vaddr_t npc) {
+void difftest_step(vaddr_t pc, vaddr_t npc, uint32_t inst) {
   CPU_state ref_r;
 
   if (skip_dut_nr_inst > 0) {
@@ -122,6 +147,12 @@ void difftest_step(vaddr_t pc, vaddr_t npc) {
     // to skip the checking of an instruction, just copy the reg state to reference design
     ref_difftest_regcpy(&cpu, DIFFTEST_TO_REF);
     is_skip_ref = false;
+    return;
+  }
+
+  ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT);
+  if (should_skip_ref(inst, &ref_r)) {
+    ref_difftest_regcpy(&cpu, DIFFTEST_TO_REF);
     return;
   }
 

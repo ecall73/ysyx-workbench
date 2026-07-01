@@ -13,8 +13,8 @@ entry points.
 | --- | --- | --- |
 | `nemu/src/nemu-main.c` | `npc/src/npc-main.c` | Same process entry shape; calls NPC monitor and cleanup. |
 | `nemu/src/engine/interpreter/init.c` | `npc/src/engine/interpreter/init.c` | Same `engine_start()` entry shape; SDB still owns interactive control. |
-| `nemu/src/cpu/cpu-exec.c` | `npc/src/cpu/cpu-exec.c` | Same execution-loop/logging shape; instruction execution is replaced by Verilator tick plus DPI commit. |
-| `nemu/src/monitor/monitor.c` | `npc/src/monitor/monitor.c` | Same argument/log/init flow; adds Verilator top, reset, wave, and platform setup. |
+| `nemu/src/cpu/cpu-exec.c` | `npc/src/cpu/cpu-exec.cpp` | Same execution-loop/logging shape; instruction execution is replaced by Verilator tick plus DPI commit. |
+| `nemu/src/monitor/monitor.c` | `npc/src/monitor/monitor.cpp` | Same argument/log/init flow; adds Verilator top, reset, wave, and platform setup. |
 | `nemu/src/monitor/sdb/*` | `npc/src/monitor/sdb/*` | Same SDB command style and watchpoint/expression modules. |
 | `nemu/src/monitor/ftrace.c` | `npc/src/monitor/ftrace.c` | Same ELF symbol based function trace module. |
 | `nemu/src/utils/log.c` | `npc/src/utils/log.c` | Same log and per-trace output module, minus NEMU's AM-target guard. |
@@ -52,20 +52,25 @@ NPC does not keep NEMU modules that have no active role in RTL simulation:
 | NEMU interpreter instruction execution code | RTL executes instructions; NPC only keeps the NEMU-style `engine_start()`/SDB control entry. |
 | `src/isa/riscv32/inst.c` | Instructions are executed by RTL, not by NEMU's software decoder. |
 | `src/isa/riscv32/system/{intr,mmu}.c` | CSR/trap/MMU behavior comes from RTL state and NEMU ref DiffTest. |
+| `include/cpu/ifetch.h` | NPC does not use NEMU's software instruction fetch helper; RTL fetches instructions. |
+| `src/cpu/difftest/ref.c` | NPC is only the DiffTest DUT; the reference side is the NEMU shared object. |
 | `src/am-bin.S` and `configs/*-am_defconfig` | NPC is not built as an AM-native executable. |
 | `tools/spike-diff` | NPC DiffTest uses the NEMU shared object as reference, not Spike directly. |
+| `tools/difftest.mk` | The NEMU ref shared object path is passed by AM/NPC runtime options, not this old Makefile fragment. |
+| `tools/gen-expr` | Expression randomized testing remains a NEMU/SDB development tool; NPC keeps only the SDB expression evaluator. |
 
 ## Necessary Differences
 
 | Area | Difference | Why it is necessary |
 | --- | --- | --- |
-| Build language split | Most copied NEMU-style `.c` modules are compiled with `gcc`; only Verilator-facing sources are compiled as C++. | Keeps copied C code close to NEMU while still allowing Verilator/NVBoard C++ objects. |
+| Build language split | Copied NEMU-style `.c` modules are compiled with `gcc`; Verilator-facing sources use `.cpp` and are compiled by Verilator. | Keeps copied C code close to NEMU and avoids `.c` files that secretly need C++ compilation. |
 | Build target dimension | NPC removes NEMU's `CONFIG_TARGET_AM` / `CONFIG_TARGET_NATIVE_ELF` branches. | NPC is only a host Verilator simulator; it is never built as an AM payload. Keeping those branches would be dead configuration. |
+| Execution engine | NPC fixes `ENGINE := interpreter` in the Makefile instead of exposing a Kconfig choice. | There is only one RTL tick/commit execution path; making it configurable would be fake flexibility. |
 | `disasm.c` | Keeps only RISC-V capstone mode. | NPC only supports the local RISC-V RTL, so NEMU's x86/MIPS/LoongArch branches are removed. |
 | `CPU_state` / DPI commit | Host state always exposes 32 GPRs; RTL commits zero for x16..x31. | Keeps SDB and DiffTest state shape aligned with NEMU while the core remains RV32E internally. |
-| `cpu-exec.c` | Replaces `isa_exec_once()` with Verilator tick plus DPI commit collection. | RTL, not NEMU's software decoder, executes instructions. |
-| `monitor.c` | Adds Verilator top creation/reset/wave handling and platform image loading. | NEMU does not own an RTL top; NPC must. |
-| `paddr.c` | Uses platform-selected backing storage and ysyxSoC ref memory ranges. | NPC has standalone PMEM and ysyxSoC flash/SRAM/SDRAM modes. |
+| `cpu-exec.cpp` | Replaces `isa_exec_once()` with Verilator tick plus DPI commit collection. | RTL, not NEMU's software decoder, executes instructions. |
+| `monitor.cpp` | Adds Verilator top creation/reset/wave handling and platform image loading. | NEMU does not own an RTL top; NPC must. |
+| Memory map | NPC removes the NEMU-style memory Kconfig and uses fixed platform constants. | The RTL/SoC memory map is fixed: standalone NPC reads PMEM at `0x80000000`, ysyxSoC host-side SDB/DiffTest image sync currently uses flash at `0x30000000`. |
 | `native.mk` | Keeps `sim` as an alias of `run`. | Existing AM ysyxSoC scripts call `make -C npc ... sim`; it must execute the simulator rather than only build. |
 | UART stdout | `UART_STDOUT ?= 1` is a Makefile-only switch; `UART_STDOUT=0` builds a separate `*-no-uart-stdout` binary. | This preserves the previous CI knob without adding a permanent Kconfig item, and prevents stale binaries when the Verilator macro changes. |
 | Debug build | `DEBUG=1` or `CONFIG_CC_DEBUG=y` selects the `*-debug` binary and adds `-Og -ggdb3 -DDEBUG`. | Matches NEMU-style debug builds while keeping AM's `DEBUG=1` meaning of non-batch SDB mode. |
@@ -87,7 +92,7 @@ NPC does not keep NEMU modules that have no active role in RTL simulation:
 
 ## Verification Notes
 
-Recent checks performed after the 32-GPR/RVE and target-dimension cleanup:
+Recent checks performed after the NEMU-style host-side rebuild:
 
 - `make -C npc npc_defconfig && make -C npc build`
 - `make -C npc ysyxsoc_defconfig && make -C npc build`
@@ -95,10 +100,13 @@ Recent checks performed after the 32-GPR/RVE and target-dimension cleanup:
 - `make -C am-kernels/kernels/hello ARCH=riscv32e-ysyxsoc run`
 - `make -C am-kernels/benchmarks/microbench ARCH=riscv32e-npc run mainargs=test`
 - `make -C am-kernels/benchmarks/microbench ARCH=riscv32e-ysyxsoc run mainargs=test`
-- `make -C am-kernels/benchmarks/microbench ARCH=riscv32e-ysyxsoc run mainargs=test UART_STDOUT=0`
+- `printf 'si 4\ninfo r\nx 4 0x80000000\nq\n' | make -C am-kernels/kernels/hello ARCH=riscv32e-npc run DEBUG=1`
+- `printf 'si 4\ninfo r\nx 4 0x30000000\nq\n' | make -C am-kernels/benchmarks/microbench ARCH=riscv32e-ysyxsoc run mainargs=test DEBUG=1`
 - `make -C npc sim-iverilog IMG=/home/ecall73/ysyx-workbench/am-kernels/kernels/hello/build/hello-riscv32e-npc.bin`
+- `make -C npc sim-iverilog-netlist IMG=...` without `NETLIST`/`CELLS` reports the expected missing-argument error.
 
 `git diff --check` is intentionally not run by the agent because git operations
-are user-only in this thread. The iVerilog netlist target also requires
-caller-provided `NETLIST=...` and `CELLS=...`; the target is preserved, but
-those artifacts are external to this directory.
+are user-only in this thread. Instead, the maintained NPC source files that
+necessarily differ from NEMU were checked directly for trailing whitespace. The
+iVerilog netlist target requires caller-provided `NETLIST=...` and `CELLS=...`;
+the target is preserved, but those artifacts are external to this directory.

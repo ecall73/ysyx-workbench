@@ -61,6 +61,10 @@ const char *platform_device_name(uint32_t addr) {
   return NULL;
 }
 
+bool platform_in_comparable_mem(paddr_t addr) {
+  return in_npc_pmem(addr);
+}
+
 void platform_difftest_memcpy(void (*ref_memcpy)(paddr_t, void *, size_t, bool), bool direction) {
   if (img_size > 0) ref_memcpy(NPC_PMEM_BASE, pmem, (size_t)img_size, direction);
 }
@@ -69,7 +73,8 @@ void platform_enable_ref_paddr(void (*enable_ysyxsoc_paddr)(void)) { (void)enabl
 
 extern "C" int pmem_read(int raddr) {
   word_t data = 0;
-  if (!platform_read((uint32_t)raddr, 4, &data)) return 0;
+  uint32_t aligned = (uint32_t)raddr & ~0x3u;
+  if (!platform_read(aligned, 4, &data)) return 0;
   return (int)data;
 }
 

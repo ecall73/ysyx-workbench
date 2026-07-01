@@ -18,14 +18,11 @@ INCLUDES = $(addprefix -I, $(INC_PATH))
 CFLAGS := -MMD -Wall -Werror $(INCLUDES) $(CFLAGS)
 LDFLAGS := $(LDFLAGS) -lreadline -ldl
 
-VERILATOR_SRCS = $(filter src/platform/% $(BUILD_DIR)/auto_bind.cpp,$(SRCS))
-VERILATOR_SRCS += $(filter src/cpu/cpu-exec.c src/monitor/monitor.c,$(SRCS))
+VERILATOR_SRCS = $(filter %.cpp %.cc,$(SRCS))
 HOST_SRCS = $(filter-out $(VERILATOR_SRCS),$(SRCS))
 
-CXXSRC_CPP = $(filter %.cpp,$(HOST_SRCS))
-CXXSRC_CC  = $(filter %.cc,$(HOST_SRCS))
-CSRC       = $(filter %.c,$(HOST_SRCS))
-OBJS       = $(CSRC:%.c=$(OBJ_DIR)/%.o) $(CXXSRC_CPP:%.cpp=$(OBJ_DIR)/%.o) $(CXXSRC_CC:%.cc=$(OBJ_DIR)/%.o)
+CSRC = $(filter %.c,$(HOST_SRCS))
+OBJS = $(CSRC:%.c=$(OBJ_DIR)/%.o)
 
 VERILOG_BUILD_DIR = $(WORK_DIR)/build
 CPU_VERILOG = $(abspath $(VERILOG_BUILD_DIR)/ysyx_26030082.v)
@@ -67,18 +64,6 @@ $(OBJ_DIR)/%.o: %.c
 	@echo + CC $<
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) -c -o $@ $<
-	$(call call_fixdep, $(@:.o=.d), $@)
-
-$(OBJ_DIR)/%.o: %.cpp
-	@echo + CXX $<
-	@mkdir -p $(dir $@)
-	@$(CXX) $(CFLAGS) -c -o $@ $<
-	$(call call_fixdep, $(@:.o=.d), $@)
-
-$(OBJ_DIR)/%.o: %.cc
-	@echo + CXX $<
-	@mkdir -p $(dir $@)
-	@$(CXX) $(CFLAGS) -c -o $@ $<
 	$(call call_fixdep, $(@:.o=.d), $@)
 
 -include $(OBJS:.o=.d)
