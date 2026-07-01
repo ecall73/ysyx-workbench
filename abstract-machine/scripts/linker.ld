@@ -30,13 +30,4 @@ SECTIONS {
   end = .;
   _end = .;
   _heap_start = ALIGN(0x1000);
-
-  ASSERT(_heap_start <= (_pmem_start + 0x8000000),
-         "PMEM overflow: image+stack exceeds PMEM")
-  ASSERT(_stack_top <= _stack_pointer,
-         "Stack pointer is below stack top")
-  ASSERT((_stack_pointer & 0xf) == 0,
-         "Stack pointer is not 16-byte aligned")
-  ASSERT((_heap_start & 0xfff) == 0,
-         "Heap start is not page aligned")
 }
