@@ -1,5 +1,6 @@
 #include <am.h>
 #include <nemu.h>
+#include <klib.h>
 
 static uint64_t boot_time_us = 0;
 
@@ -12,10 +13,14 @@ void __am_timer_init() {
 }
 
 void __am_timer_uptime(AM_TIMER_UPTIME_T *uptime) {
-  uptime->us = read_rtc_us() - boot_time_us;
+  assert(uptime != NULL);
+  uint64_t now = read_rtc_us();
+  assert(now >= boot_time_us);
+  uptime->us = now - boot_time_us;
 }
 
 void __am_timer_rtc(AM_TIMER_RTC_T *rtc) {
+  assert(rtc != NULL);
   rtc->second = 0;
   rtc->minute = 0;
   rtc->hour   = 0;

@@ -20,6 +20,7 @@ int abs(int x) {
 }
 
 int atoi(const char* nptr) {
+  assert(nptr != NULL);
   int x = 0;
   while (*nptr == ' ') { nptr ++; }
   while (*nptr >= '0' && *nptr <= '9') {
@@ -39,6 +40,9 @@ void *malloc(size_t size) {
   if (malloc_addr == NULL) {
     malloc_addr = heap.start;
   }
+  assert(heap.start != NULL && heap.end != NULL && heap.start <= heap.end);
+  assert(malloc_addr >= heap.start && malloc_addr <= heap.end);
+  assert(size <= (size_t)((char *)heap.end - (char *)malloc_addr));
   void *ptr = malloc_addr;
   malloc_addr += size;
   return ptr;

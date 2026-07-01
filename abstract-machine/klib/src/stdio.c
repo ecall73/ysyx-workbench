@@ -7,6 +7,7 @@
 
 #if !defined(__ISA_NATIVE__) || defined(__NATIVE_USE_KLIB__)
 int printf(const char *fmt, ...) {
+  assert(fmt != NULL);
   va_list ap;
   va_start(ap, fmt);
   char buf[1024];
@@ -17,10 +18,12 @@ int printf(const char *fmt, ...) {
 }
 
 int vsprintf(char *restrict s, const char *restrict fmt, va_list ap) {
+  assert(s != NULL && fmt != NULL);
   return vsnprintf(s, INT_MAX, fmt, ap);
 }
 
 int sprintf(char *restrict s, const char *restrict fmt, ...) {
+  assert(s != NULL && fmt != NULL);
   va_list ap;
   va_start(ap, fmt);
   int ret = vsprintf(s, fmt, ap);
@@ -29,6 +32,7 @@ int sprintf(char *restrict s, const char *restrict fmt, ...) {
 }
 
 int snprintf(char *restrict s, size_t n, const char *restrict fmt, ...) {
+  assert((s != NULL || n == 0) && fmt != NULL);
   va_list ap;
   va_start(ap, fmt);
   int ret = vsnprintf(s, n, fmt, ap);
@@ -50,6 +54,7 @@ static void append_repeat(char *out, size_t n, size_t *len, char ch, int count) 
 }
 
 int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
+  assert((out != NULL || n == 0) && fmt != NULL);
   size_t len = 0;
 
   for (const char *p = fmt; *p; p++) {

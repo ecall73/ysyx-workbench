@@ -1,4 +1,5 @@
 #include <am.h>
+#include <klib.h>
 #include <klib-macros.h>
 
 void __am_timer_init();
@@ -57,5 +58,14 @@ bool ioe_init() {
   return true;
 }
 
-void ioe_read (int reg, void *buf) { ((handler_t)lut[reg])(buf); }
-void ioe_write(int reg, void *buf) { ((handler_t)lut[reg])(buf); }
+void ioe_read (int reg, void *buf) {
+  assert(reg >= 0 && reg < (int)LENGTH(lut));
+  assert(buf != NULL);
+  ((handler_t)lut[reg])(buf);
+}
+
+void ioe_write(int reg, void *buf) {
+  assert(reg >= 0 && reg < (int)LENGTH(lut));
+  assert(buf != NULL);
+  ((handler_t)lut[reg])(buf);
+}
