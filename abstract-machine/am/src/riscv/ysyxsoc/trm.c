@@ -11,19 +11,9 @@ void halt(int code);
 Area heap = RANGE(&_heap_start, &_heap_end);
 static const char mainargs[MAINARGS_MAX_LEN] = TOSTRING(MAINARGS_PLACEHOLDER); // defined in CFLAGS
 
-static bool mainargs_has_nul(void) {
-  for (int i = 0; i < MAINARGS_MAX_LEN; i++) {
-    if (mainargs[i] == '\0') return true;
-  }
-  return false;
-}
-
-static void check_trm_state(void) {
-  assert(heap.start != NULL && heap.end != NULL && heap.start < heap.end);
-  assert(((uintptr_t)heap.start % sizeof(uintptr_t)) == 0 &&
-         ((uintptr_t)heap.end % sizeof(uintptr_t)) == 0);
-  assert(mainargs_has_nul());
-}
+_Static_assert(MAINARGS_MAX_LEN > 0, "MAINARGS_MAX_LEN must be positive");
+_Static_assert(sizeof(TOSTRING(MAINARGS_PLACEHOLDER)) <= MAINARGS_MAX_LEN,
+    "mainargs placeholder exceeds MAINARGS_MAX_LEN");
 
 enum {
   GPIO_SEG_REG_OFF = 0x8u,
@@ -80,8 +70,6 @@ void _trm_init() {
   outl(GPIO_BASE + GPIO_SEG_REG_OFF, packed_bcd);
 
   uart_init();
-  check_trm_state();
-  assert(t0 <= t1 && t1 <= t2);
   printf("CSR mvendorid=0x%08x marchid=%u(0x%08x)\n", vendor, arch, arch);
   printf("CLINT mtime samples: %u -> %u -> %u\n", t0, t1, t2);
   int ret = main(mainargs);

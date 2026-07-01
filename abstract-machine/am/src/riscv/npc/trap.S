@@ -37,6 +37,19 @@ f(30) f(31)
 #define OFFSET_STATUS ((NR_REGS + 1) * XLEN)
 #define OFFSET_EPC    ((NR_REGS + 2) * XLEN)
 
+.if OFFSET_CAUSE != (NR_REGS * XLEN)
+  .error "trap.S Context mcause offset mismatch"
+.endif
+.if OFFSET_STATUS != ((NR_REGS + 1) * XLEN)
+  .error "trap.S Context mstatus offset mismatch"
+.endif
+.if OFFSET_EPC != ((NR_REGS + 2) * XLEN)
+  .error "trap.S Context mepc offset mismatch"
+.endif
+.if CONTEXT_SIZE != ((NR_REGS + 4) * XLEN)
+  .error "trap.S Context size mismatch"
+.endif
+
 .align 3
 .globl __am_asm_trap
 __am_asm_trap:

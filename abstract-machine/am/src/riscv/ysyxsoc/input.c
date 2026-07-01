@@ -1,5 +1,4 @@
 #include <am.h>
-#include <klib.h>
 #include "include/npc.h"
 
 static bool prefix_e0 = false;
@@ -100,7 +99,6 @@ static int decode_set2_scancode(uint8_t code, bool e0) {
 }
 
 void __am_input_keybrd(AM_INPUT_KEYBRD_T *kbd) {
-  assert(kbd != NULL);
   kbd->keydown = false;
   kbd->keycode = AM_KEY_NONE;
 

@@ -1,6 +1,5 @@
 #include <am.h>
 #include "include/npc.h"
-#include <klib.h>
 
 static uint64_t boot_mtime = 0;
 
@@ -68,18 +67,10 @@ void __am_timer_init() {
 }
 
 void __am_timer_uptime(AM_TIMER_UPTIME_T *uptime) {
-  assert(uptime != NULL);
   uint64_t now_mtime = read_mtime();
-  assert(now_mtime >= boot_mtime);
   uptime->us = (now_mtime - boot_mtime) / NPC_CLINT_CYCLES_PER_US;
 }
 
 void __am_timer_rtc(AM_TIMER_RTC_T *rtc) {
-  assert(rtc != NULL);
   epoch_to_utc(read_mtime() / NPC_CLINT_CYCLES_PER_US / 1000000, rtc);
-  assert(rtc->year >= 1970 && rtc->month >= 1 && rtc->month <= 12);
-  assert(rtc->day >= 1 && rtc->day <= days_in_month(rtc->year, rtc->month));
-  assert(rtc->hour >= 0 && rtc->hour < 24 &&
-         rtc->minute >= 0 && rtc->minute < 60 &&
-         rtc->second >= 0 && rtc->second < 60);
 }

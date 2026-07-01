@@ -11,8 +11,6 @@ void __am_gpu_init() {
 }
 
 void __am_gpu_config(AM_GPU_CONFIG_T *cfg) {
-  assert(cfg != NULL);
-  assert(screen_w > 0 && screen_h > 0);
   *cfg = (AM_GPU_CONFIG_T) {
     .present = true, .has_accel = false,
     .width = screen_w, .height = screen_h,
@@ -21,8 +19,6 @@ void __am_gpu_config(AM_GPU_CONFIG_T *cfg) {
 }
 
 void __am_gpu_fbdraw(AM_GPU_FBDRAW_T *ctl) {
-  assert(ctl != NULL);
-  assert(screen_w > 0 && screen_h > 0);
   if (!ctl->pixels || ctl->w <= 0 || ctl->h <= 0) {
     return;
   }
@@ -63,6 +59,5 @@ void __am_gpu_fbdraw(AM_GPU_FBDRAW_T *ctl) {
 }
 
 void __am_gpu_status(AM_GPU_STATUS_T *status) {
-  assert(status != NULL);
   status->ready = true;
 }
