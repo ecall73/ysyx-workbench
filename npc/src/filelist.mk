@@ -14,5 +14,4 @@
 #**************************************************************************************/
 
 SRCS-y += src/npc-main.c
-DIRS-y += src/cpu src/monitor src/utils
-DIRS-$(CONFIG_MODE_SYSTEM) += src/memory
+DIRS-y += src/cpu src/monitor src/utils src/memory

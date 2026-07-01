@@ -27,13 +27,12 @@ endif
 
 remove_quote = $(patsubst "%",%,$(1))
 
-GUEST_ISA ?= $(call remove_quote,$(CONFIG_ISA))
-ENGINE := interpreter
+GUEST_ISA := riscv32
 SIM_MODE ?= $(call remove_quote,$(CONFIG_PLATFORM))
 DEBUG_ENABLED := $(if $(filter 1 y yes true,$(DEBUG)),1,$(if $(filter 1 y yes true,$(debug)),1,$(if $(CONFIG_CC_DEBUG),1,)))
 UART_STDOUT ?= 1
 UART_STDOUT_ENABLED := $(if $(filter 0 n no false,$(UART_STDOUT)),,1)
-NAME = $(GUEST_ISA)-npc-$(ENGINE)$(if $(DEBUG_ENABLED),-debug,)$(if $(UART_STDOUT_ENABLED),,-no-uart-stdout)
+NAME = $(GUEST_ISA)-npc$(if $(DEBUG_ENABLED),-debug,)$(if $(UART_STDOUT_ENABLED),,-no-uart-stdout)
 
 ifeq ($(filter npc ysyxsoc,$(SIM_MODE)),)
 SIM_MODE := npc

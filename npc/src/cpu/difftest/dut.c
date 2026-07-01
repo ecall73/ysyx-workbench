@@ -25,11 +25,9 @@
 void (*ref_difftest_memcpy)(paddr_t addr, void *buf, size_t n, bool direction) = NULL;
 void (*ref_difftest_regcpy)(void *dut, bool direction) = NULL;
 void (*ref_difftest_exec)(uint64_t n) = NULL;
-void (*ref_difftest_raise_intr)(uint64_t NO) = NULL;
 
 #ifdef CONFIG_DIFFTEST
 
-static bool is_skip_ref = false;
 static int skip_dut_nr_inst = 0;
 
 #define OPCODE_LOAD  0x03u
@@ -55,20 +53,6 @@ static bool should_skip_ref(uint32_t inst, const CPU_state *ref) {
   }
 
   return !platform_in_comparable_mem(ref->gpr[rs1] + imm);
-}
-
-// this is used to let ref skip instructions which
-// can not produce consistent behavior with NPC
-void difftest_skip_ref() {
-  is_skip_ref = true;
-  // If such an instruction is one of the instruction packing in REF
-  // (see below), we end the process of catching up with QEMU's pc to
-  // keep the consistent behavior in our best.
-  // Note that this is still not perfect: if the packed instructions
-  // already write some memory, and the incoming instruction in NPC
-  // will load that memory, we will encounter false negative. But such
-  // situation is infrequent.
-  skip_dut_nr_inst = 0;
 }
 
 // this is used to deal with instruction packing in REF.
@@ -100,9 +84,6 @@ void init_difftest(char *ref_so_file, long img_size, int port) {
 
   ref_difftest_exec = dlsym(handle, "difftest_exec");
   assert(ref_difftest_exec);
-
-  ref_difftest_raise_intr = dlsym(handle, "difftest_raise_intr");
-  assert(ref_difftest_raise_intr);
 
   void (*ref_difftest_init)(int) = dlsym(handle, "difftest_init");
   assert(ref_difftest_init);
@@ -140,13 +121,6 @@ void difftest_step(vaddr_t pc, vaddr_t npc, uint32_t inst) {
     skip_dut_nr_inst --;
     if (skip_dut_nr_inst == 0)
       panic("can not catch up with ref.pc = " FMT_WORD " at pc = " FMT_WORD, ref_r.pc, pc);
-    return;
-  }
-
-  if (is_skip_ref) {
-    // to skip the checking of an instruction, just copy the reg state to reference design
-    ref_difftest_regcpy(&cpu, DIFFTEST_TO_REF);
-    is_skip_ref = false;
     return;
   }
 

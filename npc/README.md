@@ -56,7 +56,6 @@ NPC does not keep NEMU modules that have no active role in RTL simulation:
 | `src/cpu/difftest/ref.c` | NPC is only the DiffTest DUT; the reference side is the NEMU shared object. |
 | `src/am-bin.S` and `configs/*-am_defconfig` | NPC is not built as an AM-native executable. |
 | `tools/spike-diff` | NPC DiffTest uses the NEMU shared object as reference, not Spike directly. |
-| `tools/difftest.mk` | The NEMU ref shared object path is passed by AM/NPC runtime options, not this old Makefile fragment. |
 | `tools/gen-expr` | Expression randomized testing remains a NEMU/SDB development tool; NPC keeps only the SDB expression evaluator. |
 
 ## Necessary Differences
@@ -65,7 +64,7 @@ NPC does not keep NEMU modules that have no active role in RTL simulation:
 | --- | --- | --- |
 | Build language split | Copied NEMU-style `.c` modules are compiled with `gcc`; Verilator-facing sources use `.cpp` and are compiled by Verilator. | Keeps copied C code close to NEMU and avoids `.c` files that secretly need C++ compilation. |
 | Build target dimension | NPC removes NEMU's `CONFIG_TARGET_AM` / `CONFIG_TARGET_NATIVE_ELF` branches. | NPC is only a host Verilator simulator; it is never built as an AM payload. Keeping those branches would be dead configuration. |
-| Execution engine | NPC fixes `ENGINE := interpreter` in the Makefile instead of exposing a Kconfig choice. | There is only one RTL tick/commit execution path; making it configurable would be fake flexibility. |
+| Execution engine | NPC removes NEMU's execution-engine dimension from both Kconfig and binary naming. | There is only one RTL tick/commit execution path; making it configurable would be fake flexibility. |
 | `disasm.c` | Keeps only RISC-V capstone mode. | NPC only supports the local RISC-V RTL, so NEMU's x86/MIPS/LoongArch branches are removed. |
 | `CPU_state` / DPI commit | Host state always exposes 32 GPRs; RTL commits zero for x16..x31. | Keeps SDB and DiffTest state shape aligned with NEMU while the core remains RV32E internally. |
 | `cpu-exec.cpp` | Replaces `isa_exec_once()` with Verilator tick plus DPI commit collection. | RTL, not NEMU's software decoder, executes instructions. |
@@ -75,7 +74,7 @@ NPC does not keep NEMU modules that have no active role in RTL simulation:
 | UART stdout | `UART_STDOUT ?= 1` is a Makefile-only switch; `UART_STDOUT=0` builds a separate `*-no-uart-stdout` binary. | This preserves the previous CI knob without adding a permanent Kconfig item, and prevents stale binaries when the Verilator macro changes. |
 | Debug build | `DEBUG=1` or `CONFIG_CC_DEBUG=y` selects the `*-debug` binary and adds `-Og -ggdb3 -DDEBUG`. | Matches NEMU-style debug builds while keeping AM's `DEBUG=1` meaning of non-batch SDB mode. |
 | Kconfig ISA options | Removes the RVE host-side option. | The simulation environment presents an RV32I-shaped 32-GPR state; RVE is only an RTL implementation detail. |
-| DiffTest | NPC loads NEMU shared object as ref; `NEMU_HOME` appears only for that ref path. | NPC is DUT, NEMU is the reference. |
+| DiffTest | `tools/difftest.mk` fixes the reference to NEMU's `riscv32-nemu-interpreter-so`. | NPC is DUT, NEMU is the only supported reference. |
 
 ## Preserved NPC Features
 

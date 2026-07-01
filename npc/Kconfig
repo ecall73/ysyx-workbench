@@ -14,18 +14,6 @@ config PLATFORM
   default "npc" if PLATFORM_NPC
   default "ysyxsoc" if PLATFORM_YSYXSOC
 
-config ISA_riscv
-  bool
-  default y
-
-config ISA
-  string
-  default "riscv32"
-
-config MODE_SYSTEM
-  bool
-  default y
-
 menu "Build Options"
 choice
   prompt "Compiler"

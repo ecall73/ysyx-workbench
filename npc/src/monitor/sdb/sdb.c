@@ -159,9 +159,6 @@ static struct {
   { "p", "Find the value of <EXPR>", cmd_p },
   { "w", "Set watchpoint <EXPR>", cmd_w },
   { "d", "Delete watchpoint <NO>", cmd_d },
-
-  /* TODO: Add more commands */
-
 };
 
 #define NR_CMD ARRLEN(cmd_table)

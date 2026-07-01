@@ -88,7 +88,9 @@ const char *platform_device_name(uint32_t addr) {
 }
 
 bool platform_in_comparable_mem(paddr_t addr) {
-  return in_flash(addr);
+  return in_flash(addr)
+      || (addr >= NPC_SRAM_BASE && addr < NPC_SRAM_BASE + NPC_SRAM_SIZE)
+      || (addr >= NPC_SDRAM_BASE && addr < NPC_SDRAM_BASE + NPC_SDRAM_SIZE);
 }
 
 void platform_difftest_memcpy(void (*ref_memcpy)(paddr_t, void *, size_t, bool), bool direction) {
