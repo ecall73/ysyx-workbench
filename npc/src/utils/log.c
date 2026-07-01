@@ -2,6 +2,7 @@
 #include <stdarg.h>
 
 extern uint64_t g_nr_guest_inst;
+uint64_t npc_get_sim_time();
 
 FILE *log_fp = NULL;
 static FILE *ftrace_fp = NULL;
@@ -56,9 +57,11 @@ void init_dtrace_log(const char *log_file) {
 static void trace_vwrite(FILE *trace_fp, const char *prefix, const char *fmt, va_list ap) {
   if (!log_enable()) return;
 
+  uint64_t sim_time = npc_get_sim_time();
   if (log_fp != NULL) {
     va_list log_ap;
     va_copy(log_ap, ap);
+    fprintf(log_fp, "[%9" PRIu64 "] ", sim_time);
     fputs(prefix, log_fp);
     vfprintf(log_fp, fmt, log_ap);
     fflush(log_fp);
@@ -66,6 +69,7 @@ static void trace_vwrite(FILE *trace_fp, const char *prefix, const char *fmt, va
   }
 
   if (trace_fp != NULL) {
+    fprintf(trace_fp, "[%9" PRIu64 "] ", sim_time);
     fputs(prefix, trace_fp);
     vfprintf(trace_fp, fmt, ap);
     fflush(trace_fp);
@@ -76,6 +80,13 @@ void ftrace_write(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   trace_vwrite(ftrace_fp, "[FTRACE] ", fmt, ap);
+  va_end(ap);
+}
+
+void itrace_write(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  trace_vwrite(NULL, "[ITRACE] ", fmt, ap);
   va_end(ap);
 }
 

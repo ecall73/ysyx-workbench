@@ -16,8 +16,8 @@ comma := ,
 INC_PATH := $(WORK_DIR)/include $(INC_PATH)
 LDFLAGS := $(LDFLAGS) -lreadline -ldl
 
-VERILATOR_SRCS = $(filter %.cpp %.cc,$(SRCS))
-HOST_SRCS = $(filter-out $(VERILATOR_SRCS),$(SRCS))
+VERILATOR_SRCS = $(abspath $(filter %.cpp %.cc,$(SRCS)))
+HOST_SRCS = $(filter-out %.cpp %.cc,$(SRCS))
 
 CSRC = $(filter %.c,$(HOST_SRCS))
 OBJS = $(CSRC:%.c=$(OBJ_DIR)/%.o)
@@ -27,6 +27,7 @@ CPU_VERILOG = $(abspath $(VERILOG_BUILD_DIR)/ysyx_26030082.v)
 CPU_VSRCS = $(sort $(shell find $(abspath $(NPC_HOME)/vsrc/core) -name "*.v"))
 VSRCS_NPC = $(sort $(shell find $(abspath $(NPC_HOME)/vsrc/npc) -name "*.v"))
 VHDRS_BASE = $(shell find $(abspath $(NPC_HOME)/vsrc) -name "*.vh" -o -name "*.svh")
+HEADER_DEPS = $(shell find $(NPC_HOME)/include $(NPC_HOME)/src -type f \( -name "*.h" -o -name "*.hpp" \))
 
 ifeq ($(SIM_MODE),npc)
 TOPNAME = top
@@ -46,6 +47,7 @@ endif
 
 INCLUDES = $(addprefix -I, $(INC_PATH))
 CFLAGS := -MMD -Wall -Werror $(INCLUDES) $(CFLAGS)
+CFLAGS += -fmacro-prefix-map=$(abspath $(NPC_HOME))/=
 CFLAGS += -DTOP_NAME=\"V$(TOPNAME)\"
 CFLAGS += $(if $(filter npc,$(SIM_MODE)),-DNPC_BUILD_PLATFORM_NPC=1,-DNPC_BUILD_PLATFORM_YSYXSOC=1)
 CFLAGS += $(if $(CONFIG_ITRACE),-I$(CAPSTONE_HOME)/repo/include,)
@@ -93,7 +95,7 @@ TRACE_DEPS += $(CAPSTONE_SO)
 endif
 
 CONFIG_DEPS = $(NPC_HOME)/include/generated/autoconf.h $(NPC_HOME)/include/config/auto.conf
-NPC_DEPS = $(VSRCS) $(VHDRS_BASE) $(VERILATOR_SRCS) $(BUILD_CONFIG) $(OBJS) $(MODE_EXTRA_DEPS) $(TRACE_DEPS) $(CONFIG_DEPS)
+NPC_DEPS = $(VSRCS) $(VHDRS_BASE) $(VERILATOR_SRCS) $(HEADER_DEPS) $(BUILD_CONFIG) $(OBJS) $(MODE_EXTRA_DEPS) $(TRACE_DEPS) $(CONFIG_DEPS)
 NPC_DEPS += $(NPC_HOME)/Makefile $(NPC_HOME)/scripts/build.mk $(NPC_HOME)/scripts/native.mk
 
 app build: $(BINARY)

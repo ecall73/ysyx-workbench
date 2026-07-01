@@ -13,14 +13,9 @@ void assert_fail_msg();
 }
 #endif
 
-static inline const char *log_file_path(const char *file) {
-  const char *p = strstr(file, "src/");
-  return p != NULL ? p : file;
-}
-
 #define Log(format, ...) \
     _Log(ANSI_FMT("[%s:%d %s] " format, ANSI_FG_BLUE) "\n", \
-        log_file_path(__FILE__), __LINE__, __func__, ## __VA_ARGS__)
+        "npc/" __FILE__, __LINE__, __func__, ## __VA_ARGS__)
 
 #define Assert(cond, format, ...) \
   do { \

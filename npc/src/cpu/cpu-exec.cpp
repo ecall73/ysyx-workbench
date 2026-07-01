@@ -53,7 +53,7 @@ static void etrace_commit(vaddr_t pc, vaddr_t dnpc, uint32_t inst) {
 
 static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 #ifdef CONFIG_ITRACE_COND
-  if (ITRACE_COND) { log_write("%s\n", _this->logbuf); }
+  if (ITRACE_COND) { itrace_write("%s\n", _this->logbuf); }
 #endif
   if (g_print_step) { IFDEF(CONFIG_ITRACE, puts(_this->logbuf)); }
   ftrace_commit(_this->pc, dnpc, _this->isa.inst);

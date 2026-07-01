@@ -8,6 +8,10 @@ SimTop *g_top = NULL;
 VerilatedContext *g_contextp = NULL;
 VerilatedVcdC *g_tfp = NULL;
 
+extern "C" uint64_t npc_get_sim_time() {
+  return g_contextp == NULL ? 0 : g_contextp->time();
+}
+
 extern "C" void npc_bus_trace(int is_write, int addr, int data, int len) {
   uint32_t value = (uint32_t)data;
   if (len == 1) value = (value >> (((uint32_t)addr & 3) * 8)) & 0xff;

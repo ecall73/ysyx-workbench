@@ -52,7 +52,7 @@ config MAX_SIM_TIME
 
 config MAX_NO_COMMIT_CYCLES
   int "Maximum cycles without an instruction commit"
-  default 100
+  default 1000
 
 endmenu
 
@@ -69,7 +69,7 @@ config TRACE_START
 config TRACE_END
   depends on TRACE
   int "When tracing is disabled (unit: number of instructions)"
-  default 10000
+  default 1000000
 
 config ITRACE
   depends on TRACE

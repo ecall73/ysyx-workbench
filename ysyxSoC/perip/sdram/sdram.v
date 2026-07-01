@@ -33,8 +33,16 @@ module sdram(
   localparam MEM_WORDS = BANKS * (1 << ROW_BITS) * (1 << COL_BITS);
   localparam COL_MASK = (1 << COL_BITS) - 1;
 
-  // SDRAM storage array (16-bit words).
-  reg [15:0] mem [0:MEM_WORDS-1];
+`ifndef SYNTHESIS
+`ifndef __ICARUS__
+  import "DPI-C" function int unsigned sdram_read16(input int unsigned word_addr);
+  import "DPI-C" function void sdram_write16(
+    input int unsigned word_addr,
+    input int unsigned data,
+    input int unsigned mask
+  );
+`endif
+`endif
 
   // Per-bank activated row state.
   reg [ROW_BITS-1:0] active_row [0:BANKS-1];
@@ -62,6 +70,7 @@ module sdram(
   reg [1:0] rd_bank;
   reg [ROW_BITS-1:0] rd_row;
   reg [COL_BITS-1:0] rd_col_base;
+  reg [3:0] rd_bl;
   reg [3:0] rd_beats_left;
   reg [3:0] rd_beat_idx;
 
@@ -70,6 +79,7 @@ module sdram(
   reg [1:0] wr_bank;
   reg [ROW_BITS-1:0] wr_row;
   reg [COL_BITS-1:0] wr_col_base;
+  reg [3:0] wr_bl;
   reg [3:0] wr_beats_left;
   reg [3:0] wr_beat_idx;
 
@@ -97,11 +107,11 @@ module sdram(
     reg [COL_BITS-1:0] offs;
     begin
       case (bl)
-        4'd1: offs = idx[0:0];
-        4'd2: offs = idx[0:0];
-        4'd4: offs = idx[1:0];
-        4'd8: offs = idx[2:0];
-        default: offs = idx[2:0];
+        4'd1: offs = {{(COL_BITS-1){1'b0}}, idx[0]};
+        4'd2: offs = {{(COL_BITS-1){1'b0}}, idx[0]};
+        4'd4: offs = {{(COL_BITS-2){1'b0}}, idx[1:0]};
+        4'd8: offs = {{(COL_BITS-3){1'b0}}, idx[2:0]};
+        default: offs = {{(COL_BITS-3){1'b0}}, idx[2:0]};
       endcase
       burst_col = (base + offs) & COL_MASK;
     end
@@ -113,21 +123,54 @@ module sdram(
     input [ROW_BITS-1:0] row_i;
     input [COL_BITS-1:0] col_i;
     begin
-      word_index = ({bank_i, row_i, col_i});
+      word_index = {8'b0, bank_i, row_i, col_i};
     end
   endfunction
 
+  function integer burst_word_index;
+    input [1:0] bank_i;
+    input [ROW_BITS-1:0] row_i;
+    input [COL_BITS-1:0] base_i;
+    input [3:0] idx_i;
+    input [3:0] bl_i;
+    begin
+      burst_word_index = word_index(bank_i, row_i, burst_col(base_i, idx_i, bl_i));
+    end
+  endfunction
+
+`ifndef SYNTHESIS
+`ifndef __ICARUS__
+  function [15:0] dpi_read_word;
+    input integer word_addr;
+    reg [31:0] data;
+    begin
+      data = sdram_read16(word_addr[31:0]);
+      dpi_read_word = data[15:0];
+    end
+  endfunction
+`endif
+`endif
+
   wire [2:0] cmd = {ras, cas, we};
-  integer wi;
-  reg [3:0] bl_decoded;
-  reg [COL_BITS-1:0] cur_col;
-  reg [15:0] old_word;
+  reg wr_commit_valid;
+  reg [31:0] wr_commit_addr;
+  reg [15:0] wr_commit_data;
+  reg [1:0] wr_commit_mask;
 
   always @(posedge clk) begin
     cycle <= cycle + 1;
 
     // Default to not driving dq; read path explicitly enables it per beat.
     dq_oe <= 1'b0;
+    wr_commit_valid <= 1'b0;
+
+`ifndef SYNTHESIS
+`ifndef __ICARUS__
+    if (wr_commit_valid) begin
+      sdram_write16(wr_commit_addr, {16'b0, wr_commit_data}, {30'b0, wr_commit_mask});
+    end
+`endif
+`endif
 
     if (!cke) begin
       // With CKE low, this behavioral model ignores command progression.
@@ -138,16 +181,13 @@ module sdram(
       // This block handles remaining beats (beat#1 .. beat#N-1).
       // ----------------------------------------------------------------------
       if (wr_active && wr_beats_left != 0) begin
-        cur_col = burst_col(wr_col_base, wr_beat_idx, mode_bl);
-        wi = word_index(wr_bank, wr_row, cur_col);
-        old_word = mem[wi];
+        wr_commit_valid <= 1'b1;
+        wr_commit_addr <= burst_word_index(wr_bank, wr_row, wr_col_base, wr_beat_idx, wr_bl);
+        wr_commit_data <= dq_in;
+        wr_commit_mask <= ~dqm;
 
-        if (!dqm[0]) old_word[7:0]   = dq_in[7:0];
-        if (!dqm[1]) old_word[15:8]  = dq_in[15:8];
-        mem[wi] = old_word;
-
-        wr_beat_idx = wr_beat_idx + 1;
-        wr_beats_left = wr_beats_left - 1;
+        wr_beat_idx <= wr_beat_idx + 1;
+        wr_beats_left <= wr_beats_left - 1;
         if (wr_beats_left == 1) begin
           wr_active <= 1'b0;
         end
@@ -162,9 +202,15 @@ module sdram(
         if (rd_delay != 0) begin
           rd_delay <= rd_delay - 1;
         end else if (rd_beats_left != 0) begin
-          cur_col = burst_col(rd_col_base, rd_beat_idx, mode_bl);
-          wi = word_index(rd_bank, rd_row, cur_col);
-          dq_out <= mem[wi];
+`ifndef SYNTHESIS
+`ifndef __ICARUS__
+          dq_out <= dpi_read_word(burst_word_index(rd_bank, rd_row, rd_col_base, rd_beat_idx, rd_bl));
+`else
+          dq_out <= 16'h0;
+`endif
+`else
+          dq_out <= 16'h0;
+`endif
           dq_oe <= 1'b1;
           rd_beat_idx <= rd_beat_idx + 1;
           rd_beats_left <= rd_beats_left - 1;
@@ -193,8 +239,7 @@ module sdram(
             if (!row_open[ba]) begin
               $fatal(1, "[sdram] READ without ACTIVE at cycle=%0d bank=%0d row=%0d col=%0d", cycle, ba, a, a[8:0]);
             end
-            bl_decoded = decode_bl(mode_bl);
-            if (bl_decoded == 0) begin
+            if (decode_bl(mode_bl) == 0) begin
               $fatal(1, "[sdram] Unsupported BL code=%0b at cycle=%0d", mode_bl, cycle);
             end
             if (mode_cl < 1 || mode_cl > 3) begin
@@ -208,7 +253,8 @@ module sdram(
             rd_row <= active_row[ba];
             // A10 auto-precharge bit is intentionally ignored in this model.
             rd_col_base <= a[8:0];
-            rd_beats_left <= bl_decoded;
+            rd_bl <= decode_bl(mode_bl);
+            rd_beats_left <= decode_bl(mode_bl);
             rd_beat_idx <= 4'd0;
           end
           CMD_WRITE: begin
@@ -216,26 +262,24 @@ module sdram(
             if (!row_open[ba]) begin
               $fatal(1, "[sdram] WRITE without ACTIVE at cycle=%0d bank=%0d row=%0d col=%0d", cycle, ba, a, a[8:0]);
             end
-            bl_decoded = decode_bl(mode_bl);
-            if (bl_decoded == 0) begin
+            if (decode_bl(mode_bl) == 0) begin
               $fatal(1, "[sdram] Unsupported BL code=%0b at cycle=%0d", mode_bl, cycle);
             end
             wr_bank <= ba;
             wr_row <= active_row[ba];
             // A10 auto-precharge bit is intentionally ignored in this model.
             wr_col_base <= a[8:0];
+            wr_bl <= decode_bl(mode_bl);
 
             // In SDR SDRAM, the first write beat is sampled in the WRITE command cycle.
-            cur_col = burst_col(a[8:0], 4'd0, bl_decoded);
-            wi = word_index(ba, active_row[ba], cur_col);
-            old_word = mem[wi];
-            if (!dqm[0]) old_word[7:0]  = dq_in[7:0];
-            if (!dqm[1]) old_word[15:8] = dq_in[15:8];
-            mem[wi] = old_word;
+            wr_commit_valid <= 1'b1;
+            wr_commit_addr <= burst_word_index(ba, active_row[ba], a[8:0], 4'd0, decode_bl(mode_bl));
+            wr_commit_data <= dq_in;
+            wr_commit_mask <= ~dqm;
 
-            if (bl_decoded > 1) begin
+            if (decode_bl(mode_bl) > 1) begin
               wr_active <= 1'b1;
-              wr_beats_left <= bl_decoded - 1;
+              wr_beats_left <= decode_bl(mode_bl) - 1;
               wr_beat_idx <= 4'd1;
             end else begin
               wr_active <= 1'b0;
@@ -248,7 +292,9 @@ module sdram(
             wr_active <= 1'b0;
           end
           CMD_PRECHARGE: begin
-            // Functional NOP in this model per lab requirement.
+            // A10 selects all-bank precharge; otherwise BA selects one bank.
+            if (a[10]) row_open <= {BANKS{1'b0}};
+            else row_open[ba] <= 1'b0;
           end
           CMD_REFRESH: begin
             // Functional NOP in this model per lab requirement.
@@ -287,12 +333,14 @@ module sdram(
     rd_bank = 2'd0;
     rd_row = {ROW_BITS{1'b0}};
     rd_col_base = {COL_BITS{1'b0}};
+    rd_bl = 4'd2;
     rd_beats_left = 4'd0;
     rd_beat_idx = 4'd0;
     wr_active = 1'b0;
     wr_bank = 2'd0;
     wr_row = {ROW_BITS{1'b0}};
     wr_col_base = {COL_BITS{1'b0}};
+    wr_bl = 4'd2;
     wr_beats_left = 4'd0;
     wr_beat_idx = 4'd0;
 

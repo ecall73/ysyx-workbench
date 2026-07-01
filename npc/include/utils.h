@@ -69,6 +69,7 @@ void init_ftrace_log(const char *log_file);
 void init_etrace_log(const char *log_file);
 void init_mtrace_log(const char *log_file);
 void init_dtrace_log(const char *log_file);
+void itrace_write(const char *fmt, ...);
 void ftrace_write(const char *fmt, ...);
 void etrace_write(const char *fmt, ...);
 void mtrace_write(const char *fmt, ...);
