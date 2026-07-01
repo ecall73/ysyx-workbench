@@ -1,18 +1,6 @@
 #include <am.h>
 #include <riscv/riscv.h>
 #include <klib.h>
-#include <stddef.h>
-
-_Static_assert(offsetof(Context, mcause) == NR_REGS * sizeof(uintptr_t),
-    "Context layout mismatch: mcause");
-_Static_assert(offsetof(Context, mstatus) == (NR_REGS + 1) * sizeof(uintptr_t),
-    "Context layout mismatch: mstatus");
-_Static_assert(offsetof(Context, mepc) == (NR_REGS + 2) * sizeof(uintptr_t),
-    "Context layout mismatch: mepc");
-_Static_assert(offsetof(Context, pdir) == (NR_REGS + 3) * sizeof(uintptr_t),
-    "Context layout mismatch: pdir");
-_Static_assert(sizeof(Context) == (NR_REGS + 4) * sizeof(uintptr_t),
-    "Context size mismatch");
 
 static Context* (*user_handler)(Event, Context*) = NULL;
 

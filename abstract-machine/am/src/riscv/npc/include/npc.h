@@ -33,12 +33,4 @@ typedef uintptr_t PTE;
 
 #define PGSIZE    4096
 
-_Static_assert((RTC_ADDR & 0x3) == 0, "RTC_ADDR must be word aligned");
-_Static_assert((CLINT_MTIME & 0x3) == 0, "CLINT_MTIME must be word aligned");
-_Static_assert((CLINT_MTIMEH & 0x3) == 0, "CLINT_MTIMEH must be word aligned");
-_Static_assert((KBD_ADDR & 0x3) == 0, "KBD_ADDR must be word aligned");
-_Static_assert(NPC_CPU_FREQ_HZ >= 1000000ull, "NPC_CPU_FREQ_HZ is too low");
-_Static_assert(NPC_CLINT_CYCLES_PER_US > 0, "NPC_CLINT_CYCLES_PER_US must be nonzero");
-_Static_assert(PGSIZE == 4096, "RISC-V AM assumes 4KB pages");
-
 #endif

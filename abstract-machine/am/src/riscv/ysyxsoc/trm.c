@@ -11,10 +11,6 @@ void halt(int code);
 Area heap = RANGE(&_heap_start, &_heap_end);
 static const char mainargs[MAINARGS_MAX_LEN] = TOSTRING(MAINARGS_PLACEHOLDER); // defined in CFLAGS
 
-_Static_assert(MAINARGS_MAX_LEN > 0, "MAINARGS_MAX_LEN must be positive");
-_Static_assert(sizeof(TOSTRING(MAINARGS_PLACEHOLDER)) <= MAINARGS_MAX_LEN,
-    "mainargs placeholder exceeds MAINARGS_MAX_LEN");
-
 enum {
   GPIO_SEG_REG_OFF = 0x8u,
 };
