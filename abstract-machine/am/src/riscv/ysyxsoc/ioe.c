@@ -22,7 +22,7 @@ static inline uint8_t uart_read8(uint32_t off) {
 }
 
 static void __am_uart_tx(AM_UART_TX_T *tx) {
-  (void)tx;
+  putch((char)tx->data);
 }
 
 static void __am_uart_rx(AM_UART_RX_T *rx) {
