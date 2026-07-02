@@ -2,22 +2,9 @@ CONTRACT_ID = platform/ysyxsoc-layout-flash-sdram
 CONTRACT_GROUP = platform
 CONTRACT_ARCHS = riscv32e-ysyxsoc
 CONTRACT_ROOT = ../..
+SRCS = src/start.S src/main.c
+include $(CONTRACT_ROOT)/contract.mk
 
-ARCH ?= riscv32e-ysyxsoc
-ifeq ($(filter $(ARCH),$(CONTRACT_ARCHS)),)
-$(error contract $(CONTRACT_ID) does not support ARCH=$(ARCH); supported: $(CONTRACT_ARCHS))
-endif
-
-.PHONY: run image clean
-
-run image:
-	@echo "CONTRACT $(CONTRACT_ID) BEGIN"
-	@grep -q "flash (rx)" linker-flash-sdram.ld
-	@grep -q "sdram (rwx)" linker-flash-sdram.ld
-	@grep -q "_data_start" linker-flash-sdram.ld
-	@grep -q "_data_load_start" linker-flash-sdram.ld
-	@grep -q "_heap_end = ORIGIN(sdram) + LENGTH(sdram)" linker-flash-sdram.ld
-	@echo "CONTRACT $(CONTRACT_ID) PASS"
-
-clean:
-	@rm -rf build
+AM_SRCS := $(filter-out riscv/ysyxsoc/start.S,$(AM_SRCS))
+LDSCRIPTS := linker-flash-sdram.ld
+LDFLAGS := -z noexecstack -melf32lriscv --defsym=_pmem_start=0x30000000 --defsym=_entry_offset=0x0 --gc-sections -e _start $(addprefix -T,$(LDSCRIPTS))
