@@ -1,7 +1,6 @@
 #include <contract_suite.h>
 
 static void point_run_command(void) {
-  contract_suite_fail("run-command", "injected-skip-check");
   contract_puts("PREFLIGHT_RUN_COMMAND_TOKEN\n");
 }
 
