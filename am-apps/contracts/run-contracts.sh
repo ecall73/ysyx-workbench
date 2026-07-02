@@ -18,7 +18,7 @@ case "$ARCH" in
       01-sections-data-bss
       02-heap-window
       03-klib-string
-      04-klib-format
+      04-klib-stdio
       05-klib-stdlib
       08-timer-uptime
       10-cte-yield
@@ -33,7 +33,7 @@ case "$ARCH" in
       01-sections-data-bss
       02-heap-window
       03-klib-string
-      04-klib-format
+      04-klib-stdio
       05-klib-stdlib
       06-libgcc-rv32e
       07-ioe-config
@@ -52,7 +52,7 @@ case "$ARCH" in
       01-sections-data-bss
       02-heap-window
       03-klib-string
-      04-klib-format
+      04-klib-stdio
       05-klib-stdlib
       06-libgcc-rv32e
       07-ioe-config
@@ -117,7 +117,7 @@ for t in "${TESTS[@]}"; do
   required_token=
   case "$t" in
     00-trm-putch-halt) required_token=TRM_PUTCH_TOKEN ;;
-    04-klib-format) required_token=KLIB_PRINTF_TOKEN ;;
+    04-klib-stdio) required_token=KLIB_PRINTF_TOKEN ;;
     13-uart-tx) required_token=UART_TX_TOKEN ;;
   esac
   if [[ -n "$required_token" ]] \

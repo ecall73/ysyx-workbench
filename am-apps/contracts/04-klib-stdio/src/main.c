@@ -1,4 +1,4 @@
-#define CONTRACT_ID "04-klib-format"
+#define CONTRACT_ID "04-klib-stdio"
 #include <contract.h>
 #include <klib.h>
 #include <limits.h>

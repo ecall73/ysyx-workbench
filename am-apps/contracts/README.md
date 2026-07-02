@@ -49,7 +49,7 @@ CONTRACT <id> PASS
 CONTRACT <id> FAIL <stage>
 ```
 
-`run-contracts.sh` 同时检查命令退出状态和 `PASS` token。`00-trm-putch-halt` 额外检查 `TRM_PUTCH_TOKEN`；`04-klib-format` 额外检查 `KLIB_PRINTF_TOKEN`；`13-uart-tx` 在非 SKIP 时额外检查 `UART_TX_TOKEN`。
+`run-contracts.sh` 同时检查命令退出状态和 `PASS` token。`00-trm-putch-halt` 额外检查 `TRM_PUTCH_TOKEN`；`04-klib-stdio` 额外检查 `KLIB_PRINTF_TOKEN`；`13-uart-tx` 在非 SKIP 时额外检查 `UART_TX_TOKEN`。
 
 ## 自动可验证测试
 
@@ -59,7 +59,7 @@ CONTRACT <id> FAIL <stage>
 | 01 | `sections-data-bss` | `.data` 初值、`.bss` 清零、小栈读写 | nemu, npc, ysyxsoc |
 | 02 | `heap-window` | `heap.start/end`、heap 头/中/尾小窗口可写 | nemu, npc, ysyxsoc |
 | 03 | `klib-string` | `string.c` 全部公开函数：字符串复制/拼接/比较和内存操作 | nemu, npc, ysyxsoc |
-| 04 | `klib-format` | `stdio.c` 全部公开函数：`printf/sprintf/snprintf/vsprintf/vsnprintf` 和核心格式 | nemu, npc, ysyxsoc |
+| 04 | `klib-stdio` | `stdio.c` 全部公开函数：`printf/sprintf/snprintf/vsprintf/vsnprintf` 和核心格式 | nemu, npc, ysyxsoc |
 | 05 | `klib-stdlib` | `stdlib.c` 全部公开函数：`atoi/abs/rand/srand/malloc/free` 的 AM 简化语义 | nemu, npc, ysyxsoc |
 | 06 | `libgcc-rv32e` | RV32E 64-bit `mul/div/rem/shift` helper 链接和结果 | npc, ysyxsoc |
 | 07 | `ioe-config` | `ioe_init` 和 TIMER/INPUT/UART/GPU/GPIO config LUT | npc, ysyxsoc |
