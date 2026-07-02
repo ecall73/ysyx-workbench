@@ -52,7 +52,7 @@ config MAX_SIM_TIME
 
 config MAX_NO_COMMIT_CYCLES
   int "Maximum cycles without an instruction commit"
-  default 1000
+  default 10000
 
 endmenu
 
