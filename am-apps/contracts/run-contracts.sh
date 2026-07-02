@@ -60,7 +60,7 @@ test_group() {
 }
 
 discover_tests() {
-  find "$ROOT" -mindepth 2 -maxdepth 2 -name Makefile \
+  find "$ROOT" -mindepth 3 -maxdepth 3 -name Makefile \
     | sed "s#^$ROOT/##; s#/Makefile\$##" \
     | sort
 }
