@@ -114,6 +114,20 @@ for t in "${TESTS[@]}"; do
     continue
   fi
 
+  required_token=
+  case "$t" in
+    00-trm-putch-halt) required_token=TRM_PUTCH_TOKEN ;;
+    13-uart-tx) required_token=UART_TX_TOKEN ;;
+  esac
+  if [[ -n "$required_token" ]] \
+      && ! grep -q "CONTRACT $t SKIP" "$log" \
+      && ! grep -q "$required_token" "$log"; then
+    echo "[contract] FAIL $t: required token '$required_token' missing log=$log"
+    tail -n 40 "$log"
+    fail=$((fail + 1))
+    continue
+  fi
+
   echo "[contract] PASS $t"
   pass=$((pass + 1))
 done
