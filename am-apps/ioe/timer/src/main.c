@@ -15,14 +15,14 @@ int main(const char *args) {
 
   AM_TIMER_CONFIG_T cfg = io_read(AM_TIMER_CONFIG);
   AM_INPUT_CONFIG_T icfg = io_read(AM_INPUT_CONFIG);
-  printf("[timer-visible][CONFIG] timer.present=%d has_rtc=%d input.present=%d\n",
+  printf("[timer][CONFIG] timer.present=%d has_rtc=%d input.present=%d\n",
       cfg.present, cfg.has_rtc, icfg.present);
   if (!cfg.present) {
-    printf("[timer-visible][FAIL] timer not present\n");
+    printf("[timer][FAIL] timer not present\n");
     return 1;
   }
 
-  printf("[timer-visible][EXPECT] one line per second; delta should be about 1000000us; Esc exits when input exists\n");
+  printf("[timer][EXPECT] one line per second; delta should be about 1000000us; Esc exits when input exists\n");
   uint64_t last_print = io_read(AM_TIMER_UPTIME).us;
   uint64_t last_uptime = last_print;
   int rounds = 0;
@@ -31,7 +31,7 @@ int main(const char *args) {
     AM_TIMER_UPTIME_T now = io_read(AM_TIMER_UPTIME);
     if (now.us - last_print >= 1000000ull) {
       uint64_t delta = now.us - last_uptime;
-      printf("[timer-visible][UPTIME] round=%d us=%llu delta=%llu status=%s ",
+      printf("[timer][UPTIME] round=%d us=%llu delta=%llu status=%s ",
           rounds,
           (unsigned long long)now.us,
           (unsigned long long)delta,
@@ -53,11 +53,11 @@ int main(const char *args) {
     }
 
     if (diag_poll_exit()) {
-      printf("[timer-visible][DONE] Esc pressed\n");
+      printf("[timer][DONE] Esc pressed\n");
       return 0;
     }
   }
 
-  printf("[timer-visible][DONE] fixed rounds complete\n");
+  printf("[timer][DONE] fixed rounds complete\n");
   return 0;
 }

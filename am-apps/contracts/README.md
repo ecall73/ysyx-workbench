@@ -32,8 +32,8 @@ am-apps/contracts/build/contract-<arch>-<contract>.log
 需要人工观察或输入的 IOE 诊断测试不进入 contracts 默认门禁，统一放在 `am-apps/ioe/`：
 
 ```sh
-make -C am-apps/ioe/keyboard-visible ARCH=riscv32e-ysyxsoc run
-make -C am-apps/ioe/gpio-visible ARCH=riscv32e-ysyxsoc run
+make -C am-apps/ioe/keyboard ARCH=riscv32e-ysyxsoc run
+make -C am-apps/ioe/gpio ARCH=riscv32e-ysyxsoc run
 ```
 
 ## Result Protocol
@@ -87,7 +87,7 @@ CONTRACT <id> FAIL <stage>
 | NPC 启动 RT-Thread 和 shell | 00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13 |
 | ysyxSoC 启动 RT-Thread | NPC 集合加 14, 15, 16, 17, 18 |
 | RT-Thread 上运行 microbench | 03, 04, 05, 06, 08 |
-| 贪吃蛇/NVBoard | 14, 15, 16 加 `am-apps/ioe/gpu-pattern`；具体按键操作由贪吃蛇/打字游戏本身验证 |
+| 贪吃蛇/NVBoard | 14, 15, 16 加 `am-apps/ioe/gpu`；具体按键操作由贪吃蛇/打字游戏本身验证 |
 
 ## Notes
 
