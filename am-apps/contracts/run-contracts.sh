@@ -117,6 +117,7 @@ for t in "${TESTS[@]}"; do
   required_token=
   case "$t" in
     00-trm-putch-halt) required_token=TRM_PUTCH_TOKEN ;;
+    04-klib-format) required_token=KLIB_PRINTF_TOKEN ;;
     13-uart-tx) required_token=UART_TX_TOKEN ;;
   esac
   if [[ -n "$required_token" ]] \
