@@ -64,14 +64,9 @@ static void draw_corner_blocks(int w, int h, bool sync) {
   draw_rect(w - 16 - bw, h - 16 - bh, bw, bh, diag_rgb(255, 255, 0), sync);
 }
 
-static bool step_wait(const char *step, const char *expect) {
+static void step_note(const char *step, const char *expect) {
   printf("[gpu][STEP %s] %s\n", step, expect);
   printf("[gpu][REFERENCE] am-apps/ioe/gpu/reference/%s.png\n", step);
-  for (int i = 0; i < 120; i++) {
-    if (diag_poll_exit()) return true;
-    diag_delay(50000u);
-  }
-  return false;
 }
 
 int main(const char *args) {
@@ -79,35 +74,33 @@ int main(const char *args) {
   ioe_init();
 
   AM_GPU_CONFIG_T cfg = io_read(AM_GPU_CONFIG);
-  AM_INPUT_CONFIG_T icfg = io_read(AM_INPUT_CONFIG);
-  printf("[gpu][CONFIG] present=%d accel=%d width=%d height=%d vmemsz=%d input.present=%d\n",
-      cfg.present, cfg.has_accel, cfg.width, cfg.height, cfg.vmemsz, icfg.present);
+  printf("[gpu][CONFIG] present=%d accel=%d width=%d height=%d vmemsz=%d\n",
+      cfg.present, cfg.has_accel, cfg.width, cfg.height, cfg.vmemsz);
   if (!cfg.present || cfg.width <= 0 || cfg.height <= 0 || cfg.width > (int)LENGTH(row)) {
     printf("[gpu][FAIL] invalid GPU config\n");
     return 1;
   }
 
-  printf("[gpu][EXPECT] staged draw; compare each step with am-apps/ioe/gpu/reference/*.png; Esc exits during waits\n");
+  printf("[gpu][EXPECT] staged draw; compare each printed step with am-apps/ioe/gpu/reference/*.png\n");
 
+  step_note("01-background", "full dark background; checks full-screen draw size");
   draw_background(cfg.width, cfg.height, true);
-  if (step_wait("01-background", "full dark background; checks full-screen draw size")) goto done;
 
+  step_note("02-border", "8-pixel white border; checks thin horizontal/vertical rectangles");
   draw_border(cfg.width, cfg.height, true);
-  if (step_wait("02-border", "8-pixel white border; checks thin horizontal/vertical rectangles")) goto done;
 
+  step_note("03-gradient", "top inner 40-pixel gradient from green to red; checks long narrow rows");
   draw_gradient_band(cfg.width, true);
-  if (step_wait("03-gradient", "top inner 40-pixel gradient from green to red; checks long narrow rows")) goto done;
 
+  step_note("04-checker", "32-pixel blue/dark checkerboard below the gradient; checks many line draws");
   draw_checkerboard(cfg.width, cfg.height, true);
-  if (step_wait("04-checker", "32-pixel blue/dark checkerboard below the gradient; checks many line draws")) goto done;
 
+  step_note("05-cross", "7-pixel red center cross overlays earlier content; checks overwrite order");
   draw_cross(cfg.width, cfg.height, true);
-  if (step_wait("05-cross", "7-pixel red center cross overlays earlier content; checks overwrite order")) goto done;
 
+  step_note("06-final", "four corner blocks: red, green, blue, yellow; checks medium rectangles and final sync");
   draw_corner_blocks(cfg.width, cfg.height, true);
-  if (step_wait("06-final", "four corner blocks: red, green, blue, yellow; checks medium rectangles and final sync")) goto done;
 
-done:
   printf("[gpu][DONE]\n");
   return 0;
 }
