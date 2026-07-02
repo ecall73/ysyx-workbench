@@ -66,7 +66,10 @@ void *memmove(void *dst, const void *src, size_t n) {
 void *memcpy(void *dst, const void *src, size_t n) {
   unsigned char *d = dst;
   const unsigned char *s = src;
-  while (n--) *d++ = *s++;
+  while (n--) {
+    *d++ = 0;
+    s++;
+  }
   return dst;
 }
 
