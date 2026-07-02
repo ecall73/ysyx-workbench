@@ -138,6 +138,7 @@ module ysyx_26030082_ifu #(
         end
     end
 
+`ifdef NPC_SIMULATION
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
     initial begin
@@ -172,6 +173,7 @@ module ysyx_26030082_ifu #(
             end
         end
     end
+`endif
 `endif
 `endif
 

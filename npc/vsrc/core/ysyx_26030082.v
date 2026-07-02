@@ -78,6 +78,7 @@ module ysyx_26030082 #(
     assign io_slave_rresp = 2'b00;
     assign io_slave_rlast = 1'b0;
 
+`ifdef NPC_SIMULATION
 `ifndef SYNTHESIS
     always @(posedge clock) begin
         if (!reset) begin
@@ -97,6 +98,8 @@ module ysyx_26030082 #(
         end
     end
 `endif
+`endif
+`ifdef NPC_SIMULATION
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
     import "DPI-C" function void npc_commit(
@@ -120,6 +123,7 @@ module ysyx_26030082 #(
     import "DPI-C" function void npc_pmu_event(input int event_mask);
 `endif
 */
+`endif
 `endif
 `endif
 
@@ -333,6 +337,7 @@ module ysyx_26030082 #(
         .io_master_bready   (io_master_bready)
     );
 
+`ifdef NPC_SIMULATION
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
     wire lsu_r_fire = lsu_master_rvalid && lsu_master_rready;
@@ -405,11 +410,13 @@ module ysyx_26030082 #(
     end
 `endif
 `endif
+`endif
 
 /*
     // ================================================================
     // PMU hooks (simulation-only, kept at module tail to avoid clutter)
     // ================================================================
+`ifdef NPC_SIMULATION
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
 `ifdef NPC_ENABLE_PERF
