@@ -2,8 +2,10 @@
 import argparse
 import os
 import re
+import select
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -120,6 +122,20 @@ def fmt_suite(name: str) -> str:
     return f"[    ] {name}"
 
 
+def colorize(line: str) -> str:
+    green = "\033[1;32m"
+    red = "\033[1;31m"
+    yellow = "\033[1;33m"
+    none = "\033[0m"
+    if line.startswith("[PASS]"):
+        return line.replace("[PASS]", f"{green}[PASS]{none}", 1)
+    if line.startswith("[FAIL]"):
+        return line.replace("[FAIL]", f"{red}[FAIL]{none}", 1)
+    if line.startswith("[SKIP]"):
+        return line.replace("[SKIP]", f"{yellow}[SKIP]{none}", 1)
+    return line
+
+
 def parse_results(output: str, suite: Suite):
     results = {}
     details = {}
@@ -133,7 +149,7 @@ def parse_results(output: str, suite: Suite):
             continue
         point, status = parts[0], parts[1]
         stage = parts[2] if len(parts) > 2 else ""
-        if status in {"PASS", "FAIL", "BLOCKED"}:
+        if status in {"PASS", "FAIL", "BLOCKED", "SKIP"}:
             results[point] = status
             details[point] = stage
     return results, details
@@ -148,17 +164,51 @@ def run_suite(root: Path, suite: Suite, arch: str, timeout_s: int):
         cmd.append("mainargs=contract-mainargs-0123456789abcdef0123456789abcdef")
     env = os.environ.copy()
     env["CONTRACT_RUNNER_ARCH"] = arch
-    try:
-        cp = subprocess.run(cmd, cwd=root, env=env, text=True,
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=timeout_s)
-        output = cp.stdout
-        status = cp.returncode
-    except subprocess.TimeoutExpired as e:
-        output = e.stdout or ""
+
+    output_parts = []
+    start = time.monotonic()
+    proc = subprocess.Popen(cmd, cwd=root, env=env,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    assert proc.stdout is not None
+    timed_out = False
+
+    while True:
+        if time.monotonic() - start > timeout_s:
+            timed_out = True
+            proc.kill()
+            break
+
+        ready, _, _ = select.select([proc.stdout], [], [], 0.1)
+        if ready:
+            chunk = os.read(proc.stdout.fileno(), 4096)
+            if chunk:
+                output_parts.append(chunk)
+                sys.stdout.buffer.write(chunk)
+                sys.stdout.buffer.flush()
+            elif proc.poll() is not None:
+                break
+        elif proc.poll() is not None:
+            break
+
+    while True:
+        chunk = os.read(proc.stdout.fileno(), 4096)
+        if not chunk:
+            break
+        output_parts.append(chunk)
+        sys.stdout.buffer.write(chunk)
+        sys.stdout.buffer.flush()
+
+    status = proc.wait()
+    if timed_out:
         status = 124
-        output += f"\n[contract-runner] timeout after {timeout_s}s\n"
-    log.write_text(output)
+        msg = f"\n[contract-runner] timeout after {timeout_s}s\n".encode()
+        output_parts.append(msg)
+        sys.stdout.buffer.write(msg)
+        sys.stdout.buffer.flush()
+
+    output_bytes = b"".join(output_parts)
+    log.write_bytes(output_bytes)
+    output = output_bytes.decode(errors="replace")
     return status, log, output
 
 
@@ -260,23 +310,24 @@ def main() -> int:
     failed = False
     blocked_by = None
     executed = []
+    summary_lines = []
 
     for name in names:
         if blocked_by:
             if name == "preflight-host":
                 continue
             suite = suites[name]
-            print(fmt_suite(name))
+            summary_lines.append(fmt_suite(name))
             for point in suite.points:
-                print(fmt_point(point, "BLOCKED"))
+                summary_lines.append(fmt_point(point, "SKIP"))
             continue
 
         if name == "preflight-host":
             ok, log, point_status = host_preflight(root, arch)
-            print(fmt_suite("preflight-host"))
+            summary_lines.append(fmt_suite("preflight-host"))
             for point in ["build-arch", "link-libgcc-rv32e", "image-rule", "mainargs-rule", "image-rule-ysyxsoc"]:
                 if point in point_status:
-                    print(fmt_point(point, "PASS" if point_status[point] == "PASS" else "***FAIL***"))
+                    summary_lines.append(fmt_point(point, "PASS" if point_status[point] == "PASS" else "***FAIL***"))
             if not ok:
                 failed = True
                 blocked_by = "preflight-host"
@@ -291,25 +342,28 @@ def main() -> int:
         missing = []
         for point in suite.points:
             if point not in results:
-                results[point] = "BLOCKED" if suite_failed else "FAIL"
+                results[point] = "SKIP" if suite_failed else "FAIL"
                 details[point] = "missing-result"
                 missing.append(point)
                 suite_failed = True
-        if any(results[p] in {"FAIL", "BLOCKED"} for p in suite.points):
+        if any(results[p] in {"FAIL", "BLOCKED", "SKIP"} for p in suite.points):
             suite_failed = True
-        print(fmt_suite(name))
+        summary_lines.append(fmt_suite(name))
         for point in suite.points:
             st = results[point]
-            out = "PASS" if st == "PASS" else ("BLOCKED" if st == "BLOCKED" else "***FAIL***")
-            print(fmt_point(point, out))
+            out = "PASS" if st == "PASS" else ("SKIP" if st in {"BLOCKED", "SKIP"} else "***FAIL***")
+            summary_lines.append(fmt_point(point, out))
         if suite_failed:
             failed = True
-            print(f"[contract] log: {log}")
+            summary_lines.append(f"[contract] log: {log}")
             if missing:
-                print(f"[contract] missing result points: {' '.join(missing)}")
+                summary_lines.append(f"[contract] missing result points: {' '.join(missing)}")
             if name in FOUNDATIONAL:
                 blocked_by = name
         executed.append((name, log))
+
+    for line in summary_lines:
+        print(colorize(line))
 
     return 1 if failed else 0
 
