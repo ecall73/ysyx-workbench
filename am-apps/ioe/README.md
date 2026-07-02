@@ -4,18 +4,20 @@
 
 ## Usage
 
-默认运行全部人工 IOE 诊断测试：
+每个测试都是独立 AM app，按需进入对应目录运行：
 
 ```sh
-make -C am-apps/ioe ARCH=riscv32e-ysyxsoc run
+make -C am-apps/ioe/keyboard-visible ARCH=riscv32e-ysyxsoc run
+make -C am-apps/ioe/uart-visible ARCH=riscv32e-ysyxsoc run
+make -C am-apps/ioe/timer-visible ARCH=riscv32e-ysyxsoc run
+make -C am-apps/ioe/gpu-pattern ARCH=riscv32e-ysyxsoc run
+make -C am-apps/ioe/gpio-visible ARCH=riscv32e-ysyxsoc run
 ```
 
-运行指定测试，`ALL` 支持空格或逗号分隔：
+只构建镜像时，把目标改成 `image`：
 
 ```sh
-make -C am-apps/ioe ARCH=riscv32e-ysyxsoc ALL=keyboard-visible run
-make -C am-apps/ioe ARCH=riscv32e-ysyxsoc ALL='gpu-pattern gpio-visible' run
-make -C am-apps/ioe ARCH=riscv32e-npc ALL=timer-visible,uart-visible image
+make -C am-apps/ioe/timer-visible ARCH=riscv32e-npc image
 ```
 
 ## Tests

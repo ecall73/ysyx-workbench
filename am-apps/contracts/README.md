@@ -32,8 +32,8 @@ am-apps/contracts/build/contract-<arch>-<contract>.log
 需要人工观察或输入的 IOE 诊断测试不进入 contracts 默认门禁，统一放在 `am-apps/ioe/`：
 
 ```sh
-make -C am-apps/ioe ARCH=riscv32e-ysyxsoc run
-make -C am-apps/ioe ARCH=riscv32e-ysyxsoc ALL='keyboard-visible gpio-visible' run
+make -C am-apps/ioe/keyboard-visible ARCH=riscv32e-ysyxsoc run
+make -C am-apps/ioe/gpio-visible ARCH=riscv32e-ysyxsoc run
 ```
 
 ## Result Protocol
