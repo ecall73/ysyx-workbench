@@ -7,18 +7,21 @@
 批量运行：
 
 ```sh
-bash am-apps/contracts/run-contracts.sh riscv32-nemu
-bash am-apps/contracts/run-contracts.sh riscv32e-npc
-bash am-apps/contracts/run-contracts.sh riscv32e-ysyxsoc
+make -C am-apps/contracts ARCH=riscv32-nemu run
+make -C am-apps/contracts ARCH=riscv32e-npc run
+make -C am-apps/contracts ARCH=riscv32e-ysyxsoc run
 ```
 
 运行单个或部分 contract：
 
 ```sh
-bash am-apps/contracts/run-contracts.sh riscv32e-npc 10-cte-yield
-bash am-apps/contracts/run-contracts.sh riscv32e-ysyxsoc 14-gpu-config 15-gpu-fbdraw-smoke
+make -C am-apps/contracts ARCH=riscv32e-npc ALL=10-cte-yield run
+make -C am-apps/contracts ARCH=riscv32e-ysyxsoc ALL='14-gpu-config 15-gpu-fbdraw-smoke' run
+make -C am-apps/contracts ARCH=riscv32e-ysyxsoc ALL=14-gpu-config,15-gpu-fbdraw-smoke run
 make -C am-apps/contracts/10-cte-yield ARCH=riscv32e-npc run
 ```
+
+不设置 `ALL` 时，顶层 Makefile 会按 `ARCH` 运行默认自动集合；设置 `ALL` 时，只运行指定 contract。
 
 日志位置：
 
