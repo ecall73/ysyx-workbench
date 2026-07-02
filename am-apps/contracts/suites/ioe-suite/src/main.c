@@ -60,6 +60,8 @@ static void check_rtc(AM_TIMER_RTC_T r) {
 
 static void point_timer_rtc(void) {
 #if defined(__PLATFORM_NEMU)
+  (void)rtc_key;
+  (void)check_rtc;
   CONTRACT_CHECK_POINT("timer-rtc", true, "nemu-rtc-not-contract-critical");
 #else
   AM_TIMER_RTC_T a = io_read(AM_TIMER_RTC);

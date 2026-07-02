@@ -5,7 +5,7 @@ static Context *handler(Event ev, Context *ctx) {
   CONTRACT_CHECK_POINT("csr-preservation", ev.event == EVENT_YIELD, "event-yield");
   CONTRACT_CHECK_POINT("csr-preservation", ctx != NULL, "ctx");
   CONTRACT_CHECK_POINT("csr-preservation", (ctx->mepc & 0x3u) == 0, "mepc-align");
-  CONTRACT_CHECK_POINT("csr-preservation", ctx->mcause == (uintptr_t)-1, "mcause-yield");
+  CONTRACT_CHECK_POINT("csr-preservation", ctx->mcause == 11, "mcause-ecall");
   seen++;
   return ctx;
 }
