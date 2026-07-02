@@ -69,6 +69,18 @@ static void step_note(const char *step, const char *expect) {
   printf("[gpu][REFERENCE] am-apps/ioe/gpu/reference/%s.png\n", step);
 }
 
+static void wait_escape_to_exit(void) {
+  AM_INPUT_CONFIG_T icfg = io_read(AM_INPUT_CONFIG);
+  if (!icfg.present) {
+    printf("[gpu][WAIT] input absent; exit automatically\n");
+    return;
+  }
+
+  printf("[gpu][WAIT] final image is on screen; press Esc to exit\n");
+  while (!diag_poll_exit()) {
+  }
+}
+
 int main(const char *args) {
   (void)args;
   ioe_init();
@@ -101,6 +113,7 @@ int main(const char *args) {
   step_note("06-final", "four corner blocks: red, green, blue, yellow; checks medium rectangles and final sync");
   draw_corner_blocks(cfg.width, cfg.height, true);
 
+  wait_escape_to_exit();
   printf("[gpu][DONE]\n");
   return 0;
 }
