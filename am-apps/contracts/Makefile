@@ -1,23 +1,18 @@
 .PHONY: run all clean help
 
 ARCH ?= riscv32e-ysyxsoc
-RUNNER := $(CURDIR)/run-contracts.sh
-
-comma := ,
-empty :=
-space := $(empty) $(empty)
-ALL_LIST := $(strip $(subst $(comma),$(space),$(ALL)))
+RUNNER := $(CURDIR)/tools/contract_runner.py
 
 run all:
-	@bash $(RUNNER) $(ARCH) $(ALL_LIST)
+	@python3 $(RUNNER) --root $(CURDIR) --arch $(ARCH) --all "$(ALL)" --group "$(GROUP)"
 
 clean:
 	@rm -rf build
-	@find . -mindepth 2 -name build -type d -exec rm -rf {} +
+	@find suites -name build -type d -exec rm -rf {} +
 
 help:
 	@echo "Usage:"
 	@echo "  make -C am-apps/contracts ARCH=riscv32e-ysyxsoc run"
-	@echo "  make -C am-apps/contracts ARCH=riscv32e-npc ALL='klib/string klib/stdio' run"
-	@echo "  make -C am-apps/contracts ARCH=riscv32-nemu ALL=cte/yield run"
-	@echo "  make -C am-apps/contracts ARCH=riscv32e-ysyxsoc GROUP=platform run"
+	@echo "  make -C am-apps/contracts ARCH=riscv32e-ysyxsoc ALL='klib-suite cte-basic-suite' run"
+	@echo "  make -C am-apps/contracts ARCH=riscv32e-ysyxsoc ALL=klib-suite,cte-basic-suite run"
+	@echo "  make -C am-apps/contracts ARCH=riscv32e-ysyxsoc GROUP=cte run"
