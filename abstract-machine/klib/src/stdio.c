@@ -142,7 +142,7 @@ int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
       else if (long_level == 1) u = va_arg(ap, unsigned long);
       else u = va_arg(ap, unsigned int);
       base = 16;
-      upper = (spec == 'X');
+      upper = 0;
     } else if (spec == 'p') {
       u = (uintptr_t)va_arg(ap, void *);
       base = 16;
