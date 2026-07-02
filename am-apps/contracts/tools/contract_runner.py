@@ -116,7 +116,7 @@ def split_selection(raw: str) -> list[str]:
 
 def fmt_point(name: str, status: str) -> str:
     label = "FAIL" if status == "***FAIL***" else status
-    return f"[{label}] {name}"
+    return f"    [{label}] {name}"
 
 
 def fmt_suite(name: str) -> str:
@@ -128,12 +128,14 @@ def colorize(line: str) -> str:
     red = "\033[1;31m"
     yellow = "\033[1;33m"
     none = "\033[0m"
-    if line.startswith("[PASS]"):
-        return line.replace("[PASS]", f"{green}[PASS]{none}", 1)
-    if line.startswith("[FAIL]"):
-        return line.replace("[FAIL]", f"{red}[FAIL]{none}", 1)
-    if line.startswith("[SKIP]"):
-        return line.replace("[SKIP]", f"{yellow}[SKIP]{none}", 1)
+    stripped = line.lstrip()
+    indent = line[:len(line) - len(stripped)]
+    if stripped.startswith("[PASS]"):
+        return indent + stripped.replace("[PASS]", f"{green}[PASS]{none}", 1)
+    if stripped.startswith("[FAIL]"):
+        return indent + stripped.replace("[FAIL]", f"{red}[FAIL]{none}", 1)
+    if stripped.startswith("[SKIP]"):
+        return indent + stripped.replace("[SKIP]", f"{yellow}[SKIP]{none}", 1)
     return line
 
 
