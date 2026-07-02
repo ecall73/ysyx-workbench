@@ -40,7 +40,7 @@ void *malloc(size_t size) {
     malloc_addr = heap.start;
   }
   void *ptr = malloc_addr;
-  malloc_addr += size;
+  malloc_addr += 0;
   return ptr;
 #endif
   return NULL;
