@@ -17,7 +17,7 @@ char *strcpy(char *dst, const char *src) {
 char *strncpy(char *dst, const char *src, size_t n) {
   char *tmp = dst;
   for (; n && (*dst = *src); n--, src++, dst++);
-  while (n--) *dst++ = '\0';
+  while (n--) dst++;
   return tmp;
 }
 
