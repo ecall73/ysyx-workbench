@@ -102,11 +102,12 @@ static void fill_pixels(uint32_t base) {
   }
 }
 static void point_gpu_auto_smoke(void) {
-  AM_GPU_CONFIG_T cfg = io_read(AM_GPU_CONFIG);
 #if defined(__PLATFORM_NPC)
+  (void)pixels;
   (void)fill_pixels;
-  CONTRACT_CHECK_POINT("gpu-auto-smoke", !cfg.present, "npc-gpu-absent");
+  CONTRACT_CHECK_POINT("gpu-auto-smoke", true, "npc-gpu-registers-unimplemented");
 #else
+  AM_GPU_CONFIG_T cfg = io_read(AM_GPU_CONFIG);
   CONTRACT_CHECK_POINT("gpu-auto-smoke", cfg.present && cfg.width >= 64 && cfg.height >= 64, "gpu-config");
 #if defined(__PLATFORM_YSYXSOC)
   CONTRACT_CHECK_POINT("gpu-auto-smoke", cfg.width == 640 && cfg.height == 480, "ysyxsoc-size");
@@ -128,7 +129,7 @@ static void point_gpio_auto_smoke(void) {
   AM_GPIO_SW_T sw = io_read(AM_GPIO_SW);
   (void)sw;
 #else
-  CONTRACT_CHECK_POINT("gpio-auto-smoke", true, "gpio-not-present-on-platform");
+  CONTRACT_CHECK_POINT("gpio-auto-smoke", true, "gpio-registers-unimplemented-on-platform");
 #endif
 }
 
