@@ -30,7 +30,6 @@ am-apps/contracts/build/contract-<arch>-<contract>.log
 
 ```sh
 make -C am-apps/contracts/manual-gpu-pattern ARCH=riscv32e-ysyxsoc run
-make -C am-apps/contracts/manual-input-keyboard ARCH=riscv32e-ysyxsoc run
 make -C am-apps/contracts/manual-gpio-visible ARCH=riscv32e-ysyxsoc run
 ```
 
@@ -82,7 +81,6 @@ CONTRACT <id> FAIL <stage>
 | Contract | Requires | Expected observation |
 |---|---|---|
 | `manual-gpu-pattern` | NVBoard/VGA 窗口和人工观察 | 边框、棋盘、红色十字；按 Esc 退出 |
-| `manual-input-keyboard` | 键盘输入和人工观察终端输出 | 方向键、WASD、Enter、Esc 输出 keycode；Esc 退出 |
 | `manual-gpio-visible` | NVBoard GPIO 可视输出和拨码输入 | LED 跑马、SEG 显示 `0x20260702`；SW=`0xec73` 退出 |
 
 这些测试不会被 `run-contracts.sh` 默认执行。它们用于确认“能被飞书共享屏幕看见/能被键盘操作”这类自动 smoke 无法证明的现象。
@@ -95,7 +93,7 @@ CONTRACT <id> FAIL <stage>
 | NPC 启动 RT-Thread 和 shell | 00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13 |
 | ysyxSoC 启动 RT-Thread | NPC 集合加 14, 15, 16, 17, 18 |
 | RT-Thread 上运行 microbench | 03, 04, 05, 06, 08 |
-| 贪吃蛇/NVBoard | 14, 15, 16 加 `manual-gpu-pattern` 和 `manual-input-keyboard` |
+| 贪吃蛇/NVBoard | 14, 15, 16 加 `manual-gpu-pattern`；具体按键操作由贪吃蛇/打字游戏本身验证 |
 
 ## Notes
 
