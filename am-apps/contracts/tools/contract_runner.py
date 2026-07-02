@@ -111,9 +111,13 @@ def split_selection(raw: str) -> list[str]:
     return [x for x in raw.split() if x]
 
 
-def fmt(name: str, status: str, indent: int = 0) -> str:
+def fmt_point(name: str, status: str) -> str:
     label = "FAIL" if status == "***FAIL***" else status
-    return f"{' ' * indent}[{label}] {name}"
+    return f"[{label}] {name}"
+
+
+def fmt_suite(name: str) -> str:
+    return f"[    ] {name}"
 
 
 def parse_results(output: str, suite: Suite):
@@ -262,18 +266,17 @@ def main() -> int:
             if name == "preflight-host":
                 continue
             suite = suites[name]
-            print(fmt(name, "BLOCKED"))
+            print(fmt_suite(name))
             for point in suite.points:
-                print(fmt(point, "BLOCKED", 4))
+                print(fmt_point(point, "BLOCKED"))
             continue
 
         if name == "preflight-host":
             ok, log, point_status = host_preflight(root, arch)
-            status = "PASS" if ok else "***FAIL***"
-            print(fmt("preflight-host", status))
+            print(fmt_suite("preflight-host"))
             for point in ["build-arch", "link-libgcc-rv32e", "image-rule", "mainargs-rule", "image-rule-ysyxsoc"]:
                 if point in point_status:
-                    print(fmt(point, "PASS" if point_status[point] == "PASS" else "***FAIL***", 4))
+                    print(fmt_point(point, "PASS" if point_status[point] == "PASS" else "***FAIL***"))
             if not ok:
                 failed = True
                 blocked_by = "preflight-host"
@@ -294,11 +297,11 @@ def main() -> int:
                 suite_failed = True
         if any(results[p] in {"FAIL", "BLOCKED"} for p in suite.points):
             suite_failed = True
-        print(fmt(name, "***FAIL***" if suite_failed else "PASS"))
+        print(fmt_suite(name))
         for point in suite.points:
             st = results[point]
             out = "PASS" if st == "PASS" else ("BLOCKED" if st == "BLOCKED" else "***FAIL***")
-            print(fmt(point, out, 4))
+            print(fmt_point(point, out))
         if suite_failed:
             failed = True
             print(f"[contract] log: {log}")
