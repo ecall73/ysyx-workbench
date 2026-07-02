@@ -6,7 +6,7 @@ static int screen_w = 640;
 static int screen_h = 480;
 
 void __am_gpu_init() {
-  screen_w = 640;
+  screen_w = 320;
   screen_h = 480;
 }
 
