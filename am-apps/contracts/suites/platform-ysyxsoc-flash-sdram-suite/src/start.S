@@ -6,38 +6,11 @@ _start:
   mv s0, zero
   la sp, _stack_pointer
 
-  la t0, _ssbl_lma_start
-  la t1, _ssbl_vma_start
-  la t2, _ssbl_vma_end
-  sub a1, t2, t1
-  andi a1, a1, -4
-  add a2, t1, a1
+  li a3, 20000
 1:
-  bgeu t1, a2, 2f
-  lw a0, 0(t0)
-  sw a0, 0(t1)
-  addi t0, t0, 4
-  addi t1, t1, 4
-  j 1b
-2:
-  bgeu t1, t2, 3f
-  lb a0, 0(t0)
-  sb a0, 0(t1)
-  addi t0, t0, 1
-  addi t1, t1, 1
-  j 2b
-3:
-  fence.i
-  la t0, _ssbl_vma_start
-  jr t0
+  addi a3, a3, -1
+  bnez a3, 1b
 
-.size _start, . - _start
-
-.section .ssbl, "ax"
-.globl _ssbl_entry
-.type _ssbl_entry, @function
-
-_ssbl_entry:
   la t0, _data_load_start
   la t1, _data_start
   la t2, _data_end
@@ -79,4 +52,4 @@ _ssbl_entry:
   la t0, _trm_init
   jr t0
 
-.size _ssbl_entry, . - _ssbl_entry
+.size _start, . - _start
