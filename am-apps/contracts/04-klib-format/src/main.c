@@ -30,6 +30,20 @@ static void check_vsn(const char *stage, const char *exp, size_t n, const char *
   if (n > 0) CONTRACT_CHECK(local_streq(buf, exp), stage);
 }
 
+static void check_vsn_ret(const char *stage, const char *out_exp, int ret_exp,
+                          size_t n, const char *fmt, ...) {
+  char buf[96];
+  for (int i = 0; i < 96; i++) buf[i] = (char)0xcc;
+
+  va_list ap;
+  va_start(ap, fmt);
+  int ret = vsnprintf(buf, n, fmt, ap);
+  va_end(ap);
+
+  CONTRACT_CHECK(ret == ret_exp, stage);
+  if (n > 0) CONTRACT_CHECK(local_streq(buf, out_exp), stage);
+}
+
 int main(const char *args) {
   (void)args;
   contract_begin();
@@ -42,7 +56,8 @@ int main(const char *args) {
   check_vsn("vsn-string", "hi      |00042|%", sizeof(buf), "%-8s|%05d|%%", "hi", 42);
   check_vsn("vsn-char", "A 0", sizeof(buf), "%c %u", 'A', 0u);
   check_vsn("vsn-null", "(null)", sizeof(buf), "%s", (const char *)NULL);
-  check_vsn("vsn-trunc", "-214748", 8, "%d-%x", (int)0x80000000u, 0xffffffffu);
+  check_vsn_ret("vsn-trunc", "-214748", 20, 8, "%d-%x",
+      (int)0x80000000u, 0xffffffffu);
 
   ret = snprintf(NULL, 0, "%x", 0x1234u);
   CONTRACT_CHECK(ret == 4, "snprintf-null");
