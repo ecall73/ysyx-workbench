@@ -6,11 +6,6 @@ _start:
   mv s0, zero
   la sp, _stack_pointer
 
-  li a3, 20000
-1:
-  addi a3, a3, -1
-  bnez a3, 1b
-
   la t0, _data_load_start
   la t1, _data_start
   la t2, _data_end
