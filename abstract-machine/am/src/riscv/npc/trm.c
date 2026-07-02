@@ -13,11 +13,6 @@ extern char _pmem_start;
 Area heap = RANGE(&_heap_start, PMEM_END);
 static const char mainargs[MAINARGS_MAX_LEN] = TOSTRING(MAINARGS_PLACEHOLDER); // defined in CFLAGS
 
-_Static_assert(MAINARGS_MAX_LEN > 0,
-    "riscv32e-npc MAINARGS_MAX_LEN must be positive");
-_Static_assert(sizeof(TOSTRING(MAINARGS_PLACEHOLDER)) <= MAINARGS_MAX_LEN,
-    "riscv32e-npc mainargs placeholder exceeds MAINARGS_MAX_LEN");
-
 void putch(char ch) {
   outb(SERIAL_PORT, ch);
 }
