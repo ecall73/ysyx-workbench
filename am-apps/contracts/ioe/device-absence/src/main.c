@@ -1,4 +1,5 @@
 #include <contract.h>
+#include <klib-macros.h>
 
 int main(const char *args) {
   (void)args;
