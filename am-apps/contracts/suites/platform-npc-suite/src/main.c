@@ -1,5 +1,6 @@
 #include <contract_suite.h>
 #include <klib-macros.h>
+#include <riscv/npc/include/npc.h>
 
 extern char _pmem_start;
 extern char _heap_start;

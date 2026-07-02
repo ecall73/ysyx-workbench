@@ -104,6 +104,7 @@ static void fill_pixels(uint32_t base) {
 static void point_gpu_auto_smoke(void) {
   AM_GPU_CONFIG_T cfg = io_read(AM_GPU_CONFIG);
 #if defined(__PLATFORM_NPC)
+  (void)fill_pixels;
   CONTRACT_CHECK_POINT("gpu-auto-smoke", !cfg.present, "npc-gpu-absent");
 #else
   CONTRACT_CHECK_POINT("gpu-auto-smoke", cfg.present && cfg.width >= 64 && cfg.height >= 64, "gpu-config");
