@@ -28,7 +28,7 @@ make -C am-apps/ioe/timer-visible ARCH=riscv32e-npc image
 | `uart-visible` | `AM_UART_CONFIG/TX/RX` 单独诊断 | 观察 TX token；若支持 RX，输入字符并观察 char/hex 回显 |
 | `timer-visible` | `AM_TIMER_CONFIG/UPTIME/RTC` 可观察时间诊断 | 每秒观察 uptime delta、RTC 字段；Esc 或 30 轮退出 |
 | `gpu-pattern` | `AM_GPU_CONFIG/FBDRAW/sync` 可视诊断 | 观察白边框、红十字、顶部渐变、棋盘、四色角块；Esc 退出 |
-| `gpio-visible` | `AM_GPIO_CONFIG/LED/SW/SEG` 分阶段诊断 | 观察 LED 跑马、SEG 固定值和 marchid；设置 SW=`0xec73` 退出 |
+| `gpio-visible` | `AM_GPIO_CONFIG/LED/SW/SEG` 分阶段诊断 | 观察 LED 跑马、SEG 计数/固定 pattern/marchid/SW 镜像；设置 SW=`0xec73` 退出 |
 
 ## Diagnostic Notes
 
