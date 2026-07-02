@@ -21,7 +21,7 @@ remove_quote = $(patsubst "%",%,$(1))
 GUEST_ISA := riscv32
 SIM_MODE ?= npc
 DEBUG_ENABLED := $(if $(filter 1 y yes true,$(DEBUG)),1,$(if $(CONFIG_CC_DEBUG),1,))
-UART_STDOUT ?= 1
+UART_STDOUT ?= 0
 UART_STDOUT_ENABLED := $(if $(filter 0 n no false,$(UART_STDOUT)),,1)
 NAME = $(GUEST_ISA)-$(SIM_MODE)-interpreter$(if $(DEBUG_ENABLED),-debug,)$(if $(UART_STDOUT_ENABLED),,-no-uart-stdout)
 
