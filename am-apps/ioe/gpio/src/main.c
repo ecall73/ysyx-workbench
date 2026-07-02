@@ -4,7 +4,7 @@
 #define GPIO_PASSCODE 0xec73u
 #endif
 
-#define LED_PHASE_DELAY 200000u
+#define LED_PHASE_DELAY 10000u
 
 static uint32_t pack_hex_nibbles(uint32_t x) {
   uint32_t v = 0;
