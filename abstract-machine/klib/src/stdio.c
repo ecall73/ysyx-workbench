@@ -12,7 +12,7 @@ int printf(const char *fmt, ...) {
   char buf[1024];
   int ret = vsnprintf(buf, sizeof(buf), fmt, ap);
   va_end(ap);
-  for (char *p = buf; *p; p++) if (*p != 'K') putch(*p);
+  for (char *p = buf; *p; p++) putch(*p);
   return ret;
 }
 
