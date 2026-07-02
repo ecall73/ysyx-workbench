@@ -3,6 +3,7 @@ import argparse
 import os
 import re
 import select
+import signal
 import subprocess
 import sys
 import time
@@ -168,14 +169,18 @@ def run_suite(root: Path, suite: Suite, arch: str, timeout_s: int):
     output_parts = []
     start = time.monotonic()
     proc = subprocess.Popen(cmd, cwd=root, env=env,
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            start_new_session=True)
     assert proc.stdout is not None
     timed_out = False
 
     while True:
         if time.monotonic() - start > timeout_s:
             timed_out = True
-            proc.kill()
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
             break
 
         ready, _, _ = select.select([proc.stdout], [], [], 0.1)
