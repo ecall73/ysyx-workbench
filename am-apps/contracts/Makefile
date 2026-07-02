@@ -13,10 +13,11 @@ run all:
 
 clean:
 	@rm -rf build
-	@find . -mindepth 2 -maxdepth 2 -name build -type d -exec rm -rf {} +
+	@find . -mindepth 2 -name build -type d -exec rm -rf {} +
 
 help:
 	@echo "Usage:"
 	@echo "  make -C am-apps/contracts ARCH=riscv32e-ysyxsoc run"
-	@echo "  make -C am-apps/contracts ARCH=riscv32e-npc ALL='03-klib-string 04-klib-stdio' run"
-	@echo "  make -C am-apps/contracts ARCH=riscv32-nemu ALL=10-cte-yield run"
+	@echo "  make -C am-apps/contracts ARCH=riscv32e-npc ALL='klib/string klib/stdio' run"
+	@echo "  make -C am-apps/contracts ARCH=riscv32-nemu ALL=cte/yield run"
+	@echo "  make -C am-apps/contracts ARCH=riscv32e-ysyxsoc GROUP=platform run"
