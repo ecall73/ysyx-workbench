@@ -119,7 +119,7 @@ def fmt_point(name: str, status: str) -> str:
 
 
 def fmt_suite(name: str) -> str:
-    return f"[    ] {name}"
+    return f">>> {name}"
 
 
 def colorize(line: str) -> str:
