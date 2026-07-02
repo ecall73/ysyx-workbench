@@ -3,7 +3,10 @@
 ARCH ?= riscv32e-ysyxsoc
 RUNNER := $(CURDIR)/run-contracts.sh
 
-ALL_LIST := $(strip $(subst ,, ,$(ALL)))
+comma := ,
+empty :=
+space := $(empty) $(empty)
+ALL_LIST := $(strip $(subst $(comma),$(space),$(ALL)))
 
 run all:
 	@bash $(RUNNER) $(ARCH) $(ALL_LIST)
