@@ -29,11 +29,11 @@ make -C am-apps/contracts/10-cte-yield ARCH=riscv32e-npc run
 am-apps/contracts/build/contract-<arch>-<contract>.log
 ```
 
-需要人工观察或输入的测试不进入默认批量门禁：
+需要人工观察或输入的 IOE 诊断测试不进入 contracts 默认门禁，统一放在 `am-apps/ioe/`：
 
 ```sh
-make -C am-apps/contracts/manual-gpu-pattern ARCH=riscv32e-ysyxsoc run
-make -C am-apps/contracts/manual-gpio-visible ARCH=riscv32e-ysyxsoc run
+make -C am-apps/ioe ARCH=riscv32e-ysyxsoc run
+make -C am-apps/ioe ARCH=riscv32e-ysyxsoc ALL='keyboard-visible gpio-visible' run
 ```
 
 ## Result Protocol
@@ -79,15 +79,6 @@ CONTRACT <id> FAIL <stage>
 
 这些测试由 `run-contracts.sh` 自动判断结果。判断依据是 simulator 返回状态、`CONTRACT <id> PASS` token，以及少数测试的额外输出 token。它们适合作为快速回归和定位入口。
 
-## 人工交互/观察测试
-
-| Contract | Requires | Expected observation |
-|---|---|---|
-| `manual-gpu-pattern` | NVBoard/VGA 窗口和人工观察 | 边框、棋盘、红色十字；按 Esc 退出 |
-| `manual-gpio-visible` | NVBoard GPIO 可视输出和拨码输入 | LED 跑马、SEG 显示 `0x20260702`；SW=`0xec73` 退出 |
-
-这些测试不会被 `run-contracts.sh` 默认执行。它们用于确认“能被飞书共享屏幕看见/能被键盘操作”这类自动 smoke 无法证明的现象。
-
 ## Correctness Mapping
 
 | Exam flow | Contracts |
@@ -96,11 +87,11 @@ CONTRACT <id> FAIL <stage>
 | NPC 启动 RT-Thread 和 shell | 00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13 |
 | ysyxSoC 启动 RT-Thread | NPC 集合加 14, 15, 16, 17, 18 |
 | RT-Thread 上运行 microbench | 03, 04, 05, 06, 08 |
-| 贪吃蛇/NVBoard | 14, 15, 16 加 `manual-gpu-pattern`；具体按键操作由贪吃蛇/打字游戏本身验证 |
+| 贪吃蛇/NVBoard | 14, 15, 16 加 `am-apps/ioe/gpu-pattern`；具体按键操作由贪吃蛇/打字游戏本身验证 |
 
 ## Notes
 
 - 自动 contract 使用 `putch + halt` 协议，不使用 `printf/assert` 作为失败基础设施。
 - `riscv32-nemu` 默认不跑 `09-timer-rtc`，避免 NEMU RTC stub 污染定位。
-- GPU/input/GPIO 无法完全自动判断真实可见性，因此拆成自动可判定 smoke 和人工交互/观察两层。
+- GPU/input/GPIO 无法完全自动判断真实可见性，因此自动 smoke 留在 contracts，人工诊断测试放在 `am-apps/ioe/`。
 - bug 注入验证应使用临时 patch，验证后立即恢复，再重跑对应 contract。
