@@ -112,7 +112,8 @@ def split_selection(raw: str) -> list[str]:
 
 
 def fmt(name: str, status: str, indent: int = 0) -> str:
-    return f"{' ' * indent}[{name:>28}] {status}"
+    label = "FAIL" if status == "***FAIL***" else status
+    return f"{' ' * indent}[{label}] {name}"
 
 
 def parse_results(output: str, suite: Suite):
@@ -263,7 +264,7 @@ def main() -> int:
             suite = suites[name]
             print(fmt(name, "BLOCKED"))
             for point in suite.points:
-                print(fmt(point, "BLOCKED", 2))
+                print(fmt(point, "BLOCKED", 4))
             continue
 
         if name == "preflight-host":
@@ -272,7 +273,7 @@ def main() -> int:
             print(fmt("preflight-host", status))
             for point in ["build-arch", "link-libgcc-rv32e", "image-rule", "mainargs-rule", "image-rule-ysyxsoc"]:
                 if point in point_status:
-                    print(fmt(point, "PASS" if point_status[point] == "PASS" else "***FAIL***", 2))
+                    print(fmt(point, "PASS" if point_status[point] == "PASS" else "***FAIL***", 4))
             if not ok:
                 failed = True
                 blocked_by = "preflight-host"
@@ -297,7 +298,7 @@ def main() -> int:
         for point in suite.points:
             st = results[point]
             out = "PASS" if st == "PASS" else ("BLOCKED" if st == "BLOCKED" else "***FAIL***")
-            print(fmt(point, out, 2))
+            print(fmt(point, out, 4))
         if suite_failed:
             failed = True
             print(f"[contract] log: {log}")
