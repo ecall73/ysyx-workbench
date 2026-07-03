@@ -161,6 +161,7 @@ module ysyx_26030082_axi4lite_arbiter (
         end
     end
 
+`ifdef NPC_SIMULATION
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
     always @(posedge clock) begin
@@ -189,6 +190,7 @@ module ysyx_26030082_axi4lite_arbiter (
             end
         end
     end
+`endif
 `endif
 `endif
 

@@ -56,6 +56,7 @@ LDFLAGS += $(if $(CONFIG_ITRACE),-Wl$(comma)-rpath$(comma)$(CAPSTONE_HOME)/repo 
 VERILATOR_CFLAGS += -MMD --build -cc $(call remove_quote,$(CONFIG_VERILATOR_OPT)) --x-assign fast --x-initial fast --noassert \
 	-Wno-PINMISSING -Wno-WIDTHEXPAND --timescale "1ns/1ns" --no-timing --autoflush -MAKEFLAGS "VM_DEFAULT_RULES=0"
 VERILATOR_CFLAGS += $(if $(CONFIG_WAVE),--trace,)
+VERILOG_DEFINES += -DNPC_SIMULATION
 VERILOG_DEFINES += $(if $(UART_STDOUT_ENABLED),-DNPC_UART_STDOUT_RTL,)
 
 BUILD_CONFIG = $(BUILD_DIR)/.build_config.mk
