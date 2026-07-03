@@ -488,6 +488,7 @@ module ysyx_26030082_exu (
         end
     end
 
+`ifdef NPC_SIMULATION
 `ifndef SYNTHESIS
 `ifndef __ICARUS__
     wire csr_supported = csr_addr == CSR_MSTATUS ||
@@ -549,6 +550,7 @@ module ysyx_26030082_exu (
             end
         end
     end
+`endif
 `endif
 `endif
 
