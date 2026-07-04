@@ -11,7 +11,7 @@ CFLAGS += -Wno-nonnull-compare
 
 EXTRA_LD = extra.ld
 ifneq ($(filter %-ysyxsoc,$(ARCH)),)
-EXTRA_LD = extra-ysyxsoc.ld
+EXTRA_LD = extra.ld
 endif
 LDFLAGS += -T $(EXTRA_LD)
 -include $(FILE_MK)

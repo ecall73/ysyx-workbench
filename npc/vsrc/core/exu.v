@@ -207,7 +207,7 @@ module ysyx_26030082_exu (
     always @(*) begin
         case (funct3)
             F3_BEQ:  branch_redirect = cmp_eq;
-            F3_BNE:  branch_redirect = ~cmp_eq;
+            F3_BNE:  branch_redirect = cmp_eq;
             F3_BLT:  branch_redirect = cmp_lt;
             F3_BGE:  branch_redirect = ~cmp_lt;
             F3_BLTU: branch_redirect = cmp_ltu;
