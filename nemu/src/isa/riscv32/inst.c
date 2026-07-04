@@ -120,7 +120,7 @@ static int decode_exec(Decode *s) {
   );
   INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr   , I,
       R(rd) = s->pc + 4;
-      s->dnpc = s->pc + imm;
+      s->dnpc = (src1 + imm) & ~1;
 #ifdef CONFIG_FTRACE
       int rs1 = BITS(s->isa.inst, 19, 15);
       if (rd == 0 && rs1 == 1 && imm == 0) ftrace_ret(s->pc);
