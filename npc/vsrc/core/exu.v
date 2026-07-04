@@ -232,7 +232,7 @@ module ysyx_26030082_exu (
                     F3_PRIV: begin
                         case (csr_addr)
                             F12_ECALL: ex_redirect_pc = {csr_mtvec[31:2], 2'b0};
-                            F12_MRET:  ex_redirect_pc = csr_mepc;
+                            F12_MRET:  ex_redirect_pc = csr_mepc + 32'd4;
                             default:;
                         endcase
                     end
