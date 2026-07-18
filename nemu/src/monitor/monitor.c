@@ -48,12 +48,28 @@ void sdb_set_batch_mode();
 static char *log_file = NULL;
 static char *diff_so_file = NULL;
 static char *img_file = NULL;
-static char *elf_file = NULL;
 static char *ftrace_log_file = NULL;
 static char *etrace_log_file = NULL;
 static char *mtrace_log_file = NULL;
 static char *dtrace_log_file = NULL;
 static int difftest_port = 1234;
+
+#ifdef CONFIG_FTRACE
+static char **elf_files = NULL;
+static size_t nr_elf_files = 0;
+static size_t cap_elf_files = 0;
+
+static void append_elf_file(char *elf_file) {
+  if (nr_elf_files == cap_elf_files) {
+    size_t new_cap = (cap_elf_files == 0 ? 4 : cap_elf_files * 2);
+    char **new_files = realloc(elf_files, new_cap * sizeof(*elf_files));
+    Assert(new_files != NULL, "failed to expand ftrace ELF file list");
+    elf_files = new_files;
+    cap_elf_files = new_cap;
+  }
+  elf_files[nr_elf_files++] = elf_file;
+}
+#endif
 
 static long load_img() {
   if (img_file == NULL) {
@@ -101,7 +117,11 @@ static int parse_args(int argc, char *argv[]) {
   while ( (o = getopt_long(argc, argv, "-bhf:F:E:M:D:l:d:p:", table, NULL)) != -1) {
     switch (o) {
       case 'b': sdb_set_batch_mode(); break;
-      case 'f': elf_file = optarg; break;
+      case 'f':
+#ifdef CONFIG_FTRACE
+        append_elf_file(optarg);
+#endif
+        break;
       case 'F': ftrace_log_file = optarg; break;
       case 'E': etrace_log_file = optarg; break;
       case 'M': mtrace_log_file = optarg; break;
@@ -113,7 +133,7 @@ static int parse_args(int argc, char *argv[]) {
       default:
         printf("Usage: %s [OPTION...] IMAGE [args]\n\n", argv[0]);
         printf("\t-b,--batch              run with batch mode\n");
-        printf("\t-f,--elf=FILE            load ELF symbols for ftrace\n");
+        printf("\t-f,--elf=FILE            load ELF symbols for ftrace (may be repeated)\n");
         printf("\t-F,--ftrace-log=FILE     output ftrace to FILE\n");
         printf("\t-E,--etrace-log=FILE     output etrace to FILE\n");
         printf("\t-M,--mtrace-log=FILE     output mtrace to FILE\n");
@@ -153,7 +173,14 @@ void init_monitor(int argc, char *argv[]) {
   init_dtrace_log(dtrace_log_file);
 #endif
 #ifdef CONFIG_FTRACE
-  init_ftrace(elf_file);
+  if (nr_elf_files == 0) {
+    init_ftrace(NULL);
+  } else {
+    for (size_t i = 0; i < nr_elf_files; i ++) {
+      init_ftrace(elf_files[i]);
+    }
+  }
+  free(elf_files);
 #endif
 
   /* Initialize memory. */

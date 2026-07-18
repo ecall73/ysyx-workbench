@@ -79,6 +79,8 @@ void init_ftrace(const char *elf_file) {
   FILE *fp = fopen(elf_file, "rb");
   Assert(fp != NULL, "ftrace: can not open ELF file '%s'", elf_file);
 
+  size_t nr_symbols_before = nr_func_symbols;
+
   Elf32_Ehdr ehdr;
   size_t nread = fread(&ehdr, 1, sizeof(ehdr), fp);
   Assert(nread == sizeof(ehdr), "ftrace: failed to read ELF header from '%s'", elf_file);
@@ -129,11 +131,12 @@ void init_ftrace(const char *elf_file) {
   free(shdr);
   fclose(fp);
 
-  if (nr_func_symbols > 0) {
+  size_t nr_new_symbols = nr_func_symbols - nr_symbols_before;
+  if (nr_new_symbols > 0) {
     ftrace_ready = true;
-    Log("ftrace: loaded %zu function symbols from %s", nr_func_symbols, elf_file);
+    Log("ftrace: loaded %zu function symbols from %s", nr_new_symbols, elf_file);
   } else {
-    Log("ftrace: no function symbols found in %s, ftrace will be disabled", elf_file);
+    Log("ftrace: no function symbols found in %s", elf_file);
   }
 }
 
