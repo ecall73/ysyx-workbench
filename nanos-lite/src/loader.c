@@ -15,9 +15,6 @@ static uintptr_t loader(PCB *pcb, const char *filename) {
   Elf_Ehdr ehdr;
   Elf_Phdr phdr;
 
-  (void)pcb;
-  (void)filename;
-
   ramdisk_read(&ehdr, 0, sizeof(ehdr));
   assert(ehdr.e_phentsize == sizeof(phdr));
 
