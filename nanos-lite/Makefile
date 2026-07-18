@@ -8,7 +8,7 @@ CFLAGS += -DSTRACE=$(STRACE)
 include $(AM_HOME)/Makefile
 
 # At this stage, ramdisk.img is the single user ELF loaded by Nanos-lite.
-NEMUFLAGS += -f $(RAMDISK_FILE)
+NEMUFLAGS += -f $(abspath $(RAMDISK_FILE))
 
 ifeq ($(ARCH),native)
 ISA = am_native
