@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="riscv32_CPU_state">
+    <DisplayString>pc={pc,x} mstatus={mstatus,x} mtvec={mtvec,x} mepc={mepc,x} mcause={mcause,x}</DisplayString>
+    <Expand>
+      <Item Name="pc">pc</Item>
+      <Item Name="mstatus">mstatus</Item>
+      <Item Name="mtvec">mtvec</Item>
+      <Item Name="mepc">mepc</Item>
+      <Item Name="mcause">mcause</Item>
+      <Item Name="x00">gpr[0]</Item>
+      <Item Name="x01">gpr[1]</Item>
+      <Item Name="x02">gpr[2]</Item>
+      <Item Name="x03">gpr[3]</Item>
+      <Item Name="x04">gpr[4]</Item>
+      <Item Name="x05">gpr[5]</Item>
+      <Item Name="x06">gpr[6]</Item>
+      <Item Name="x07">gpr[7]</Item>
+      <Item Name="x08">gpr[8]</Item>
+      <Item Name="x09">gpr[9]</Item>
+      <Item Name="x10">gpr[10]</Item>
+      <Item Name="x11">gpr[11]</Item>
+      <Item Name="x12">gpr[12]</Item>
+      <Item Name="x13">gpr[13]</Item>
+      <Item Name="x14">gpr[14]</Item>
+      <Item Name="x15">gpr[15]</Item>
+      <Item Name="x16">gpr[16]</Item>
+      <Item Name="x17">gpr[17]</Item>
+      <Item Name="x18">gpr[18]</Item>
+      <Item Name="x19">gpr[19]</Item>
+      <Item Name="x20">gpr[20]</Item>
+      <Item Name="x21">gpr[21]</Item>
+      <Item Name="x22">gpr[22]</Item>
+      <Item Name="x23">gpr[23]</Item>
+      <Item Name="x24">gpr[24]</Item>
+      <Item Name="x25">gpr[25]</Item>
+      <Item Name="x26">gpr[26]</Item>
+      <Item Name="x27">gpr[27]</Item>
+      <Item Name="x28">gpr[28]</Item>
+      <Item Name="x29">gpr[29]</Item>
+      <Item Name="x30">gpr[30]</Item>
+      <Item Name="x31">gpr[31]</Item>
+    </Expand>
+  </Type>
+  <Type Name="CPU_state">
+    <DisplayString>pc={pc,x} mstatus={mstatus,x} mtvec={mtvec,x} mepc={mepc,x} mcause={mcause,x}</DisplayString>
+    <Expand>
+      <Item Name="pc">pc</Item>
+      <Item Name="mstatus">mstatus</Item>
+      <Item Name="mtvec">mtvec</Item>
+      <Item Name="mepc">mepc</Item>
+      <Item Name="mcause">mcause</Item>
+      <Item Name="x00">gpr[0]</Item>
+      <Item Name="x01">gpr[1]</Item>
+      <Item Name="x02">gpr[2]</Item>
+      <Item Name="x03">gpr[3]</Item>
+      <Item Name="x04">gpr[4]</Item>
+      <Item Name="x05">gpr[5]</Item>
+      <Item Name="x06">gpr[6]</Item>
+      <Item Name="x07">gpr[7]</Item>
+      <Item Name="x08">gpr[8]</Item>
+      <Item Name="x09">gpr[9]</Item>
+      <Item Name="x10">gpr[10]</Item>
+      <Item Name="x11">gpr[11]</Item>
+      <Item Name="x12">gpr[12]</Item>
+      <Item Name="x13">gpr[13]</Item>
+      <Item Name="x14">gpr[14]</Item>
+      <Item Name="x15">gpr[15]</Item>
+      <Item Name="x16">gpr[16]</Item>
+      <Item Name="x17">gpr[17]</Item>
+      <Item Name="x18">gpr[18]</Item>
+      <Item Name="x19">gpr[19]</Item>
+      <Item Name="x20">gpr[20]</Item>
+      <Item Name="x21">gpr[21]</Item>
+      <Item Name="x22">gpr[22]</Item>
+      <Item Name="x23">gpr[23]</Item>
+      <Item Name="x24">gpr[24]</Item>
+      <Item Name="x25">gpr[25]</Item>
+      <Item Name="x26">gpr[26]</Item>
+      <Item Name="x27">gpr[27]</Item>
+      <Item Name="x28">gpr[28]</Item>
+      <Item Name="x29">gpr[29]</Item>
+      <Item Name="x30">gpr[30]</Item>
+      <Item Name="x31">gpr[31]</Item>
+    </Expand>
+  </Type>
+</AutoVisualizer>

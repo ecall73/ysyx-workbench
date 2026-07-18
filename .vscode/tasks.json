@@ -66,7 +66,7 @@
             "args": [
                 "-C",
                 "${workspaceFolder}/npc",
-                "ysyxsoc_defconfig",
+                "npc_defconfig",
                 "build",
                 "DEBUG=1",
                 "SIM_MODE=ysyxsoc"

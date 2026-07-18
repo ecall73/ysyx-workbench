@@ -99,6 +99,8 @@
             "externalConsole": false,
             "MIMode": "gdb",
             "miDebuggerPath": "/usr/bin/gdb",
+            "visualizerFile": "${workspaceFolder}/.vscode/natvis/npc_cpu.natvis",
+            "showDisplayString": true,
             "preLaunchTask": "NPC: build debug",
             "setupCommands": [
                 {
@@ -117,7 +119,7 @@
             "name": "NPC ysyxSoC: Debug with image",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/npc/build/ysyxsoc/riscv32-npc-interpreter-debug",
+            "program": "${workspaceFolder}/npc/build/ysyxsoc/riscv32-ysyxsoc-interpreter-debug",
             "args": [
                 "-l",
                 "${workspaceFolder}/npc/build/npc-log.txt",
@@ -136,6 +138,8 @@
             "externalConsole": false,
             "MIMode": "gdb",
             "miDebuggerPath": "/usr/bin/gdb",
+            "visualizerFile": "${workspaceFolder}/.vscode/natvis/npc_cpu.natvis",
+            "showDisplayString": true,
             "preLaunchTask": "NPC: build ysyxSoC debug",
             "setupCommands": [
                 {
