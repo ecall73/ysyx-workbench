@@ -34,12 +34,3 @@ update:
 
 .PHONY: update
 endif
-
-# Rebuild syscall.o when `make STRACE=0/1` changes its preprocessor setting.
-STRACE_CONFIG = $(DST_DIR)/.strace-$(STRACE)
-
-$(STRACE_CONFIG):
-	@rm -f $(DST_DIR)/.strace-*
-	@touch $@
-
-$(DST_DIR)/src/syscall.o: $(STRACE_CONFIG)
