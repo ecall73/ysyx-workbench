@@ -1,6 +1,5 @@
 #include <common.h>
 #include "syscall.h"
-
 void do_syscall(Context *c) {
   uintptr_t a[4];
   a[0] = c->GPR1;
@@ -10,13 +9,11 @@ void do_syscall(Context *c) {
 
   switch (a[0]) {
     case SYS_exit:
-      Log("strace: exit(%p, %p, %p)", (void *)a[1], (void *)a[2],
-          (void *)a[3]);
+      Log("strace: exit(%p, %p, %p)", (void *)a[1], (void *)a[2], (void *)a[3]);
       halt((int)a[1]);
       break;
     case SYS_yield:
-      Log("strace: yield(%p, %p, %p)", (void *)a[1], (void *)a[2],
-          (void *)a[3]);
+      Log("strace: yield(%p, %p, %p)", (void *)a[1], (void *)a[2], (void *)a[3]);
       yield();
       c->GPRx = 0;
       Log("strace: yield -> %p", (void *)c->GPRx);
