@@ -15,8 +15,7 @@
 # define EXPECT_TYPE EM_386
 #elif defined(__ISA_MIPS32__)
 # define EXPECT_TYPE EM_MIPS
-#elif defined(__ISA_RISCV32__) || defined(__ISA_RISCV32E__) || \
-    defined(__ISA_RISCV64__) || defined(__ISA_MINIRV__)
+#elif defined(__ISA_RISCV32__) || defined(__ISA_RISCV32E__) || defined(__ISA_RISCV64__) || defined(__ISA_MINIRV__)
 # define EXPECT_TYPE EM_RISCV
 #elif defined(__ISA_LOONGARCH32R__)
 # define EXPECT_TYPE 258  // EM_LOONGARCH
