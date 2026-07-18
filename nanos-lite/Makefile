@@ -1,8 +1,10 @@
 HAS_NAVY = 1
 RAMDISK_FILE = build/ramdisk.img
+STRACE ?= 0
 
 NAME = nanos-lite
 SRCS = $(shell find -L ./src/ -name "*.c" -o -name "*.cpp" -o -name "*.S")
+CFLAGS += -DSTRACE=$(STRACE)
 include $(AM_HOME)/Makefile
 
 ifeq ($(ARCH),native)
@@ -32,3 +34,12 @@ update:
 
 .PHONY: update
 endif
+
+# Rebuild syscall.o when `make STRACE=0/1` changes its preprocessor setting.
+STRACE_CONFIG = $(DST_DIR)/.strace-$(STRACE)
+
+$(STRACE_CONFIG):
+	@rm -f $(DST_DIR)/.strace-*
+	@touch $@
+
+$(DST_DIR)/src/syscall.o: $(STRACE_CONFIG)
