@@ -18,6 +18,15 @@ void do_syscall(Context *c) {
       c->GPRx = 0;
       Log("strace: yield -> %p", (void *)c->GPRx);
       break;
+    case SYS_write:
+      Log("strace: write(%p, %p, %p)", (void *)a[1], (void *)a[2], (void *)a[3]);
+      assert(a[1] == 1 || a[1] == 2);
+      for (size_t i = 0; i < a[3]; i++) {
+        putch(((const char *)a[2])[i]);
+      }
+      c->GPRx = a[3];
+      Log("strace: write -> %p", (void *)c->GPRx);
+      break;
     default: panic("Unhandled syscall ID = %d", a[0]);
   }
 }
