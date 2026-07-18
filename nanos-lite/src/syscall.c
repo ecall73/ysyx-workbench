@@ -13,6 +13,7 @@ void do_syscall(Context *c) {
     case SYS_exit:  name = "exit";  break;
     case SYS_yield: name = "yield"; break;
     case SYS_write: name = "write"; break;
+    case SYS_brk:   name = "brk";   break;
     default:        name = "unknown";
   }
   Log("strace: %s(%p, %p, %p)", name, (void *)a[1], (void *)a[2], (void *)a[3]);
@@ -32,6 +33,9 @@ void do_syscall(Context *c) {
         putch(((const char *)a[2])[i]);
       }
       c->GPRx = a[3];
+      break;
+    case SYS_brk:
+      c->GPRx = 0;
       break;
     default: panic("Unhandled syscall ID = %d", a[0]);
   }
