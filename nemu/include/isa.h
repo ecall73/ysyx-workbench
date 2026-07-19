@@ -27,7 +27,8 @@ typedef concat(__GUEST_ISA__, _ISADecodeInfo) ISADecodeInfo;
 // monitor
 extern unsigned char isa_logo[];
 void init_isa();
-void init_ftrace(const char *elf_file);
+void ftrace_add_elf(const char *elf_file);
+void init_ftrace(void);
 void ftrace_call(vaddr_t pc, vaddr_t target);
 void ftrace_ret(vaddr_t pc);
 
