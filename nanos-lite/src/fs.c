@@ -24,11 +24,13 @@ size_t invalid_write(const void *buf, size_t offset, size_t len) {
   return 0;
 }
 
+extern size_t serial_write(const void *buf, size_t offset, size_t len);
+
 /* This is the information about all files in disk. */
 static Finfo file_table[] __attribute__((used)) = {
   [FD_STDIN]  = {"stdin", 0, 0, 0, invalid_read, invalid_write},
-  [FD_STDOUT] = {"stdout", 0, 0, 0, invalid_read, invalid_write},
-  [FD_STDERR] = {"stderr", 0, 0, 0, invalid_read, invalid_write},
+  [FD_STDOUT] = {"stdout", 0, 0, 0, invalid_read, serial_write},
+  [FD_STDERR] = {"stderr", 0, 0, 0, invalid_read, serial_write},
 #include "files.h"
 };
 
@@ -63,17 +65,15 @@ const char *fs_file_name(int fd) {
 
 size_t fs_read(int fd, void *buf, size_t len) {
   Finfo *file = get_file(fd);
-  if (fd <= FD_STDERR || file->open_offset == file->size) {
-    return 0;
-  }
-
-  if (len > file->size - file->open_offset) {
-    len = file->size - file->open_offset;
-  }
-
   if (file->read != NULL) {
     len = file->read(buf, file->open_offset, len);
   } else {
+    if (file->open_offset == file->size) {
+      return 0;
+    }
+    if (len > file->size - file->open_offset) {
+      len = file->size - file->open_offset;
+    }
     len = ramdisk_read(buf, file->disk_offset + file->open_offset, len);
   }
   file->open_offset += len;
@@ -82,23 +82,15 @@ size_t fs_read(int fd, void *buf, size_t len) {
 
 size_t fs_write(int fd, const void *buf, size_t len) {
   Finfo *file = get_file(fd);
-  if (fd == FD_STDOUT || fd == FD_STDERR) {
-    for (size_t i = 0; i < len; i ++) {
-      putch(((const char *)buf)[i]);
-    }
-    return len;
-  }
-  if (fd == FD_STDIN || file->open_offset == file->size) {
-    return 0;
-  }
-
-  if (len > file->size - file->open_offset) {
-    len = file->size - file->open_offset;
-  }
-
   if (file->write != NULL) {
     len = file->write(buf, file->open_offset, len);
   } else {
+    if (file->open_offset == file->size) {
+      return 0;
+    }
+    if (len > file->size - file->open_offset) {
+      len = file->size - file->open_offset;
+    }
     len = ramdisk_write(buf, file->disk_offset + file->open_offset, len);
   }
   file->open_offset += len;
