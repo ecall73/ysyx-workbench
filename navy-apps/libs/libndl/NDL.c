@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,7 +17,13 @@ uint32_t NDL_GetTicks() {
 }
 
 int NDL_PollEvent(char *buf, int len) {
-  return 0;
+  if (len <= 1) return 0;
+
+  int nread = read(evtdev, buf, len - 1);
+  if (nread <= 0) return 0;
+
+  buf[nread] = '\0';
+  return 1;
 }
 
 void NDL_OpenCanvas(int *w, int *h) {
@@ -59,6 +66,8 @@ int NDL_QueryAudio() {
 int NDL_Init(uint32_t flags) {
   if (getenv("NWM_APP")) {
     evtdev = 3;
+  } else {
+    evtdev = open("/dev/events", 0, 0);
   }
   return 0;
 }
