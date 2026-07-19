@@ -1,5 +1,6 @@
 HAS_NAVY = 1
 RAMDISK_FILE = build/ramdisk.img
+FTRACE_ELF ?= $(NAVY_HOME)/fsimg/bin/hello
 STRACE ?= 0
 
 NAME = nanos-lite
@@ -7,8 +8,8 @@ SRCS = $(shell find -L ./src/ -name "*.c" -o -name "*.cpp" -o -name "*.S")
 CFLAGS += -DSTRACE=$(STRACE)
 include $(AM_HOME)/Makefile
 
-# At this stage, ramdisk.img is the single user ELF loaded by Nanos-lite.
-NEMUFLAGS += -f $(abspath $(RAMDISK_FILE))
+# ramdisk.img is a filesystem image; ftrace needs the standalone user ELF.
+NEMUFLAGS += -f $(abspath $(FTRACE_ELF))
 
 ifeq ($(ARCH),native)
 ISA = am_native
