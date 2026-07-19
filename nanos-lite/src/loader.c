@@ -1,4 +1,5 @@
 #include <proc.h>
+#include <fs.h>
 #include <elf.h>
 
 #ifdef __LP64__
@@ -23,28 +24,32 @@
 # error Unsupported ISA
 #endif
 
-extern size_t ramdisk_read(void *buf, size_t offset, size_t len);
-
 static uintptr_t loader(PCB *pcb, const char *filename) {
+  (void)pcb;
   Elf_Ehdr ehdr;
   Elf_Phdr phdr;
+  int fd = fs_open(filename, 0, 0);
 
-  ramdisk_read(&ehdr, 0, sizeof(ehdr));
+  assert(fs_read(fd, &ehdr, sizeof(ehdr)) == sizeof(ehdr));
   assert(*(uint32_t *)ehdr.e_ident == 0x464c457f);
   assert(ehdr.e_machine == EXPECT_TYPE);
   assert(ehdr.e_phentsize == sizeof(phdr));
 
   for (int i = 0; i < ehdr.e_phnum; i++) {
-    ramdisk_read(&phdr, ehdr.e_phoff + i * ehdr.e_phentsize, sizeof(phdr));
+    size_t phdr_offset = ehdr.e_phoff + i * ehdr.e_phentsize;
+    assert(fs_lseek(fd, phdr_offset, SEEK_SET) == phdr_offset);
+    assert(fs_read(fd, &phdr, sizeof(phdr)) == sizeof(phdr));
     if (phdr.p_type != PT_LOAD) {
       continue;
     }
 
     assert(phdr.p_filesz <= phdr.p_memsz);
-    ramdisk_read((void *)phdr.p_vaddr, phdr.p_offset, phdr.p_filesz);
+    assert(fs_lseek(fd, phdr.p_offset, SEEK_SET) == phdr.p_offset);
+    assert(fs_read(fd, (void *)phdr.p_vaddr, phdr.p_filesz) == phdr.p_filesz);
     memset((void *)(phdr.p_vaddr + phdr.p_filesz), 0, phdr.p_memsz - phdr.p_filesz);
   }
 
+  fs_close(fd);
   return ehdr.e_entry;
 }
 
