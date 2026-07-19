@@ -1,5 +1,6 @@
 #include <common.h>
 #include <fs.h>
+#include <sys/time.h>
 #include "syscall.h"
 void do_syscall(Context *c) {
   uintptr_t a[4];
@@ -19,6 +20,7 @@ void do_syscall(Context *c) {
     case SYS_close: name = "close"; break;
     case SYS_lseek: name = "lseek"; break;
     case SYS_brk:   name = "brk";   break;
+    case SYS_gettimeofday: name = "gettimeofday"; break;
     default:        name = "unknown";
   }
   switch (a[0]) {
@@ -64,6 +66,21 @@ void do_syscall(Context *c) {
     case SYS_brk:
       c->GPRx = 0;
       break;
+    case SYS_gettimeofday: {
+      AM_TIMER_UPTIME_T uptime = io_read(AM_TIMER_UPTIME);
+      struct timeval *tv = (struct timeval *)a[1];
+      struct timezone *tz = (struct timezone *)a[2];
+      if (tv != NULL) {
+        tv->tv_sec = uptime.us / 1000000;
+        tv->tv_usec = uptime.us % 1000000;
+      }
+      if (tz != NULL) {
+        tz->tz_minuteswest = 0;
+        tz->tz_dsttime = 0;
+      }
+      c->GPRx = 0;
+      break;
+    }
     default: panic("Unhandled syscall ID = %d", a[0]);
   }
 
