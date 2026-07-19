@@ -48,7 +48,6 @@ void sdb_set_batch_mode();
 static char *log_file = NULL;
 static char *diff_so_file = NULL;
 static char *img_file = NULL;
-static char *elf_file = NULL;
 static char *ftrace_log_file = NULL;
 static char *etrace_log_file = NULL;
 static char *mtrace_log_file = NULL;
@@ -101,7 +100,7 @@ static int parse_args(int argc, char *argv[]) {
   while ( (o = getopt_long(argc, argv, "-bhf:F:E:M:D:l:d:p:", table, NULL)) != -1) {
     switch (o) {
       case 'b': sdb_set_batch_mode(); break;
-      case 'f': elf_file = optarg; break;
+      case 'f': ftrace_add_elf(optarg); break;
       case 'F': ftrace_log_file = optarg; break;
       case 'E': etrace_log_file = optarg; break;
       case 'M': mtrace_log_file = optarg; break;
@@ -113,7 +112,7 @@ static int parse_args(int argc, char *argv[]) {
       default:
         printf("Usage: %s [OPTION...] IMAGE [args]\n\n", argv[0]);
         printf("\t-b,--batch              run with batch mode\n");
-        printf("\t-f,--elf=FILE            load ELF symbols for ftrace\n");
+        printf("\t-f,--elf=FILE            load ELF symbols for ftrace (may be repeated)\n");
         printf("\t-F,--ftrace-log=FILE     output ftrace to FILE\n");
         printf("\t-E,--etrace-log=FILE     output etrace to FILE\n");
         printf("\t-M,--mtrace-log=FILE     output mtrace to FILE\n");
@@ -152,9 +151,7 @@ void init_monitor(int argc, char *argv[]) {
 #ifdef CONFIG_DTRACE
   init_dtrace_log(dtrace_log_file);
 #endif
-#ifdef CONFIG_FTRACE
-  init_ftrace(elf_file);
-#endif
+  init_ftrace();
 
   /* Initialize memory. */
   init_mem();

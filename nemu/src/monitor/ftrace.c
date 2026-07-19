@@ -11,11 +11,17 @@ typedef struct {
   char *name;
 } FuncSymbol;
 
-static FuncSymbol *func_symbols = NULL;
-static size_t nr_func_symbols = 0;
-static size_t cap_func_symbols = 0;
-static bool ftrace_ready = false;
-static int ftrace_depth = 0;
+typedef struct {
+  const char **elf_files;
+  size_t nr_elf_files;
+  size_t cap_elf_files;
+  FuncSymbol *func_symbols;
+  size_t nr_func_symbols;
+  size_t cap_func_symbols;
+  int depth;
+} FtraceState;
+
+static FtraceState ftrace = {0};
 
 static void *load_section(FILE *fp, const Elf32_Shdr *shdr) {
   if (shdr->sh_size == 0) return NULL;
@@ -35,12 +41,12 @@ static void *load_section(FILE *fp, const Elf32_Shdr *shdr) {
 static void append_func_symbol(vaddr_t start, uint32_t size, const char *name) {
   if (name == NULL || name[0] == '\0') return;
 
-  if (nr_func_symbols == cap_func_symbols) {
-    size_t new_cap = (cap_func_symbols == 0 ? 64 : cap_func_symbols * 2);
-    FuncSymbol *new_buf = realloc(func_symbols, new_cap * sizeof(FuncSymbol));
+  if (ftrace.nr_func_symbols == ftrace.cap_func_symbols) {
+    size_t new_cap = (ftrace.cap_func_symbols == 0 ? 64 : ftrace.cap_func_symbols * 2);
+    FuncSymbol *new_buf = realloc(ftrace.func_symbols, new_cap * sizeof(*ftrace.func_symbols));
     Assert(new_buf != NULL, "ftrace: failed to expand symbol table to %zu entries", new_cap);
-    func_symbols = new_buf;
-    cap_func_symbols = new_cap;
+    ftrace.func_symbols = new_buf;
+    ftrace.cap_func_symbols = new_cap;
   }
 
   size_t len = strlen(name);
@@ -48,36 +54,33 @@ static void append_func_symbol(vaddr_t start, uint32_t size, const char *name) {
   Assert(name_copy != NULL, "ftrace: failed to allocate symbol name");
   memcpy(name_copy, name, len + 1);
 
-  func_symbols[nr_func_symbols].start = start;
-  func_symbols[nr_func_symbols].end = start + (vaddr_t)size;
-  func_symbols[nr_func_symbols].name = name_copy;
-  nr_func_symbols ++;
+  ftrace.func_symbols[ftrace.nr_func_symbols].start = start;
+  ftrace.func_symbols[ftrace.nr_func_symbols].end = start + (vaddr_t)size;
+  ftrace.func_symbols[ftrace.nr_func_symbols].name = name_copy;
+  ftrace.nr_func_symbols ++;
 }
 
 static const char *lookup_func(vaddr_t addr) {
   const char *range_match = NULL;
-  for (size_t i = 0; i < nr_func_symbols; i ++) {
-    if (func_symbols[i].start == addr) {
-      return func_symbols[i].name;
+  for (size_t i = 0; i < ftrace.nr_func_symbols; i ++) {
+    if (ftrace.func_symbols[i].start == addr) {
+      return ftrace.func_symbols[i].name;
     }
     if (range_match == NULL &&
-        func_symbols[i].end > func_symbols[i].start &&
-        addr >= func_symbols[i].start && addr < func_symbols[i].end) {
-      range_match = func_symbols[i].name;
+        ftrace.func_symbols[i].end > ftrace.func_symbols[i].start &&
+        addr >= ftrace.func_symbols[i].start && addr < ftrace.func_symbols[i].end) {
+      range_match = ftrace.func_symbols[i].name;
     }
   }
 
   return range_match ? range_match : "???";
 }
 
-void init_ftrace(const char *elf_file) {
-  if (elf_file == NULL) {
-    Log("ftrace: no ELF file is given, ftrace will be disabled");
-    return;
-  }
-
+static size_t load_elf_symbols(const char *elf_file) {
   FILE *fp = fopen(elf_file, "rb");
   Assert(fp != NULL, "ftrace: can not open ELF file '%s'", elf_file);
+
+  size_t nr_symbols_before = ftrace.nr_func_symbols;
 
   Elf32_Ehdr ehdr;
   size_t nread = fread(&ehdr, 1, sizeof(ehdr), fp);
@@ -129,34 +132,61 @@ void init_ftrace(const char *elf_file) {
   free(shdr);
   fclose(fp);
 
-  if (nr_func_symbols > 0) {
-    ftrace_ready = true;
-    Log("ftrace: loaded %zu function symbols from %s", nr_func_symbols, elf_file);
-  } else {
-    Log("ftrace: no function symbols found in %s, ftrace will be disabled", elf_file);
+  return ftrace.nr_func_symbols - nr_symbols_before;
+}
+
+void ftrace_add_elf(const char *elf_file) {
+  if (ftrace.nr_elf_files == ftrace.cap_elf_files) {
+    size_t new_cap = (ftrace.cap_elf_files == 0 ? 4 : ftrace.cap_elf_files * 2);
+    const char **new_files = realloc(ftrace.elf_files, new_cap * sizeof(*ftrace.elf_files));
+    Assert(new_files != NULL, "ftrace: failed to expand ELF file list to %zu entries", new_cap);
+    ftrace.elf_files = new_files;
+    ftrace.cap_elf_files = new_cap;
+  }
+  ftrace.elf_files[ftrace.nr_elf_files++] = elf_file;
+}
+
+void init_ftrace(void) {
+  if (ftrace.nr_elf_files == 0) {
+    Log("ftrace: no ELF file is given, ftrace will be disabled");
+    return;
+  }
+
+  for (size_t i = 0; i < ftrace.nr_elf_files; i ++) {
+    size_t nr_new_symbols = load_elf_symbols(ftrace.elf_files[i]);
+    if (nr_new_symbols > 0) {
+      Log("ftrace: loaded %zu function symbols from %s", nr_new_symbols, ftrace.elf_files[i]);
+    } else {
+      Log("ftrace: no function symbols found in %s", ftrace.elf_files[i]);
+    }
+  }
+
+  if (ftrace.nr_func_symbols == 0) {
+    Log("ftrace: no function symbols found, ftrace will be disabled");
   }
 }
 
 void ftrace_call(vaddr_t pc, vaddr_t target) {
-  if (!ftrace_ready) return;
+  if (ftrace.nr_func_symbols == 0) return;
 
   const char *name = lookup_func(target);
   ftrace_write(FMT_WORD ": %*scall [%s@" FMT_WORD "]\n",
-      pc, ftrace_depth * 2, "", name, target);
-  ftrace_depth ++;
+      pc, ftrace.depth * 2, "", name, target);
+  ftrace.depth ++;
 }
 
 void ftrace_ret(vaddr_t pc) {
-  if (!ftrace_ready) return;
+  if (ftrace.nr_func_symbols == 0) return;
 
-  if (ftrace_depth > 0) ftrace_depth --;
+  if (ftrace.depth > 0) ftrace.depth --;
   const char *name = lookup_func(pc);
-  ftrace_write(FMT_WORD ": %*sret  [%s]\n", pc, ftrace_depth * 2, "", name);
+  ftrace_write(FMT_WORD ": %*sret  [%s]\n", pc, ftrace.depth * 2, "", name);
 }
 
 #else
 
-void init_ftrace(const char *elf_file) { (void)elf_file; }
+void ftrace_add_elf(const char *elf_file) { (void)elf_file; }
+void init_ftrace(void) {}
 void ftrace_call(vaddr_t pc, vaddr_t target) { (void)pc; (void)target; }
 void ftrace_ret(vaddr_t pc) { (void)pc; }
 
