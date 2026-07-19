@@ -27,16 +27,8 @@ size_t events_read(void *buf, size_t offset, size_t len) {
     return 0;
   }
 
-  char event_text[64];
-  int event_len = snprintf(event_text, sizeof(event_text), "k%c %s\n",
+  return snprintf(buf, len, "k%c %s\n",
       event.keydown ? 'd' : 'u', keyname[event.keycode]);
-  assert(event_len >= 0 && event_len < (int)sizeof(event_text));
-  size_t nread = event_len;
-  if (nread > len) {
-    nread = len;
-  }
-  memcpy(buf, event_text, nread);
-  return nread;
 }
 
 size_t dispinfo_read(void *buf, size_t offset, size_t len) {
