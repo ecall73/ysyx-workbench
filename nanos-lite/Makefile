@@ -1,6 +1,6 @@
 HAS_NAVY = 1
 RAMDISK_FILE = build/ramdisk.img
-FTRACE_ELF ?= $(NAVY_HOME)/fsimg/bin/hello
+FTRACE_ELF ?= $(NAVY_HOME)/fsimg/bin/file-test
 STRACE ?= 0
 
 NAME = nanos-lite

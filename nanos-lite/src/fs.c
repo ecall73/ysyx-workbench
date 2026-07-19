@@ -33,6 +33,7 @@ static Finfo file_table[] __attribute__((used)) = {
 };
 
 extern size_t ramdisk_read(void *buf, size_t offset, size_t len);
+extern size_t ramdisk_write(const void *buf, size_t offset, size_t len);
 
 #define NR_FILES (sizeof(file_table) / sizeof(file_table[0]))
 
@@ -70,6 +71,31 @@ size_t fs_read(int fd, void *buf, size_t len) {
     len = file->read(buf, file->open_offset, len);
   } else {
     len = ramdisk_read(buf, file->disk_offset + file->open_offset, len);
+  }
+  file->open_offset += len;
+  return len;
+}
+
+size_t fs_write(int fd, const void *buf, size_t len) {
+  Finfo *file = get_file(fd);
+  if (fd == FD_STDOUT || fd == FD_STDERR) {
+    for (size_t i = 0; i < len; i ++) {
+      putch(((const char *)buf)[i]);
+    }
+    return len;
+  }
+  if (fd == FD_STDIN || file->open_offset == file->size) {
+    return 0;
+  }
+
+  if (len > file->size - file->open_offset) {
+    len = file->size - file->open_offset;
+  }
+
+  if (file->write != NULL) {
+    len = file->write(buf, file->open_offset, len);
+  } else {
+    len = ramdisk_write(buf, file->disk_offset + file->open_offset, len);
   }
   file->open_offset += len;
   return len;
