@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdint.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -9,6 +10,7 @@
 static int evtdev = -1;
 static int fbdev = -1;
 static int screen_w = 0, screen_h = 0;
+static int canvas_w = 0, canvas_h = 0;
 
 uint32_t NDL_GetTicks() {
   struct timeval tv;
@@ -37,7 +39,24 @@ void NDL_OpenCanvas(int *w, int *h) {
       if (strcmp(buf, "mmap ok") == 0) break;
     }
     close(fbctl);
+  } else {
+    int dispinfo = open("/proc/dispinfo", O_RDONLY);
+    char buf[64];
+    int nread = read(dispinfo, buf, sizeof(buf) - 1);
+    assert(nread > 0);
+    buf[nread] = '\0';
+    assert(sscanf(buf, "WIDTH : %d HEIGHT : %d", &screen_w, &screen_h) == 2);
+    close(dispinfo);
+    fbdev = open("/dev/fb", O_WRONLY);
   }
+
+  if (*w == 0 && *h == 0) {
+    *w = screen_w;
+    *h = screen_h;
+  }
+  assert(*w <= screen_w && *h <= screen_h);
+  canvas_w = *w;
+  canvas_h = *h;
 }
 
 void NDL_DrawRect(uint32_t *pixels, int x, int y, int w, int h) {
@@ -61,7 +80,7 @@ int NDL_Init(uint32_t flags) {
   if (getenv("NWM_APP")) {
     evtdev = 3;
   } else {
-    evtdev = open("/dev/events", 0, 0);
+    evtdev = open("/dev/events", O_RDONLY);
   }
   return 0;
 }
