@@ -21,7 +21,21 @@ void do_syscall(Context *c) {
     case SYS_brk:   name = "brk";   break;
     default:        name = "unknown";
   }
-  Log("strace: %s(%p, %p, %p)", name, (void *)a[1], (void *)a[2], (void *)a[3]);
+  switch (a[0]) {
+    case SYS_open:
+      Log("strace: open(%s, %p, %p)", (const char *)a[1], (void *)a[2], (void *)a[3]);
+      break;
+    case SYS_read:
+    case SYS_write:
+    case SYS_lseek:
+      Log("strace: %s(%s, %p, %p)", name, fs_file_name((int)a[1]), (void *)a[2], (void *)a[3]);
+      break;
+    case SYS_close:
+      Log("strace: close(%s)", fs_file_name((int)a[1]));
+      break;
+    default:
+      Log("strace: %s(%p, %p, %p)", name, (void *)a[1], (void *)a[2], (void *)a[3]);
+  }
 #endif
 
   switch (a[0]) {
@@ -54,6 +68,10 @@ void do_syscall(Context *c) {
   }
 
 #if STRACE
-  Log("strace: %s -> %p", name, (void *)c->GPRx);
+  if (a[0] == SYS_open) {
+    Log("strace: open -> %s", fs_file_name((int)c->GPRx));
+  } else {
+    Log("strace: %s -> %p", name, (void *)c->GPRx);
+  }
 #endif
 }
