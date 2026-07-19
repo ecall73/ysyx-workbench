@@ -1,22 +1,17 @@
-#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <sys/time.h>
-
-static uint64_t get_time_us(void) {
-  struct timeval tv;
-  assert(gettimeofday(&tv, NULL) == 0);
-  return (uint64_t)tv.tv_sec * 1000000 + tv.tv_usec;
-}
+#include <NDL.h>
 
 int main() {
-  uint64_t next = get_time_us() + 500000;
+  NDL_Init(0);
+
+  uint32_t next = NDL_GetTicks() + 500;
   int count = 1;
 
   while (1) {
-    if (get_time_us() >= next) {
+    if (NDL_GetTicks() >= next) {
       printf("timer-test: %d\n", count++);
-      next += 500000;
+      next += 500;
     }
   }
 }
