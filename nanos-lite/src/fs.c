@@ -57,6 +57,10 @@ int fs_open(const char *pathname, int flags, int mode) {
   return -1;
 }
 
+const char *fs_file_name(int fd) {
+  return get_file(fd)->name;
+}
+
 size_t fs_read(int fd, void *buf, size_t len) {
   Finfo *file = get_file(fd);
   if (fd <= FD_STDERR || file->open_offset == file->size) {
