@@ -25,7 +25,6 @@
 #endif
 
 static uintptr_t loader(PCB *pcb, const char *filename) {
-  (void)pcb;
   Elf_Ehdr ehdr;
   Elf_Phdr phdr;
   int fd = fs_open(filename, 0, 0);
@@ -37,14 +36,14 @@ static uintptr_t loader(PCB *pcb, const char *filename) {
 
   for (int i = 0; i < ehdr.e_phnum; i++) {
     size_t phdr_offset = ehdr.e_phoff + i * ehdr.e_phentsize;
-    assert(fs_lseek(fd, phdr_offset, SEEK_SET) == phdr_offset);
+    fs_lseek(fd, phdr_offset, SEEK_SET);
     assert(fs_read(fd, &phdr, sizeof(phdr)) == sizeof(phdr));
     if (phdr.p_type != PT_LOAD) {
       continue;
     }
 
     assert(phdr.p_filesz <= phdr.p_memsz);
-    assert(fs_lseek(fd, phdr.p_offset, SEEK_SET) == phdr.p_offset);
+    fs_lseek(fd, phdr.p_offset, SEEK_SET);
     assert(fs_read(fd, (void *)phdr.p_vaddr, phdr.p_filesz) == phdr.p_filesz);
     memset((void *)(phdr.p_vaddr + phdr.p_filesz), 0, phdr.p_memsz - phdr.p_filesz);
   }

@@ -14,12 +14,12 @@ typedef struct {
 
 enum {FD_STDIN, FD_STDOUT, FD_STDERR, FD_FB};
 
-static size_t invalid_read(void *buf, size_t offset, size_t len) {
+size_t invalid_read(void *buf, size_t offset, size_t len) {
   panic("should not reach here");
   return 0;
 }
 
-static size_t invalid_write(const void *buf, size_t offset, size_t len) {
+size_t invalid_write(const void *buf, size_t offset, size_t len) {
   panic("should not reach here");
   return 0;
 }
@@ -62,18 +62,17 @@ size_t fs_read(int fd, void *buf, size_t len) {
     return 0;
   }
 
-  size_t nread = len;
-  if (nread > file->size - file->open_offset) {
-    nread = file->size - file->open_offset;
+  if (len > file->size - file->open_offset) {
+    len = file->size - file->open_offset;
   }
 
   if (file->read != NULL) {
-    nread = file->read(buf, file->open_offset, nread);
+    len = file->read(buf, file->open_offset, len);
   } else {
-    nread = ramdisk_read(buf, file->disk_offset + file->open_offset, nread);
+    len = ramdisk_read(buf, file->disk_offset + file->open_offset, len);
   }
-  file->open_offset += nread;
-  return nread;
+  file->open_offset += len;
+  return len;
 }
 
 size_t fs_lseek(int fd, size_t offset, int whence) {
@@ -103,7 +102,6 @@ size_t fs_lseek(int fd, size_t offset, int whence) {
 }
 
 int fs_close(int fd) {
-  get_file(fd);
   return 0;
 }
 
