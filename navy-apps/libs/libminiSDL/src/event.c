@@ -20,13 +20,9 @@ int SDL_PollEvent(SDL_Event *ev) {
 
 int SDL_WaitEvent(SDL_Event *event) {
   char buf[64];
-  assert(event);
   while (!NDL_PollEvent(buf, sizeof(buf)));
 
-  assert(buf[0] == 'k' && (buf[1] == 'd' || buf[1] == 'u') && buf[2] == ' ');
-  size_t len = strlen(buf);
-  assert(len > 0 && buf[len - 1] == '\n');
-  buf[len - 1] = '\0';
+  buf[strlen(buf) - 1] = '\0';
   event->type = buf[1] == 'd' ? SDL_KEYDOWN : SDL_KEYUP;
   for (int i = 1; i < (int)(sizeof(keyname) / sizeof(keyname[0])); i++) {
     if (strcmp(buf + 3, keyname[i]) == 0) {
