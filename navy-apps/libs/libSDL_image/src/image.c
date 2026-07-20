@@ -1,3 +1,8 @@
+#include <assert.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <unistd.h>
+
 #define SDL_malloc  malloc
 #define SDL_free    free
 #define SDL_realloc realloc
@@ -12,7 +17,20 @@ SDL_Surface* IMG_Load_RW(SDL_RWops *src, int freesrc) {
 }
 
 SDL_Surface* IMG_Load(const char *filename) {
-  return NULL;
+  int fd = open(filename, O_RDONLY);
+  assert(fd >= 0);
+
+  off_t size = lseek(fd, 0, SEEK_END);
+  assert(size > 0);
+  assert(lseek(fd, 0, SEEK_SET) == 0);
+  void *buf = malloc(size);
+  assert(buf);
+  assert(read(fd, buf, size) == size);
+
+  SDL_Surface *surface = STBIMG_LoadFromMemory(buf, size);
+  close(fd);
+  free(buf);
+  return surface;
 }
 
 int IMG_isPNG(SDL_RWops *src) {
