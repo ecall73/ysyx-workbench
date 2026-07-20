@@ -18,16 +18,18 @@ SDL_Surface* IMG_Load_RW(SDL_RWops *src, int freesrc) {
 
 SDL_Surface* IMG_Load(const char *filename) {
   int fd = open(filename, O_RDONLY);
-  assert(fd >= 0);
+  if (fd < 0) return NULL;
 
   off_t size = lseek(fd, 0, SEEK_END);
-  assert(size > 0);
-  assert(lseek(fd, 0, SEEK_SET) == 0);
-  void *buf = malloc(size);
-  assert(buf);
-  assert(read(fd, buf, size) == size);
+  void *buf = NULL;
+  SDL_Surface *surface = NULL;
+  if (size > 0 && lseek(fd, 0, SEEK_SET) == 0) {
+    buf = malloc(size);
+    if (buf != NULL && read(fd, buf, size) == size) {
+      surface = STBIMG_LoadFromMemory(buf, size);
+    }
+  }
 
-  SDL_Surface *surface = STBIMG_LoadFromMemory(buf, size);
   close(fd);
   free(buf);
   return surface;

@@ -28,6 +28,7 @@ static uintptr_t loader(PCB *pcb, const char *filename) {
   Elf_Ehdr ehdr;
   Elf_Phdr phdr;
   int fd = fs_open(filename, 0, 0);
+  assert(fd >= 0);
 
   assert(fs_read(fd, &ehdr, sizeof(ehdr)) == sizeof(ehdr));
   assert(*(uint32_t *)ehdr.e_ident == 0x464c457f);

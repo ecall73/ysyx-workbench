@@ -85,7 +85,7 @@ void do_syscall(Context *c) {
   }
 
 #if STRACE
-  if (a[0] == SYS_open) {
+  if (a[0] == SYS_open && (int)c->GPRx >= 0) {
     Log("strace: open -> %s", fs_file_name((int)c->GPRx));
   } else {
     Log("strace: %s -> %p", name, (void *)c->GPRx);
