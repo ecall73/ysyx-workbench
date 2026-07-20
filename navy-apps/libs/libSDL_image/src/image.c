@@ -20,7 +20,8 @@ SDL_Surface* IMG_Load(const char *filename) {
   int fd = open(filename, O_RDONLY);
   assert(fd >= 0);
 
-  size_t size = lseek(fd, 0, SEEK_END);
+  off_t size = lseek(fd, 0, SEEK_END);
+  assert(size > 0);
   assert(lseek(fd, 0, SEEK_SET) == 0);
   void *buf = malloc(size);
   assert(buf);
