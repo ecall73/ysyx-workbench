@@ -15,9 +15,9 @@ int SDL_PushEvent(SDL_Event *ev) {
 }
 
 int SDL_PollEvent(SDL_Event *ev) {
+  assert(ev);
   char buf[64];
   if (!NDL_PollEvent(buf, sizeof(buf))) return 0;
-  assert(ev);
 
   buf[strlen(buf) - 1] = '\0';
   ev->type = buf[1] == 'd' ? SDL_KEYDOWN : SDL_KEYUP;
