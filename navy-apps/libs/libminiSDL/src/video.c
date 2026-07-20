@@ -7,12 +7,61 @@
 void SDL_BlitSurface(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect) {
   assert(dst && src);
   assert(dst->format->BitsPerPixel == src->format->BitsPerPixel);
+
+  int sx = srcrect ? srcrect->x : 0;
+  int sy = srcrect ? srcrect->y : 0;
+  int w = srcrect ? srcrect->w : src->w;
+  int h = srcrect ? srcrect->h : src->h;
+  int dx = dstrect ? dstrect->x : 0;
+  int dy = dstrect ? dstrect->y : 0;
+
+  if (sx < 0) { dx -= sx; w += sx; sx = 0; }
+  if (sy < 0) { dy -= sy; h += sy; sy = 0; }
+  if (dx < 0) { sx -= dx; w += dx; dx = 0; }
+  if (dy < 0) { sy -= dy; h += dy; dy = 0; }
+  if (sx + w > src->w) w = src->w - sx;
+  if (sy + h > src->h) h = src->h - sy;
+  if (dx + w > dst->w) w = dst->w - dx;
+  if (dy + h > dst->h) h = dst->h - dy;
+  if (w < 0) w = 0;
+  if (h < 0) h = 0;
+
+  int bytes = src->format->BytesPerPixel;
+  int start = 0, end = h, step = 1;
+  if (src == dst && dy > sy) {
+    start = h - 1;
+    end = -1;
+    step = -1;
+  }
+  for (int i = start; i != end; i += step) {
+    memmove(dst->pixels + (dy + i) * dst->pitch + dx * bytes,
+        src->pixels + (sy + i) * src->pitch + sx * bytes, w * bytes);
+  }
+
+  if (dstrect) {
+    dstrect->x = dx;
+    dstrect->y = dy;
+    dstrect->w = w;
+    dstrect->h = h;
+  }
 }
 
 void SDL_FillRect(SDL_Surface *dst, SDL_Rect *dstrect, uint32_t color) {
 }
 
 void SDL_UpdateRect(SDL_Surface *s, int x, int y, int w, int h) {
+  assert(s);
+  assert(s->format->BitsPerPixel == 32);
+
+  if (x == 0 && y == 0 && w == 0 && h == 0) {
+    w = s->w;
+    h = s->h;
+  }
+  assert(x >= 0 && y >= 0 && w >= 0 && h >= 0);
+  assert(x + w <= s->w && y + h <= s->h);
+  for (int i = 0; i < h; i++) {
+    NDL_DrawRect((uint32_t *)s->pixels + (y + i) * s->w + x, x, y + i, w, 1);
+  }
 }
 
 // APIs below are already implemented.
