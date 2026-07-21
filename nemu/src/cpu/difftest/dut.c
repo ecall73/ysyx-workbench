@@ -80,6 +80,10 @@ void difftest_attach() {
   is_attached = true;
 }
 
+bool difftest_is_attached() {
+  return is_attached;
+}
+
 void init_difftest(char *ref_so_file, long img_size, int port) {
   Assert(ref_so_file != NULL, "DiffTest is enabled but ref_so_file is NULL");
   Assert(img_size >= 0,
