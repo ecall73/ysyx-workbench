@@ -1,5 +1,6 @@
 #include <common.h>
 #include <fs.h>
+#include <proc.h>
 #include <sys/time.h>
 #include "syscall.h"
 void do_syscall(Context *c) {
@@ -21,6 +22,7 @@ void do_syscall(Context *c) {
     case SYS_lseek: name = "lseek"; break;
     case SYS_brk:   name = "brk";   break;
     case SYS_gettimeofday: name = "gettimeofday"; break;
+    case SYS_execve: name = "execve"; break;
     default:        name = "unknown";
   }
   switch (a[0]) {
@@ -81,6 +83,9 @@ void do_syscall(Context *c) {
       c->GPRx = 0;
       break;
     }
+    case SYS_execve:
+      naive_uload(NULL, (const char *)a[1]);
+      panic("execve returned unexpectedly");
     default: panic("Unhandled syscall ID = %d", a[0]);
   }
 
