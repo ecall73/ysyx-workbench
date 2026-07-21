@@ -15,10 +15,8 @@ static void context_kload(PCB *pcb, void (*entry)(void *), void *arg) {
 }
 
 void context_uload(PCB *pcb, const char *filename, char *const argv[], char *const envp[]) {
-  uintptr_t entry = loader(pcb, filename);
   void *ustack = new_page(STACK_SIZE / PGSIZE);
   Area stack = RANGE(ustack, (uint8_t *)ustack + STACK_SIZE);
-  pcb->cp = ucontext(&pcb->as, RANGE(pcb->stack, pcb->stack + STACK_SIZE), (void *)entry);
 
   size_t argc = 0, envc = 0, str_size = 0;
   for (; argv[argc] != NULL; argc ++) {
@@ -53,6 +51,8 @@ void context_uload(PCB *pcb, const char *filename, char *const argv[], char *con
   }
   stack_envp[envc] = NULL;
 
+  uintptr_t entry = loader(pcb, filename);
+  pcb->cp = ucontext(&pcb->as, RANGE(pcb->stack, pcb->stack + STACK_SIZE), (void *)entry);
   pcb->cp->GPRx = sp;
 }
 
