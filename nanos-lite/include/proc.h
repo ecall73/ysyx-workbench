@@ -20,6 +20,8 @@ extern PCB *current;
 
 uintptr_t loader(PCB *pcb, const char *filename);
 void naive_uload(PCB *pcb, const char *filename);
+void context_uload(PCB *pcb, const char *filename, char *const argv[], char *const envp[]);
+void switch_boot_pcb(void);
 Context *schedule(Context *prev);
 
 #endif

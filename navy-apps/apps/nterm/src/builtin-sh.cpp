@@ -25,13 +25,20 @@ static void sh_prompt() {
 
 static void sh_handle_cmd(const char *cmd) {
   char *buf = strdup(cmd);
-  char *name = strtok(buf, " \n");
+  char *argv[16];
+  int argc = 0;
+  for (char *arg = strtok(buf, " \n"); arg != NULL && argc < 15; arg = strtok(NULL, " \n")) {
+    argv[argc ++] = arg;
+  }
+  argv[argc] = NULL;
 
-  if (name != NULL && strcmp(name, "echo") == 0) {
-    char *args = strtok(NULL, "\n");
-    sh_printf("%s\n", args == NULL ? "" : args);
-  } else if (name != NULL) {
-    execvp(name, NULL);
+  if (argc > 0 && strcmp(argv[0], "echo") == 0) {
+    for (int i = 1; i < argc; i ++) {
+      sh_printf("%s%s", i == 1 ? "" : " ", argv[i]);
+    }
+    sh_printf("\n");
+  } else if (argc > 0) {
+    execvp(argv[0], argv);
   }
 
   free(buf);
