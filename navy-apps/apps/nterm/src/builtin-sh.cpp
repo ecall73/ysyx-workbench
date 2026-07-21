@@ -29,6 +29,8 @@ static void sh_handle_cmd(const char *cmd) {
   if (name != NULL && strcmp(name, "echo") == 0) {
     char *args = strtok(NULL, "\n");
     sh_printf("%s\n", args == NULL ? "" : args);
+  } else if (name != NULL) {
+    execve(name, NULL, NULL);
   }
 
   free(buf);
