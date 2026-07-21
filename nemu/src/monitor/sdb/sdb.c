@@ -15,6 +15,7 @@
 
 #include <isa.h>
 #include <cpu/cpu.h>
+#include <cpu/difftest.h>
 #include <memory/vaddr.h>
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -60,6 +61,16 @@ static int cmd_si(char *args) {
     n = strtol(args, NULL, 0);
   }
   cpu_exec(n);
+  return 0;
+}
+
+static int cmd_detach(char *args) {
+  difftest_detach();
+  return 0;
+}
+
+static int cmd_attach(char *args) {
+  difftest_attach();
   return 0;
 }
 
@@ -154,6 +165,8 @@ static struct {
   { "c", "Continue the execution of the program", cmd_c },
   { "q", "Exit NEMU", cmd_q },
   { "si", "Pause after executing [N] instructions", cmd_si },
+  { "detach", "Disable DiffTest", cmd_detach },
+  { "attach", "Synchronize REF and enable DiffTest", cmd_attach },
   { "info", "r: Print register status, w: Print watchpoint information", cmd_info },
   { "x", "Scan <N> words starting from <EXPR>", cmd_x },
   { "p", "Find the value of <EXPR>", cmd_p },
