@@ -81,7 +81,7 @@ void do_syscall(Context *c) {
       break;
     }
     case SYS_exit:
-      a[1] = (uintptr_t)"/bin/menu";
+      a[1] = (uintptr_t)"/bin/nterm";
       /* fall through */
     case SYS_execve:
       naive_uload(NULL, (const char *)a[1]);
