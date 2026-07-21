@@ -2,9 +2,12 @@
 #include <NDL.h>
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static int screen_w, screen_h;
+
+#define HEAP_SIZE (1 * 1024 * 1024)
 
 #define NAME(key) [AM_KEY_##key] = #key,
 static const char *keyname[] = {
@@ -33,6 +36,12 @@ static void read_keyboard(AM_INPUT_KEYBRD_T *kbd) {
 }
 
 bool ioe_init() {
+  if (heap.start == NULL) {
+    heap.start = malloc(HEAP_SIZE);
+    assert(heap.start != NULL);
+    heap.end = (char *)heap.start + HEAP_SIZE;
+  }
+
   NDL_Init(0);
   NDL_OpenCanvas(&screen_w, &screen_h);
   return true;
