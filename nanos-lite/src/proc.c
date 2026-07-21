@@ -15,10 +15,8 @@ static void context_kload(PCB *pcb, void (*entry)(void *), void *arg) {
 }
 
 void context_uload(PCB *pcb, const char *filename, char *const argv[], char *const envp[]) {
-  uintptr_t entry = loader(pcb, filename);
   void *ustack = new_page(STACK_SIZE / PGSIZE);
   Area stack = RANGE(ustack, (uint8_t *)ustack + STACK_SIZE);
-  pcb->cp = ucontext(&pcb->as, RANGE(pcb->stack, pcb->stack + STACK_SIZE), (void *)entry);
 
   size_t argc = 0, envc = 0, str_size = 0;
   for (; argv[argc] != NULL; argc ++) {
@@ -53,26 +51,30 @@ void context_uload(PCB *pcb, const char *filename, char *const argv[], char *con
   }
   stack_envp[envc] = NULL;
 
+  uintptr_t entry = loader(pcb, filename);
+  pcb->cp = ucontext(&pcb->as, RANGE(pcb->stack, pcb->stack + STACK_SIZE), (void *)entry);
   pcb->cp->GPRx = sp;
 }
 
 void hello_fun(void *arg) {
   int j = 1;
   while (1) {
-    Log("Hello World from Nanos-lite with arg '%s' for the %dth time!", (char *)arg, j);
+    if (j == 1 || j % 1000 == 0) {
+      Log("Hello World from Nanos-lite with arg '%s' for the %dth time!", (char *)arg, j);
+    }
     j ++;
     yield();
   }
 }
 
 void init_proc() {
-  char *const argv[] = { "/bin/pal", "--skip", NULL };
+  char *const argv[] = { "nterm", NULL };
   char *const envp[] = { NULL };
 
   Log("Initializing processes...");
 
   context_kload(&pcb[0], hello_fun, "A");
-  context_uload(&pcb[1], "/bin/pal", argv, envp);
+  context_uload(&pcb[1], "/bin/nterm", argv, envp);
   switch_boot_pcb();
 }
 
