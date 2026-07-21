@@ -38,8 +38,14 @@ static void context_uload(PCB *pcb, const char *filename, char *const argv[], ch
     str_size += strlen(envp[i]) + 1;
   }
 
-  uintptr_t sp = (uintptr_t)heap.end - str_size;
-  char *str = (char *)sp;
+  size_t args_size = (argc + envc + 3) * sizeof(uintptr_t);
+  assert(str_size + args_size + 15 <= (uintptr_t)heap.end - (uintptr_t)heap.start);
+
+  uintptr_t strings_start = (uintptr_t)heap.end - str_size;
+  uintptr_t stack_end = ROUNDDOWN(strings_start, sizeof(uintptr_t));
+  uintptr_t sp = ROUNDDOWN(stack_end - args_size, 16);
+
+  char *str = (char *)strings_start;
   for (size_t i = 0; i < argc; i ++) {
     strcpy(str, argv[i]);
     str += strlen(str) + 1;
@@ -49,16 +55,11 @@ static void context_uload(PCB *pcb, const char *filename, char *const argv[], ch
     str += strlen(str) + 1;
   }
 
-  sp = ROUNDDOWN(sp, sizeof(uintptr_t));
-  sp -= (envc + 1) * sizeof(uintptr_t);
-  char **stack_envp = (char **)sp;
-  sp -= (argc + 1) * sizeof(uintptr_t);
-  char **stack_argv = (char **)sp;
-  sp -= sizeof(uintptr_t);
   *(uintptr_t *)sp = argc;
-  assert(sp >= (uintptr_t)heap.start);
+  char **stack_argv = (char **)(sp + sizeof(uintptr_t));
+  char **stack_envp = stack_argv + argc + 1;
 
-  str = (char *)heap.end - str_size;
+  str = (char *)strings_start;
   for (size_t i = 0; i < argc; i ++) {
     stack_argv[i] = str;
     str += strlen(str) + 1;
