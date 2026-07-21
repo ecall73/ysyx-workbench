@@ -55,27 +55,46 @@ void SDL_FillRect(SDL_Surface *dst, SDL_Rect *dstrect, uint32_t color) {
   assert(x >= 0 && y >= 0 && w >= 0 && h >= 0);
   assert(x + w <= dst->w && y + h <= dst->h);
 
-  assert(dst->format->BytesPerPixel == 4);
-  for (int i = 0; i < h; i++) {
-    uint32_t *row = (uint32_t *)(dst->pixels + (y + i) * dst->pitch) + x;
-    for (int j = 0; j < w; j++) {
-      row[j] = color;
+  if (dst->format->BytesPerPixel == 4) {
+    for (int i = 0; i < h; i++) {
+      uint32_t *row = (uint32_t *)(dst->pixels + (y + i) * dst->pitch) + x;
+      for (int j = 0; j < w; j++) {
+        row[j] = color;
+      }
+    }
+  } else {
+    assert(dst->format->BytesPerPixel == 1);
+    for (int i = 0; i < h; i++) {
+      memset(dst->pixels + (y + i) * dst->pitch + x, color, w);
     }
   }
 }
 
 void SDL_UpdateRect(SDL_Surface *s, int x, int y, int w, int h) {
   assert(s);
-  assert(s->format->BitsPerPixel == 32);
-
   if (x == 0 && y == 0 && w == 0 && h == 0) {
     w = s->w;
     h = s->h;
   }
   assert(x >= 0 && y >= 0 && w >= 0 && h >= 0);
   assert(x + w <= s->w && y + h <= s->h);
-  for (int i = 0; i < h; i++) {
-    NDL_DrawRect((uint32_t *)s->pixels + (y + i) * s->w + x, x, y + i, w, 1);
+  if (w == 0 || h == 0) return;
+
+  if (s->format->BytesPerPixel == 4) {
+    for (int i = 0; i < h; i++) {
+      NDL_DrawRect((uint32_t *)s->pixels + (y + i) * s->w + x, x, y + i, w, 1);
+    }
+  } else {
+    assert(s->format->BytesPerPixel == 1);
+    uint32_t pixels[w];
+    for (int i = 0; i < h; i++) {
+      uint8_t *row = s->pixels + (y + i) * s->pitch + x;
+      for (int j = 0; j < w; j++) {
+        SDL_Color color = s->format->palette->colors[row[j]];
+        pixels[j] = (color.r << 16) | (color.g << 8) | color.b;
+      }
+      NDL_DrawRect(pixels, x, y + i, w, 1);
+    }
   }
 }
 
@@ -191,18 +210,10 @@ void SDL_SetPalette(SDL_Surface *s, int flags, SDL_Color *colors, int firstcolor
   assert(s);
   assert(s->format);
   assert(s->format->palette);
-  assert(firstcolor == 0);
-
-  s->format->palette->ncolors = ncolors;
-  memcpy(s->format->palette->colors, colors, sizeof(SDL_Color) * ncolors);
+  assert(firstcolor >= 0 && ncolors >= 0 && firstcolor + ncolors <= 256);
+  memcpy(s->format->palette->colors + firstcolor, colors, sizeof(SDL_Color) * ncolors);
 
   if(s->flags & SDL_HWSURFACE) {
-    assert(ncolors == 256);
-    for (int i = 0; i < ncolors; i ++) {
-      uint8_t r = colors[i].r;
-      uint8_t g = colors[i].g;
-      uint8_t b = colors[i].b;
-    }
     SDL_UpdateRect(s, 0, 0, 0, 0);
   }
 }
