@@ -16,6 +16,7 @@
 #include <isa.h>
 #include <cpu/cpu.h>
 #include <cpu/difftest.h>
+#include <memory/paddr.h>
 #include <memory/vaddr.h>
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -71,6 +72,51 @@ static int cmd_detach(char *args) {
 
 static int cmd_attach(char *args) {
   difftest_attach();
+  return 0;
+}
+
+static int cmd_save(char *args) {
+  if (args == NULL) {
+    printf("Usage: save <path>\n");
+    return 0;
+  }
+
+  FILE *fp = fopen(args, "wb");
+  if (fp == NULL) {
+    perror("save");
+    return 0;
+  }
+
+  bool ok = fwrite(&cpu, sizeof(cpu), 1, fp) == 1 &&
+            fwrite(guest_to_host(PMEM_LEFT), CONFIG_MSIZE, 1, fp) == 1;
+  fclose(fp);
+  if (!ok) {
+    printf("Failed to save snapshot to %s\n", args);
+  }
+  return 0;
+}
+
+static int cmd_load(char *args) {
+  if (args == NULL) {
+    printf("Usage: load <path>\n");
+    return 0;
+  }
+
+  FILE *fp = fopen(args, "rb");
+  if (fp == NULL) {
+    perror("load");
+    return 0;
+  }
+
+  bool ok = fread(&cpu, sizeof(cpu), 1, fp) == 1 &&
+            fread(guest_to_host(PMEM_LEFT), CONFIG_MSIZE, 1, fp) == 1;
+  fclose(fp);
+  if (!ok) {
+    printf("Failed to load snapshot from %s\n", args);
+    return 0;
+  }
+
+  if (difftest_is_attached()) difftest_attach();
   return 0;
 }
 
@@ -167,6 +213,8 @@ static struct {
   { "si", "Pause after executing [N] instructions", cmd_si },
   { "detach", "Disable DiffTest", cmd_detach },
   { "attach", "Synchronize REF and enable DiffTest", cmd_attach },
+  { "save", "Save NEMU state to <path>", cmd_save },
+  { "load", "Load NEMU state from <path>", cmd_load },
   { "info", "r: Print register status, w: Print watchpoint information", cmd_info },
   { "x", "Scan <N> words starting from <EXPR>", cmd_x },
   { "p", "Find the value of <EXPR>", cmd_p },
