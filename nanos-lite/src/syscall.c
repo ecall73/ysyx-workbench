@@ -43,9 +43,6 @@ void do_syscall(Context *c) {
 #endif
 
   switch (a[0]) {
-    case SYS_exit:
-      halt((int)a[1]);
-      break;
     case SYS_yield:
       yield();
       c->GPRx = 0;
@@ -83,6 +80,9 @@ void do_syscall(Context *c) {
       c->GPRx = 0;
       break;
     }
+    case SYS_exit:
+      a[1] = (uintptr_t)"/bin/menu";
+      /* fall through */
     case SYS_execve:
       naive_uload(NULL, (const char *)a[1]);
       panic("execve returned unexpectedly");
