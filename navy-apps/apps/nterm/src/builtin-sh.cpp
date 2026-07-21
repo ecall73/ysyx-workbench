@@ -46,7 +46,6 @@ static void sh_handle_cmd(const char *cmd) {
 
 void builtin_sh_run() {
   setenv("PATH", "/bin", 0);
-  sh_handle_cmd("printenv");
   sh_banner();
   sh_prompt();
 
