@@ -14,6 +14,6 @@ libam: ;
 endif
 
 default $(MAKECMDGOALS): libam
-	AM_HOME=$(NAVY_HOME) LIBS=libam $(MAKE) -C $(FCEUX_PATH) $(MAKECMDGOALS)
+	AM_HOME=$(NAVY_HOME) LIBS=libam CXXFLAGS="-I$(FCEUX_PATH)/src -include $(NAVY_HOME)/apps/fceux/navy-config.h" $(MAKE) -C $(FCEUX_PATH) $(MAKECMDGOALS)
 
 .PHONY: libam default $(MAKECMDGOALS)
