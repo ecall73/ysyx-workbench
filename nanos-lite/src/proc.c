@@ -14,8 +14,10 @@ static void context_kload(PCB *pcb, void (*entry)(void *), void *arg) {
   pcb->cp = kcontext(RANGE(pcb->stack, pcb->stack + STACK_SIZE), entry, arg);
 }
 
-static void context_uload(PCB *pcb, const char *filename, char *const argv[], char *const envp[]) {
+void context_uload(PCB *pcb, const char *filename, char *const argv[], char *const envp[]) {
   uintptr_t entry = loader(pcb, filename);
+  void *ustack = new_page(STACK_SIZE / PGSIZE);
+  Area stack = RANGE(ustack, (uint8_t *)ustack + STACK_SIZE);
   pcb->cp = ucontext(&pcb->as, RANGE(pcb->stack, pcb->stack + STACK_SIZE), (void *)entry);
 
   size_t argc = 0, envc = 0, str_size = 0;
@@ -27,9 +29,9 @@ static void context_uload(PCB *pcb, const char *filename, char *const argv[], ch
   }
 
   size_t args_size = (argc + envc + 3) * sizeof(uintptr_t);
-  assert(str_size + args_size + 15 <= (uintptr_t)heap.end - (uintptr_t)heap.start);
+  assert(str_size + args_size + 15 <= (uintptr_t)stack.end - (uintptr_t)stack.start);
 
-  uintptr_t strings_start = (uintptr_t)heap.end - str_size;
+  uintptr_t strings_start = (uintptr_t)stack.end - str_size;
   uintptr_t stack_end = ROUNDDOWN(strings_start, sizeof(uintptr_t));
   uintptr_t sp = ROUNDDOWN(stack_end - args_size, 16);
 
