@@ -14,6 +14,12 @@ static void context_kload(PCB *pcb, void (*entry)(void *), void *arg) {
   pcb->cp = kcontext(RANGE(pcb->stack, pcb->stack + STACK_SIZE), entry, arg);
 }
 
+static void context_uload(PCB *pcb, const char *filename) {
+  uintptr_t entry = loader(pcb, filename);
+  pcb->cp = ucontext(&pcb->as, RANGE(pcb->stack, pcb->stack + STACK_SIZE), (void *)entry);
+  pcb->cp->GPRx = (uintptr_t)heap.end;
+}
+
 void hello_fun(void *arg) {
   int j = 1;
   while (1) {
@@ -27,7 +33,7 @@ void init_proc() {
   Log("Initializing processes...");
 
   context_kload(&pcb[0], hello_fun, "A");
-  context_kload(&pcb[1], hello_fun, "B");
+  context_uload(&pcb[1], "/bin/pal");
   switch_boot_pcb();
 }
 

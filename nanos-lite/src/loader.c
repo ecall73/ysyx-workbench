@@ -24,7 +24,7 @@
 # error Unsupported ISA
 #endif
 
-static uintptr_t loader(PCB *pcb, const char *filename) {
+uintptr_t loader(PCB *pcb, const char *filename) {
   Elf_Ehdr ehdr;
   Elf_Phdr phdr;
   int fd = fs_open(filename, 0, 0);
