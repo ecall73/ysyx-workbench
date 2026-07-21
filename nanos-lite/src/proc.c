@@ -14,28 +14,16 @@ static void context_kload(PCB *pcb, void (*entry)(void *), void *arg) {
   pcb->cp = kcontext(RANGE(pcb->stack, pcb->stack + STACK_SIZE), entry, arg);
 }
 
-static size_t strv_len(char *const v[]) {
-  size_t n = 0;
-  if (v != NULL) {
-    while (v[n] != NULL) {
-      n ++;
-    }
-  }
-  return n;
-}
-
 static void context_uload(PCB *pcb, const char *filename, char *const argv[], char *const envp[]) {
   uintptr_t entry = loader(pcb, filename);
   pcb->cp = ucontext(&pcb->as, RANGE(pcb->stack, pcb->stack + STACK_SIZE), (void *)entry);
 
-  size_t argc = strv_len(argv);
-  size_t envc = strv_len(envp);
-  size_t str_size = 0;
-  for (size_t i = 0; i < argc; i ++) {
-    str_size += strlen(argv[i]) + 1;
+  size_t argc = 0, envc = 0, str_size = 0;
+  for (; argv[argc] != NULL; argc ++) {
+    str_size += strlen(argv[argc]) + 1;
   }
-  for (size_t i = 0; i < envc; i ++) {
-    str_size += strlen(envp[i]) + 1;
+  for (; envp[envc] != NULL; envc ++) {
+    str_size += strlen(envp[envc]) + 1;
   }
 
   size_t args_size = (argc + envc + 3) * sizeof(uintptr_t);
@@ -45,29 +33,21 @@ static void context_uload(PCB *pcb, const char *filename, char *const argv[], ch
   uintptr_t stack_end = ROUNDDOWN(strings_start, sizeof(uintptr_t));
   uintptr_t sp = ROUNDDOWN(stack_end - args_size, 16);
 
-  char *str = (char *)strings_start;
-  for (size_t i = 0; i < argc; i ++) {
-    strcpy(str, argv[i]);
-    str += strlen(str) + 1;
-  }
-  for (size_t i = 0; i < envc; i ++) {
-    strcpy(str, envp[i]);
-    str += strlen(str) + 1;
-  }
-
   *(uintptr_t *)sp = argc;
   char **stack_argv = (char **)(sp + sizeof(uintptr_t));
   char **stack_envp = stack_argv + argc + 1;
 
-  str = (char *)strings_start;
+  char *str = (char *)strings_start;
   for (size_t i = 0; i < argc; i ++) {
     stack_argv[i] = str;
-    str += strlen(str) + 1;
+    str += strlen(argv[i]) + 1;
+    strcpy(stack_argv[i], argv[i]);
   }
   stack_argv[argc] = NULL;
   for (size_t i = 0; i < envc; i ++) {
     stack_envp[i] = str;
-    str += strlen(str) + 1;
+    str += strlen(envp[i]) + 1;
+    strcpy(stack_envp[i], envp[i]);
   }
   stack_envp[envc] = NULL;
 
