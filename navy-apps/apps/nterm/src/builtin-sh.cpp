@@ -1,5 +1,6 @@
 #include <nterm.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <SDL.h>
 
@@ -30,13 +31,14 @@ static void sh_handle_cmd(const char *cmd) {
     char *args = strtok(NULL, "\n");
     sh_printf("%s\n", args == NULL ? "" : args);
   } else if (name != NULL) {
-    execve(name, NULL, NULL);
+    execvp(name, NULL);
   }
 
   free(buf);
 }
 
 void builtin_sh_run() {
+  setenv("PATH", "/bin", 0);
   sh_banner();
   sh_prompt();
 
