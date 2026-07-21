@@ -4,7 +4,13 @@
 #include <sys/time.h>
 #include "syscall.h"
 
-static void sys_execve(const char *filename, char *const argv[], char *const envp[]) {
+static int sys_execve(const char *filename, char *const argv[], char *const envp[]) {
+  int fd = fs_open(filename, 0, 0);
+  if (fd < 0) {
+    return -2;
+  }
+  fs_close(fd);
+
   context_uload(current, filename, argv, envp);
   switch_boot_pcb();
   yield();
@@ -95,8 +101,8 @@ void do_syscall(Context *c) {
       return;
     }
     case SYS_execve:
-      sys_execve((const char *)a[1], (char *const *)a[2], (char *const *)a[3]);
-      return;
+      c->GPRx = sys_execve((const char *)a[1], (char *const *)a[2], (char *const *)a[3]);
+      break;
     default: panic("Unhandled syscall ID = %d", a[0]);
   }
 
