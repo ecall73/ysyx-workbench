@@ -47,8 +47,7 @@ __am_asm_trap:
 
   csrr t0, mscratch
   STORE t0, OFFSET_SP(sp)
-  addi t0, sp, CONTEXT_SIZE
-  csrw mscratch, t0
+  csrw mscratch, sp
 
   csrr t0, mcause
   csrr t1, mstatus
