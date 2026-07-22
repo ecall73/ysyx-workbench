@@ -7,8 +7,6 @@ static void* (*pgalloc_usr)(int) = NULL;
 static void (*pgfree_usr)(void*) = NULL;
 static int vme_enable = 0;
 
-#define SATP_PPN_MASK ((1u << 22) - 1)
-
 static Area segments[] = {      // Kernel memory mappings
   NEMU_PADDR_SPACE
 };
@@ -17,13 +15,13 @@ static Area segments[] = {      // Kernel memory mappings
 
 static inline void set_satp(void *pdir) {
   uintptr_t mode = 1ul << (__riscv_xlen - 1);
-  asm volatile("csrw satp, %0" : : "r"(mode | (((uintptr_t)pdir >> 12) & SATP_PPN_MASK)));
+  asm volatile("csrw satp, %0" : : "r"(mode | ((uintptr_t)pdir >> 12)));
 }
 
 static inline uintptr_t get_satp() {
   uintptr_t satp;
   asm volatile("csrr %0, satp" : "=r"(satp));
-  return (satp & SATP_PPN_MASK) << 12;
+  return satp << 12;
 }
 
 bool vme_init(void* (*pgalloc_f)(int), void (*pgfree_f)(void*)) {
