@@ -37,7 +37,6 @@ static void restart() {
   cpu.mepc = 0;
   cpu.mcause = 0;
   cpu.satp = 0;
-  cpu.mscratch = 0;
   cpu.priv = MODE_M;
 }
 

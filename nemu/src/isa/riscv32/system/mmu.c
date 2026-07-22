@@ -22,16 +22,13 @@ paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
 
   paddr_t pdir = cpu.satp << PAGE_SHIFT;
   word_t pde = paddr_read(pdir + ((vaddr >> 22) << 2), 4);
-  Assert(pde & 0x1, "invalid PDE: va=" FMT_WORD " satp=" FMT_WORD
-      " pdir=" FMT_PADDR " pde=" FMT_WORD, vaddr, cpu.satp, pdir, pde);
-  Assert((pde & 0xe) == 0, "PDE is a leaf: va=" FMT_WORD " pde=" FMT_WORD,
-      vaddr, pde);
+  assert(pde & 0x1);
+  assert((pde & 0xe) == 0);
 
   paddr_t ptable = (pde >> 10) << PAGE_SHIFT;
   word_t pte = paddr_read(ptable + (((vaddr >> 12) & 0x3ff) << 2), 4);
-  Assert(pte & 0x1, "invalid PTE: va=" FMT_WORD " pte=" FMT_WORD, vaddr, pte);
-  Assert(pte & 0xe, "PTE without permissions: va=" FMT_WORD " pte=" FMT_WORD,
-      vaddr, pte);
+  assert(pte & 0x1);
+  assert(pte & 0xe);
 
   (void)type;
   return ((pte >> 10) << PAGE_SHIFT) | (vaddr & PAGE_MASK);

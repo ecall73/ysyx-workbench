@@ -22,13 +22,10 @@ typedef struct {
   word_t gpr[MUXDEF(CONFIG_RVE, 16, 32)];
   vaddr_t pc;
   // Must match nemu/tools/spike-diff/difftest.cc.
-  word_t mstatus, mtvec, mepc, mcause, satp, mscratch, priv;
+  word_t mstatus, mtvec, mepc, mcause, satp, priv;
 } MUXDEF(CONFIG_RV64, riscv64_CPU_state, riscv32_CPU_state);
 
 enum { MODE_U, MODE_M = 3 };
-
-#define MSTATUS_MPRV (1u << 17)
-#define MSTATUS_MPP  (3u << 11)
 
 // decode
 typedef struct {
@@ -36,9 +33,6 @@ typedef struct {
 } MUXDEF(CONFIG_RV64, riscv64_ISADecodeInfo, riscv32_ISADecodeInfo);
 
 #define isa_mmu_check(vaddr, len, type) \
-  ((cpu.satp & 0x80000000u) && \
-   (cpu.priv == MODE_U || ((type) != MEM_TYPE_IFETCH && \
-    (cpu.mstatus & MSTATUS_MPRV) && ((cpu.mstatus & MSTATUS_MPP) >> 11) != MODE_M)) \
-   ? MMU_TRANSLATE : MMU_DIRECT)
+  ((cpu.satp & 0x80000000u) ? MMU_TRANSLATE : MMU_DIRECT)
 
 #endif

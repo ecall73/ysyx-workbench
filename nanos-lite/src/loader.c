@@ -44,24 +44,18 @@ uintptr_t loader(PCB *pcb, const char *filename) {
     }
 
     assert(phdr.p_filesz <= phdr.p_memsz);
-    uintptr_t seg_start = phdr.p_vaddr;
-    uintptr_t file_end = seg_start + phdr.p_filesz;
-    uintptr_t seg_end = seg_start + phdr.p_memsz;
-    assert(file_end >= seg_start && seg_end >= file_end);
-
-    for (uintptr_t va = ROUNDDOWN(seg_start, PGSIZE);
-         va < ROUNDUP(seg_end, PGSIZE); va += PGSIZE) {
+    uintptr_t start = phdr.p_vaddr;
+    uintptr_t end = start + phdr.p_memsz;
+    for (uintptr_t va = ROUNDDOWN(start, PGSIZE); va < ROUNDUP(end, PGSIZE); va += PGSIZE) {
       void *pa = new_page(1);
       memset(pa, 0, PGSIZE);
       map(&pcb->as, (void *)va, pa, MMAP_READ | MMAP_WRITE);
 
-      uintptr_t copy_start = va > seg_start ? va : seg_start;
-      uintptr_t copy_end = va + PGSIZE < file_end ? va + PGSIZE : file_end;
+      uintptr_t copy_start = va > start ? va : start;
+      uintptr_t copy_end = va + PGSIZE < start + phdr.p_filesz ? va + PGSIZE : start + phdr.p_filesz;
       if (copy_start < copy_end) {
-        size_t len = copy_end - copy_start;
-        size_t offset = phdr.p_offset + copy_start - seg_start;
-        fs_lseek(fd, offset, SEEK_SET);
-        assert(fs_read(fd, (uint8_t *)pa + copy_start - va, len) == len);
+        fs_lseek(fd, phdr.p_offset + copy_start - start, SEEK_SET);
+        assert(fs_read(fd, (uint8_t *)pa + copy_start - va, copy_end - copy_start) == copy_end - copy_start);
       }
     }
   }

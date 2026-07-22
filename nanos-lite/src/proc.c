@@ -17,12 +17,11 @@ void context_kload(PCB *pcb, void (*entry)(void *), void *arg) {
 void context_uload(PCB *pcb, const char *filename, char *const argv[], char *const envp[]) {
   protect(&pcb->as);
 
-  Area ustack = RANGE((uint8_t *)pcb->as.area.end - STACK_SIZE, pcb->as.area.end);
-  void *stack_pa = new_page(STACK_SIZE / PGSIZE);
-  Area stack = RANGE(stack_pa, (uint8_t *)stack_pa + STACK_SIZE);
+  void *stack = new_page(STACK_SIZE / PGSIZE);
+  uintptr_t ustack = (uintptr_t)pcb->as.area.end - STACK_SIZE;
   for (size_t offset = 0; offset < STACK_SIZE; offset += PGSIZE) {
-    map(&pcb->as, (void *)((uintptr_t)ustack.start + offset),
-        (void *)((uintptr_t)stack.start + offset), MMAP_READ | MMAP_WRITE);
+    map(&pcb->as, (void *)(ustack + offset), (uint8_t *)stack + offset,
+        MMAP_READ | MMAP_WRITE);
   }
 
   size_t argc = 0, envc = 0, str_size = 0;
@@ -36,30 +35,30 @@ void context_uload(PCB *pcb, const char *filename, char *const argv[], char *con
   size_t args_size = (argc + envc + 3) * sizeof(uintptr_t);
   assert(str_size + args_size + 15 <= STACK_SIZE);
 
-  size_t strings_offset = STACK_SIZE - str_size;
-  size_t stack_end_offset = ROUNDDOWN(strings_offset, sizeof(uintptr_t));
-  size_t sp_offset = ROUNDDOWN(stack_end_offset - args_size, 16);
+  uintptr_t strings_offset = STACK_SIZE - str_size;
+  uintptr_t stack_end = ROUNDDOWN(strings_offset, sizeof(uintptr_t));
+  uintptr_t sp_offset = ROUNDDOWN(stack_end - args_size, 16);
+  uintptr_t sp = ustack + sp_offset;
 
-  uintptr_t sp = (uintptr_t)ustack.start + sp_offset;
-  uintptr_t *args = (uintptr_t *)((uintptr_t)stack.start + sp_offset);
+  uintptr_t *args = (uintptr_t *)((uint8_t *)stack + sp_offset);
   *args = argc;
   char **stack_argv = (char **)(args + 1);
   char **stack_envp = stack_argv + argc + 1;
 
-  char *str = (char *)stack.start + strings_offset;
-  uintptr_t user_str = (uintptr_t)ustack.start + strings_offset;
+  char *str = (char *)stack + strings_offset;
+  uintptr_t user_str = ustack + strings_offset;
   for (size_t i = 0; i < argc; i ++) {
-    size_t len = strlen(argv[i]) + 1;
     stack_argv[i] = (char *)user_str;
     strcpy(str, argv[i]);
+    size_t len = strlen(argv[i]) + 1;
     str += len;
     user_str += len;
   }
   stack_argv[argc] = NULL;
   for (size_t i = 0; i < envc; i ++) {
-    size_t len = strlen(envp[i]) + 1;
     stack_envp[i] = (char *)user_str;
     strcpy(str, envp[i]);
+    size_t len = strlen(envp[i]) + 1;
     str += len;
     user_str += len;
   }
