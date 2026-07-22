@@ -22,7 +22,9 @@ enum {
 };
 
 vaddr_t isa_raise_intr(word_t NO, vaddr_t epc) {
+  Assert((epc & 0x3) == 0, "raise_intr with unaligned epc: NO=" FMT_WORD " epc=" FMT_WORD, NO, epc);
   word_t mstatus = cpu.mstatus;
+  word_t old_mstatus = mstatus;
   word_t prev_priv = cpu.priv;
   word_t mie = (mstatus & MSTATUS_MIE) ? 1 : 0;
   mstatus = (mstatus & ~MSTATUS_MPIE) | (mie ? MSTATUS_MPIE : 0);
@@ -33,11 +35,28 @@ vaddr_t isa_raise_intr(word_t NO, vaddr_t epc) {
   cpu.priv = MODE_M;
   cpu.mepc = epc;
   cpu.mcause = NO;
-  return cpu.mtvec & ~0x3;
+  vaddr_t target = cpu.mtvec & ~0x3;
+  Assert(cpu.mepc == epc && cpu.mcause == NO,
+      "raise_intr state mismatch: NO=" FMT_WORD " epc=" FMT_WORD " mepc=" FMT_WORD " mcause=" FMT_WORD,
+      NO, epc, cpu.mepc, cpu.mcause);
+  Assert((cpu.mstatus & MSTATUS_MIE) == 0 &&
+      ((cpu.mstatus & MSTATUS_MPP) >> 11) == prev_priv && cpu.priv == MODE_M,
+      "raise_intr mstatus mismatch: NO=" FMT_WORD " epc=" FMT_WORD " old_mstatus=" FMT_WORD
+      " new_mstatus=" FMT_WORD,
+      NO, epc, old_mstatus, cpu.mstatus);
+  Assert((target & 0x3) == 0,
+      "raise_intr target is unaligned: NO=" FMT_WORD " epc=" FMT_WORD " mtvec=" FMT_WORD " target=" FMT_WORD,
+      NO, epc, cpu.mtvec, target);
+#ifdef CONFIG_ETRACE
+  etrace_write("raise NO=%u epc=" FMT_WORD " -> mtvec=" FMT_WORD
+      " mstatus=" FMT_WORD "\n", (uint32_t)NO, epc, target, cpu.mstatus);
+#endif
+  return target;
 }
 
 vaddr_t isa_mret() {
   word_t mstatus = cpu.mstatus;
+  word_t old_mstatus = mstatus;
   word_t prev_priv = (mstatus & MSTATUS_MPP) >> 11;
   word_t mpie = (mstatus & MSTATUS_MPIE) ? 1 : 0;
   mstatus = (mstatus & ~MSTATUS_MIE) | (mpie ? MSTATUS_MIE : 0); // MIE <- MPIE
@@ -46,7 +65,18 @@ vaddr_t isa_mret() {
   cpu.mstatus = mstatus;
   cpu.priv = prev_priv;
 
-  return cpu.mepc;
+  vaddr_t target = cpu.mepc;
+  Assert((target & 0x3) == 0,
+      "mret target is unaligned: mepc=" FMT_WORD " old_mstatus=" FMT_WORD " new_mstatus=" FMT_WORD,
+      target, old_mstatus, cpu.mstatus);
+  Assert((cpu.mstatus & MSTATUS_MPIE) != 0 && (cpu.mstatus & MSTATUS_MPP) == 0 &&
+      cpu.priv == prev_priv,
+      "mret mstatus mismatch: target=" FMT_WORD " old_mstatus=" FMT_WORD " new_mstatus=" FMT_WORD,
+      target, old_mstatus, cpu.mstatus);
+#ifdef CONFIG_ETRACE
+  etrace_write("mret -> " FMT_WORD " mstatus=" FMT_WORD "\n", target, cpu.mstatus);
+#endif
+  return target;
 }
 
 word_t isa_query_intr() {
