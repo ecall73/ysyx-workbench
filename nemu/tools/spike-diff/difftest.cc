@@ -116,8 +116,9 @@ __EXPORT void difftest_regcpy(void* dut, bool direction) {
 
 __EXPORT void difftest_exec(uint64_t n) {
   if (state->pc >= 0x80001920 && state->pc <= 0x80001940) {
-    fprintf(stderr, "ref before: pc=%08x priv=%u mstatus=%08x\\n",
-        (uint32_t)state->pc, (uint32_t)state->prv, (uint32_t)state->mstatus->read());
+    fprintf(stderr, "ref before: pc=%08x inst=%08x priv=%u mstatus=%08x\\n",
+        (uint32_t)state->pc, (uint32_t)p->get_mmu()->load_insn(state->pc).insn.bits(),
+        (uint32_t)state->prv, (uint32_t)state->mstatus->read());
   }
   s->diff_step(n);
   if (state->pc >= 0x80001920 && state->pc <= 0x80001940) {
