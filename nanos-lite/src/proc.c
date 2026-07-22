@@ -10,7 +10,7 @@ void switch_boot_pcb() {
   current = &pcb_boot;
 }
 
-static void context_kload(PCB *pcb, void (*entry)(void *), void *arg) {
+void context_kload(PCB *pcb, void (*entry)(void *), void *arg) {
   pcb->cp = kcontext(RANGE(pcb->stack, pcb->stack + STACK_SIZE), entry, arg);
 }
 
@@ -88,13 +88,12 @@ void init_proc() {
 
   Log("Initializing processes...");
 
-  context_kload(&pcb[0], hello_fun, "A");
-  context_uload(&pcb[1], "/bin/dummy", argv, envp);
+  context_uload(&pcb[0], "/bin/dummy", argv, envp);
   switch_boot_pcb();
 }
 
 Context* schedule(Context *prev) {
   current->cp = prev;
-  current = (current == &pcb[0] ? &pcb[1] : &pcb[0]);
+  current = &pcb[0];
   return current->cp;
 }
