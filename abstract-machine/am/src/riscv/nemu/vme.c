@@ -83,7 +83,8 @@ void map(AddrSpace *as, void *va, void *pa, int prot) {
   }
 
   ptable[((uintptr_t)va >> 12) & 0x3ff] =
-      (((uintptr_t)pa >> 12) << 10) | PTE_V | PTE_R | PTE_W | PTE_X;
+      (((uintptr_t)pa >> 12) << 10) | PTE_V | PTE_R | PTE_W | PTE_X |
+      PTE_U | PTE_A | PTE_D;
   (void)prot;
 }
 
