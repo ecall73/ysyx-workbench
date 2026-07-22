@@ -7,6 +7,8 @@ static void* (*pgalloc_usr)(int) = NULL;
 static void (*pgfree_usr)(void*) = NULL;
 static int vme_enable = 0;
 
+#define SATP_PPN_MASK ((1u << 22) - 1)
+
 static Area segments[] = {      // Kernel memory mappings
   NEMU_PADDR_SPACE
 };
@@ -15,13 +17,13 @@ static Area segments[] = {      // Kernel memory mappings
 
 static inline void set_satp(void *pdir) {
   uintptr_t mode = 1ul << (__riscv_xlen - 1);
-  asm volatile("csrw satp, %0" : : "r"(mode | ((uintptr_t)pdir >> 12)));
+  asm volatile("csrw satp, %0" : : "r"(mode | (((uintptr_t)pdir >> 12) & SATP_PPN_MASK)));
 }
 
 static inline uintptr_t get_satp() {
   uintptr_t satp;
   asm volatile("csrr %0, satp" : "=r"(satp));
-  return satp << 12;
+  return (satp & SATP_PPN_MASK) << 12;
 }
 
 bool vme_init(void* (*pgalloc_f)(int), void (*pgfree_f)(void*)) {
@@ -61,12 +63,28 @@ void __am_get_cur_as(Context *c) {
 }
 
 void __am_switch(Context *c) {
-  if (vme_enable && c->pdir != NULL) {
-    set_satp(c->pdir);
+  if (vme_enable) {
+    set_satp(c->pdir == NULL ? kas.ptr : c->pdir);
   }
 }
 
 void map(AddrSpace *as, void *va, void *pa, int prot) {
+  assert((uintptr_t)va % PGSIZE == 0 && (uintptr_t)pa % PGSIZE == 0);
+
+  PTE *pdir = as->ptr;
+  PTE *pde = &pdir[((uintptr_t)va >> 22) & 0x3ff];
+  PTE *ptable;
+
+  if (!(*pde & PTE_V)) {
+    ptable = pgalloc_usr(PGSIZE);
+    *pde = (((uintptr_t)ptable >> 12) << 10) | PTE_V;
+  } else {
+    ptable = (PTE *)(((*pde >> 10) << 12));
+  }
+
+  ptable[((uintptr_t)va >> 12) & 0x3ff] =
+      (((uintptr_t)pa >> 12) << 10) | PTE_V | PTE_R | PTE_W | PTE_X;
+  (void)prot;
 }
 
 Context *ucontext(AddrSpace *as, Area kstack, void *entry) {

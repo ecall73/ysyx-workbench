@@ -4,6 +4,9 @@
 
 static Context* (*user_handler)(Event, Context*) = NULL;
 
+void __am_get_cur_as(Context *c);
+void __am_switch(Context *c);
+
 static void __am_kcontext_start(void *entry, void *arg) {
   ((void (*)(void *))entry)(arg);
   halt(1);
@@ -11,6 +14,7 @@ static void __am_kcontext_start(void *entry, void *arg) {
 
 Context* __am_irq_handle(Context *c) {
   if (user_handler) {
+    __am_get_cur_as(c);
     Event ev = {0};
     switch (c->mcause) {
       case 11:
@@ -22,6 +26,7 @@ Context* __am_irq_handle(Context *c) {
 
     c = user_handler(ev, c);
     assert(c != NULL);
+    __am_switch(c);
   }
 
   return c;
