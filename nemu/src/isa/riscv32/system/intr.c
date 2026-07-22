@@ -25,10 +25,11 @@ vaddr_t isa_raise_intr(word_t NO, vaddr_t epc) {
   Assert((epc & 0x3) == 0, "raise_intr with unaligned epc: NO=" FMT_WORD " epc=" FMT_WORD, NO, epc);
   word_t mstatus = cpu.mstatus;
   word_t old_mstatus = mstatus;
+  word_t prev_priv = cpu.priv;
   word_t mie = (mstatus & MSTATUS_MIE) ? 1 : 0;
   mstatus = (mstatus & ~MSTATUS_MPIE) | (mie ? MSTATUS_MPIE : 0);
   mstatus &= ~MSTATUS_MIE;
-  mstatus = (mstatus & ~MSTATUS_MPP) | (cpu.priv << 11);
+  mstatus = (mstatus & ~MSTATUS_MPP) | (prev_priv << 11);
 
   cpu.mstatus = mstatus;
   cpu.priv = MODE_M;
@@ -39,7 +40,7 @@ vaddr_t isa_raise_intr(word_t NO, vaddr_t epc) {
       "raise_intr state mismatch: NO=" FMT_WORD " epc=" FMT_WORD " mepc=" FMT_WORD " mcause=" FMT_WORD,
       NO, epc, cpu.mepc, cpu.mcause);
   Assert((cpu.mstatus & MSTATUS_MIE) == 0 &&
-      ((cpu.mstatus & MSTATUS_MPP) >> 11) == (old_mstatus & MSTATUS_MPP) >> 11 &&
+      ((cpu.mstatus & MSTATUS_MPP) >> 11) == prev_priv &&
       cpu.priv == MODE_M,
       "raise_intr mstatus mismatch: NO=" FMT_WORD " epc=" FMT_WORD " old_mstatus=" FMT_WORD
       " new_mstatus=" FMT_WORD,
