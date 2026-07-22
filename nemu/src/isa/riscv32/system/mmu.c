@@ -20,7 +20,7 @@
 paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
   assert((vaddr & PAGE_MASK) + len <= PAGE_SIZE);
 
-  paddr_t pdir = (cpu.satp & ((1u << 22) - 1)) << PAGE_SHIFT;
+  paddr_t pdir = cpu.satp << PAGE_SHIFT;
   word_t pde = paddr_read(pdir + (((vaddr >> 22) & 0x3ff) << 2), 4);
   assert(pde & 0x1);
   assert((pde & 0xe) == 0);
