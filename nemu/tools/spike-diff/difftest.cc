@@ -118,22 +118,7 @@ __EXPORT void difftest_regcpy(void* dut, bool direction) {
 }
 
 __EXPORT void difftest_exec(uint64_t n) {
-  bool trace_trap_entry = state->pc >= 0x80001930 && state->pc <= 0x8000193c;
-  if (trace_trap_entry) {
-    fprintf(stderr, "ref before pc=%08x inst=%08x sp=%08x mscratch=%08x mstatus=%08x priv=%u\\n",
-        (uint32_t)state->pc, (uint32_t)p->get_mmu()->load_insn(state->pc).insn.bits(),
-        (uint32_t)state->XPR[2],
-        (uint32_t)state->csrmap[CSR_MSCRATCH]->read(),
-        (uint32_t)state->mstatus->read(), (uint32_t)state->prv);
-  }
   s->diff_step(n);
-  if (trace_trap_entry) {
-    fprintf(stderr, "ref after  pc=%08x sp=%08x mscratch=%08x mstatus=%08x mcause=%08x priv=%u\\n",
-        (uint32_t)state->pc, (uint32_t)state->XPR[2],
-        (uint32_t)state->csrmap[CSR_MSCRATCH]->read(),
-        (uint32_t)state->mstatus->read(), (uint32_t)state->mcause->read(),
-        (uint32_t)state->prv);
-  }
 }
 
 __EXPORT void difftest_init(int port) {
