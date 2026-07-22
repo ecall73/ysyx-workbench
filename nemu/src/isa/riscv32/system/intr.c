@@ -14,6 +14,7 @@
 ***************************************************************************************/
 
 #include <isa.h>
+#include <cpu/difftest.h>
 
 enum {
   MSTATUS_MIE  = (1u << 3),
@@ -22,6 +23,7 @@ enum {
 };
 
 vaddr_t isa_raise_intr(word_t NO, vaddr_t epc) {
+  difftest_skip_ref();
   Assert((epc & 0x3) == 0, "raise_intr with unaligned epc: NO=" FMT_WORD " epc=" FMT_WORD, NO, epc);
   word_t mstatus = cpu.mstatus;
   word_t old_mstatus = mstatus;
