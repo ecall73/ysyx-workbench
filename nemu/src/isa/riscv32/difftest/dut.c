@@ -37,7 +37,8 @@ bool isa_difftest_checkregs(CPU_state *ref_r, vaddr_t pc) {
       && check_reg("mstatus", ref_r->mstatus, cpu.mstatus, pc)
       && check_reg("mtvec", ref_r->mtvec, cpu.mtvec, pc)
       && check_reg("mepc", ref_r->mepc, cpu.mepc, pc)
-      && check_reg("mcause", ref_r->mcause, cpu.mcause, pc);
+      && check_reg("mcause", ref_r->mcause, cpu.mcause, pc)
+      && check_reg("satp", ref_r->satp, cpu.satp, pc);
 }
 
 void isa_difftest_attach() {

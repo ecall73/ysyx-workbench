@@ -18,5 +18,18 @@
 #include <memory/paddr.h>
 
 paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
-  return MEM_RET_FAIL;
+  assert((vaddr & PAGE_MASK) + len <= PAGE_SIZE);
+
+  paddr_t pdir = cpu.satp << PAGE_SHIFT;
+  word_t pde = paddr_read(pdir + ((vaddr >> 22) << 2), 4);
+  assert(pde & 0x1);
+  assert((pde & 0xe) == 0);
+
+  paddr_t ptable = (pde >> 10) << PAGE_SHIFT;
+  word_t pte = paddr_read(ptable + (((vaddr >> 12) & 0x3ff) << 2), 4);
+  assert(pte & 0x1);
+  assert(pte & 0xe);
+
+  (void)type;
+  return ((pte >> 10) << PAGE_SHIFT) | (vaddr & PAGE_MASK);
 }

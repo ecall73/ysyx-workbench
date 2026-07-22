@@ -54,6 +54,7 @@ static void decode_operand(Decode *s, int *rd, word_t *src1, word_t *src2, word_
 
 enum {
   CSR_MSTATUS = 0x300,
+  CSR_SATP    = 0x180,
   CSR_MTVEC   = 0x305,
   CSR_MEPC    = 0x341,
   CSR_MCAUSE  = 0x342,
@@ -64,6 +65,7 @@ enum {
 static inline word_t csr_read(uint32_t addr) {
   switch (addr) {
     case CSR_MSTATUS: return cpu.mstatus;
+    case CSR_SATP:    return cpu.satp;
     case CSR_MTVEC:   return cpu.mtvec;
     case CSR_MEPC:    return cpu.mepc;
     case CSR_MCAUSE:  return cpu.mcause;
@@ -78,6 +80,7 @@ static inline word_t csr_read(uint32_t addr) {
 static inline void csr_write(uint32_t addr, word_t data) {
   switch (addr) {
     case CSR_MSTATUS: cpu.mstatus = data; break;
+    case CSR_SATP:    cpu.satp    = data; break;
     case CSR_MTVEC:   cpu.mtvec   = data; break;
     case CSR_MEPC:    cpu.mepc    = data; break;
     case CSR_MCAUSE:  cpu.mcause  = data; break;
