@@ -122,8 +122,9 @@ __EXPORT void difftest_exec(uint64_t n) {
   }
   s->diff_step(n);
   if (state->pc >= 0x80001920 && state->pc <= 0x80001940) {
-    fprintf(stderr, "ref after:  pc=%08x priv=%u mstatus=%08x\\n",
-        (uint32_t)state->pc, (uint32_t)state->prv, (uint32_t)state->mstatus->read());
+    fprintf(stderr, "ref after:  pc=%08x priv=%u mstatus=%08x mcause=%08x\\n",
+        (uint32_t)state->pc, (uint32_t)state->prv, (uint32_t)state->mstatus->read(),
+        (uint32_t)state->mcause->read());
   }
 }
 
