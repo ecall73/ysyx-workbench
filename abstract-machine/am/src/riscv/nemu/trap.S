@@ -40,9 +40,13 @@ f(30) f(31)
 .align 3
 .globl __am_asm_trap
 __am_asm_trap:
+  csrrw sp, mscratch, sp
   addi sp, sp, -CONTEXT_SIZE
 
   MAP(REGS, PUSH)
+
+  csrr t0, mscratch
+  STORE t0, OFFSET_SP(sp)
 
   csrr t0, mcause
   csrr t1, mstatus
@@ -66,7 +70,11 @@ __am_asm_trap:
   csrw mstatus, t1
   csrw mepc, t2
 
+  LOAD t0, OFFSET_SP(sp)
+  csrw mscratch, t0
+
   MAP(REGS, POP)
 
   addi sp, sp, CONTEXT_SIZE
+  csrrw sp, mscratch, sp
   mret

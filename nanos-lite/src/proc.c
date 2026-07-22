@@ -67,6 +67,7 @@ void context_uload(PCB *pcb, const char *filename, char *const argv[], char *con
 
   uintptr_t entry = loader(pcb, filename);
   pcb->cp = ucontext(&pcb->as, RANGE(pcb->stack, pcb->stack + STACK_SIZE), (void *)entry);
+  pcb->cp->gpr[2] = sp;
   pcb->cp->GPRx = sp;
 }
 

@@ -45,6 +45,7 @@ struct diff_context_t {
   word_t mepc;
   word_t mcause;
   word_t satp;
+  word_t mscratch;
   word_t priv;
 };
 
@@ -72,6 +73,7 @@ void sim_t::diff_get_regs(void* diff_context) {
   ctx->mepc = state->mepc->read();
   ctx->mcause = state->mcause->read();
   ctx->satp = state->satp->read();
+  ctx->mscratch = state->csrmap[CSR_MSCRATCH]->read();
   ctx->priv = state->prv;
 }
 
@@ -86,6 +88,7 @@ void sim_t::diff_set_regs(void* diff_context) {
   state->mepc->write(ctx->mepc);
   state->mcause->write(ctx->mcause);
   state->satp->write(ctx->satp);
+  state->csrmap[CSR_MSCRATCH]->write(ctx->mscratch);
   p->set_privilege(ctx->priv);
 }
 
@@ -115,17 +118,7 @@ __EXPORT void difftest_regcpy(void* dut, bool direction) {
 }
 
 __EXPORT void difftest_exec(uint64_t n) {
-  if (state->pc >= 0x80001920 && state->pc <= 0x80001940) {
-    fprintf(stderr, "ref before: pc=%08x inst=%08x priv=%u mstatus=%08x\\n",
-        (uint32_t)state->pc, (uint32_t)p->get_mmu()->load_insn(state->pc).insn.bits(),
-        (uint32_t)state->prv, (uint32_t)state->mstatus->read());
-  }
   s->diff_step(n);
-  if (state->pc >= 0x80001920 && state->pc <= 0x80001940) {
-    fprintf(stderr, "ref after:  pc=%08x priv=%u mstatus=%08x mcause=%08x\\n",
-        (uint32_t)state->pc, (uint32_t)state->prv, (uint32_t)state->mstatus->read(),
-        (uint32_t)state->mcause->read());
-  }
 }
 
 __EXPORT void difftest_init(int port) {
