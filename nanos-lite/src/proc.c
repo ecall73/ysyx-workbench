@@ -15,8 +15,15 @@ static void context_kload(PCB *pcb, void (*entry)(void *), void *arg) {
 }
 
 void context_uload(PCB *pcb, const char *filename, char *const argv[], char *const envp[]) {
-  void *ustack = new_page(STACK_SIZE / PGSIZE);
-  Area stack = RANGE(ustack, (uint8_t *)ustack + STACK_SIZE);
+  protect(&pcb->as);
+
+  Area ustack = RANGE((uint8_t *)pcb->as.area.end - STACK_SIZE, pcb->as.area.end);
+  void *stack_pa = new_page(STACK_SIZE / PGSIZE);
+  Area stack = RANGE(stack_pa, (uint8_t *)stack_pa + STACK_SIZE);
+  for (size_t offset = 0; offset < STACK_SIZE; offset += PGSIZE) {
+    map(&pcb->as, (void *)((uintptr_t)ustack.start + offset),
+        (void *)((uintptr_t)stack.start + offset), MMAP_READ | MMAP_WRITE);
+  }
 
   size_t argc = 0, envc = 0, str_size = 0;
   for (; argv[argc] != NULL; argc ++) {
@@ -27,27 +34,34 @@ void context_uload(PCB *pcb, const char *filename, char *const argv[], char *con
   }
 
   size_t args_size = (argc + envc + 3) * sizeof(uintptr_t);
-  assert(str_size + args_size + 15 <= (uintptr_t)stack.end - (uintptr_t)stack.start);
+  assert(str_size + args_size + 15 <= STACK_SIZE);
 
-  uintptr_t strings_start = (uintptr_t)stack.end - str_size;
-  uintptr_t stack_end = ROUNDDOWN(strings_start, sizeof(uintptr_t));
-  uintptr_t sp = ROUNDDOWN(stack_end - args_size, 16);
+  size_t strings_offset = STACK_SIZE - str_size;
+  size_t stack_end_offset = ROUNDDOWN(strings_offset, sizeof(uintptr_t));
+  size_t sp_offset = ROUNDDOWN(stack_end_offset - args_size, 16);
 
-  *(uintptr_t *)sp = argc;
-  char **stack_argv = (char **)(sp + sizeof(uintptr_t));
+  uintptr_t sp = (uintptr_t)ustack.start + sp_offset;
+  uintptr_t *args = (uintptr_t *)((uintptr_t)stack.start + sp_offset);
+  *args = argc;
+  char **stack_argv = (char **)(args + 1);
   char **stack_envp = stack_argv + argc + 1;
 
-  char *str = (char *)strings_start;
+  char *str = (char *)stack.start + strings_offset;
+  uintptr_t user_str = (uintptr_t)ustack.start + strings_offset;
   for (size_t i = 0; i < argc; i ++) {
-    stack_argv[i] = str;
-    str += strlen(argv[i]) + 1;
-    strcpy(stack_argv[i], argv[i]);
+    size_t len = strlen(argv[i]) + 1;
+    stack_argv[i] = (char *)user_str;
+    strcpy(str, argv[i]);
+    str += len;
+    user_str += len;
   }
   stack_argv[argc] = NULL;
   for (size_t i = 0; i < envc; i ++) {
-    stack_envp[i] = str;
-    str += strlen(envp[i]) + 1;
-    strcpy(stack_envp[i], envp[i]);
+    size_t len = strlen(envp[i]) + 1;
+    stack_envp[i] = (char *)user_str;
+    strcpy(str, envp[i]);
+    str += len;
+    user_str += len;
   }
   stack_envp[envc] = NULL;
 
@@ -68,13 +82,13 @@ void hello_fun(void *arg) {
 }
 
 void init_proc() {
-  char *const argv[] = { "nterm", NULL };
+  char *const argv[] = { "dummy", NULL };
   char *const envp[] = { NULL };
 
   Log("Initializing processes...");
 
   context_kload(&pcb[0], hello_fun, "A");
-  context_uload(&pcb[1], "/bin/nterm", argv, envp);
+  context_uload(&pcb[1], "/bin/dummy", argv, envp);
   switch_boot_pcb();
 }
 

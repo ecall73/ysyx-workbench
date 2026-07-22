@@ -94,12 +94,7 @@ void do_syscall(Context *c) {
       c->GPRx = 0;
       break;
     }
-    case SYS_exit: {
-      char *const argv[] = { "/bin/nterm", NULL };
-      char *const envp[] = { NULL };
-      sys_execve("/bin/nterm", argv, envp);
-      return;
-    }
+    case SYS_exit: halt(a[1]);
     case SYS_execve:
       c->GPRx = sys_execve((const char *)a[1], (char *const *)a[2], (char *const *)a[3]);
       break;

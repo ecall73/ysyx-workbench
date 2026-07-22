@@ -61,8 +61,8 @@ void __am_get_cur_as(Context *c) {
 }
 
 void __am_switch(Context *c) {
-  if (vme_enable && c->pdir != NULL) {
-    set_satp(c->pdir);
+  if (vme_enable) {
+    set_satp(c->pdir == NULL ? kas.ptr : c->pdir);
   }
 }
 
@@ -91,7 +91,7 @@ Context *ucontext(AddrSpace *as, Area kstack, void *entry) {
   assert(kstack.start <= (void *)c && (void *)c < kstack.end);
   *c = (Context) {0};
   c->mepc = (uintptr_t)entry;
-  c->mstatus = 0x1800;
+  c->mstatus = MSTATUS_MPP_U | MSTATUS_MXR | MSTATUS_SUM;
   c->pdir = as->ptr;
   return c;
 }

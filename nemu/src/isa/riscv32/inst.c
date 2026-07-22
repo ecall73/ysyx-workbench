@@ -224,7 +224,8 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 000 ????? 00011 11", fence  , N, );
   INSTPAT("??????? ????? ????? 001 ????? 00011 11", fence_i, N, );
 
-  INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N, s->dnpc = isa_raise_intr(11, s->pc));
+  INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N,
+      s->dnpc = isa_raise_intr(cpu.priv == MODE_U ? 8 : 11, s->pc));
   INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N, s->dnpc = isa_mret());
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
 
