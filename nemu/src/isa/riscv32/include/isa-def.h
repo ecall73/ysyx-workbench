@@ -22,7 +22,7 @@ typedef struct {
   word_t gpr[MUXDEF(CONFIG_RVE, 16, 32)];
   vaddr_t pc;
   // Must match nemu/tools/spike-diff/difftest.cc.
-  word_t mstatus, mtvec, mepc, mcause, satp, priv;
+  word_t mstatus, mtvec, mepc, mcause, satp, mscratch, priv;
 } MUXDEF(CONFIG_RV64, riscv64_CPU_state, riscv32_CPU_state);
 
 enum { MODE_U, MODE_M = 3 };

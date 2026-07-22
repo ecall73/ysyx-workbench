@@ -40,6 +40,12 @@ f(30) f(31)
 .align 3
 .globl __am_asm_trap
 __am_asm_trap:
+  csrr t0, mstatus
+  srli t0, t0, 11
+  andi t0, t0, 3
+  bnez t0, 1f
+  csrrw sp, mscratch, sp
+1:
   addi sp, sp, -CONTEXT_SIZE
 
   MAP(REGS, PUSH)
@@ -51,6 +57,16 @@ __am_asm_trap:
   STORE t0, OFFSET_CAUSE(sp)
   STORE t1, OFFSET_STATUS(sp)
   STORE t2, OFFSET_EPC(sp)
+
+  srli t0, t1, 11
+  andi t0, t0, 3
+  bnez t0, 2f
+  csrr t0, mscratch
+  j 3f
+2:
+  addi t0, sp, CONTEXT_SIZE
+3:
+  STORE t0, OFFSET_SP(sp)
 
   # set mstatus.MPRV to pass difftest
   li a0, (1 << 17)
@@ -68,5 +84,15 @@ __am_asm_trap:
 
   MAP(REGS, POP)
 
+  csrr t0, mstatus
+  srli t0, t0, 11
+  andi t0, t0, 3
+  bnez t0, 4f
+  LOAD t0, OFFSET_SP(sp)
+  csrw mscratch, t0
   addi sp, sp, CONTEXT_SIZE
+  csrrw sp, mscratch, sp
+  mret
+4:
+  LOAD sp, OFFSET_SP(sp)
   mret
