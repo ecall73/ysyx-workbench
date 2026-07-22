@@ -18,7 +18,6 @@
 enum {
   MSTATUS_MIE  = (1u << 3),
   MSTATUS_MPIE = (1u << 7),
-  MSTATUS_MPP  = (3u << 11),
 };
 
 vaddr_t isa_raise_intr(word_t NO, vaddr_t epc) {
