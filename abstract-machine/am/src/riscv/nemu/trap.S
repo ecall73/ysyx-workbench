@@ -59,11 +59,11 @@ __am_asm_trap:
 
   csrr t1, mcause
   csrr t2, mstatus
-  csrr t3, mepc
+  csrr t0, mepc
 
   STORE t1, OFFSET_CAUSE(sp)
   STORE t2, OFFSET_STATUS(sp)
-  STORE t3, OFFSET_EPC(sp)
+  STORE t0, OFFSET_EPC(sp)
 
   # Use the trapped context's address translation for M-mode data accesses.
   li a0, (1 << 17)
