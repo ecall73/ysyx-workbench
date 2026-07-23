@@ -92,6 +92,7 @@ static void execute(uint64_t n) {
 #ifdef CONFIG_DIFFTEST
       if (difftest_is_attached()) {
         ref_difftest_raise_intr(intr);
+        Log("synchronized interrupt " FMT_WORD, intr);
       }
 #endif
     }
