@@ -1,10 +1,12 @@
 #include <proc.h>
 
 #define MAX_NR_PROC 4
+#define PAL_TIME_SLICES 10
 
 static PCB pcb[MAX_NR_PROC] __attribute__((used)) = {};
 static PCB pcb_boot = {};
 PCB *current = NULL;
+static int pal_slices = 0;
 
 void switch_boot_pcb() {
   current = &pcb_boot;
@@ -97,6 +99,12 @@ Context* schedule(Context *prev) {
   if (current->as.ptr == NULL) {
     current->cp->pdir = NULL;
   }
-  current = current == &pcb[0] ? &pcb[1] : &pcb[0];
+  if (pal_slices < PAL_TIME_SLICES) {
+    current = &pcb[1];
+    pal_slices++;
+  } else {
+    current = &pcb[0];
+    pal_slices = 0;
+  }
   return current->cp;
 }
