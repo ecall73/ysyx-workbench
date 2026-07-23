@@ -17,6 +17,9 @@ Context* __am_irq_handle(Context *c) {
     __am_get_cur_as(c);
     Event ev = {0};
     switch (c->mcause) {
+      case ((uintptr_t)1 << (sizeof(uintptr_t) * 8 - 1)) | 7:
+        ev.event = EVENT_IRQ_TIMER;
+        break;
       case 8:
       case 11:
         c->mepc += 4;
@@ -51,7 +54,7 @@ Context *kcontext(Area kstack, void (*entry)(void *), void *arg) {
   assert(kstack.start <= (void *)c && (void *)c < kstack.end);
   *c = (Context) {0};
   c->mepc = (uintptr_t)__am_kcontext_start;
-  c->mstatus = MSTATUS_MPP_M;
+  c->mstatus = MSTATUS_MPP_M | MSTATUS_MPIE;
   c->gpr[2] = (uintptr_t)kstack.end;
   c->gpr[10] = (uintptr_t)entry; // a0: __am_kcontext_start(entry, arg)
   c->gpr[11] = (uintptr_t)arg;   // a1
@@ -68,8 +71,15 @@ void yield() {
 }
 
 bool ienabled() {
-  return false;
+  uintptr_t mstatus;
+  asm volatile("csrr %0, mstatus" : "=r"(mstatus));
+  return mstatus & MSTATUS_MIE;
 }
 
 void iset(bool enable) {
+  if (enable) {
+    asm volatile("csrsi mstatus, 8");
+  } else {
+    asm volatile("csrci mstatus, 8");
+  }
 }

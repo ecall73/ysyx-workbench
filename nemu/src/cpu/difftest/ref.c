@@ -17,11 +17,12 @@
 #include <cpu/cpu.h>
 #include <difftest-def.h>
 #include <memory/paddr.h>
+#include <stddef.h>
 #include <string.h>
 
 #if defined(CONFIG_ISA_riscv)
-_Static_assert(DIFFTEST_REG_SIZE == sizeof(CPU_state),
-    "RISC-V DiffTest register copy size must match CPU_state");
+_Static_assert(DIFFTEST_REG_SIZE == offsetof(CPU_state, INTR),
+    "RISC-V DiffTest must copy the architectural state before INTR");
 #endif
 
 __EXPORT void difftest_memcpy(paddr_t addr, void *buf, size_t n, bool direction) {

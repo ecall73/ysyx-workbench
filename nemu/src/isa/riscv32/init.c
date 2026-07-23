@@ -39,6 +39,7 @@ static void restart() {
   cpu.satp = 0;
   cpu.mscratch = 0;
   cpu.priv = MODE_M;
+  cpu.INTR = false;
 }
 
 void init_isa() {

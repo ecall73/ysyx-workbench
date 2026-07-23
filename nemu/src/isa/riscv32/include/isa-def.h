@@ -23,6 +23,7 @@ typedef struct {
   vaddr_t pc;
   // Must match nemu/tools/spike-diff/difftest.cc.
   word_t mstatus, mtvec, mepc, mcause, satp, mscratch, priv;
+  bool INTR;
 } MUXDEF(CONFIG_RV64, riscv64_CPU_state, riscv32_CPU_state);
 
 enum { MODE_U, MODE_M = 3 };
