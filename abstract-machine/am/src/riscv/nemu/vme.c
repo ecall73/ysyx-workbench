@@ -91,7 +91,7 @@ Context *ucontext(AddrSpace *as, Area kstack, void *entry) {
   assert(kstack.start <= (void *)c && (void *)c < kstack.end);
   *c = (Context) {0};
   c->mepc = (uintptr_t)entry;
-  c->mstatus = MSTATUS_MPP_U | MSTATUS_MXR | MSTATUS_SUM;
+  c->mstatus = MSTATUS_MPP_U | MSTATUS_MPIE | MSTATUS_MXR | MSTATUS_SUM;
   c->pdir = as->ptr;
   return c;
 }

@@ -80,5 +80,9 @@ vaddr_t isa_mret() {
 }
 
 word_t isa_query_intr() {
+  if (cpu.INTR && (cpu.mstatus & MSTATUS_MIE)) {
+    cpu.INTR = false;
+    return ((word_t)1 << (sizeof(word_t) * 8 - 1)) | 7;
+  }
   return INTR_EMPTY;
 }

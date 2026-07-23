@@ -78,9 +78,9 @@ __am_asm_trap:
   csrw mstatus, t1
   csrw mepc, t2
 
-  # PA only returns to U (MPP=0) or M (MPP=3); test MPP[0] via the sign bit.
-  slli t0, t1, (XLEN * 8 - 12)
-  bltz t0, .Lreturn_m
+  srli t0, t1, 11
+  andi t0, t0, 3
+  bnez t0, .Lreturn_m
   LOAD t0, OFFSET_SP(sp)
   csrw mscratch, t0
   MAP(REGS, POP)
