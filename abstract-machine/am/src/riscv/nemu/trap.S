@@ -40,21 +40,21 @@ f(30) f(31)
 .align 3
 .globl __am_asm_trap
 __am_asm_trap:
+  # mscratch is 0 in M-mode and holds the kernel stack pointer in U-mode.
   csrrw sp, mscratch, sp
-  bnez sp, 1f
-  csrrw sp, mscratch, sp
+  bnez sp, .Lfrom_user
+  csrrw sp, mscratch, zero
 
   addi sp, sp, -CONTEXT_SIZE
   MAP(REGS, PUSH)
   addi t0, sp, CONTEXT_SIZE
-  j 2f
-1:
+  j .Lcontext_ready
+.Lfrom_user:
   addi sp, sp, -CONTEXT_SIZE
   MAP(REGS, PUSH)
 
-  csrr t0, mscratch
-  csrw mscratch, zero
-2:
+  csrrw t0, mscratch, zero
+.Lcontext_ready:
   STORE t0, OFFSET_SP(sp)
 
   csrr t1, mcause
@@ -80,14 +80,14 @@ __am_asm_trap:
 
   srli t0, t1, 11
   andi t0, t0, 3
-  bnez t0, 3f
+  bnez t0, .Lreturn_m
   LOAD t0, OFFSET_SP(sp)
   csrw mscratch, t0
   MAP(REGS, POP)
   addi sp, sp, CONTEXT_SIZE
   csrrw sp, mscratch, sp
   mret
-3:
+.Lreturn_m:
   MAP(REGS, POP)
   LOAD sp, OFFSET_SP(sp)
   mret
