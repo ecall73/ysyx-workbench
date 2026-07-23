@@ -65,10 +65,9 @@ __am_asm_trap:
   STORE t2, OFFSET_STATUS(sp)
   STORE t3, OFFSET_EPC(sp)
 
-  # set mstatus.MPRV to pass difftest
+  # Use the trapped context's address translation for M-mode data accesses.
   li a0, (1 << 17)
-  or t2, t2, a0
-  csrw mstatus, t2
+  csrs mstatus, a0
 
   mv a0, sp
   call __am_irq_handle
