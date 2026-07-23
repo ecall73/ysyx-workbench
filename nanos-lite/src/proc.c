@@ -87,12 +87,16 @@ void init_proc() {
 
   Log("Initializing processes...");
 
-  context_uload(&pcb[0], "/bin/pal", argv, envp);
+  context_kload(&pcb[0], hello_fun, "hello");
+  context_uload(&pcb[1], "/bin/pal", argv, envp);
   switch_boot_pcb();
 }
 
 Context* schedule(Context *prev) {
   current->cp = prev;
-  current = &pcb[0];
+  if (current->as.ptr == NULL) {
+    current->cp->pdir = NULL;
+  }
+  current = current == &pcb[0] ? &pcb[1] : &pcb[0];
   return current->cp;
 }

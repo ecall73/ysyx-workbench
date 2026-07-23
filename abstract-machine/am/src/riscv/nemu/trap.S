@@ -40,15 +40,22 @@ f(30) f(31)
 .align 3
 .globl __am_asm_trap
 __am_asm_trap:
-  csrr t0, mstatus
-  srli t0, t0, 11
-  andi t0, t0, 3
-  bnez t0, 1f
+  # mscratch is 0 in M-mode and holds the kernel stack pointer in U-mode.
   csrrw sp, mscratch, sp
-1:
-  addi sp, sp, -CONTEXT_SIZE
+  bnez sp, .Lfrom_user
+  csrrw sp, mscratch, zero
 
+  addi sp, sp, -CONTEXT_SIZE
   MAP(REGS, PUSH)
+  addi t0, sp, CONTEXT_SIZE
+  j .Lcontext_ready
+.Lfrom_user:
+  addi sp, sp, -CONTEXT_SIZE
+  MAP(REGS, PUSH)
+
+  csrrw t0, mscratch, zero
+.Lcontext_ready:
+  STORE t0, OFFSET_SP(sp)
 
   csrr t0, mcause
   csrr t1, mstatus
@@ -58,20 +65,9 @@ __am_asm_trap:
   STORE t1, OFFSET_STATUS(sp)
   STORE t2, OFFSET_EPC(sp)
 
-  srli t0, t1, 11
-  andi t0, t0, 3
-  bnez t0, 2f
-  csrr t0, mscratch
-  j 3f
-2:
-  addi t0, sp, CONTEXT_SIZE
-3:
-  STORE t0, OFFSET_SP(sp)
-
-  # set mstatus.MPRV to pass difftest
+  # Use the trapped context's address translation for M-mode data accesses.
   li a0, (1 << 17)
-  or t1, t1, a0
-  csrw mstatus, t1
+  csrs mstatus, a0
 
   mv a0, sp
   call __am_irq_handle
@@ -82,17 +78,16 @@ __am_asm_trap:
   csrw mstatus, t1
   csrw mepc, t2
 
-  MAP(REGS, POP)
-
-  csrr t0, mstatus
-  srli t0, t0, 11
+  srli t0, t1, 11
   andi t0, t0, 3
-  bnez t0, 4f
+  bnez t0, .Lreturn_m
   LOAD t0, OFFSET_SP(sp)
   csrw mscratch, t0
+  MAP(REGS, POP)
   addi sp, sp, CONTEXT_SIZE
   csrrw sp, mscratch, sp
   mret
-4:
+.Lreturn_m:
+  MAP(REGS, POP)
   LOAD sp, OFFSET_SP(sp)
   mret
