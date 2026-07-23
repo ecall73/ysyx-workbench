@@ -57,13 +57,13 @@ __am_asm_trap:
 .Lcontext_ready:
   STORE t0, OFFSET_SP(sp)
 
-  csrr t1, mcause
-  csrr t2, mstatus
-  csrr t0, mepc
+  csrr t0, mcause
+  csrr t1, mstatus
+  csrr t2, mepc
 
-  STORE t1, OFFSET_CAUSE(sp)
-  STORE t2, OFFSET_STATUS(sp)
-  STORE t0, OFFSET_EPC(sp)
+  STORE t0, OFFSET_CAUSE(sp)
+  STORE t1, OFFSET_STATUS(sp)
+  STORE t2, OFFSET_EPC(sp)
 
   # Use the trapped context's address translation for M-mode data accesses.
   li a0, (1 << 17)
@@ -78,9 +78,9 @@ __am_asm_trap:
   csrw mstatus, t1
   csrw mepc, t2
 
-  srli t0, t1, 11
-  andi t0, t0, 3
-  bnez t0, .Lreturn_m
+  # PA only returns to U (MPP=0) or M (MPP=3); test MPP[0] via the sign bit.
+  slli t0, t1, (XLEN * 8 - 12)
+  bltz t0, .Lreturn_m
   LOAD t0, OFFSET_SP(sp)
   csrw mscratch, t0
   MAP(REGS, POP)
