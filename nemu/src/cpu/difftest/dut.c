@@ -139,7 +139,7 @@ void difftest_step(vaddr_t pc, vaddr_t npc) {
 
   if (skip_dut_nr_inst > 0) {
     ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT);
-    Assert((ref_r.pc & 0x3) == 0,
+    Assert((ref_r.pc & 0x1) == 0,
         "DiffTest ref pc is unaligned while catching up: ref_pc=" FMT_WORD
         " dut_pc=" FMT_WORD " npc=" FMT_WORD,
         ref_r.pc, pc, npc);
@@ -163,7 +163,7 @@ void difftest_step(vaddr_t pc, vaddr_t npc) {
 
   ref_difftest_exec(1);
   ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT);
-  Assert((ref_r.pc & 0x3) == 0,
+  Assert((ref_r.pc & 0x1) == 0,
       "DiffTest ref pc is unaligned: ref_pc=" FMT_WORD " dut_pc=" FMT_WORD " npc=" FMT_WORD,
       ref_r.pc, pc, npc);
 

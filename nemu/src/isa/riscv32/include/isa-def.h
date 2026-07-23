@@ -24,6 +24,10 @@ typedef struct {
   // Must match nemu/tools/spike-diff/difftest.cc.
   word_t mstatus, mtvec, mepc, mcause, satp, mscratch, priv;
   bool INTR;
+  // LR/SC reservation state is microarchitectural and is intentionally kept
+  // after INTR, outside DIFFTEST_REG_SIZE.
+  bool lr_valid;
+  paddr_t lr_addr;
 } MUXDEF(CONFIG_RV64, riscv64_CPU_state, riscv32_CPU_state);
 
 enum { MODE_U, MODE_M = 3 };

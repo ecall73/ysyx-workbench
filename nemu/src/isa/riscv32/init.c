@@ -40,6 +40,8 @@ static void restart() {
   cpu.mscratch = 0;
   cpu.priv = MODE_M;
   cpu.INTR = false;
+  cpu.lr_valid = false;
+  cpu.lr_addr = 0;
 }
 
 void init_isa() {

@@ -22,7 +22,7 @@ enum {
 };
 
 vaddr_t isa_raise_intr(word_t NO, vaddr_t epc) {
-  Assert((epc & 0x3) == 0, "raise_intr with unaligned epc: NO=" FMT_WORD " epc=" FMT_WORD, NO, epc);
+  Assert((epc & 0x1) == 0, "raise_intr with unaligned epc: NO=" FMT_WORD " epc=" FMT_WORD, NO, epc);
   word_t mstatus = cpu.mstatus;
   word_t old_mstatus = mstatus;
   word_t prev_priv = cpu.priv;
@@ -66,7 +66,7 @@ vaddr_t isa_mret() {
   cpu.priv = prev_priv;
 
   vaddr_t target = cpu.mepc;
-  Assert((target & 0x3) == 0,
+  Assert((target & 0x1) == 0,
       "mret target is unaligned: mepc=" FMT_WORD " old_mstatus=" FMT_WORD " new_mstatus=" FMT_WORD,
       target, old_mstatus, cpu.mstatus);
   Assert((cpu.mstatus & MSTATUS_MPIE) != 0 && (cpu.mstatus & MSTATUS_MPP) == 0 &&
