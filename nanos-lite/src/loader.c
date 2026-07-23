@@ -34,6 +34,7 @@ uintptr_t loader(PCB *pcb, const char *filename) {
   assert(*(uint32_t *)ehdr.e_ident == 0x464c457f);
   assert(ehdr.e_machine == EXPECT_TYPE);
   assert(ehdr.e_phentsize == sizeof(phdr));
+  pcb->max_brk = 0;
 
   for (int i = 0; i < ehdr.e_phnum; i++) {
     size_t phdr_offset = ehdr.e_phoff + i * ehdr.e_phentsize;
@@ -46,6 +47,9 @@ uintptr_t loader(PCB *pcb, const char *filename) {
     assert(phdr.p_filesz <= phdr.p_memsz);
     uintptr_t start = phdr.p_vaddr;
     uintptr_t end = start + phdr.p_memsz;
+    if (ROUNDUP(end, PGSIZE) > pcb->max_brk) {
+      pcb->max_brk = ROUNDUP(end, PGSIZE);
+    }
     for (uintptr_t va = ROUNDDOWN(start, PGSIZE); va < ROUNDUP(end, PGSIZE); va += PGSIZE) {
       void *pa = new_page(1);
       memset(pa, 0, PGSIZE);
