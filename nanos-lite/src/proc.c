@@ -87,8 +87,8 @@ void init_proc() {
 
   Log("Initializing processes...");
 
-  context_uload(&pcb[0], "/bin/pal", argv, envp);
-  context_kload(&pcb[1], hello_fun, "hello");
+  context_kload(&pcb[0], hello_fun, "hello");
+  context_uload(&pcb[1], "/bin/pal", argv, envp);
   switch_boot_pcb();
 }
 
