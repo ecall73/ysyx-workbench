@@ -84,13 +84,14 @@ void hello_fun(void *arg) {
 }
 
 void init_proc() {
-  char *const argv[] = { "pal", NULL };
+  char *const hello_argv[] = { "hello", NULL };
+  char *const nterm_argv[] = { "nterm", NULL };
   char *const envp[] = { NULL };
 
   Log("Initializing processes...");
 
-  context_kload(&pcb[0], hello_fun, "hello");
-  context_uload(&pcb[1], "/bin/pal", argv, envp);
+  context_uload(&pcb[0], "/bin/hello", hello_argv, envp);
+  context_uload(&pcb[1], "/bin/nterm", nterm_argv, envp);
   switch_boot_pcb();
 }
 
