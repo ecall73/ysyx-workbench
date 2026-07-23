@@ -21,8 +21,9 @@
 typedef struct {
   word_t gpr[MUXDEF(CONFIG_RVE, 16, 32)];
   vaddr_t pc;
-  // Must match nemu/tools/spike-diff/difftest.cc.
+  // Architectural state: must match nemu/tools/spike-diff/difftest.cc.
   word_t mstatus, mtvec, mepc, mcause, satp, mscratch, priv;
+  // Device interrupt pin; it is deliberately not part of DiffTest state.
   bool INTR;
 } MUXDEF(CONFIG_RV64, riscv64_CPU_state, riscv32_CPU_state);
 

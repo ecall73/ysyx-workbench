@@ -3,11 +3,9 @@
 static Context* do_event(Event e, Context* c) {
   switch (e.event) {
     case EVENT_YIELD:
-      // Log("Handling event: EVENT_YIELD");
       c = schedule(c);
       break;
     case EVENT_IRQ_TIMER:
-      Log("Handling event: EVENT_IRQ_TIMER");
       c = schedule(c);
       break;
     case EVENT_SYSCALL:
