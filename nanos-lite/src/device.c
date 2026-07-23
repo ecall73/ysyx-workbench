@@ -1,5 +1,11 @@
 #include <common.h>
 
+#if defined(MULTIPROGRAM) && !defined(TIME_SHARING)
+# define MULTIPROGRAM_YIELD() yield()
+#else
+# define MULTIPROGRAM_YIELD()
+#endif
+
 #define NAME(key) \
   [AM_KEY_##key] = #key,
 
@@ -9,6 +15,7 @@ static const char *keyname[256] __attribute__((used)) = {
 };
 
 size_t serial_write(const void *buf, size_t offset, size_t len) {
+  MULTIPROGRAM_YIELD();
   for (size_t i = 0; i < len; i ++) {
     putch(((const char *)buf)[i]);
   }
@@ -16,6 +23,7 @@ size_t serial_write(const void *buf, size_t offset, size_t len) {
 }
 
 size_t events_read(void *buf, size_t offset, size_t len) {
+  MULTIPROGRAM_YIELD();
   AM_INPUT_KEYBRD_T event = io_read(AM_INPUT_KEYBRD);
   if (event.keycode == AM_KEY_NONE) {
     return 0;
@@ -31,6 +39,7 @@ size_t dispinfo_read(void *buf, size_t offset, size_t len) {
 }
 
 size_t fb_write(const void *buf, size_t offset, size_t len) {
+  MULTIPROGRAM_YIELD();
   AM_GPU_CONFIG_T cfg = io_read(AM_GPU_CONFIG);
   assert(offset % sizeof(uint32_t) == 0 && len % sizeof(uint32_t) == 0);
   size_t pixel_offset = offset / sizeof(uint32_t);
