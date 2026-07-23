@@ -77,7 +77,7 @@ void do_syscall(Context *c) {
       c->GPRx = fs_lseek(a[1], a[2], a[3]);
       break;
     case SYS_brk:
-      c->GPRx = 0;
+      c->GPRx = mm_brk(a[1]);
       break;
     case SYS_gettimeofday: {
       AM_TIMER_UPTIME_T uptime = io_read(AM_TIMER_UPTIME);

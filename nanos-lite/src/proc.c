@@ -82,12 +82,12 @@ void hello_fun(void *arg) {
 }
 
 void init_proc() {
-  char *const argv[] = { "dummy", NULL };
+  char *const argv[] = { "pal", NULL };
   char *const envp[] = { NULL };
 
   Log("Initializing processes...");
 
-  context_uload(&pcb[0], "/bin/dummy", argv, envp);
+  context_uload(&pcb[0], "/bin/pal", argv, envp);
   switch_boot_pcb();
 }
 
