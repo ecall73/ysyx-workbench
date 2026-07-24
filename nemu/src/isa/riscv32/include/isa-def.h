@@ -21,6 +21,8 @@
 typedef struct {
   word_t gpr[MUXDEF(CONFIG_RVE, 16, 32)];
   vaddr_t pc;
+  word_t fcsr;
+  uint64_t fpr[32];
   // Must match nemu/tools/spike-diff/difftest.cc.
   word_t mstatus, mtvec, mepc, mcause, satp, mscratch, priv;
   bool INTR;

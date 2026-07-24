@@ -5,8 +5,11 @@
 !*.mk
 !*.[cSh]
 !*.cc
+!/tools/spike-diff/enable-fd.patch
+!/tools/spike-diff/enable-softfloat.patch
 !.gitignore
 !README.md
 !Kconfig
 include/config
 include/generated
+/resource/softfloat/*

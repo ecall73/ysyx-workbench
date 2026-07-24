@@ -30,6 +30,10 @@ ENGINE ?= $(call remove_quote,$(CONFIG_ENGINE))
 DEBUG_ENABLED := $(if $(filter 1 y yes true,$(DEBUG)),1,$(if $(filter 1 y yes true,$(debug)),1,))
 NAME    = $(GUEST_ISA)-nemu-$(ENGINE)$(if $(DEBUG_ENABLED),-debug,)
 
+ifeq ($(GUEST_ISA),riscv32)
+include $(NEMU_HOME)/scripts/softfloat.mk
+endif
+
 # Include all filelist.mk to merge file lists
 FILELIST_MK = $(shell find -L ./src -name "filelist.mk")
 include $(FILELIST_MK)

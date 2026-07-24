@@ -20,14 +20,33 @@ endif
 
 REPO_BUILD_PATH = $(REPO_PATH)/build
 REPO_MAKEFILE = $(REPO_BUILD_PATH)/Makefile
+FD_BUILD_PATCH = $(abspath enable-fd.patch)
+SOFTFLOAT_BUILD_PATCH = $(abspath enable-softfloat.patch)
+FD_BUILD_SETUP = fd-build-setup
 $(REPO_MAKEFILE):
 	@mkdir -p $(@D)
 	cd $(@D) && $(abspath $(REPO_PATH))/configure
 	sed -i -e 's/-g -O2/-O2/' $@
 
+$(FD_BUILD_SETUP): $(REPO_MAKEFILE) $(FD_BUILD_PATCH) $(SOFTFLOAT_BUILD_PATCH)
+	@set -e; changed=0; \
+	if ! grep -q 'NEMU DiffTest: enable base F/D' $(REPO_BUILD_PATH)/riscv.mk; then \
+	  (cd $(REPO_BUILD_PATH) && patch --forward --silent -p1 < $(FD_BUILD_PATCH)); \
+	  changed=1; \
+	fi; \
+	if ! grep -q 'NEMU DiffTest: restore SoftFloat sources' $(REPO_BUILD_PATH)/softfloat.mk; then \
+	  (cd $(REPO_BUILD_PATH) && patch --forward --silent -p1 < $(SOFTFLOAT_BUILD_PATCH)); \
+	  changed=1; \
+	fi; \
+	if [ "$$changed" = 1 ] || \
+	    ! grep -q 'DEFINE_INSN(fadd_s)' $(REPO_BUILD_PATH)/insn_list.h 2>/dev/null; then \
+	  rm -f $(REPO_BUILD_PATH)/insn_list.h; \
+	  $(MAKE) -C $(REPO_BUILD_PATH) insn_list.h; \
+	fi
+
 SPIKE = $(REPO_BUILD_PATH)/spike
-$(SPIKE): $(REPO_MAKEFILE)
-	CFLAGS="-fvisibility=hidden" CXXFLAGS="-fvisibility=hidden" $(MAKE) -C $(^D)
+$(SPIKE): $(FD_BUILD_SETUP)
+	CFLAGS="-fvisibility=hidden" CXXFLAGS="-fvisibility=hidden" $(MAKE) -C $(REPO_BUILD_PATH)
 
 BUILD_DIR = ./build
 $(shell mkdir -p $(BUILD_DIR))
@@ -43,7 +62,18 @@ BINARY = $(BUILD_DIR)/$(NAME)
 SRCS = difftest.cc
 
 $(BINARY): $(SPIKE) $(SRCS)
-	g++ -std=c++17 -O2 -shared -fPIC -fvisibility=hidden $(INC_PATH) $(SRCS) $(INC_LIBS) -o $@
+	@set -e; exec 9>$(BUILD_DIR)/.link.lock; \
+	flock 9; \
+	if [ -s "$@" ] && [ "$@" -nt "$(SPIKE)" ] && [ "$@" -nt "$(SRCS)" ]; then \
+	  exit 0; \
+	fi; \
+	tmp="$@.tmp.$$$$"; \
+	trap 'rm -f "$$tmp"' EXIT; \
+	echo + CXXLD $@; \
+	g++ -std=c++17 -O2 -shared -fPIC -fvisibility=hidden \
+	  $(INC_PATH) $(SRCS) $(INC_LIBS) -o "$$tmp"; \
+	mv -f "$$tmp" "$@"; \
+	trap - EXIT
 
 clean:
 	rm -rf $(BUILD_DIR)
@@ -51,4 +81,4 @@ clean:
 all: $(BINARY)
 .DEFAULT_GOAL = all
 
-.PHONY: all clean $(SPIKE)
+.PHONY: all clean $(SPIKE) $(FD_BUILD_SETUP)

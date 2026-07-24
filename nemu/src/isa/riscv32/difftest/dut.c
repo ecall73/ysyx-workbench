@@ -33,7 +33,19 @@ bool isa_difftest_checkregs(CPU_state *ref_r, vaddr_t pc) {
     }
   }
 
+  for (int i = 0; i < ARRLEN(cpu.fpr); i++) {
+    if (ref_r->fpr[i] != cpu.fpr[i]) {
+      printf("difftest error at pc = " FMT_WORD ": fpr[%d] mismatch, ref = 0x%016" PRIx64
+          ", dut = 0x%016" PRIx64 ", ref-pc = " FMT_WORD ", dut-pc = " FMT_WORD
+          ", ref-mstatus = " FMT_WORD ", ref-mcause = " FMT_WORD "\n",
+          pc, i, ref_r->fpr[i], cpu.fpr[i], ref_r->pc, cpu.pc,
+          ref_r->mstatus, ref_r->mcause);
+      return false;
+    }
+  }
+
   return check_reg("pc", ref_r->pc, cpu.pc, pc)
+      && check_reg("fcsr", ref_r->fcsr, cpu.fcsr, pc)
       && check_reg("mstatus", ref_r->mstatus, cpu.mstatus, pc)
       && check_reg("mtvec", ref_r->mtvec, cpu.mtvec, pc)
       && check_reg("mepc", ref_r->mepc, cpu.mepc, pc)

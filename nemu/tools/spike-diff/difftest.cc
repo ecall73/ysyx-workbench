@@ -39,6 +39,8 @@ static debug_module_config_t difftest_dm_config = {
 struct diff_context_t {
   word_t gpr[MUXDEF(CONFIG_RVE, 16, 32)];
   word_t pc;
+  word_t fcsr;
+  uint64_t fpr[32];
   // Must match nemu/src/isa/riscv32/include/isa-def.h.
   word_t mstatus;
   word_t mtvec;
@@ -68,6 +70,10 @@ void sim_t::diff_get_regs(void* diff_context) {
     ctx->gpr[i] = state->XPR[i];
   }
   ctx->pc = state->pc;
+  ctx->fcsr = state->csrmap[CSR_FCSR]->read();
+  for (int i = 0; i < NFPR; i++) {
+    ctx->fpr[i] = state->FPR[i].v[0];
+  }
   ctx->mstatus = state->mstatus->read();
   ctx->mtvec = state->mtvec->read();
   ctx->mepc = state->mepc->read();
@@ -83,6 +89,17 @@ void sim_t::diff_set_regs(void* diff_context) {
     state->XPR.write(i, (sword_t)ctx->gpr[i]);
   }
   state->pc = ctx->pc;
+  // Spike rejects writes to floating-point CSRs while mstatus.FS is Off.
+  // Temporarily enable FS so DiffTest can restore the complete architectural
+  // state, then restore the DUT's exact mstatus below.
+  state->mstatus->write(ctx->mstatus | (MSTATUS_FS & (MSTATUS_FS >> 1)));
+  state->csrmap[CSR_FCSR]->write(ctx->fcsr);
+  for (int i = 0; i < NFPR; i++) {
+    freg_t value = {};
+    value.v[0] = ctx->fpr[i];
+    value.v[1] = UINT64_MAX;
+    state->FPR.write(i, value);
+  }
   state->mstatus->write(ctx->mstatus);
   state->mtvec->write(ctx->mtvec);
   state->mepc->write(ctx->mepc);

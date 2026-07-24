@@ -14,6 +14,7 @@
 ***************************************************************************************/
 
 #include "local-include/reg.h"
+#include "local-include/fp.h"
 #include <cpu/cpu.h>
 #include <cpu/ifetch.h>
 #include <cpu/decode.h>
@@ -50,7 +51,8 @@ enum {
   RVC_TYPE_CI, RVC_TYPE_CIW, RVC_TYPE_CL, RVC_TYPE_CS,
   RVC_TYPE_CJ, RVC_TYPE_CB, RVC_TYPE_CB_SHIFT, RVC_TYPE_CB_IMM,
   RVC_TYPE_CA, RVC_TYPE_CR, RVC_TYPE_CI_SHIFT, RVC_TYPE_CI16SP,
-  RVC_TYPE_CI_LWSP, RVC_TYPE_CSS, RVC_TYPE_N,
+  RVC_TYPE_CI_LWSP, RVC_TYPE_CSS, RVC_TYPE_CL_D, RVC_TYPE_CS_D,
+  RVC_TYPE_CI_LDSP, RVC_TYPE_CSS_D, RVC_TYPE_N,
 };
 
 static void decode_rvc_operand(Decode *s, int *rd, word_t *src1,
@@ -81,6 +83,14 @@ static void decode_rvc_operand(Decode *s, int *rd, word_t *src1,
       *src2 = R(rs2);
       *imm = (((c >> 10) & 0x7) << 3) |
           (((c >> 5) & 0x1) << 6) | (((c >> 6) & 0x1) << 2);
+      break;
+    case RVC_TYPE_CL_D:
+    case RVC_TYPE_CS_D:
+      rs1 = rvc_regp(c, 7);
+      rs2 = rvc_regp(c, 2);
+      *rd = rs2;
+      *src1 = R(rs1);
+      *imm = (((c >> 10) & 0x7) << 3) | (((c >> 5) & 0x3) << 6);
       break;
     case RVC_TYPE_CJ:
       *imm = rvc_imm_cj(c);
@@ -138,6 +148,17 @@ static void decode_rvc_operand(Decode *s, int *rd, word_t *src1,
       *src2 = R(rs2);
       *imm = (((c >> 9) & 0xf) << 2) | (((c >> 7) & 0x3) << 6);
       break;
+    case RVC_TYPE_CI_LDSP:
+      *rd = (c >> 7) & 0x1f;
+      *src1 = R(2);
+      *imm = (((c >> 5) & 0x3) << 3) | (((c >> 12) & 0x1) << 5) |
+          (((c >> 2) & 0x7) << 6);
+      break;
+    case RVC_TYPE_CSS_D:
+      *src1 = R(2);
+      *rd = (c >> 2) & 0x1f;
+      *imm = (((c >> 10) & 0x7) << 3) | (((c >> 7) & 0x7) << 6);
+      break;
     case RVC_TYPE_N:
       break;
     default:
@@ -168,8 +189,12 @@ static int decode_exec_rvc(Decode *s) {
   // Quadrant 0
   INSTPAT("000 ???????? ??? 00", c_addi4spn, CIW,
       if (imm == 0) INV(s->pc); else R(rd) = src1 + imm);
+  INSTPAT("001 ??? ??? ?? ??? 00", c_fld, CL_D, fp_load_d(rd, src1 + imm));
   INSTPAT("010 ??? ??? ?? ??? 00", c_lw, CL, R(rd) = Mr(src1 + imm, 4));
+  INSTPAT("011 ??? ??? ?? ??? 00", c_flw, CL, fp_load_s(rd, src1 + imm));
+  INSTPAT("101 ??? ??? ?? ??? 00", c_fsd, CS_D, fp_store_d(rd, src1 + imm));
   INSTPAT("110 ??? ??? ?? ??? 00", c_sw, CS, Mw(src1 + imm, 4, src2));
+  INSTPAT("111 ??? ??? ?? ??? 00", c_fsw, CS, fp_store_s(rd, src1 + imm));
 
   // Quadrant 1
   INSTPAT("000 ? ????? ????? 01", c_addi, CI, R(rd) = src1 + imm);
@@ -201,8 +226,10 @@ static int decode_exec_rvc(Decode *s) {
 
   // Quadrant 2. RV32 shamt[5]=1 belongs to custom encoding space.
   INSTPAT("000 0 ????? ????? 10", c_slli, CI_SHIFT, R(rd) = src1 << imm);
+  INSTPAT("001 ? ????? ????? 10", c_fldsp, CI_LDSP, fp_load_d(rd, src1 + imm));
   INSTPAT("010 ? ????? ????? 10", c_lwsp, CI_LWSP,
       if (rd == 0) INV(s->pc); else R(rd) = Mr(src1 + imm, 4));
+  INSTPAT("011 ? ????? ????? 10", c_flwsp, CI_LWSP, fp_load_s(rd, src1 + imm));
   INSTPAT("100 0 ????? 00000 10", c_jr, CR,
       if (rd == 0) {
         INV(s->pc);
@@ -223,7 +250,9 @@ static int decode_exec_rvc(Decode *s) {
 #endif
   );
   INSTPAT("100 1 ????? ????? 10", c_add, CR, R(rd) = src1 + src2);
+  INSTPAT("101 ?????? ????? 10", c_fsdsp, CSS_D, fp_store_d(rd, src1 + imm));
   INSTPAT("110 ?????? ????? 10", c_swsp, CSS, Mw(src1 + imm, 4, src2));
+  INSTPAT("111 ?????? ????? 10", c_fswsp, CSS, fp_store_s(rd, src1 + imm));
 
   INSTPAT("????????????????", inv, N, INV(s->pc));
   INSTPAT_END();
@@ -277,6 +306,9 @@ enum {
 
 static inline word_t csr_read(uint32_t addr) {
   switch (addr) {
+    case FP_CSR_FFLAGS:
+    case FP_CSR_FRM:
+    case FP_CSR_FCSR: return fp_csr_read(addr);
     case CSR_MSTATUS: return cpu.mstatus;
     case CSR_MSCRATCH: return cpu.mscratch;
     case CSR_SATP:    return cpu.satp;
@@ -293,7 +325,10 @@ static inline word_t csr_read(uint32_t addr) {
 
 static inline void csr_write(uint32_t addr, word_t data) {
   switch (addr) {
-    case CSR_MSTATUS: cpu.mstatus = data; break;
+    case FP_CSR_FFLAGS:
+    case FP_CSR_FRM:
+    case FP_CSR_FCSR: fp_csr_write(addr, data); break;
+    case CSR_MSTATUS: cpu.mstatus = fp_normalize_mstatus(data); break;
     case CSR_MSCRATCH: cpu.mscratch = data; break;
     case CSR_SATP:    cpu.satp    = data; break;
     case CSR_MTVEC:   cpu.mtvec   = data; break;
@@ -358,10 +393,16 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 010 ????? 00000 11", lw     , I, R(rd) = Mr(src1 + imm, 4));
   INSTPAT("??????? ????? ????? 100 ????? 00000 11", lbu    , I, R(rd) = Mr(src1 + imm, 1));
   INSTPAT("??????? ????? ????? 101 ????? 00000 11", lhu    , I, R(rd) = Mr(src1 + imm, 2));
+  INSTPAT("??????? ????? ????? 010 ????? 00001 11", flw    , I, fp_load_s(rd, src1 + imm));
+  INSTPAT("??????? ????? ????? 011 ????? 00001 11", fld    , I, fp_load_d(rd, src1 + imm));
 
   INSTPAT("??????? ????? ????? 000 ????? 01000 11", sb     , S, Mw(src1 + imm, 1, src2));
   INSTPAT("??????? ????? ????? 001 ????? 01000 11", sh     , S, Mw(src1 + imm, 2, src2));
   INSTPAT("??????? ????? ????? 010 ????? 01000 11", sw     , S, Mw(src1 + imm, 4, src2));
+  INSTPAT("??????? ????? ????? 010 ????? 01001 11", fsw    , S,
+      fp_store_s(BITS(s->isa.inst, 24, 20), src1 + imm));
+  INSTPAT("??????? ????? ????? 011 ????? 01001 11", fsd    , S,
+      fp_store_d(BITS(s->isa.inst, 24, 20), src1 + imm));
 
   INSTPAT("??????? ????? ????? 000 ????? 00100 11", addi   , I, R(rd) = src1 + imm);
   INSTPAT("??????? ????? ????? 010 ????? 00100 11", slti   , I, R(rd) = (sword_t)src1 < (sword_t)imm);
@@ -438,6 +479,124 @@ static int decode_exec(Decode *s) {
   // MISC-MEM: model fence/fence.i as architectural NOP in the interpreter.
   INSTPAT("??????? ????? ????? 000 ????? 00011 11", fence  , N, );
   INSTPAT("??????? ????? ????? 001 ????? 00011 11", fence_i, N, );
+
+  // RV32F/D fused multiply-add instructions (R4 format).
+  INSTPAT("????? 00 ????? ????? ??? ????? 10000 11", fmadd_s, N,
+      fp_fma_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 31, 27), BITS(s->isa.inst, 14, 12), false, false));
+  INSTPAT("????? 01 ????? ????? ??? ????? 10000 11", fmadd_d, N,
+      fp_fma_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 31, 27), BITS(s->isa.inst, 14, 12), false, false));
+  INSTPAT("????? 00 ????? ????? ??? ????? 10001 11", fmsub_s, N,
+      fp_fma_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 31, 27), BITS(s->isa.inst, 14, 12), false, true));
+  INSTPAT("????? 01 ????? ????? ??? ????? 10001 11", fmsub_d, N,
+      fp_fma_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 31, 27), BITS(s->isa.inst, 14, 12), false, true));
+  INSTPAT("????? 00 ????? ????? ??? ????? 10010 11", fnmsub_s, N,
+      fp_fma_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 31, 27), BITS(s->isa.inst, 14, 12), true, false));
+  INSTPAT("????? 01 ????? ????? ??? ????? 10010 11", fnmsub_d, N,
+      fp_fma_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 31, 27), BITS(s->isa.inst, 14, 12), true, false));
+  INSTPAT("????? 00 ????? ????? ??? ????? 10011 11", fnmadd_s, N,
+      fp_fma_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 31, 27), BITS(s->isa.inst, 14, 12), true, true));
+  INSTPAT("????? 01 ????? ????? ??? ????? 10011 11", fnmadd_d, N,
+      fp_fma_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 31, 27), BITS(s->isa.inst, 14, 12), true, true));
+
+  // RV32F arithmetic, sign, minimum/maximum, conversion and comparison.
+  INSTPAT("0000000 ????? ????? ??? ????? 10100 11", fadd_s, N,
+      fp_binary_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 14, 12), FP_BIN_ADD));
+  INSTPAT("0000100 ????? ????? ??? ????? 10100 11", fsub_s, N,
+      fp_binary_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 14, 12), FP_BIN_SUB));
+  INSTPAT("0001000 ????? ????? ??? ????? 10100 11", fmul_s, N,
+      fp_binary_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 14, 12), FP_BIN_MUL));
+  INSTPAT("0001100 ????? ????? ??? ????? 10100 11", fdiv_s, N,
+      fp_binary_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 14, 12), FP_BIN_DIV));
+  INSTPAT("0101100 00000 ????? ??? ????? 10100 11", fsqrt_s, N,
+      fp_sqrt_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 14, 12)));
+  INSTPAT("0010000 ????? ????? 000 ????? 10100 11", fsgnj_s, N,
+      fp_sgnj_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), FP_SGNJ_COPY));
+  INSTPAT("0010000 ????? ????? 001 ????? 10100 11", fsgnjn_s, N,
+      fp_sgnj_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), FP_SGNJ_NEGATE));
+  INSTPAT("0010000 ????? ????? 010 ????? 10100 11", fsgnjx_s, N,
+      fp_sgnj_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), FP_SGNJ_XOR));
+  INSTPAT("0010100 ????? ????? 000 ????? 10100 11", fmin_s, N,
+      fp_minmax_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), false));
+  INSTPAT("0010100 ????? ????? 001 ????? 10100 11", fmax_s, N,
+      fp_minmax_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), true));
+  INSTPAT("1010000 ????? ????? 010 ????? 10100 11", feq_s, N,
+      R(rd) = fp_compare_s(BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), FP_CMP_EQ));
+  INSTPAT("1010000 ????? ????? 001 ????? 10100 11", flt_s, N,
+      R(rd) = fp_compare_s(BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), FP_CMP_LT));
+  INSTPAT("1010000 ????? ????? 000 ????? 10100 11", fle_s, N,
+      R(rd) = fp_compare_s(BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), FP_CMP_LE));
+  INSTPAT("1100000 00000 ????? ??? ????? 10100 11", fcvt_w_s, N,
+      R(rd) = fp_to_i_s(BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 14, 12), false));
+  INSTPAT("1100000 00001 ????? ??? ????? 10100 11", fcvt_wu_s, N,
+      R(rd) = fp_to_i_s(BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 14, 12), true));
+  INSTPAT("1101000 00000 ????? ??? ????? 10100 11", fcvt_s_w, N,
+      fp_from_i_s(rd, R(BITS(s->isa.inst, 19, 15)), BITS(s->isa.inst, 14, 12), false));
+  INSTPAT("1101000 00001 ????? ??? ????? 10100 11", fcvt_s_wu, N,
+      fp_from_i_s(rd, R(BITS(s->isa.inst, 19, 15)), BITS(s->isa.inst, 14, 12), true));
+  INSTPAT("1110000 00000 ????? 000 ????? 10100 11", fmv_x_w, N,
+      R(rd) = fp_move_x_w(BITS(s->isa.inst, 19, 15)));
+  INSTPAT("1110000 00000 ????? 001 ????? 10100 11", fclass_s, N,
+      R(rd) = fp_classify_s(BITS(s->isa.inst, 19, 15)));
+  INSTPAT("1111000 00000 ????? 000 ????? 10100 11", fmv_w_x, N,
+      fp_move_w_x(rd, R(BITS(s->isa.inst, 19, 15))));
+
+  // RV32D arithmetic, sign, minimum/maximum, conversion and comparison.
+  INSTPAT("0000001 ????? ????? ??? ????? 10100 11", fadd_d, N,
+      fp_binary_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 14, 12), FP_BIN_ADD));
+  INSTPAT("0000101 ????? ????? ??? ????? 10100 11", fsub_d, N,
+      fp_binary_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 14, 12), FP_BIN_SUB));
+  INSTPAT("0001001 ????? ????? ??? ????? 10100 11", fmul_d, N,
+      fp_binary_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 14, 12), FP_BIN_MUL));
+  INSTPAT("0001101 ????? ????? ??? ????? 10100 11", fdiv_d, N,
+      fp_binary_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20),
+          BITS(s->isa.inst, 14, 12), FP_BIN_DIV));
+  INSTPAT("0101101 00000 ????? ??? ????? 10100 11", fsqrt_d, N,
+      fp_sqrt_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 14, 12)));
+  INSTPAT("0010001 ????? ????? 000 ????? 10100 11", fsgnj_d, N,
+      fp_sgnj_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), FP_SGNJ_COPY));
+  INSTPAT("0010001 ????? ????? 001 ????? 10100 11", fsgnjn_d, N,
+      fp_sgnj_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), FP_SGNJ_NEGATE));
+  INSTPAT("0010001 ????? ????? 010 ????? 10100 11", fsgnjx_d, N,
+      fp_sgnj_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), FP_SGNJ_XOR));
+  INSTPAT("0010101 ????? ????? 000 ????? 10100 11", fmin_d, N,
+      fp_minmax_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), false));
+  INSTPAT("0010101 ????? ????? 001 ????? 10100 11", fmax_d, N,
+      fp_minmax_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), true));
+  INSTPAT("1010001 ????? ????? 010 ????? 10100 11", feq_d, N,
+      R(rd) = fp_compare_d(BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), FP_CMP_EQ));
+  INSTPAT("1010001 ????? ????? 001 ????? 10100 11", flt_d, N,
+      R(rd) = fp_compare_d(BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), FP_CMP_LT));
+  INSTPAT("1010001 ????? ????? 000 ????? 10100 11", fle_d, N,
+      R(rd) = fp_compare_d(BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 24, 20), FP_CMP_LE));
+  INSTPAT("1100001 00000 ????? ??? ????? 10100 11", fcvt_w_d, N,
+      R(rd) = fp_to_i_d(BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 14, 12), false));
+  INSTPAT("1100001 00001 ????? ??? ????? 10100 11", fcvt_wu_d, N,
+      R(rd) = fp_to_i_d(BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 14, 12), true));
+  INSTPAT("1101001 00000 ????? ??? ????? 10100 11", fcvt_d_w, N,
+      fp_from_i_d(rd, R(BITS(s->isa.inst, 19, 15)), BITS(s->isa.inst, 14, 12), false));
+  INSTPAT("1101001 00001 ????? ??? ????? 10100 11", fcvt_d_wu, N,
+      fp_from_i_d(rd, R(BITS(s->isa.inst, 19, 15)), BITS(s->isa.inst, 14, 12), true));
+  INSTPAT("1110001 00000 ????? 001 ????? 10100 11", fclass_d, N,
+      R(rd) = fp_classify_d(BITS(s->isa.inst, 19, 15)));
+  INSTPAT("0100000 00001 ????? ??? ????? 10100 11", fcvt_s_d, N,
+      fp_convert_s_d(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 14, 12)));
+  INSTPAT("0100001 00000 ????? ??? ????? 10100 11", fcvt_d_s, N,
+      fp_convert_d_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 14, 12)));
 
   INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N,
       s->dnpc = isa_raise_intr(cpu.priv == MODE_U ? 8 : 11, s->pc));
