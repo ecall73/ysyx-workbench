@@ -22,13 +22,14 @@ REPO_BUILD_PATH = $(REPO_PATH)/build
 REPO_MAKEFILE = $(REPO_BUILD_PATH)/Makefile
 FD_BUILD_PATCH = $(abspath enable-fd.patch)
 SOFTFLOAT_BUILD_PATCH = $(abspath enable-softfloat.patch)
+WFI_NOP_PATCH = $(abspath enable-wfi-nop.patch)
 FD_BUILD_SETUP = fd-build-setup
 $(REPO_MAKEFILE):
 	@mkdir -p $(@D)
 	cd $(@D) && $(abspath $(REPO_PATH))/configure
 	sed -i -e 's/-g -O2/-O2/' $@
 
-$(FD_BUILD_SETUP): $(REPO_MAKEFILE) $(FD_BUILD_PATCH) $(SOFTFLOAT_BUILD_PATCH)
+$(FD_BUILD_SETUP): $(REPO_MAKEFILE) $(FD_BUILD_PATCH) $(SOFTFLOAT_BUILD_PATCH) $(WFI_NOP_PATCH)
 	@set -e; changed=0; \
 	if ! grep -q 'NEMU DiffTest: enable base F/D' $(REPO_BUILD_PATH)/riscv.mk; then \
 	  (cd $(REPO_BUILD_PATH) && patch --forward --silent -p1 < $(FD_BUILD_PATCH)); \
@@ -36,6 +37,11 @@ $(FD_BUILD_SETUP): $(REPO_MAKEFILE) $(FD_BUILD_PATCH) $(SOFTFLOAT_BUILD_PATCH)
 	fi; \
 	if ! grep -q 'NEMU DiffTest: restore SoftFloat sources' $(REPO_BUILD_PATH)/softfloat.mk; then \
 	  (cd $(REPO_BUILD_PATH) && patch --forward --silent -p1 < $(SOFTFLOAT_BUILD_PATCH)); \
+	  changed=1; \
+	fi; \
+	if ! grep -q 'NEMU DiffTest: NEMU uses the architecturally permitted WFI-as-NOP behavior' \
+	    $(REPO_PATH)/riscv/processor.h; then \
+	  (cd $(REPO_PATH) && patch --forward --silent -p1 < $(WFI_NOP_PATCH)); \
 	  changed=1; \
 	fi; \
 	if [ "$$changed" = 1 ] || \

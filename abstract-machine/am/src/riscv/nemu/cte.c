@@ -6,6 +6,8 @@ static Context* (*user_handler)(Event, Context*) = NULL;
 
 void __am_get_cur_as(Context *c);
 void __am_switch(Context *c);
+void __am_timer_irq_init(void);
+void __am_timer_irq_ack(void);
 
 static void __am_kcontext_start(void *entry, void *arg) {
   ((void (*)(void *))entry)(arg);
@@ -18,6 +20,7 @@ Context* __am_irq_handle(Context *c) {
     Event ev = {0};
     switch (c->mcause) {
       case ((uintptr_t)1 << (sizeof(uintptr_t) * 8 - 1)) | 7:
+        __am_timer_irq_ack();
         ev.event = EVENT_IRQ_TIMER;
         break;
       case 8:
@@ -45,6 +48,7 @@ bool cte_init(Context*(*handler)(Event, Context*)) {
 
   // register event handler
   user_handler = handler;
+  __am_timer_irq_init();
 
   return true;
 }

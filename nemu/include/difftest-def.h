@@ -31,7 +31,7 @@ enum { DIFFTEST_TO_DUT, DIFFTEST_TO_REF };
 #define RISCV_GPR_TYPE MUXDEF(CONFIG_RV64, uint64_t, uint32_t)
 #define RISCV_GPR_NUM  MUXDEF(CONFIG_RVE , 16, 32)
 #define RISCV_FPR_NUM  32
-#define RISCV_CSR_NUM  7
+#define RISCV_CSR_NUM  20
 #define DIFFTEST_REG_SIZE \
   (sizeof(RISCV_GPR_TYPE) * (RISCV_GPR_NUM + 2 + RISCV_CSR_NUM) + \
    sizeof(uint64_t) * RISCV_FPR_NUM) // GPRs, pc, fcsr, FPRs and machine state; must match isa-def.h.

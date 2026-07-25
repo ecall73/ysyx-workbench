@@ -15,6 +15,7 @@
 
 #include "local-include/reg.h"
 #include "local-include/fp.h"
+#include "local-include/csr.h"
 #include <cpu/cpu.h>
 #include <cpu/ifetch.h>
 #include <cpu/decode.h>
@@ -293,57 +294,6 @@ static void decode_operand(Decode *s, int *rd, word_t *src1, word_t *src2, word_
   }
 }
 
-enum {
-  CSR_MSTATUS = 0x300,
-  CSR_MSCRATCH = 0x340,
-  CSR_SATP    = 0x180,
-  CSR_MTVEC   = 0x305,
-  CSR_MEPC    = 0x341,
-  CSR_MCAUSE  = 0x342,
-  CSR_MVENDORID = 0xF11,
-  CSR_MARCHID   = 0xF12,
-};
-
-static inline word_t csr_read(uint32_t addr) {
-  switch (addr) {
-    case FP_CSR_FFLAGS:
-    case FP_CSR_FRM:
-    case FP_CSR_FCSR: return fp_csr_read(addr);
-    case CSR_MSTATUS: return cpu.mstatus;
-    case CSR_MSCRATCH: return cpu.mscratch;
-    case CSR_SATP:    return cpu.satp;
-    case CSR_MTVEC:   return cpu.mtvec;
-    case CSR_MEPC:    return cpu.mepc;
-    case CSR_MCAUSE:  return cpu.mcause;
-    case CSR_MVENDORID: return 0x79737978;
-    case CSR_MARCHID:   return 26030082;
-    default:
-      Assert(0, "read unsupported CSR: pc=" FMT_WORD " csr=0x%03x", cpu.pc, addr);
-      return 0;
-  }
-}
-
-static inline void csr_write(uint32_t addr, word_t data) {
-  switch (addr) {
-    case FP_CSR_FFLAGS:
-    case FP_CSR_FRM:
-    case FP_CSR_FCSR: fp_csr_write(addr, data); break;
-    case CSR_MSTATUS: cpu.mstatus = fp_normalize_mstatus(data); break;
-    case CSR_MSCRATCH: cpu.mscratch = data; break;
-    case CSR_SATP:    cpu.satp    = data; break;
-    case CSR_MTVEC:   cpu.mtvec   = data; break;
-    case CSR_MEPC:    cpu.mepc    = data; break;
-    case CSR_MCAUSE:  cpu.mcause  = data; break;
-    case CSR_MVENDORID:
-    case CSR_MARCHID:
-      Assert(0, "write read-only CSR: pc=" FMT_WORD " csr=0x%03x data=" FMT_WORD, cpu.pc, addr, data);
-      break;
-    default:
-      Assert(0, "write unsupported CSR: pc=" FMT_WORD " csr=0x%03x data=" FMT_WORD, cpu.pc, addr, data);
-      break;
-  }
-}
-
 static inline uint32_t csr_addr(const Decode *s) {
   return BITS(s->isa.inst, 31, 20);
 }
@@ -428,7 +378,7 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , N,
       uint32_t rs1 = BITS(s->isa.inst, 19, 15);
       uint32_t csr = csr_addr(s);
-      word_t old = csr_read(csr);
+      word_t old = rd == 0 ? 0 : csr_read(csr);
       csr_write(csr, R(rs1));
       R(rd) = old;
   );
@@ -453,7 +403,7 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , N,
       uint32_t csr = csr_addr(s);
       word_t zimm = BITS(s->isa.inst, 19, 15);
-      word_t old = csr_read(csr);
+      word_t old = rd == 0 ? 0 : csr_read(csr);
       csr_write(csr, zimm);
       R(rd) = old;
   );
@@ -599,8 +549,14 @@ static int decode_exec(Decode *s) {
       fp_convert_d_s(rd, BITS(s->isa.inst, 19, 15), BITS(s->isa.inst, 14, 12)));
 
   INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N,
-      s->dnpc = isa_raise_intr(cpu.priv == MODE_U ? 8 : 11, s->pc));
+      word_t cause = cpu.priv == MODE_U ? 8 : cpu.priv == MODE_S ? 9 : 11;
+      s->dnpc = isa_raise_intr(cause, s->pc));
+  INSTPAT("0001000 00010 00000 000 00000 11100 11", sret   , N, s->dnpc = isa_sret());
   INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N, s->dnpc = isa_mret());
+  INSTPAT("0001001 ????? ????? 000 00000 11100 11", sfence_vma, N,
+      Assert(cpu.priv != MODE_U, "sfence.vma from U-mode: pc=" FMT_WORD, s->pc));
+  INSTPAT("0001000 00101 00000 000 00000 11100 11", wfi    , N,
+      Assert(cpu.priv != MODE_U, "wfi from U-mode: pc=" FMT_WORD, s->pc));
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
 
   //RV32M

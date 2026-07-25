@@ -50,8 +50,23 @@ bool isa_difftest_checkregs(CPU_state *ref_r, vaddr_t pc) {
       && check_reg("mtvec", ref_r->mtvec, cpu.mtvec, pc)
       && check_reg("mepc", ref_r->mepc, cpu.mepc, pc)
       && check_reg("mcause", ref_r->mcause, cpu.mcause, pc)
+      && check_reg("mtval", ref_r->mtval, cpu.mtval, pc)
+      && check_reg("medeleg", ref_r->medeleg, cpu.medeleg, pc)
+      && check_reg("mideleg", ref_r->mideleg, cpu.mideleg, pc)
+      && check_reg("mie", ref_r->mie, cpu.mie, pc)
+      && check_reg("stvec", ref_r->stvec, cpu.stvec, pc)
+      && check_reg("sepc", ref_r->sepc, cpu.sepc, pc)
+      && check_reg("scause", ref_r->scause, cpu.scause, pc)
+      && check_reg("stval", ref_r->stval, cpu.stval, pc)
+      && check_reg("sscratch", ref_r->sscratch, cpu.sscratch, pc)
       && check_reg("satp", ref_r->satp, cpu.satp, pc)
       && check_reg("mscratch", ref_r->mscratch, cpu.mscratch, pc)
+      && check_reg("menvcfgh", ref_r->menvcfgh, cpu.menvcfgh, pc)
+      && check_reg("mcounteren", ref_r->mcounteren, cpu.mcounteren, pc)
+      && check_reg("stimecmp", (word_t)ref_r->stimecmp,
+          (word_t)cpu.stimecmp, pc)
+      && check_reg("stimecmph", (word_t)(ref_r->stimecmp >> 32),
+          (word_t)(cpu.stimecmp >> 32), pc)
       && check_reg("priv", ref_r->priv, cpu.priv, pc);
 }
 

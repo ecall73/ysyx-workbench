@@ -38,10 +38,24 @@ static void restart() {
   cpu.mtvec = 1;
   cpu.mepc = 0;
   cpu.mcause = 0;
+  cpu.mtval = 0;
+  cpu.medeleg = 0;
+  cpu.mideleg = 0;
+  cpu.mie = 0;
+  cpu.stvec = 0;
+  cpu.sepc = 0;
+  cpu.scause = 0;
+  cpu.stval = 0;
+  cpu.sscratch = 0;
   cpu.satp = 0;
   cpu.mscratch = 0;
+  cpu.menvcfgh = 0;
+  cpu.mcounteren = 0;
+  cpu.stimecmp = UINT64_MAX;
   cpu.priv = MODE_M;
-  cpu.INTR = false;
+  cpu.mip = 0;
+  cpu.mtime = 0;
+  cpu.mtimecmp = UINT64_MAX;
   cpu.lr_valid = false;
   cpu.lr_addr = 0;
 }

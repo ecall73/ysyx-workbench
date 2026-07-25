@@ -23,23 +23,29 @@ typedef struct {
   vaddr_t pc;
   word_t fcsr;
   uint64_t fpr[32];
+  uint64_t stimecmp;
   // Must match nemu/tools/spike-diff/difftest.cc.
-  word_t mstatus, mtvec, mepc, mcause, satp, mscratch, priv;
-  bool INTR;
-  // LR/SC reservation state is microarchitectural and is intentionally kept
-  // after INTR, outside DIFFTEST_REG_SIZE.
+  word_t mstatus, mtvec, mepc, mcause, mtval;
+  word_t medeleg, mideleg, mie;
+  word_t stvec, sepc, scause, stval, sscratch;
+  word_t satp, mscratch, menvcfgh, mcounteren;
+  word_t priv;
+  // NEMU owns pending interrupts and timer state. They are outside the Spike
+  // register-copy ABI, but remain part of the complete CPU state.
+  word_t mip;
+  uint64_t mtime, mtimecmp;
   bool lr_valid;
   paddr_t lr_addr;
 } MUXDEF(CONFIG_RV64, riscv64_CPU_state, riscv32_CPU_state);
 
-enum { MODE_U, MODE_M = 3 };
+enum { MODE_U, MODE_S, MODE_M = 3 };
 
 // decode
 typedef struct {
   uint32_t inst;
 } MUXDEF(CONFIG_RV64, riscv64_ISADecodeInfo, riscv32_ISADecodeInfo);
 
-#define isa_mmu_check(vaddr, len, type) \
-  ((cpu.satp & 0x80000000u) ? MMU_TRANSLATE : MMU_DIRECT)
+int riscv32_mmu_check(vaddr_t vaddr, int len, int type);
+#define isa_mmu_check(vaddr, len, type) riscv32_mmu_check(vaddr, len, type)
 
 #endif

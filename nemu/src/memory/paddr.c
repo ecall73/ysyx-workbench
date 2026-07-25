@@ -20,6 +20,11 @@
 #include <isa.h>
 #include <string.h>
 
+#ifdef CONFIG_ISA_riscv
+bool riscv_clint_read(paddr_t addr, int len, word_t *data);
+bool riscv_clint_write(paddr_t addr, int len, word_t data);
+#endif
+
 #if   defined(CONFIG_PMEM_MALLOC)
 static uint8_t *pmem = NULL;
 #else // CONFIG_PMEM_GARRAY
@@ -178,6 +183,10 @@ void init_mem() {
 word_t paddr_read(paddr_t addr, int len) {
   IFDEF(CONFIG_RT_CHECK, Assert(valid_access_len(len),
       "invalid memory read length: pc=" FMT_WORD " addr=" FMT_PADDR " len=%d", cpu.pc, addr, len));
+#ifdef CONFIG_ISA_riscv
+  word_t clint_data;
+  if (riscv_clint_read(addr, len, &clint_data)) return clint_data;
+#endif
   if (use_ysyxsoc_paddr) {
     word_t data = 0;
     if (likely(ysyxsoc_paddr_read(addr, len, &data))) {
@@ -196,6 +205,9 @@ word_t paddr_read(paddr_t addr, int len) {
 void paddr_write(paddr_t addr, int len, word_t data) {
   IFDEF(CONFIG_RT_CHECK, Assert(valid_access_len(len),
       "invalid memory write length: pc=" FMT_WORD " addr=" FMT_PADDR " len=%d data=" FMT_WORD, cpu.pc, addr, len, data));
+#ifdef CONFIG_ISA_riscv
+  if (riscv_clint_write(addr, len, data)) return;
+#endif
   if (use_ysyxsoc_paddr) {
     if (likely(ysyxsoc_paddr_write(addr, len, data))) {
       return;

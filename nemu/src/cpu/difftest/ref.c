@@ -21,8 +21,8 @@
 #include <string.h>
 
 #if defined(CONFIG_ISA_riscv)
-_Static_assert(DIFFTEST_REG_SIZE == offsetof(CPU_state, INTR),
-    "RISC-V DiffTest must copy the architectural state before INTR");
+_Static_assert(DIFFTEST_REG_SIZE == offsetof(CPU_state, mip),
+    "RISC-V DiffTest must copy the shared register state before mip");
 #endif
 
 __EXPORT void difftest_memcpy(paddr_t addr, void *buf, size_t n, bool direction) {
