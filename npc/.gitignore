@@ -8,9 +8,17 @@
 !*.v
 !*.cpp
 !*.cc
+!*.v
+!*.nxdc
+!*.md
+/README.md
+!configs/*_defconfig
 !.gitignore
 !.scalafmt.conf
 !README.md
+!Kconfig
+include/config
+include/generated
 build/
 
 # mill

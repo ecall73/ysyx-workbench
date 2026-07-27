@@ -1,35 +1,65 @@
-BUILD_DIR = ./build
+NPC_HOME := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+NEMU_HOME ?= $(abspath ../nemu)
+YSYX_SOC_HOME ?= $(abspath ../ysyxSoC)
+NVBOARD_HOME ?= $(abspath ../nvboard)
 
-test:
-	mill -i test
+ifeq ($(wildcard $(NPC_HOME)/csrc/npc-main.c),)
+  $(error NPC_HOME=$(NPC_HOME) is not an NPC repo)
+endif
+ifneq ($(CURDIR),$(NPC_HOME))
+  $(error Please run NPC make targets with 'make -C $(NPC_HOME) ...')
+endif
 
-verilog:
-	$(call git_commit, "generate verilog")
-	mkdir -p $(BUILD_DIR)
-	mill -i runMain Elaborate --target-dir $(BUILD_DIR)
+config-only-goals := help menuconfig savedefconfig $(filter %defconfig,$(MAKECMDGOALS))
+ifneq ($(MAKECMDGOALS),$(filter $(config-only-goals),$(MAKECMDGOALS)))
+-include $(NPC_HOME)/include/config/auto.conf
+-include $(NPC_HOME)/include/config/auto.conf.cmd
+endif
 
-help:
-	mill -i runMain Elaborate --help
+remove_quote = $(patsubst "%",%,$(1))
 
-reformat:
-	mill -i __.reformat
+GUEST_ISA := riscv32
+SIM_MODE ?= npc
+DEBUG_ENABLED := $(if $(filter 1 y yes true,$(DEBUG)),1,$(if $(CONFIG_CC_DEBUG),1,))
+UART_STDOUT ?= 1
+UART_STDOUT_ENABLED := $(if $(filter 0 n no false,$(UART_STDOUT)),,1)
+NAME = $(GUEST_ISA)-$(SIM_MODE)-interpreter$(if $(DEBUG_ENABLED),-debug,)$(if $(UART_STDOUT_ENABLED),,-no-uart-stdout)
 
-checkformat:
-	mill -i __.checkFormat
+ifneq ($(filter npc ysyxsoc,$(SIM_MODE)),$(SIM_MODE))
+  $(error Unsupported SIM_MODE='$(SIM_MODE)'. Expected 'npc' or 'ysyxsoc')
+endif
+ifeq ($(SIM_MODE),npc)
+NPC_PLATFORM_NPC := y
+NPC_PLATFORM_YSYXSOC :=
+else
+NPC_PLATFORM_NPC :=
+NPC_PLATFORM_YSYXSOC := y
+endif
 
-bsp:
-	mill -i mill.bsp.BSP/install
+FILELIST_MK = $(shell cd $(NPC_HOME) && find -L ./csrc -name "filelist.mk")
+include $(FILELIST_MK)
 
-idea:
-	mill -i mill.idea.GenIdea/idea
+DIRS-BLACKLIST-y += $(DIRS-BLACKLIST)
+SRCS-BLACKLIST-y += $(if $(DIRS-BLACKLIST-y), $(shell cd $(NPC_HOME) && find -L $(DIRS-BLACKLIST-y) \( -name "*.c" -o -name "*.cc" -o -name "*.cpp" \)),)
+SRCS-BLACKLIST-y += $(SRCS-BLACKLIST)
+SRCS-y += $(if $(DIRS-y), $(shell cd $(NPC_HOME) && find -L $(DIRS-y) \( -name "*.c" -o -name "*.cc" -o -name "*.cpp" \)),)
+SRCS = $(filter-out $(SRCS-BLACKLIST-y),$(SRCS-y))
 
-clean:
-	-rm -rf $(BUILD_DIR)
+CC := gcc
+CFLAGS_BUILD += $(call remove_quote,$(CONFIG_CC_OPT))
+CFLAGS_BUILD += $(if $(DEBUG_ENABLED),-Og -ggdb3,)
+CFLAGS_BUILD += $(if $(DEBUG_ENABLED),-DDEBUG,)
+CFLAGS_TRACE += -DITRACE_COND='$(if $(CONFIG_ITRACE_COND),$(subst ",,$(CONFIG_ITRACE_COND)),true)'
+CFLAGS_TRACE += -DMTRACE_COND='$(if $(CONFIG_MTRACE_COND),$(subst ",,$(CONFIG_MTRACE_COND)),true)'
+CFLAGS += $(CFLAGS_BUILD) $(CFLAGS_TRACE)
+LDFLAGS += $(CFLAGS_BUILD)
 
-.PHONY: test verilog help reformat checkformat clean
+include $(NPC_HOME)/scripts/config.mk
 
-sim:
-	$(call git_commit, "sim RTL") # DO NOT REMOVE THIS LINE!!!
-	@echo "Write this Makefile by yourself."
-
--include ../Makefile
+ifneq ($(MAKECMDGOALS),$(filter $(config-only-goals),$(MAKECMDGOALS)))
+include $(NPC_HOME)/scripts/native.mk
+iverilog-targets := sim-iverilog sim-iverilog-netlist
+ifneq ($(filter $(iverilog-targets),$(MAKECMDGOALS)),)
+include $(NPC_HOME)/scripts/iverilog.mk
+endif
+endif
