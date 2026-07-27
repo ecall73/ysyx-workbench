@@ -19,3 +19,7 @@
 [submodule "riscv-arch-test-am"]
 	path = riscv-arch-test-am
 	url = https://github.com/NJU-ProjectN/riscv-arch-test-am.git
+[submodule "xv6-riscv"]
+	path = xv6-riscv
+	url = https://github.com/ecall73/xv6-riscv.git
+	branch = rv32
