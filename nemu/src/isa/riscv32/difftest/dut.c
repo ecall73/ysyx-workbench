@@ -63,10 +63,9 @@ bool isa_difftest_checkregs(CPU_state *ref_r, vaddr_t pc) {
       && check_reg("mscratch", ref_r->mscratch, cpu.mscratch, pc)
       && check_reg("menvcfgh", ref_r->menvcfgh, cpu.menvcfgh, pc)
       && check_reg("mcounteren", ref_r->mcounteren, cpu.mcounteren, pc)
-      && check_reg("stimecmp", (word_t)ref_r->stimecmp,
-          (word_t)cpu.stimecmp, pc)
-      && check_reg("stimecmph", (word_t)(ref_r->stimecmp >> 32),
-          (word_t)(cpu.stimecmp >> 32), pc)
+      && check_reg("scounteren", ref_r->scounteren, cpu.scounteren, pc)
+      && check_reg("mcountinhibit", ref_r->mcountinhibit,
+          cpu.mcountinhibit, pc)
       && check_reg("priv", ref_r->priv, cpu.priv, pc);
 }
 

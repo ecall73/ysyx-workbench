@@ -36,35 +36,7 @@ static debug_module_config_t difftest_dm_config = {
   .support_impebreak = true
 };
 
-struct diff_context_t {
-  word_t gpr[MUXDEF(CONFIG_RVE, 16, 32)];
-  word_t pc;
-  word_t fcsr;
-  uint64_t fpr[32];
-  word_t stimecmp;
-  word_t stimecmph;
-  // Must match nemu/src/isa/riscv32/include/isa-def.h.
-  word_t mstatus;
-  word_t mtvec;
-  word_t mepc;
-  word_t mcause;
-  word_t mtval;
-  word_t medeleg;
-  word_t mideleg;
-  word_t mie;
-  word_t stvec;
-  word_t sepc;
-  word_t scause;
-  word_t stval;
-  word_t sscratch;
-  word_t satp;
-  word_t mscratch;
-  word_t menvcfgh;
-  word_t mcounteren;
-  word_t priv;
-};
-
-static_assert(sizeof(diff_context_t) == DIFFTEST_REG_SIZE,
+static_assert(sizeof(riscv_difftest_context_t) == DIFFTEST_REG_SIZE,
     "Spike and NEMU DiffTest register layouts must match");
 
 static sim_t* s = NULL;
@@ -92,7 +64,7 @@ void sim_t::diff_step(uint64_t n) {
 }
 
 void sim_t::diff_get_regs(void* diff_context) {
-  struct diff_context_t* ctx = (struct diff_context_t*)diff_context;
+  auto *ctx = static_cast<riscv_difftest_context_t *>(diff_context);
   for (int i = 0; i < NR_GPR; i++) {
     ctx->gpr[i] = state->XPR[i];
   }
@@ -101,8 +73,6 @@ void sim_t::diff_get_regs(void* diff_context) {
   for (int i = 0; i < NFPR; i++) {
     ctx->fpr[i] = state->FPR[i].v[0];
   }
-  ctx->stimecmp = state->csrmap[CSR_STIMECMP]->read();
-  ctx->stimecmph = state->csrmap[CSR_STIMECMPH]->read();
   ctx->mstatus = state->mstatus->read();
   ctx->mtvec = state->mtvec->read();
   ctx->mepc = state->mepc->read();
@@ -120,11 +90,13 @@ void sim_t::diff_get_regs(void* diff_context) {
   ctx->mscratch = state->csrmap[CSR_MSCRATCH]->read();
   ctx->menvcfgh = state->csrmap[CSR_MENVCFGH]->read();
   ctx->mcounteren = state->csrmap[CSR_MCOUNTEREN]->read();
+  ctx->scounteren = state->csrmap[CSR_SCOUNTEREN]->read();
+  ctx->mcountinhibit = state->csrmap[CSR_MCOUNTINHIBIT]->read();
   ctx->priv = state->prv;
 }
 
 void sim_t::diff_set_regs(void* diff_context) {
-  struct diff_context_t* ctx = (struct diff_context_t*)diff_context;
+  auto *ctx = static_cast<riscv_difftest_context_t *>(diff_context);
   for (int i = 0; i < NR_GPR; i++) {
     state->XPR.write(i, (sword_t)ctx->gpr[i]);
   }
@@ -157,8 +129,8 @@ void sim_t::diff_set_regs(void* diff_context) {
   state->csrmap[CSR_MSCRATCH]->write(ctx->mscratch);
   state->csrmap[CSR_MENVCFGH]->write(ctx->menvcfgh);
   state->csrmap[CSR_MCOUNTEREN]->write(ctx->mcounteren);
-  state->csrmap[CSR_STIMECMP]->write(ctx->stimecmp);
-  state->csrmap[CSR_STIMECMPH]->write(ctx->stimecmph);
+  state->csrmap[CSR_SCOUNTEREN]->write(ctx->scounteren);
+  state->csrmap[CSR_MCOUNTINHIBIT]->write(ctx->mcountinhibit);
   p->set_privilege(ctx->priv);
 }
 

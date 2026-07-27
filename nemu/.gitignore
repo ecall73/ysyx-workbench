@@ -8,6 +8,7 @@
 !/tools/spike-diff/enable-fd.patch
 !/tools/spike-diff/enable-softfloat.patch
 !/tools/spike-diff/enable-wfi-nop.patch
+!/tools/spike-diff/enable-counter-control.patch
 !.gitignore
 !README.md
 !Kconfig

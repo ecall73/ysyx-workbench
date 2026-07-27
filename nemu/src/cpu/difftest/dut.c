@@ -32,6 +32,26 @@ static bool is_skip_ref = false;
 static int skip_dut_nr_inst = 0;
 static bool is_attached = true;
 
+static void difftest_regs_to_ref(const CPU_state *state) {
+#if defined(CONFIG_ISA_riscv)
+  riscv_difftest_context_t ctx;
+  riscv_difftest_pack(&ctx, state);
+  ref_difftest_regcpy(&ctx, DIFFTEST_TO_REF);
+#else
+  ref_difftest_regcpy((void *)state, DIFFTEST_TO_REF);
+#endif
+}
+
+static void difftest_regs_from_ref(CPU_state *state) {
+#if defined(CONFIG_ISA_riscv)
+  riscv_difftest_context_t ctx;
+  ref_difftest_regcpy(&ctx, DIFFTEST_TO_DUT);
+  riscv_difftest_unpack(state, &ctx);
+#else
+  ref_difftest_regcpy(state, DIFFTEST_TO_DUT);
+#endif
+}
+
 // this is used to let ref skip instructions which
 // can not produce consistent behavior with NEMU
 void difftest_skip_ref() {
@@ -73,7 +93,7 @@ void difftest_detach() {
 
 void difftest_attach() {
   ref_difftest_memcpy(PMEM_LEFT, guest_to_host(PMEM_LEFT), CONFIG_MSIZE, DIFFTEST_TO_REF);
-  ref_difftest_regcpy(&cpu, DIFFTEST_TO_REF);
+  difftest_regs_to_ref(&cpu);
   isa_difftest_attach();
   is_skip_ref = false;
   skip_dut_nr_inst = 0;
@@ -121,7 +141,7 @@ void init_difftest(char *ref_so_file, long img_size, int port) {
 
   ref_difftest_init(port);
   ref_difftest_memcpy(RESET_VECTOR, guest_to_host(RESET_VECTOR), img_size, DIFFTEST_TO_REF);
-  ref_difftest_regcpy(&cpu, DIFFTEST_TO_REF);
+  difftest_regs_to_ref(&cpu);
 }
 
 static void checkregs(CPU_state *ref, vaddr_t pc) {
@@ -138,7 +158,7 @@ void difftest_step(vaddr_t pc, vaddr_t npc) {
   CPU_state ref_r;
 
   if (skip_dut_nr_inst > 0) {
-    ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT);
+    difftest_regs_from_ref(&ref_r);
     Assert((ref_r.pc & 0x1) == 0,
         "DiffTest ref pc is unaligned while catching up: ref_pc=" FMT_WORD
         " dut_pc=" FMT_WORD " npc=" FMT_WORD,
@@ -156,13 +176,13 @@ void difftest_step(vaddr_t pc, vaddr_t npc) {
 
   if (is_skip_ref) {
     // to skip the checking of an instruction, just copy the reg state to reference design
-    ref_difftest_regcpy(&cpu, DIFFTEST_TO_REF);
+    difftest_regs_to_ref(&cpu);
     is_skip_ref = false;
     return;
   }
 
   ref_difftest_exec(1);
-  ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT);
+  difftest_regs_from_ref(&ref_r);
   Assert((ref_r.pc & 0x1) == 0,
       "DiffTest ref pc is unaligned: ref_pc=" FMT_WORD " dut_pc=" FMT_WORD " npc=" FMT_WORD,
       ref_r.pc, pc, npc);

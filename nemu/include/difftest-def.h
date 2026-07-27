@@ -32,9 +32,19 @@ enum { DIFFTEST_TO_DUT, DIFFTEST_TO_REF };
 #define RISCV_GPR_NUM  MUXDEF(CONFIG_RVE , 16, 32)
 #define RISCV_FPR_NUM  32
 #define RISCV_CSR_NUM  20
-#define DIFFTEST_REG_SIZE \
-  (sizeof(RISCV_GPR_TYPE) * (RISCV_GPR_NUM + 2 + RISCV_CSR_NUM) + \
-   sizeof(uint64_t) * RISCV_FPR_NUM) // GPRs, pc, fcsr, FPRs and machine state; must match isa-def.h.
+typedef struct {
+  RISCV_GPR_TYPE gpr[RISCV_GPR_NUM];
+  RISCV_GPR_TYPE pc;
+  RISCV_GPR_TYPE fcsr;
+  uint64_t fpr[RISCV_FPR_NUM];
+  RISCV_GPR_TYPE mstatus, mtvec, mepc, mcause, mtval;
+  RISCV_GPR_TYPE medeleg, mideleg, mie;
+  RISCV_GPR_TYPE stvec, sepc, scause, stval, sscratch;
+  RISCV_GPR_TYPE satp, mscratch, menvcfgh, mcounteren;
+  RISCV_GPR_TYPE scounteren, mcountinhibit;
+  RISCV_GPR_TYPE priv;
+} riscv_difftest_context_t;
+#define DIFFTEST_REG_SIZE sizeof(riscv_difftest_context_t)
 #elif defined(CONFIG_ISA_loongarch32r)
 # define DIFFTEST_REG_SIZE (sizeof(uint32_t) * 33) // GPRs + pc
 #else

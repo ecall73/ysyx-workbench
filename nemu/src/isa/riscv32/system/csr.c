@@ -10,7 +10,9 @@
 #define MSTATUS_WRITABLE \
   (SSTATUS_WRITABLE | MSTATUS_MIE | MSTATUS_MPIE | MSTATUS_MPP | MSTATUS_MPRV)
 #define MIE_MASK (MIP_SSIP | MIP_STIP | MIP_MTIP | MIP_SEIP)
-#define MCOUNTEREN_MASK (1u << 1)
+#define COUNTEREN_MASK 0x7u
+#define MCOUNTINHIBIT_MASK ((1u << 0) | (1u << 2))
+#define MISA_RV32GC 0x4014112du
 #define MIDELEG_MASK (MIP_SSIP | MIP_STIP | MIP_SEIP)
 #define MEDELEG_MASK \
   ((1u << 0) | (1u << 1) | (1u << 2) | (1u << 3) | \
@@ -36,15 +38,18 @@ static void csr_check_access(uint32_t addr, bool write) {
         "write read-only CSR: pc=" FMT_WORD " csr=0x%03x", cpu.pc, addr);
   }
   if (addr == CSR_TIME || addr == CSR_TIMEH) {
-    Assert(cpu.priv == MODE_M ||
-        (cpu.priv == MODE_S && (cpu.mcounteren & MCOUNTEREN_MASK)),
+    bool enabled = cpu.priv == MODE_M ||
+        (cpu.priv == MODE_S && (cpu.mcounteren & (1u << 1))) ||
+        (cpu.priv == MODE_U && (cpu.mcounteren & (1u << 1)) &&
+         (cpu.scounteren & (1u << 1)));
+    Assert(enabled,
         "counter access disabled: pc=" FMT_WORD " priv=%u csr=0x%03x",
         cpu.pc, cpu.priv, addr);
   }
   if ((addr == CSR_STIMECMP || addr == CSR_STIMECMPH) &&
       cpu.priv != MODE_M) {
     Assert((cpu.menvcfgh & MENVCFGH_STCE) &&
-        (cpu.mcounteren & MCOUNTEREN_MASK),
+        (cpu.mcounteren & (1u << 1)),
         "stimecmp access disabled: pc=" FMT_WORD " csr=0x%03x",
         cpu.pc, addr);
   }
@@ -59,6 +64,7 @@ word_t csr_read(uint32_t addr) {
     case CSR_SSTATUS:    return cpu.mstatus & SSTATUS_MASK;
     case CSR_SIE:        return cpu.mie & cpu.mideleg;
     case CSR_STVEC:      return cpu.stvec;
+    case CSR_SCOUNTEREN: return cpu.scounteren;
     case CSR_SSCRATCH:   return cpu.sscratch;
     case CSR_SEPC:       return cpu.sepc;
     case CSR_SCAUSE:     return cpu.scause;
@@ -77,6 +83,7 @@ word_t csr_read(uint32_t addr) {
     case CSR_MIE:        return cpu.mie;
     case CSR_MTVEC:      return cpu.mtvec;
     case CSR_MCOUNTEREN: return cpu.mcounteren;
+    case CSR_MCOUNTINHIBIT: return cpu.mcountinhibit;
     case CSR_MENVCFG:    return 0;
     case CSR_MENVCFGH:   return cpu.menvcfgh;
     case CSR_MSCRATCH:   return cpu.mscratch;
@@ -95,9 +102,16 @@ word_t csr_read(uint32_t addr) {
     case CSR_TIMEH:
       difftest_skip_ref();
       return (word_t)(cpu.mtime >> 32);
-    case CSR_MVENDORID:  return 0x79737978;
-    case CSR_MARCHID:    return 26030082;
-    case CSR_MHARTID:    return 0;
+    // These fixed CSRs intentionally differ between NEMU, Spike, and the
+    // future RV32IMAC RTL profile.  Return NEMU's value, then synchronize the
+    // post-state instead of comparing the CSR read result.
+    case CSR_MISA:       difftest_skip_ref(); return MISA_RV32GC;
+    case CSR_MVENDORID:  difftest_skip_ref(); return 0x79737978;
+    case CSR_MARCHID:    difftest_skip_ref(); return 26030082;
+    case CSR_MIMPID:     difftest_skip_ref(); return 0;
+    case CSR_MHARTID:    difftest_skip_ref(); return 0;
+    case CSR_MCONFIGPTR: difftest_skip_ref(); return 0;
+    case CSR_MSTATUSH:   difftest_skip_ref(); return 0;
     default:
       Assert(0, "read unsupported CSR: pc=" FMT_WORD " csr=0x%03x", cpu.pc, addr);
       return 0;
@@ -120,6 +134,7 @@ void csr_write(uint32_t addr, word_t data) {
       cpu.mie = (cpu.mie & ~cpu.mideleg) | (data & cpu.mideleg & MIE_MASK);
       break;
     case CSR_STVEC:      cpu.stvec = data; break;
+    case CSR_SCOUNTEREN: cpu.scounteren = data & COUNTEREN_MASK; break;
     case CSR_SSCRATCH:   cpu.sscratch = data; break;
     case CSR_SEPC:       cpu.sepc = data & ~1u; break;
     case CSR_SCAUSE:     cpu.scause = data; break;
@@ -143,7 +158,10 @@ void csr_write(uint32_t addr, word_t data) {
     case CSR_MIDELEG:    cpu.mideleg = data & MIDELEG_MASK; break;
     case CSR_MIE:        cpu.mie = data & MIE_MASK; break;
     case CSR_MTVEC:      cpu.mtvec = data; break;
-    case CSR_MCOUNTEREN: cpu.mcounteren = data & MCOUNTEREN_MASK; break;
+    case CSR_MCOUNTEREN: cpu.mcounteren = data & COUNTEREN_MASK; break;
+    case CSR_MCOUNTINHIBIT:
+      cpu.mcountinhibit = data & MCOUNTINHIBIT_MASK;
+      break;
     case CSR_MENVCFG:    break;
     case CSR_MENVCFGH:
       cpu.menvcfgh = data & (MENVCFGH_ADUE | MENVCFGH_STCE);
@@ -159,7 +177,11 @@ void csr_write(uint32_t addr, word_t data) {
     case CSR_PMPADDR0:   break;
     case CSR_MVENDORID:
     case CSR_MARCHID:
+    case CSR_MIMPID:
     case CSR_MHARTID:
+    case CSR_MCONFIGPTR:
+    case CSR_MISA:
+    case CSR_MSTATUSH:
     case CSR_TIME:
     case CSR_TIMEH:
       Assert(0, "write read-only CSR: pc=" FMT_WORD " csr=0x%03x data=" FMT_WORD,

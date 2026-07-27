@@ -51,6 +51,8 @@ static void restart() {
   cpu.mscratch = 0;
   cpu.menvcfgh = 0;
   cpu.mcounteren = 0;
+  cpu.scounteren = 0;
+  cpu.mcountinhibit = 0;
   cpu.stimecmp = UINT64_MAX;
   cpu.priv = MODE_M;
   cpu.mip = 0;
