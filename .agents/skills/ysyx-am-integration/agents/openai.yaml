@@ -1,0 +1,4 @@
+interface:
+  display_name: "YSYX AM System Integration"
+  short_description: "Integrate AM runtimes, kernels, and userland"
+  default_prompt: "Use $ysyx-am-integration to trace and change this AM-based software integration path."

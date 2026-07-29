@@ -1,0 +1,4 @@
+interface:
+  display_name: "YSYX Differential Testing"
+  short_description: "Isolate DUT and reference model divergence"
+  default_prompt: "Use $ysyx-difftest-debug to find the first architectural divergence and its owner."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "YSYX NEMU Debugging"
+  short_description: "Debug NEMU execution and architectural state"
+  default_prompt: "Use $ysyx-nemu-debug to reproduce and isolate this NEMU failure."

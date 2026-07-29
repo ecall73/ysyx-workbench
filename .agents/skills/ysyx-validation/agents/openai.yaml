@@ -1,0 +1,4 @@
+interface:
+  display_name: "YSYX Validation Selection"
+  short_description: "Select targeted YSYX tests and validation depth"
+  default_prompt: "Use $ysyx-validation to choose the smallest sufficient regression plan for this change."

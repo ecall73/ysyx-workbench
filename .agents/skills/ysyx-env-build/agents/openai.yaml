@@ -1,0 +1,4 @@
+interface:
+  display_name: "YSYX Environment and Build"
+  short_description: "Diagnose YSYX environments and build flows"
+  default_prompt: "Use $ysyx-env-build to diagnose this environment, configuration, or build failure."

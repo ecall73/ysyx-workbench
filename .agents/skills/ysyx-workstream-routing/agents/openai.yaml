@@ -1,0 +1,4 @@
+interface:
+  display_name: "YSYX Workstream Routing"
+  short_description: "Route cross-component YSYX engineering work"
+  default_prompt: "Use $ysyx-workstream-routing to identify the owning subsystem and validation path for this change."

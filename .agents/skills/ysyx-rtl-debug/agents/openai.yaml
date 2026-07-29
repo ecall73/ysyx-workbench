@@ -1,0 +1,4 @@
+interface:
+  display_name: "YSYX RTL Debugging"
+  short_description: "Debug NPC and ysyxSoC simulation flows"
+  default_prompt: "Use $ysyx-rtl-debug to reproduce and isolate this NPC or ysyxSoC RTL problem."

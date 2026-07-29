@@ -1,0 +1,4 @@
+interface:
+  display_name: "YSYX Submodule Git Flow"
+  short_description: "Manage YSYX submodule and tracer Git state"
+  default_prompt: "Use $ysyx-submodule-git-flow to handle this submodule or repository-state change safely."
