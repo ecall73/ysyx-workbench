@@ -49,6 +49,9 @@ ARCHIVE  = $(WORK_DIR)/build/$(NAME)-$(ISA).a
 ifneq ($(ISA), native)
 LIBS += libc libos
 CFLAGS += -U_FORTIFY_SOURCE  # fix compile error in Newlib on ubuntu
+# GCC 14+ promotes these legacy Newlib/BusyBox diagnostics to errors.
+# Keep the warning behavior used by older GCC versions.
+CFLAGS += -Wno-error=implicit-function-declaration -Wno-error=int-conversion
 else
 WL = -Wl,
 endif
@@ -80,7 +83,7 @@ LD        = $(CROSS_COMPILE)ld
 AR        = $(CROSS_COMPILE)ar
 
 ### Compilation flags
-INC_PATH += $(WORK_DIR)/include $(foreach l,$(LIBS_INC),$(NAVY_HOME)/libs/$(l)/include/)
+INC_PATH += $(NAVY_HOME)/include $(WORK_DIR)/include $(foreach l,$(LIBS_INC),$(NAVY_HOME)/libs/$(l)/include/)
 INCFLAGS += $(addprefix -I, $(INC_PATH))
 
 CFLAGS   += -O2 -MMD $(INCFLAGS) -static -D__NAVY__ \

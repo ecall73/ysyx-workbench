@@ -6,6 +6,7 @@
 !.gitignore
 !*.[cSh]
 !*.cpp
+!include/gnu/stubs-ilp32.h
 !scripts/**/*.mk
 build/
 repo/
