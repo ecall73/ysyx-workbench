@@ -37,8 +37,16 @@ enum {
   CSR_MIP         = 0x344,
   CSR_PMPCFG0     = 0x3a0,
   CSR_PMPADDR0    = 0x3b0,
+  CSR_MCYCLE      = 0xb00,
+  CSR_MINSTRET    = 0xb02,
+  CSR_MCYCLEH     = 0xb80,
+  CSR_MINSTRETH   = 0xb82,
+  CSR_CYCLE       = 0xc00,
   CSR_TIME        = 0xc01,
+  CSR_INSTRET     = 0xc02,
+  CSR_CYCLEH      = 0xc80,
   CSR_TIMEH       = 0xc81,
+  CSR_INSTRETH    = 0xc82,
   CSR_MVENDORID   = 0xf11,
   CSR_MARCHID     = 0xf12,
   CSR_MIMPID      = 0xf13,
@@ -57,17 +65,22 @@ enum {
   MSTATUS_MPRV = 1u << 17,
   MSTATUS_SUM  = 1u << 18,
   MSTATUS_MXR  = 1u << 19,
+  MSTATUS_TVM  = 1u << 20,
+  MSTATUS_TW   = 1u << 21,
+  MSTATUS_TSR  = 1u << 22,
   MSTATUS_SD   = 1u << 31,
 };
 
 enum {
   IRQ_SSIP = 1,
+  IRQ_MSIP = 3,
   IRQ_MTIP = 7,
   IRQ_STIP = 5,
   IRQ_SEIP = 9,
 };
 
 #define MIP_SSIP (1u << IRQ_SSIP)
+#define MIP_MSIP (1u << IRQ_MSIP)
 #define MIP_STIP (1u << IRQ_STIP)
 #define MIP_MTIP (1u << IRQ_MTIP)
 #define MIP_SEIP (1u << IRQ_SEIP)
@@ -75,7 +88,11 @@ enum {
 #define MENVCFGH_ADUE (1u << 29)
 #define MENVCFGH_STCE (1u << 31)
 
+#define MCOUNTINHIBIT_CY (1u << 0)
+#define MCOUNTINHIBIT_IR (1u << 2)
+
 word_t csr_read(uint32_t addr);
 void csr_write(uint32_t addr, word_t data);
+void csr_validate_access(uint32_t addr, bool write);
 
 #endif

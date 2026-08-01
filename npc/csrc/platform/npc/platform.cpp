@@ -69,8 +69,9 @@ static const char *platform_memory_name(uint32_t addr) {
 }
 #endif
 
-bool platform_in_comparable_mem(paddr_t addr) {
-  return in_npc_pmem(addr);
+bool platform_in_comparable_mem(paddr_t addr, int len) {
+  return len > 0 && (uint32_t)len <= NPC_PMEM_SIZE && in_npc_pmem(addr) &&
+      addr <= NPC_PMEM_BASE + NPC_PMEM_SIZE - (uint32_t)len;
 }
 
 void platform_trace_read(paddr_t addr, int len, word_t data) {
@@ -112,7 +113,9 @@ void platform_difftest_memcpy(void (*ref_memcpy)(paddr_t, void *, size_t, bool),
   if (img_size > 0) ref_memcpy(NPC_PMEM_BASE, pmem, (size_t)img_size, direction);
 }
 
-void platform_enable_ref_paddr(void (*enable_ysyxsoc_paddr)(void)) { (void)enable_ysyxsoc_paddr; }
+uint32_t platform_difftest_memory_map(void) {
+  return RISCV_DIFFTEST_MEMORY_MAP_NEMU;
+}
 
 extern "C" int pmem_read(int raddr) {
   word_t data = 0;

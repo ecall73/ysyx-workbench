@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <macro.h>
 #include <generated/autoconf.h>
+#include <riscv-difftest.h>
 
 enum { DIFFTEST_TO_DUT, DIFFTEST_TO_REF };
 

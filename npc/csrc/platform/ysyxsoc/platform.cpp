@@ -17,20 +17,13 @@ static uint8_t flash[NPC_FLASH_SIZE];
 static uint8_t sdram[NPC_SDRAM_SIZE];
 static long flash_size = 0;
 
-static bool in_flash(uint32_t addr) {
-  return addr >= NPC_FLASH_BASE && addr < NPC_FLASH_BASE + NPC_FLASH_SIZE;
-}
-
-static bool in_sdram(uint32_t addr) {
-  return addr >= NPC_SDRAM_BASE && addr < NPC_SDRAM_BASE + NPC_SDRAM_SIZE;
-}
-
 static bool in_range32(uint32_t addr, uint32_t base, uint32_t end) {
   return addr >= base && addr <= end;
 }
 
 static bool in_range(uint32_t addr, int len, uint32_t base, uint32_t size) {
-  return len > 0 && addr >= base && addr <= base + size - (uint32_t)len;
+  return len > 0 && (uint32_t)len <= size && addr >= base &&
+      addr - base <= size - (uint32_t)len;
 }
 
 void platform_log_memory() {
@@ -115,10 +108,10 @@ static const char *platform_device_name(uint32_t addr) {
   return NULL;
 }
 
-bool platform_in_comparable_mem(paddr_t addr) {
-  return in_flash(addr)
-      || (addr >= NPC_SRAM_BASE && addr < NPC_SRAM_BASE + NPC_SRAM_SIZE)
-      || in_sdram(addr);
+bool platform_in_comparable_mem(paddr_t addr, int len) {
+  return in_range(addr, len, NPC_FLASH_BASE, NPC_FLASH_SIZE) ||
+      in_range(addr, len, NPC_SRAM_BASE, NPC_SRAM_SIZE) ||
+      in_range(addr, len, NPC_SDRAM_BASE, NPC_SDRAM_SIZE);
 }
 
 #ifdef CONFIG_MTRACE
@@ -172,10 +165,8 @@ void platform_difftest_memcpy(void (*ref_memcpy)(paddr_t, void *, size_t, bool),
   if (flash_size > 0) ref_memcpy(NPC_FLASH_BASE, flash, (size_t)flash_size, direction);
 }
 
-void platform_enable_ref_paddr(void (*enable_ysyxsoc_paddr)(void)) {
-  Assert(enable_ysyxsoc_paddr != NULL,
-      "Can not find DiffTest symbol 'difftest_enable_ysyxsoc_paddr'");
-  enable_ysyxsoc_paddr();
+uint32_t platform_difftest_memory_map(void) {
+  return RISCV_DIFFTEST_MEMORY_MAP_YSYXSOC;
 }
 
 extern "C" void flash_read(int addr, int *data) {

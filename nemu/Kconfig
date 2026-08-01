@@ -176,6 +176,67 @@ config ETRACE
   bool "Enable exception trace (etrace)"
   default n
 
+if ISA_riscv
+menuconfig RISCV_EXCEPTION_PANIC
+  bool "Panic on selected RISC-V exceptions"
+  depends on !TARGET_SHARE
+  default n
+  help
+    Stop simulation after constructing a selected exception instead of
+    delivering it to the architectural trap handler. Reference-library builds
+    always disable this debugging policy.
+
+if RISCV_EXCEPTION_PANIC
+config EXCEPTION_PANIC_CAUSE_1_INSTRUCTION_ACCESS_FAULT
+  bool "1: Instruction access fault"
+  default y
+
+config EXCEPTION_PANIC_CAUSE_2_ILLEGAL_INSTRUCTION
+  bool "2: Illegal instruction"
+  default y
+
+config EXCEPTION_PANIC_CAUSE_4_LOAD_ADDRESS_MISALIGNED
+  bool "4: Load address misaligned"
+  default y
+
+config EXCEPTION_PANIC_CAUSE_5_LOAD_ACCESS_FAULT
+  bool "5: Load access fault"
+  default y
+
+config EXCEPTION_PANIC_CAUSE_6_STORE_AMO_ADDRESS_MISALIGNED
+  bool "6: Store/AMO address misaligned"
+  default y
+
+config EXCEPTION_PANIC_CAUSE_7_STORE_AMO_ACCESS_FAULT
+  bool "7: Store/AMO access fault"
+  default y
+
+config EXCEPTION_PANIC_CAUSE_8_ECALL_FROM_U_MODE
+  bool "8: Environment call from U-mode"
+  default n
+
+config EXCEPTION_PANIC_CAUSE_9_ECALL_FROM_S_MODE
+  bool "9: Environment call from S-mode"
+  default n
+
+config EXCEPTION_PANIC_CAUSE_11_ECALL_FROM_M_MODE
+  bool "11: Environment call from M-mode"
+  default n
+
+config EXCEPTION_PANIC_CAUSE_12_INSTRUCTION_PAGE_FAULT
+  bool "12: Instruction page fault"
+  default y
+
+config EXCEPTION_PANIC_CAUSE_13_LOAD_PAGE_FAULT
+  bool "13: Load page fault"
+  default y
+
+config EXCEPTION_PANIC_CAUSE_15_STORE_AMO_PAGE_FAULT
+  bool "15: Store/AMO page fault"
+  default y
+endif
+endif
+
 
 config DIFFTEST
   depends on TARGET_NATIVE_ELF

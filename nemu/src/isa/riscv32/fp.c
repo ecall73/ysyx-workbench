@@ -14,8 +14,9 @@
 #define F64_CANONICAL_NAN UINT64_C(0x7ff8000000000000)
 
 static void fp_require_enabled(void) {
-  Assert((cpu.mstatus & MSTATUS_FS_MASK) != 0,
-      "floating-point state is disabled: pc=" FMT_WORD, cpu.pc);
+  if ((cpu.mstatus & MSTATUS_FS_MASK) == 0) {
+    riscv_raise_illegal_instruction();
+  }
 }
 
 word_t fp_normalize_mstatus(word_t value) {
@@ -33,8 +34,7 @@ static void fp_mark_dirty(void) {
 
 static uint_fast8_t fp_resolve_rm(uint32_t rm) {
   uint_fast8_t mode = rm == 7 ? (cpu.fcsr >> 5) & 0x7 : rm;
-  Assert(mode <= 4, "invalid floating-point rounding mode: pc=" FMT_WORD
-      " inst-rm=%u frm=%u", cpu.pc, rm, (cpu.fcsr >> 5) & 0x7);
+  if (mode > 4) riscv_raise_illegal_instruction();
   return mode;
 }
 
@@ -130,6 +130,7 @@ void fp_store_s(int rs2, vaddr_t addr) {
 
 void fp_load_d(int rd, vaddr_t addr) {
   fp_require_enabled();
+  vaddr_check_access(addr, 8, MEM_TYPE_READ);
   uint64_t value = vaddr_read(addr, 4);
   value |= (uint64_t)vaddr_read(addr + 4, 4) << 32;
   fp_write_d(rd, (float64_t){ .v = value });
@@ -137,6 +138,7 @@ void fp_load_d(int rd, vaddr_t addr) {
 
 void fp_store_d(int rs2, vaddr_t addr) {
   fp_require_enabled();
+  vaddr_check_access(addr, 8, MEM_TYPE_WRITE);
   uint64_t value = cpu.fpr[rs2];
   vaddr_write(addr, 4, (uint32_t)value);
   vaddr_write(addr + 4, 4, value >> 32);

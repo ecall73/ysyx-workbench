@@ -21,17 +21,24 @@
 
 #ifdef CONFIG_DIFFTEST
 void difftest_skip_ref();
+void difftest_skip_ref_reason(uint32_t reason);
 void difftest_skip_dut(int nr_ref, int nr_dut);
 void difftest_set_patch(void (*fn)(void *arg), void *arg);
-void difftest_step(vaddr_t pc, vaddr_t npc);
+void difftest_step(vaddr_t pc, uint32_t instruction_bits,
+    uint32_t instruction_length, bool instruction_valid);
+void difftest_raise_intr_event(uint32_t interrupt_code, vaddr_t pretrap_pc);
 void difftest_detach();
 void difftest_attach();
 bool difftest_is_attached();
 #else
 static inline void difftest_skip_ref() {}
+static inline void difftest_skip_ref_reason(uint32_t reason) {}
 static inline void difftest_skip_dut(int nr_ref, int nr_dut) {}
 static inline void difftest_set_patch(void (*fn)(void *arg), void *arg) {}
-static inline void difftest_step(vaddr_t pc, vaddr_t npc) {}
+static inline void difftest_step(vaddr_t pc, uint32_t instruction_bits,
+    uint32_t instruction_length, bool instruction_valid) {}
+static inline void difftest_raise_intr_event(uint32_t interrupt_code,
+    vaddr_t pretrap_pc) {}
 static inline void difftest_detach() {}
 static inline void difftest_attach() {}
 static inline bool difftest_is_attached() { return false; }

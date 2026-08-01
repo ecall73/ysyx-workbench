@@ -16,9 +16,11 @@
 #include "local-include/reg.h"
 #include "local-include/fp.h"
 #include "local-include/csr.h"
+#include "local-include/exception.h"
 #include <cpu/cpu.h>
 #include <cpu/ifetch.h>
 #include <cpu/decode.h>
+#include <memory/paddr.h>
 
 #define R(i) gpr(i)
 #define Mr vaddr_read
@@ -189,7 +191,7 @@ static int decode_exec_rvc(Decode *s) {
   INSTPAT_START();
   // Quadrant 0
   INSTPAT("000 ???????? ??? 00", c_addi4spn, CIW,
-      if (imm == 0) INV(s->pc); else R(rd) = src1 + imm);
+      if (imm == 0) riscv_raise_illegal_instruction(); else R(rd) = src1 + imm);
   INSTPAT("001 ??? ??? ?? ??? 00", c_fld, CL_D, fp_load_d(rd, src1 + imm));
   INSTPAT("010 ??? ??? ?? ??? 00", c_lw, CL, R(rd) = Mr(src1 + imm, 4));
   INSTPAT("011 ??? ??? ?? ??? 00", c_flw, CL, fp_load_s(rd, src1 + imm));
@@ -208,9 +210,9 @@ static int decode_exec_rvc(Decode *s) {
   );
   INSTPAT("010 ? ????? ????? 01", c_li, CI, R(rd) = imm);
   INSTPAT("011 ? 00010 ????? 01", c_addi16sp, CI16SP,
-      if (imm == 0) INV(s->pc); else R(2) = src1 + imm);
+      if (imm == 0) riscv_raise_illegal_instruction(); else R(2) = src1 + imm);
   INSTPAT("011 ? ????? ????? 01", c_lui, CI,
-      if (imm == 0) INV(s->pc); else if (rd != 0) R(rd) = imm << 12);
+      if (imm == 0) riscv_raise_illegal_instruction(); else if (rd != 0) R(rd) = imm << 12);
   // For RV32, shamt[5]=1 is custom encoding space and is not implemented.
   INSTPAT("100 0 00??? ????? 01", c_srli, CB_SHIFT, R(rd) = src1 >> imm);
   INSTPAT("100 0 01??? ????? 01", c_srai, CB_SHIFT, R(rd) = (sword_t)src1 >> imm);
@@ -229,11 +231,11 @@ static int decode_exec_rvc(Decode *s) {
   INSTPAT("000 0 ????? ????? 10", c_slli, CI_SHIFT, R(rd) = src1 << imm);
   INSTPAT("001 ? ????? ????? 10", c_fldsp, CI_LDSP, fp_load_d(rd, src1 + imm));
   INSTPAT("010 ? ????? ????? 10", c_lwsp, CI_LWSP,
-      if (rd == 0) INV(s->pc); else R(rd) = Mr(src1 + imm, 4));
+      if (rd == 0) riscv_raise_illegal_instruction(); else R(rd) = Mr(src1 + imm, 4));
   INSTPAT("011 ? ????? ????? 10", c_flwsp, CI_LWSP, fp_load_s(rd, src1 + imm));
   INSTPAT("100 0 ????? 00000 10", c_jr, CR,
       if (rd == 0) {
-        INV(s->pc);
+        riscv_raise_illegal_instruction();
       } else {
         s->dnpc = src1 & ~1u;
 #ifdef CONFIG_FTRACE
@@ -242,7 +244,9 @@ static int decode_exec_rvc(Decode *s) {
       }
   );
   INSTPAT("100 0 ????? ????? 10", c_mv, CR, R(rd) = src2);
-  INSTPAT("100 1 00000 00000 10", c_ebreak, N, NEMUTRAP(s->pc, R(10)));
+  INSTPAT("100 1 00000 00000 10", c_ebreak, N,
+      s->retired = false;
+      NEMUTRAP(s->pc, R(10)));
   INSTPAT("100 1 ????? 00000 10", c_jalr, CR,
       R(1) = s->snpc;
       s->dnpc = src1 & ~1u;
@@ -255,7 +259,7 @@ static int decode_exec_rvc(Decode *s) {
   INSTPAT("110 ?????? ????? 10", c_swsp, CSS, Mw(src1 + imm, 4, src2));
   INSTPAT("111 ?????? ????? 10", c_fswsp, CSS, fp_store_s(rd, src1 + imm));
 
-  INSTPAT("????????????????", inv, N, INV(s->pc));
+  INSTPAT("????????????????", inv, N, riscv_raise_illegal_instruction());
   INSTPAT_END();
 
 #undef INSTPAT_MATCH
@@ -296,6 +300,15 @@ static void decode_operand(Decode *s, int *rd, word_t *src1, word_t *src2, word_
 
 static inline uint32_t csr_addr(const Decode *s) {
   return BITS(s->isa.inst, 31, 20);
+}
+
+static paddr_t prepare_reservable_access(vaddr_t addr, int type) {
+  vaddr_check_access(addr, 4, type);
+  paddr_t paddr = vaddr_translate(addr, 4, type);
+  if (!paddr_is_memory(paddr, 4)) {
+    riscv_raise_memory_fault(addr, type, false);
+  }
+  return paddr;
 }
 
 static int decode_exec(Decode *s) {
@@ -378,6 +391,7 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , N,
       uint32_t rs1 = BITS(s->isa.inst, 19, 15);
       uint32_t csr = csr_addr(s);
+      csr_validate_access(csr, true);
       word_t old = rd == 0 ? 0 : csr_read(csr);
       csr_write(csr, R(rs1));
       R(rd) = old;
@@ -385,6 +399,7 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , N,
       uint32_t rs1 = BITS(s->isa.inst, 19, 15);
       uint32_t csr = csr_addr(s);
+      csr_validate_access(csr, rs1 != 0);
       word_t old = csr_read(csr);
       if (rs1 != 0) {
         csr_write(csr, old | R(rs1));
@@ -394,6 +409,7 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc  , N,
       uint32_t rs1 = BITS(s->isa.inst, 19, 15);
       uint32_t csr = csr_addr(s);
+      csr_validate_access(csr, rs1 != 0);
       word_t old = csr_read(csr);
       if (rs1 != 0) {
         csr_write(csr, old & ~R(rs1));
@@ -403,6 +419,7 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , N,
       uint32_t csr = csr_addr(s);
       word_t zimm = BITS(s->isa.inst, 19, 15);
+      csr_validate_access(csr, true);
       word_t old = rd == 0 ? 0 : csr_read(csr);
       csr_write(csr, zimm);
       R(rd) = old;
@@ -410,6 +427,7 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , N,
       uint32_t csr = csr_addr(s);
       word_t zimm = BITS(s->isa.inst, 19, 15);
+      csr_validate_access(csr, zimm != 0);
       word_t old = csr_read(csr);
       if (zimm != 0) {
         csr_write(csr, old | zimm);
@@ -419,6 +437,7 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci , N,
       uint32_t csr = csr_addr(s);
       word_t zimm = BITS(s->isa.inst, 19, 15);
+      csr_validate_access(csr, zimm != 0);
       word_t old = csr_read(csr);
       if (zimm != 0) {
         csr_write(csr, old & ~zimm);
@@ -550,14 +569,22 @@ static int decode_exec(Decode *s) {
 
   INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N,
       word_t cause = cpu.priv == MODE_U ? 8 : cpu.priv == MODE_S ? 9 : 11;
-      s->dnpc = isa_raise_intr(cause, s->pc));
+      riscv_raise_exception(cause, 0, MEM_TYPE_NONE));
   INSTPAT("0001000 00010 00000 000 00000 11100 11", sret   , N, s->dnpc = isa_sret());
   INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N, s->dnpc = isa_mret());
   INSTPAT("0001001 ????? ????? 000 00000 11100 11", sfence_vma, N,
-      Assert(cpu.priv != MODE_U, "sfence.vma from U-mode: pc=" FMT_WORD, s->pc));
+      if (cpu.priv == MODE_U ||
+          (cpu.priv == MODE_S && (cpu.mstatus & MSTATUS_TVM))) {
+        riscv_raise_illegal_instruction();
+      });
   INSTPAT("0001000 00101 00000 000 00000 11100 11", wfi    , N,
-      Assert(cpu.priv != MODE_U, "wfi from U-mode: pc=" FMT_WORD, s->pc));
-  INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
+      if (cpu.priv == MODE_U ||
+          (cpu.priv != MODE_M && (cpu.mstatus & MSTATUS_TW))) {
+        riscv_raise_illegal_instruction();
+      });
+  INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N,
+      s->retired = false;
+      NEMUTRAP(s->pc, R(10))); // R(10) is $a0
 
   //RV32M
   INSTPAT("0000001 ????? ????? 000 ????? 01100 11", mul		 , R, R(rd) = src1 * src2);
@@ -572,79 +599,115 @@ static int decode_exec(Decode *s) {
   // RV32A. In this single-hart interpreter the aq/rl bits do not require an
   // additional host-memory fence, but they are accepted in every encoding.
   INSTPAT("00010?? 00000 ????? 010 ????? 01011 11", lr_w, R,
+      paddr_t addr = prepare_reservable_access(src1, MEM_TYPE_READ);
       R(rd) = Mr(src1, 4);
-      cpu.lr_addr = vaddr_translate(src1, 4, MEM_TYPE_READ);
+      cpu.lr_addr = addr;
       cpu.lr_valid = true;
   );
   INSTPAT("00011?? ????? ????? 010 ????? 01011 11", sc_w, R,
-      paddr_t addr = vaddr_translate(src1, 4, MEM_TYPE_WRITE);
+      paddr_t addr = prepare_reservable_access(src1, MEM_TYPE_WRITE);
       bool success = cpu.lr_valid && cpu.lr_addr == addr;
       cpu.lr_valid = false;
       if (success) Mw(src1, 4, src2);
       R(rd) = success ? 0 : 1;
   );
   INSTPAT("00001?? ????? ????? 010 ????? 01011 11", amoswap_w, R,
+      prepare_reservable_access(src1, MEM_TYPE_WRITE);
       word_t old = Mr(src1, 4);
       Mw(src1, 4, src2);
       R(rd) = old;
   );
   INSTPAT("00000?? ????? ????? 010 ????? 01011 11", amoadd_w, R,
+      prepare_reservable_access(src1, MEM_TYPE_WRITE);
       word_t old = Mr(src1, 4);
       Mw(src1, 4, old + src2);
       R(rd) = old;
   );
   INSTPAT("00100?? ????? ????? 010 ????? 01011 11", amoxor_w, R,
+      prepare_reservable_access(src1, MEM_TYPE_WRITE);
       word_t old = Mr(src1, 4);
       Mw(src1, 4, old ^ src2);
       R(rd) = old;
   );
   INSTPAT("01100?? ????? ????? 010 ????? 01011 11", amoand_w, R,
+      prepare_reservable_access(src1, MEM_TYPE_WRITE);
       word_t old = Mr(src1, 4);
       Mw(src1, 4, old & src2);
       R(rd) = old;
   );
   INSTPAT("01000?? ????? ????? 010 ????? 01011 11", amoor_w, R,
+      prepare_reservable_access(src1, MEM_TYPE_WRITE);
       word_t old = Mr(src1, 4);
       Mw(src1, 4, old | src2);
       R(rd) = old;
   );
   INSTPAT("10000?? ????? ????? 010 ????? 01011 11", amomin_w, R,
+      prepare_reservable_access(src1, MEM_TYPE_WRITE);
       word_t old = Mr(src1, 4);
       Mw(src1, 4, (sword_t)old < (sword_t)src2 ? old : src2);
       R(rd) = old;
   );
   INSTPAT("10100?? ????? ????? 010 ????? 01011 11", amomax_w, R,
+      prepare_reservable_access(src1, MEM_TYPE_WRITE);
       word_t old = Mr(src1, 4);
       Mw(src1, 4, (sword_t)old > (sword_t)src2 ? old : src2);
       R(rd) = old;
   );
   INSTPAT("11000?? ????? ????? 010 ????? 01011 11", amominu_w, R,
+      prepare_reservable_access(src1, MEM_TYPE_WRITE);
       word_t old = Mr(src1, 4);
       Mw(src1, 4, old < src2 ? old : src2);
       R(rd) = old;
   );
   INSTPAT("11100?? ????? ????? 010 ????? 01011 11", amomaxu_w, R,
+      prepare_reservable_access(src1, MEM_TYPE_WRITE);
       word_t old = Mr(src1, 4);
       Mw(src1, 4, old > src2 ? old : src2);
       R(rd) = old;
   );
 
-  INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, INV(s->pc));
+  INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N,
+      riscv_raise_illegal_instruction());
   INSTPAT_END();
 
   return finish_exec(s);
 }
 
 int isa_exec_once(Decode *s) {
+  s->instruction_valid = false;
+  s->isa.inst = 0;
+  riscv_exception_begin(s->pc);
+  if (setjmp(riscv_exception_env) != 0) {
+    riscv_exception_t exception = *riscv_exception_current();
+    riscv_exception_end();
+    s->retired = false;
+    if (exception.access_type == MEM_TYPE_IFETCH) {
+      s->snpc = s->pc;
+      s->isa.inst = 0;
+      s->instruction_valid = false;
+    }
+    s->dnpc = riscv_deliver_exception(&exception);
+    R(0) = 0;
+    return 0;
+  }
+
   Assert((s->pc & 0x1) == 0, "unaligned ifetch pc: pc=" FMT_WORD, s->pc);
 
   uint32_t raw = inst_fetch(&s->snpc, 2);
   s->isa.inst = raw;
   if ((raw & 0x3) != 0x3) {
-    return decode_exec_rvc(s);
+    s->instruction_valid = true;
+    riscv_exception_set_instruction(raw);
+    int result = decode_exec_rvc(s);
+    riscv_exception_end();
+    return result;
   }
 
   raw |= inst_fetch(&s->snpc, 2) << 16;
   s->isa.inst = raw;
-  return decode_exec(s);
+  s->instruction_valid = true;
+  riscv_exception_set_instruction(raw);
+  int result = decode_exec(s);
+  riscv_exception_end();
+  return result;
 }

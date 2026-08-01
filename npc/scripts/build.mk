@@ -96,7 +96,7 @@ TRACE_DEPS += $(CAPSTONE_SO)
 endif
 
 CONFIG_DEPS = $(NPC_HOME)/include/generated/autoconf.h $(NPC_HOME)/include/config/auto.conf
-NPC_DEPS = $(VSRCS) $(VHDRS_BASE) $(VERILATOR_SRCS) $(HEADER_DEPS) $(BUILD_CONFIG) $(OBJS) $(MODE_EXTRA_DEPS) $(TRACE_DEPS) $(CONFIG_DEPS)
+NPC_DEPS = $(VSRCS) $(VHDRS_BASE) $(VERILATOR_SRCS) $(HEADER_DEPS) $(RISCV_DIFFTEST_HEADER) $(BUILD_CONFIG) $(OBJS) $(MODE_EXTRA_DEPS) $(TRACE_DEPS) $(CONFIG_DEPS)
 NPC_DEPS += $(NPC_HOME)/Makefile $(NPC_HOME)/scripts/build.mk $(NPC_HOME)/scripts/native.mk
 
 app build: $(BINARY)

@@ -22,6 +22,7 @@ word_t vaddr_ifetch(vaddr_t addr, int len);
 word_t vaddr_read(vaddr_t addr, int len);
 void vaddr_write(vaddr_t addr, int len, word_t data);
 paddr_t vaddr_translate(vaddr_t addr, int len, int type);
+void vaddr_check_access(vaddr_t addr, int len, int type);
 
 #define PAGE_SHIFT        12
 #define PAGE_SIZE         (1ul << PAGE_SHIFT)

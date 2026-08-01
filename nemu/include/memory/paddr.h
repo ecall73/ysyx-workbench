@@ -31,7 +31,17 @@ static inline bool in_pmem(paddr_t addr) {
   return addr - CONFIG_MBASE < CONFIG_MSIZE;
 }
 
+static inline bool in_pmem_range(paddr_t addr, int len) {
+  return len > 0 && addr >= CONFIG_MBASE &&
+      (uint64_t)(addr - CONFIG_MBASE) + (uint64_t)len <= CONFIG_MSIZE;
+}
+
 word_t paddr_read(paddr_t addr, int len);
 void paddr_write(paddr_t addr, int len, word_t data);
+bool paddr_try_read(paddr_t addr, int len, word_t *data);
+bool paddr_try_write(paddr_t addr, int len, word_t data);
+bool paddr_is_mapped(paddr_t addr, int len);
+bool paddr_is_memory(paddr_t addr, int len);
+bool difftest_select_memory_map(uint32_t memory_map, paddr_t reset_pc);
 
 #endif

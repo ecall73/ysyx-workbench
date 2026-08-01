@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <macro.h>
 #include <generated/autoconf.h>
+#include <riscv-difftest.h>
 
 #define __EXPORT __attribute__((visibility("default")))
 enum { DIFFTEST_TO_DUT, DIFFTEST_TO_REF };
@@ -31,7 +32,6 @@ enum { DIFFTEST_TO_DUT, DIFFTEST_TO_REF };
 #define RISCV_GPR_TYPE MUXDEF(CONFIG_RV64, uint64_t, uint32_t)
 #define RISCV_GPR_NUM  MUXDEF(CONFIG_RVE , 16, 32)
 #define RISCV_FPR_NUM  32
-#define RISCV_CSR_NUM  20
 typedef struct {
   RISCV_GPR_TYPE gpr[RISCV_GPR_NUM];
   RISCV_GPR_TYPE pc;

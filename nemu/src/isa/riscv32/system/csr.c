@@ -2,16 +2,18 @@
 #include <cpu/difftest.h>
 #include "../local-include/csr.h"
 #include "../local-include/fp.h"
+#include "../local-include/state.h"
 
 #define SSTATUS_MASK \
   (MSTATUS_SIE | MSTATUS_SPIE | MSTATUS_SPP | MSTATUS_FS | \
    MSTATUS_SUM | MSTATUS_MXR | MSTATUS_SD)
 #define SSTATUS_WRITABLE (SSTATUS_MASK & ~MSTATUS_SD)
 #define MSTATUS_WRITABLE \
-  (SSTATUS_WRITABLE | MSTATUS_MIE | MSTATUS_MPIE | MSTATUS_MPP | MSTATUS_MPRV)
-#define MIE_MASK (MIP_SSIP | MIP_STIP | MIP_MTIP | MIP_SEIP)
+  (SSTATUS_WRITABLE | MSTATUS_MIE | MSTATUS_MPIE | MSTATUS_MPP | \
+   MSTATUS_MPRV | MSTATUS_TVM | MSTATUS_TW | MSTATUS_TSR)
+#define MIE_MASK (MIP_SSIP | MIP_MSIP | MIP_STIP | MIP_MTIP | MIP_SEIP)
 #define COUNTEREN_MASK 0x7u
-#define MCOUNTINHIBIT_MASK ((1u << 0) | (1u << 2))
+#define MCOUNTINHIBIT_MASK (MCOUNTINHIBIT_CY | MCOUNTINHIBIT_IR)
 #define MISA_RV32GC 0x4014112du
 #define MIDELEG_MASK (MIP_SSIP | MIP_STIP | MIP_SEIP)
 #define MEDELEG_MASK \
@@ -23,36 +25,57 @@ static word_t normalize_mstatus(word_t value) {
   value = fp_normalize_mstatus(value);
   word_t mpp = (value & MSTATUS_MPP) >> 11;
   if (mpp != MODE_U && mpp != MODE_S && mpp != MODE_M) {
-    value = (value & ~MSTATUS_MPP) | (MODE_M << 11);
+    value &= ~MSTATUS_MPP;
   }
   return value;
 }
 
+static int counter_access_index(uint32_t addr) {
+  switch (addr) {
+    case CSR_CYCLE:
+    case CSR_CYCLEH:   return 0;
+    case CSR_TIME:
+    case CSR_TIMEH:    return 1;
+    case CSR_INSTRET:
+    case CSR_INSTRETH: return 2;
+    default:           return -1;
+  }
+}
+
+static uint64_t replace_counter_half(uint64_t old, word_t value, bool upper) {
+  return upper ? ((uint64_t)value << 32) | (uint32_t)old
+               : (old & UINT64_C(0xffffffff00000000)) | value;
+}
+
 static void csr_check_access(uint32_t addr, bool write) {
   word_t required_priv = (addr >> 8) & 0x3;
-  Assert(cpu.priv >= required_priv,
-      "CSR privilege violation: pc=" FMT_WORD " priv=%u csr=0x%03x",
-      cpu.pc, cpu.priv, addr);
-  if (write) {
-    Assert(((addr >> 10) & 0x3) != 0x3,
-        "write read-only CSR: pc=" FMT_WORD " csr=0x%03x", cpu.pc, addr);
+  if (cpu.priv < required_priv) riscv_raise_illegal_instruction();
+  if (addr == CSR_SATP && cpu.priv == MODE_S &&
+      (cpu.mstatus & MSTATUS_TVM)) {
+    riscv_raise_illegal_instruction();
   }
-  if (addr == CSR_TIME || addr == CSR_TIMEH) {
+  if (write) {
+    if (((addr >> 10) & 0x3) == 0x3) riscv_raise_illegal_instruction();
+  }
+  int counter = counter_access_index(addr);
+  if (counter >= 0) {
     bool enabled = cpu.priv == MODE_M ||
-        (cpu.priv == MODE_S && (cpu.mcounteren & (1u << 1))) ||
-        (cpu.priv == MODE_U && (cpu.mcounteren & (1u << 1)) &&
-         (cpu.scounteren & (1u << 1)));
-    Assert(enabled,
-        "counter access disabled: pc=" FMT_WORD " priv=%u csr=0x%03x",
-        cpu.pc, cpu.priv, addr);
+        (cpu.priv == MODE_S && (cpu.mcounteren & (1u << counter))) ||
+        (cpu.priv == MODE_U && (cpu.mcounteren & (1u << counter)) &&
+         (cpu.scounteren & (1u << counter)));
+    if (!enabled) riscv_raise_illegal_instruction();
   }
   if ((addr == CSR_STIMECMP || addr == CSR_STIMECMPH) &&
       cpu.priv != MODE_M) {
-    Assert((cpu.menvcfgh & MENVCFGH_STCE) &&
-        (cpu.mcounteren & (1u << 1)),
-        "stimecmp access disabled: pc=" FMT_WORD " csr=0x%03x",
-        cpu.pc, addr);
+    if (!(cpu.menvcfgh & MENVCFGH_STCE) ||
+        !(cpu.mcounteren & (1u << 1))) {
+      riscv_raise_illegal_instruction();
+    }
   }
+}
+
+void csr_validate_access(uint32_t addr, bool write) {
+  csr_check_access(addr, write);
 }
 
 word_t csr_read(uint32_t addr) {
@@ -70,12 +93,16 @@ word_t csr_read(uint32_t addr) {
     case CSR_SCAUSE:     return cpu.scause;
     case CSR_STVAL:      return cpu.stval;
     case CSR_SIP:
-      // Pending interrupts are owned by NEMU and injected into Spike through
-      // difftest_raise_intr(), rather than through Spike's timer model.
-      difftest_skip_ref();
-      return cpu.mip & cpu.mideleg;
-    case CSR_STIMECMP:   return (word_t)cpu.stimecmp;
-    case CSR_STIMECMPH:  return (word_t)(cpu.stimecmp >> 32);
+      // Pending interrupts are DUT-owned and delivered to the reference only
+      // through ASYNC_INTR events.
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_PENDING_OWNED);
+      return riscv_sip_value();
+    case CSR_STIMECMP:
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_TIMER_OWNED);
+      return (word_t)cpu.stimecmp;
+    case CSR_STIMECMPH:
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_TIMER_OWNED);
+      return (word_t)(cpu.stimecmp >> 32);
     case CSR_SATP:       return cpu.satp;
     case CSR_MSTATUS:    return cpu.mstatus;
     case CSR_MEDELEG:    return cpu.medeleg;
@@ -91,30 +118,44 @@ word_t csr_read(uint32_t addr) {
     case CSR_MCAUSE:     return cpu.mcause;
     case CSR_MTVAL:      return cpu.mtval;
     case CSR_MIP:
-      difftest_skip_ref();
-      return cpu.mip;
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_PENDING_OWNED);
+      return riscv_mip_value();
     // This NEMU configuration implements zero PMP entries.
     case CSR_PMPCFG0:
     case CSR_PMPADDR0:   return 0;
     case CSR_TIME:
-      difftest_skip_ref();
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_TIMER_OWNED);
       return (word_t)cpu.mtime;
     case CSR_TIMEH:
-      difftest_skip_ref();
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_TIMER_OWNED);
       return (word_t)(cpu.mtime >> 32);
-    // These fixed CSRs intentionally differ between NEMU, Spike, and the
-    // future RV32IMAC RTL profile.  Return NEMU's value, then synchronize the
-    // post-state instead of comparing the CSR read result.
-    case CSR_MISA:       difftest_skip_ref(); return MISA_RV32GC;
-    case CSR_MVENDORID:  difftest_skip_ref(); return 0x79737978;
-    case CSR_MARCHID:    difftest_skip_ref(); return 26030082;
-    case CSR_MIMPID:     difftest_skip_ref(); return 0;
-    case CSR_MHARTID:    difftest_skip_ref(); return 0;
-    case CSR_MCONFIGPTR: difftest_skip_ref(); return 0;
-    case CSR_MSTATUSH:   difftest_skip_ref(); return 0;
-    default:
-      Assert(0, "read unsupported CSR: pc=" FMT_WORD " csr=0x%03x", cpu.pc, addr);
+    case CSR_CYCLE:     return (word_t)cpu.mcycle;
+    case CSR_CYCLEH:    return (word_t)(cpu.mcycle >> 32);
+    case CSR_INSTRET:   return (word_t)cpu.minstret;
+    case CSR_INSTRETH:  return (word_t)(cpu.minstret >> 32);
+    case CSR_MCYCLE:    return (word_t)cpu.mcycle;
+    case CSR_MCYCLEH:   return (word_t)(cpu.mcycle >> 32);
+    case CSR_MINSTRET:  return (word_t)cpu.minstret;
+    case CSR_MINSTRETH: return (word_t)(cpu.minstret >> 32);
+    // Profile-owned fixed CSRs may differ across implementations. Return the
+    // local value, then synchronize the instruction's architectural effects.
+    case CSR_MISA:
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_PROFILE_OWNED_MISA);
+      return MISA_RV32GC;
+    case CSR_MVENDORID:
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_PROFILE_OWNED_STATIC);
+      return 0x79737978;
+    case CSR_MARCHID:
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_PROFILE_OWNED_STATIC);
+      return 26030082;
+    case CSR_MIMPID:
+    case CSR_MHARTID:
+    case CSR_MCONFIGPTR:
+    case CSR_MSTATUSH:
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_PROFILE_OWNED_STATIC);
       return 0;
+    default:
+      riscv_raise_illegal_instruction();
   }
 }
 
@@ -133,21 +174,24 @@ void csr_write(uint32_t addr, word_t data) {
     case CSR_SIE:
       cpu.mie = (cpu.mie & ~cpu.mideleg) | (data & cpu.mideleg & MIE_MASK);
       break;
-    case CSR_STVEC:      cpu.stvec = data; break;
+    case CSR_STVEC:      cpu.stvec = data & ~2u; break;
     case CSR_SCOUNTEREN: cpu.scounteren = data & COUNTEREN_MASK; break;
     case CSR_SSCRATCH:   cpu.sscratch = data; break;
     case CSR_SEPC:       cpu.sepc = data & ~1u; break;
     case CSR_SCAUSE:     cpu.scause = data; break;
     case CSR_STVAL:      cpu.stval = data; break;
     case CSR_SIP: {
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_PENDING_OWNED);
       word_t writable = cpu.mideleg & MIP_SSIP;
-      cpu.mip = (cpu.mip & ~writable) | (data & writable);
+      if (writable) cpu.ssip = (data & MIP_SSIP) != 0;
       break;
     }
     case CSR_STIMECMP:
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_TIMER_OWNED);
       cpu.stimecmp = (cpu.stimecmp & ~UINT64_C(0xffffffff)) | data;
       break;
     case CSR_STIMECMPH:
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_TIMER_OWNED);
       cpu.stimecmp = ((uint64_t)data << 32) | (uint32_t)cpu.stimecmp;
       break;
     case CSR_SATP:       cpu.satp = data; break;
@@ -157,10 +201,11 @@ void csr_write(uint32_t addr, word_t data) {
     case CSR_MEDELEG:    cpu.medeleg = data & MEDELEG_MASK; break;
     case CSR_MIDELEG:    cpu.mideleg = data & MIDELEG_MASK; break;
     case CSR_MIE:        cpu.mie = data & MIE_MASK; break;
-    case CSR_MTVEC:      cpu.mtvec = data; break;
+    case CSR_MTVEC:      cpu.mtvec = data & ~2u; break;
     case CSR_MCOUNTEREN: cpu.mcounteren = data & COUNTEREN_MASK; break;
     case CSR_MCOUNTINHIBIT:
       cpu.mcountinhibit = data & MCOUNTINHIBIT_MASK;
+      riscv_record_counter_write(addr);
       break;
     case CSR_MENVCFG:    break;
     case CSR_MENVCFGH:
@@ -171,7 +216,27 @@ void csr_write(uint32_t addr, word_t data) {
     case CSR_MCAUSE:     cpu.mcause = data; break;
     case CSR_MTVAL:      cpu.mtval = data; break;
     case CSR_MIP:
-      cpu.mip = (cpu.mip & ~MIP_SSIP) | (data & MIP_SSIP);
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_PENDING_OWNED);
+      cpu.ssip = (data & MIP_SSIP) != 0;
+      break;
+    case CSR_MISA:
+      difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_PROFILE_OWNED_MISA);
+      break;
+    case CSR_MCYCLE:
+      cpu.mcycle = replace_counter_half(cpu.mcycle, data, false);
+      riscv_record_counter_write(addr);
+      break;
+    case CSR_MCYCLEH:
+      cpu.mcycle = replace_counter_half(cpu.mcycle, data, true);
+      riscv_record_counter_write(addr);
+      break;
+    case CSR_MINSTRET:
+      cpu.minstret = replace_counter_half(cpu.minstret, data, false);
+      riscv_record_counter_write(addr);
+      break;
+    case CSR_MINSTRETH:
+      cpu.minstret = replace_counter_half(cpu.minstret, data, true);
+      riscv_record_counter_write(addr);
       break;
     case CSR_PMPCFG0:
     case CSR_PMPADDR0:   break;
@@ -180,16 +245,15 @@ void csr_write(uint32_t addr, word_t data) {
     case CSR_MIMPID:
     case CSR_MHARTID:
     case CSR_MCONFIGPTR:
-    case CSR_MISA:
     case CSR_MSTATUSH:
     case CSR_TIME:
     case CSR_TIMEH:
-      Assert(0, "write read-only CSR: pc=" FMT_WORD " csr=0x%03x data=" FMT_WORD,
-          cpu.pc, addr, data);
-      break;
+    case CSR_CYCLE:
+    case CSR_CYCLEH:
+    case CSR_INSTRET:
+    case CSR_INSTRETH:
+      riscv_raise_illegal_instruction();
     default:
-      Assert(0, "write unsupported CSR: pc=" FMT_WORD " csr=0x%03x data=" FMT_WORD,
-          cpu.pc, addr, data);
-      break;
+      riscv_raise_illegal_instruction();
   }
 }

@@ -24,21 +24,22 @@ typedef struct {
   vaddr_t pc;
   word_t fcsr;
   uint64_t fpr[32];
-  // Deterministic fields are packed into the explicit DiffTest context below.
+  // Deterministic owners projected by the versioned DiffTest adapter.
   word_t mstatus, mtvec, mepc, mcause, mtval;
   word_t medeleg, mideleg, mie;
   word_t stvec, sepc, scause, stval, sscratch;
   word_t satp, mscratch, menvcfgh, mcounteren;
   word_t scounteren, mcountinhibit;
+  uint64_t mcycle, minstret;
   word_t priv;
-  // NEMU owns pending interrupts and timer state. They are outside the Spike
-  // register-copy ABI, but remain part of the complete CPU state.
-  word_t mip;
+  // Pending views are projected from these software and timer sources.
+  bool msip, ssip;
   uint64_t stimecmp, mtime, mtimecmp;
   bool lr_valid;
   paddr_t lr_addr;
 } MUXDEF(CONFIG_RV64, riscv64_CPU_state, riscv32_CPU_state);
 
+// Isolated compatibility layout for legacy non-versioned consumers.
 static inline void riscv_difftest_pack(riscv_difftest_context_t *ctx,
     const MUXDEF(CONFIG_RV64, riscv64_CPU_state, riscv32_CPU_state) *state) {
   for (int i = 0; i < RISCV_GPR_NUM; i++) ctx->gpr[i] = state->gpr[i];

@@ -32,15 +32,20 @@ static bool g_print_step = false;
 
 void device_update();
 #ifdef CONFIG_ISA_riscv
-void riscv_update_arch_state(void);
+typedef struct riscv_retire_info riscv_retire_info_t;
+const riscv_retire_info_t *riscv_begin_arch_step(void);
+void riscv_update_arch_state(const riscv_retire_info_t *retire_info);
 #endif
 
-static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
+static void trace_and_difftest(Decode *_this) {
 #ifdef CONFIG_ITRACE_COND
   if (ITRACE_COND) { log_write("%s\n", _this->logbuf); }
 #endif
   if (g_print_step) { IFDEF(CONFIG_ITRACE, puts(_this->logbuf)); }
-  IFDEF(CONFIG_DIFFTEST, difftest_step(_this->pc, dnpc));
+  if (nemu_state.state == NEMU_RUNNING) {
+    IFDEF(CONFIG_DIFFTEST, difftest_step(_this->pc, _this->isa.inst,
+          _this->snpc - _this->pc, _this->instruction_valid));
+  }
 
 #ifdef CONFIG_WATCHPOINT
   bool wp_check();
@@ -53,11 +58,18 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 static void exec_once(Decode *s, vaddr_t pc) {
   s->pc = pc;
   s->snpc = pc;
+  s->instruction_valid = true;
+  s->retired = true;
   isa_exec_once(s);
   cpu.pc = s->dnpc;
 #ifdef CONFIG_ITRACE
   char *p = s->logbuf;
   p += snprintf(p, sizeof(s->logbuf), FMT_WORD ":", s->pc);
+  if (!s->instruction_valid) {
+    snprintf(p, s->logbuf + sizeof(s->logbuf) - p,
+        " <instruction fetch fault>");
+    return;
+  }
   int ilen = s->snpc - s->pc;
   int i;
   uint8_t *inst = (uint8_t *)&s->isa.inst;
@@ -84,23 +96,32 @@ static void exec_once(Decode *s, vaddr_t pc) {
 static void execute(uint64_t n) {
   Decode s;
   for (;n > 0; n --) {
+#ifdef CONFIG_ISA_riscv
+    const riscv_retire_info_t *retire_info = riscv_begin_arch_step();
+#endif
     exec_once(&s, cpu.pc);
     g_nr_guest_inst ++;
 #ifdef CONFIG_ISA_riscv
-    riscv_update_arch_state();
+    if (s.retired) riscv_update_arch_state(retire_info);
 #endif
-    trace_and_difftest(&s, cpu.pc);
+    trace_and_difftest(&s);
     if (nemu_state.state != NEMU_RUNNING) break;
     IFDEF(CONFIG_DEVICE, device_update());
     word_t intr = isa_query_intr();
     if (intr != INTR_EMPTY) {
-      cpu.pc = isa_raise_intr(intr, cpu.pc);
+      vaddr_t pretrap_pc = cpu.pc;
+      cpu.pc = isa_raise_intr(intr, pretrap_pc);
 #ifdef CONFIG_DIFFTEST
       if (difftest_is_attached()) {
+#ifdef CONFIG_ISA_riscv
+        difftest_raise_intr_event(intr & 0x7fffffffu, pretrap_pc);
+#else
         ref_difftest_raise_intr(intr);
+#endif
       }
 #endif
     }
+    if (nemu_state.state != NEMU_RUNNING) break;
   }
 }
 

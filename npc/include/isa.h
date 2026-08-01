@@ -2,6 +2,7 @@
 #define __ISA_H__
 
 #include <isa-def.h>
+#include <riscv-difftest.h>
 
 typedef riscv32_CPU_state CPU_state;
 typedef riscv32_ISADecodeInfo ISADecodeInfo;
@@ -22,7 +23,10 @@ void isa_reg_display();
 word_t isa_reg_str2val(const char *name, bool *success);
 
 // difftest
-bool isa_difftest_checkregs(CPU_state *ref_r, vaddr_t pc);
+bool isa_difftest_check_observation(
+    const riscv_difftest_observation_t *ref,
+    const riscv_difftest_observation_t *dut,
+    const char *event_name, vaddr_t event_pc);
 
 #ifdef __cplusplus
 }

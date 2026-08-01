@@ -6,7 +6,7 @@
 typedef struct {
   word_t gpr[32];
   vaddr_t pc;
-  // Must match NEMU's RISC-V CPU_state layout and npc/csrc/isa/riscv32/difftest/dut.c.
+  // Committed RTL state. DiffTest projects it into the versioned RV32E ABI.
   word_t mstatus, mtvec, mepc, mcause, satp;
 } riscv32_CPU_state;
 

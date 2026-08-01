@@ -26,6 +26,11 @@ static IOMap* fetch_mmio_map(paddr_t addr) {
   return (mapid == -1 ? NULL : &maps[mapid]);
 }
 
+bool mmio_is_mapped(paddr_t addr, int len) {
+  IOMap *map = fetch_mmio_map(addr);
+  return map != NULL && map_contains(map, addr, len);
+}
+
 static void report_mmio_overlap(const char *name1, paddr_t l1, paddr_t r1,
     const char *name2, paddr_t l2, paddr_t r2) {
   panic("MMIO region %s@[" FMT_PADDR ", " FMT_PADDR "] is overlapped "

@@ -14,6 +14,7 @@
 ***************************************************************************************/
 
 #include <isa.h>
+#include <cpu/difftest.h>
 #include <memory/host.h>
 #include <memory/vaddr.h>
 #include <device/map.h>
@@ -32,13 +33,13 @@ uint8_t* new_space(int size) {
   return p;
 }
 
-static void check_bound(IOMap *map, paddr_t addr) {
+static void check_bound(IOMap *map, paddr_t addr, int len) {
   if (map == NULL) {
     Assert(map != NULL, "address (" FMT_PADDR ") is out of bound at pc = " FMT_WORD, addr, cpu.pc);
   } else {
-    Assert(addr <= map->high && addr >= map->low,
-        "address (" FMT_PADDR ") is out of bound {%s} [" FMT_PADDR ", " FMT_PADDR "] at pc = " FMT_WORD,
-        addr, map->name, map->low, map->high, cpu.pc);
+    Assert(map_contains(map, addr, len),
+        "access (" FMT_PADDR ", len=%d) is out of bound {%s} [" FMT_PADDR ", " FMT_PADDR "] at pc = " FMT_WORD,
+        addr, len, map->name, map->low, map->high, cpu.pc);
   }
 }
 
@@ -54,7 +55,8 @@ void init_map() {
 
 word_t map_read(paddr_t addr, int len, IOMap *map) {
   assert(len >= 1 && len <= 8);
-  check_bound(map, addr);
+  check_bound(map, addr, len);
+  difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_MMIO_DUT_OWNED);
   paddr_t offset = addr - map->low;
 #ifdef CONFIG_DTRACE
   dtrace_write("device=%s type=read addr=0x%lx len=%d\n", map->name, (uint64_t)addr, len);
@@ -66,7 +68,8 @@ word_t map_read(paddr_t addr, int len, IOMap *map) {
 
 void map_write(paddr_t addr, int len, word_t data, IOMap *map) {
   assert(len >= 1 && len <= 8);
-  check_bound(map, addr);
+  check_bound(map, addr, len);
+  difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_MMIO_DUT_OWNED);
   paddr_t offset = addr - map->low;
 #ifdef CONFIG_DTRACE
   dtrace_write("device=%s type=write addr=0x%lx len=%d data=0x%lx\n", map->name, (uint64_t)addr, len, (uint64_t)data);

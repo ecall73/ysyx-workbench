@@ -23,7 +23,7 @@ const char *regs[] = {
   "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
 };
 
-#define NR_GPR ARRLEN(regs)
+#define NR_GPR ARRLEN(cpu.gpr)
 
 void isa_reg_display() {
   for (int i = 0; i < NR_GPR; i ++) {
@@ -41,7 +41,7 @@ word_t isa_reg_str2val(const char *s, bool *success) {
     return cpu.pc;
   }
   
-  // Try to match x0-x31
+  // Try to match an implemented architectural register.
   if (s[0] == '$' && s[1] == 'x') {
       int reg_idx = -1;
       if (sscanf(s + 2, "%d", &reg_idx) == 1) {

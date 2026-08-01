@@ -43,7 +43,7 @@ int isa_exec_once(struct Decode *s);
 
 // memory
 enum { MMU_DIRECT, MMU_TRANSLATE, MMU_FAIL };
-enum { MEM_TYPE_IFETCH, MEM_TYPE_READ, MEM_TYPE_WRITE };
+enum { MEM_TYPE_IFETCH, MEM_TYPE_READ, MEM_TYPE_WRITE, MEM_TYPE_NONE };
 enum { MEM_RET_OK, MEM_RET_FAIL, MEM_RET_CROSS_PAGE };
 #ifndef isa_mmu_check
 int isa_mmu_check(vaddr_t vaddr, int len, int type);
@@ -51,11 +51,19 @@ int isa_mmu_check(vaddr_t vaddr, int len, int type);
 paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type);
 
 // interrupt/exception
-vaddr_t isa_raise_intr(word_t NO, vaddr_t epc);
+vaddr_t isa_raise_intr(word_t cause, vaddr_t epc);
 vaddr_t isa_mret();
 vaddr_t isa_sret();
 #define INTR_EMPTY ((word_t)-1)
 word_t isa_query_intr();
+
+#ifdef CONFIG_ISA_riscv
+void riscv_raise_exception(word_t cause, word_t tval, int access_type)
+    __attribute__((noreturn));
+void riscv_raise_memory_fault(vaddr_t addr, int type, bool page_fault)
+    __attribute__((noreturn));
+void riscv_raise_illegal_instruction(void) __attribute__((noreturn));
+#endif
 
 // difftest
 bool isa_difftest_checkregs(CPU_state *ref_r, vaddr_t pc);

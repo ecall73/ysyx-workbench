@@ -1,7 +1,7 @@
 .DEFAULT_GOAL = app
 
 # Add necessary options if the target is a shared library
-ifeq ($(SHARE),1)
+ifdef CONFIG_TARGET_SHARE
 SO = -so
 CFLAGS  += -fPIC -fvisibility=hidden
 LDFLAGS += -shared -fPIC
