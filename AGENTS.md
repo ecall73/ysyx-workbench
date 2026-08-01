@@ -6,8 +6,10 @@ tutorial or exercise-solving restrictions.
 
 ## Start Here
 
-- Read `docs/workstreams.md` before broad changes or whenever ownership is
+- Read `.agents/workstreams.md` before broad changes or whenever ownership is
   unclear.
+- Keep shared agent workflow documentation under `.agents/`; keep
+  skill-specific resources inside their owning skill directory.
 - Choose one primary workstream and one primary write scope before editing.
 - Change the owner of a contract before its consumers. List consumers that need
   validation separately from files that need modification.

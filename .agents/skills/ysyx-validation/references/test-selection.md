@@ -6,6 +6,7 @@
 |---|---|---|
 | Native/unit checks | pure library logic, parsers, host scripts, generated metadata | native semantics must match the target contract being claimed |
 | `am-apps/tests/` | focused klib, memory, device, cache, counter, and platform behavior | choose only tests supported by the selected AM platform |
+| `am-apps/diff/` | self-checking DiffTest protocol, ownership, trap-boundary, and synchronization behavior | use only with a DUT/reference pair that implements the required profile |
 | `riscv-tests-am/` | compact legacy ISA instruction regressions | match XLEN, implemented extensions, and wrapper exclusions |
 | `riscv-arch-test-am/` | official architecture-test coverage | select the exact ISA/profile subset; the tree contains unsupported extensions |
 | NEMU workloads | software/runtime/reference execution | use the intended NEMU config and reference requirements |

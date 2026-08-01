@@ -44,10 +44,30 @@ For the first bad instruction or event, record:
 
 Check sign extension, truncation, alignment, privilege, and ordering explicitly.
 
+## State And Event Boundaries
+
+- Separate fundamental execution state from derived architectural views.
+  Reconstruct aliases such as supervisor views and interrupt-pending CSRs from
+  their owners; do not diagnose a missing mirror field as missing architecture.
+- Separate a normal CSR instruction from a pure debug/DiffTest projection. The
+  former performs privilege, read-only, skip, and side-effect behavior; the
+  latter must only read fields and apply masks.
+- Treat a successfully retired instruction, a precise synchronous exception,
+  and an asynchronous interrupt as distinct boundaries. Only the first advances
+  retirement-controlled counters; an exception can still produce a complete
+  post-trap architectural observation without retiring its instruction.
+- Treat repository `ebreak`/`c.ebreak` as the simulation termination path, not
+  as a breakpoint exception to be delivered through the normal trap flow.
+- When debugging counters, capture the pre-instruction inhibit state and any
+  explicit write intent. Verify implicit advancement and explicit-write
+  precedence at the retirement hook rather than patching CSR read results.
+
 ## Reference-Mode Cautions
 
 - A standalone executable and a DiffTest shared library may use different
   configurations and initialization paths.
+- The current standalone `.config` does not identify an already-built shared
+  library. Query the loaded artifact and inspect its build provenance.
 - Match CPU-state layouts and platform address policy at the exported ABI.
 - Do not add DUT-specific behavior to generic ISA semantics merely to silence a
   consumer mismatch.

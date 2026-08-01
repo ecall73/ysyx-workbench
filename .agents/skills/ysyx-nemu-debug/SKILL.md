@@ -34,9 +34,18 @@ from a long log without first identifying a candidate boundary.
 ## Fix At The Owner
 
 - Keep ISA semantics in the selected ISA implementation.
+- Keep `CPU_state` as fundamental execution state. Derive CSR aliases, pending
+  views, and other composed architectural values through pure helpers instead
+  of storing duplicate mirrors that can become stale.
+- Distinguish an architectural step from retirement. A precise synchronous
+  exception is an instruction-associated step but does not retire; apply
+  retirement counters and time hooks only at their defined successful boundary.
 - Keep virtual-to-physical translation and protection in the memory subsystem.
 - Keep device side effects in device/MMIO ownership paths.
 - Keep monitor parsing and debugger behavior outside the execution engine.
+- Build DiffTest observations through side-effect-free state projection, never
+  through normal CSR access paths. Use `ysyx-difftest-debug` for field ownership
+  or synchronization changes.
 - Preserve the exported DiffTest ABI when changing internal CPU state; if that
   ABI must change, use `ysyx-difftest-debug` and update consumers serially.
 

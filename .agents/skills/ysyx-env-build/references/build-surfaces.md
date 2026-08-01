@@ -42,6 +42,29 @@ an unset variable.
 | ysyxSoC generated RTL | ysyxSoC generator source/build |
 | RT-Thread `files.mk` and `rtconfig.h` | BSP configuration and discovery targets |
 
+## DiffTest Reference Artifacts
+
+- Select NEMU native execution with DiffTest and NEMU shared-object output
+  through Kconfig/menuconfig plus the owning sync/build targets. Do not invent
+  Make command-line switches for mutually exclusive Kconfig target modes.
+- Build a NEMU REF shared library while the shared target is selected. The
+  resulting `.so` remains a valid artifact after NEMU is switched back to a
+  native configuration; its exported ABI/profile/capabilities and file
+  provenance define its identity, not the producer tree's current `.config` or
+  `auto.conf`.
+- Let a consumer build the NEMU REF only when the expected artifact is absent.
+  Do not add a runtime guard that rejects an existing `.so` because the current
+  NEMU configuration is no longer `TARGET_SHARE`.
+- Keep the REF implementation richer than a DUT when the negotiated adapter
+  permits it. An RV32E AM image or DUT profile does not imply that NEMU REF must
+  be built with `CONFIG_RVE`; inspect the requested profile and projection.
+- Treat the Spike REF as derived from the locked upstream revision, ordered
+  patch bundle, shared ABI header, adapter source, and build rules. Rebuild when
+  any identity input changes and record the exported implementation ID.
+- Distinguish generation from consumption: NEMU native may build/use Spike REF,
+  while NPC/ysyxSoC load a previously generated NEMU REF. Verify the actual
+  shared-library path before diagnosing capability failures.
+
 ## Failure Classification
 
 1. **Entry-point failure:** wrong working directory or Makefile.

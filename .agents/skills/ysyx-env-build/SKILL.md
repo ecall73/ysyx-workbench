@@ -43,6 +43,12 @@ Then:
 - Confirm the selected platform supports the requested feature before adding a
   workaround.
 - Regenerate an artifact only through its owning target, then inspect the diff.
+- Treat a DiffTest REF shared library as an independently versioned build
+  artifact. Query the loaded artifact instead of using the producer's current
+  `.config` as proof of its target, ISA profile, or capabilities.
+- Keep the AM `ARCH`, DUT profile, REF implementation configuration, and host
+  build target separate. Similar names do not require identical register or
+  extension models when an explicit profile adapter exists.
 
 ## Avoid Build Side Effects
 

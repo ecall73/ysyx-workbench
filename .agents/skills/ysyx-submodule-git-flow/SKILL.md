@@ -27,6 +27,9 @@ state.
 - Update nested submodules from the inside out, validating each parent layer.
 - Keep parent gitlink changes separate from the child implementation commit.
 - Avoid broad recursive remote updates; move only explicit requested paths.
+- For a patch-backed external tool, keep one patch owner per upstream file,
+  apply patches in one deterministic order, and reject partially applied trees.
+  Include the upstream revision and ordered patch inputs in artifact identity.
 
 ## Handle The Root Tracer
 

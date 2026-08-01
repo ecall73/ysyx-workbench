@@ -5,7 +5,7 @@ description: Route broad, ambiguous, or cross-component engineering work in ysyx
 
 # YSYX Workstream Routing
 
-Read [`docs/workstreams.md`](../../../docs/workstreams.md) before proposing
+Read [`.agents/workstreams.md`](../../workstreams.md) before proposing
 edits. Treat it as a routing map, then verify every selected path against the
 current tree and configuration.
 
@@ -31,6 +31,8 @@ current tree and configuration.
   than to the execution backend.
 - Route DUT logic and bus timing to NPC or ysyxSoC; route only architectural
   disagreement to DiffTest analysis.
+- Route versioned DiffTest ABI, profile, event, and shared state semantics to
+  the NEMU-owned protocol header and adapters before changing NPC consumers.
 - Route test-selection questions to `ysyx-validation`; tests do not become the
   source of truth for the behavior they check.
 - Route repository state and gitlink changes to

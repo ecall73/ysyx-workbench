@@ -11,6 +11,9 @@
 - `patch/` contains integration patches for selected external components.
   Inspect bootstrap/history before deciding whether the patch or live tree is
   authoritative for a requested change.
+- Tool-local patch bundles can also be authoritative even when the populated
+  upstream checkout is ignored rather than a Git submodule. Inspect the owning
+  tool Makefile, patch application logic, and generated artifact identity.
 - Build outputs and generated files may appear as submodule dirtiness. Classify
   them before staging or cleaning.
 
@@ -63,3 +66,17 @@ State whether the durable change is a root patch, a submodule commit, or both.
 Keep patch regeneration mechanical and review the complete patch delta. Do not
 mix unrelated submodule bumps, generated cleanup, or formatting into the same
 handoff.
+
+For an external source patch bundle:
+
+1. Assign each upstream target file to exactly one patch; update that patch as
+   behavior evolves instead of stacking feature patches on the same file.
+2. Maintain one ordered patch list for application, dependencies, and artifact
+   identity.
+3. Distinguish cleanly applicable, fully applied, and partially
+   applied/incompatible trees; fail the third state without forcing hunks.
+4. Hash content in deterministic list order without embedding absolute
+   workspace paths.
+5. Prove a patch reorganization by applying it to the locked clean revision and
+   comparing every owned target file byte-for-byte with the prior verified
+   result.

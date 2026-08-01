@@ -18,13 +18,13 @@ without copying application-specific details into skills.
 | Workstream | Primary paths | Owns |
 |---|---|---|
 | Repository base | `.envrc`, root `Makefile`, `scripts/`, `patch/`, `.gitmodules` | Environment defaults, tracer integration, repository automation, patches, submodule topology |
-| ISA reference and emulator | `nemu/` | RISC-V architectural execution, monitor, traces, devices, traps, virtual memory, DiffTest reference API |
+| ISA reference and emulator | `nemu/` | RISC-V architectural execution, monitor, traces, devices, traps, virtual memory, versioned DiffTest ABI and reference adapters |
 | Abstract Machine runtime | `abstract-machine/` | AM ABI, platform startup/linkage, IOE, CTE, VME, MPE, klib, architecture/platform build rules |
 | Kernel and userland integration | `nanos-lite/`, `navy-apps/` | Loader, syscall, file/device abstraction, ramdisk generation, user ABI, libraries and native compatibility |
 | Standalone and SoC DUT harness | `npc/` | RV32 DUT RTL, Verilator/Icarus harnesses, commit observation, traces, DiffTest client, platform adapters |
 | Full SoC and peripherals | `ysyxSoC/` | SoC generator/source, generated integration RTL, AXI interconnect, memory and peripheral models |
 | AM-hosted RTOS | `rt-thread-am/bsp/abstract-machine/`, shared `rt-thread-am/` code | AM BSP, RT-Thread build discovery, context switching, board/device integration, embedded AM workloads |
-| Architectural validation | `am-apps/tests/`, `riscv-tests-am/`, `riscv-arch-test-am/` | Focused platform tests, legacy ISA regressions, official architecture compliance tests |
+| Architectural validation | `am-apps/tests/`, `am-apps/diff/`, `riscv-tests-am/`, `riscv-arch-test-am/` | General platform tests, DiffTest-only protocol checks, legacy ISA regressions, official architecture compliance tests |
 | Support submodules | `am-kernels/`, `fceux-am/`, `nvboard/` | Reusable workloads, emulator frontend, and virtual-board support consumed by owning workstreams |
 
 The active scope excludes the removed `am-apps/contracts` and `am-apps/ioe`
@@ -49,11 +49,21 @@ loader expectations, and runtime libraries form one integration chain.
 
 ### RTL correctness
 
-`program image -> NPC platform adapter -> DUT commit state -> DiffTest client -> NEMU reference`
+`program image -> NPC platform adapter -> DUT visible state -> DiffTest profile adapter -> architectural events`
 
-Compare architectural state at committed instruction boundaries. RTL timing,
-cache refill beats, and device transactions are evidence for the DUT side, not
-state that the reference model must reproduce cycle by cycle.
+Derive DUT observations from committed or otherwise architecturally visible
+signals. RTL timing, cache refill beats, and device transactions are evidence
+for the DUT side, not state that the reference model must reproduce cycle by
+cycle.
+
+### Differential testing
+
+`DUT transition -> ordered ARCH_STEP or ASYNC_INTR -> REF independent transition or typed repair -> REF observation -> profile comparison`
+
+The versioned profile owns features, fields, capabilities, reset and memory-map
+selection. The DUT and REF may use different internal state layouts or register
+models when explicit adapters project the same profile. Serialize changes from
+the shared NEMU-owned ABI through each REF and DUT consumer.
 
 ### Full-system RTL
 
@@ -77,7 +87,8 @@ Serialize changes that affect any of these contracts:
 - AM Context layout, event semantics, IOE register ABI, or platform linkage;
 - syscall numbering, user ABI, loader format, ramdisk/file-table generation;
 - physical address map, MMIO side effects, AXI behavior, reset, or boot flow;
-- DiffTest state layout, initialization, execution step, or skip policy;
+- DiffTest ABI, profile/capability negotiation, state layout, event order,
+  initialization, memory transport, or typed-skip policy;
 - generated RTL interfaces or source-to-generated-artifact provenance;
 - toolchain flags and ISA strings shared by producers and consumers.
 
@@ -89,6 +100,7 @@ parallelized when they do not modify one of these contracts.
 | Artifact | Derive it from |
 |---|---|
 | NEMU/NPC generated configuration headers | Kconfig `.config` and component config targets |
+| NEMU or Spike DiffTest reference libraries | producer Kconfig/build target, shared ABI header, adapter sources, and locked external revision/patch inputs |
 | AM images, ELF files, archives, and linker maps | Program Makefile plus selected AM `ARCH` rules |
 | Navy ramdisk image and generated file table | Navy build/install targets and `fsimg` contents |
 | ysyxSoC generated Verilog | ysyxSoC generator source and its build flow |

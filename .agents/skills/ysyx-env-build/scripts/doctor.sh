@@ -168,7 +168,7 @@ printf 'root     %s\n' "$repo_root"
 printf 'scope    %s\n' "$scope"
 required_path ".envrc" "$repo_root/.envrc"
 required_path "AGENTS.md" "$repo_root/AGENTS.md"
-required_path "workstreams" "$repo_root/docs/workstreams.md"
+required_path "workstreams" "$repo_root/.agents/workstreams.md"
 
 section "environment"
 show_variable NEMU_HOME "$repo_root/nemu"

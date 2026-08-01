@@ -30,6 +30,8 @@ all discovered tests merely because they exist.
 - Use NPC for core/DUT integration and ysyxSoC only for full-SoC contracts.
 - Use DiffTest when both sides have comparable deterministic architectural
   state.
+- For a DiffTest ABI or profile change, run interface rejection probes and one
+  focused `am-apps/diff` contract case before broad ISA or system suites.
 
 ## Control Scope
 
