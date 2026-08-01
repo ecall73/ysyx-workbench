@@ -20,38 +20,44 @@ endif
 
 REPO_BUILD_PATH = $(REPO_PATH)/build
 REPO_MAKEFILE = $(REPO_BUILD_PATH)/Makefile
-FD_BUILD_PATCH = $(abspath enable-fd.patch)
-SOFTFLOAT_BUILD_PATCH = $(abspath enable-softfloat.patch)
-WFI_NOP_PATCH = $(abspath enable-wfi-nop.patch)
-COUNTER_CONTROL_PATCH = $(abspath enable-counter-control.patch)
-FD_BUILD_SETUP = fd-build-setup
+BUILD_PATCHES = $(abspath build-riscv.mk.patch build-softfloat.mk.patch)
+SOURCE_PATCHES = $(abspath riscv-processor.h.patch riscv-processor.cc.patch \
+  riscv-csrs.cc.patch riscv-execute.cc.patch)
+SPIKE_PATCHES = $(BUILD_PATCHES) $(SOURCE_PATCHES)
+DIFFTEST_HEADER = $(NEMU_HOME)/include/riscv-difftest.h
+SPIKE_REVISION = $(shell git -C $(REPO_PATH) rev-parse --short=16 HEAD 2>/dev/null)
+SPIKE_BUNDLE_SHA = $(shell sha256sum $(SPIKE_PATCHES) $(DIFFTEST_HEADER) \
+  $(abspath difftest.cc) $(abspath Makefile) | awk '{print $$1}' | \
+  sha256sum | cut -c1-24)
+SPIKE_DIFFTEST_ID = spike-$(SPIKE_REVISION)-rv32gc-sv32-sstc-svadu-p0-$(SPIKE_BUNDLE_SHA)
+PATCH_SETUP = patch-setup
 $(REPO_MAKEFILE):
 	@mkdir -p $(@D)
 	cd $(@D) && $(abspath $(REPO_PATH))/configure
 	sed -i -e 's/-g -O2/-O2/' $@
 
-$(FD_BUILD_SETUP): $(REPO_MAKEFILE) $(FD_BUILD_PATCH) \
-                   $(SOFTFLOAT_BUILD_PATCH) $(WFI_NOP_PATCH) \
-                   $(COUNTER_CONTROL_PATCH)
+$(PATCH_SETUP): $(REPO_MAKEFILE) $(SPIKE_PATCHES)
 	@set -e; changed=0; \
-	if ! grep -q 'NEMU DiffTest: enable base F/D' $(REPO_BUILD_PATH)/riscv.mk; then \
-	  (cd $(REPO_BUILD_PATH) && patch --forward --silent -p1 < $(FD_BUILD_PATCH)); \
-	  changed=1; \
-	fi; \
-	if ! grep -q 'NEMU DiffTest: enable Zicntr mcountinhibit' \
-	    $(REPO_PATH)/riscv/processor.cc; then \
-	  (cd $(REPO_PATH) && patch --forward --silent -p1 < $(COUNTER_CONTROL_PATCH)); \
-	  changed=1; \
-	fi; \
-	if ! grep -q 'NEMU DiffTest: restore SoftFloat sources' $(REPO_BUILD_PATH)/softfloat.mk; then \
-	  (cd $(REPO_BUILD_PATH) && patch --forward --silent -p1 < $(SOFTFLOAT_BUILD_PATCH)); \
-	  changed=1; \
-	fi; \
-	if ! grep -q 'NEMU DiffTest: NEMU uses the architecturally permitted WFI-as-NOP behavior' \
-	    $(REPO_PATH)/riscv/processor.h; then \
-	  (cd $(REPO_PATH) && patch --forward --silent -p1 < $(WFI_NOP_PATCH)); \
-	  changed=1; \
-	fi; \
+	apply_one() { \
+	  patch_root="$$1"; patch_file="$$2"; \
+	  if (cd "$$patch_root" && patch --reverse --force --silent --dry-run -p1 \
+	      < "$$patch_file" >/dev/null 2>&1); then \
+	    :; \
+	  elif (cd "$$patch_root" && patch --force --silent --dry-run -p1 \
+	      < "$$patch_file" >/dev/null 2>&1); then \
+	    (cd "$$patch_root" && patch --forward --batch --silent -p1 < "$$patch_file"); \
+	    changed=1; \
+	  else \
+	    echo "Spike patch is partially applied or incompatible: $$patch_file" >&2; \
+	    exit 1; \
+	  fi; \
+	}; \
+	for patch_file in $(BUILD_PATCHES); do \
+	  apply_one "$(REPO_BUILD_PATH)" "$$patch_file"; \
+	done; \
+	for patch_file in $(SOURCE_PATCHES); do \
+	  apply_one "$(REPO_PATH)" "$$patch_file"; \
+	done; \
 	if [ "$$changed" = 1 ] || \
 	    ! grep -q 'DEFINE_INSN(fadd_s)' $(REPO_BUILD_PATH)/insn_list.h 2>/dev/null; then \
 	  rm -f $(REPO_BUILD_PATH)/insn_list.h; \
@@ -59,7 +65,7 @@ $(FD_BUILD_SETUP): $(REPO_MAKEFILE) $(FD_BUILD_PATCH) \
 	fi
 
 SPIKE = $(REPO_BUILD_PATH)/spike
-$(SPIKE): $(FD_BUILD_SETUP)
+$(SPIKE): $(PATCH_SETUP)
 	CFLAGS="-fvisibility=hidden" CXXFLAGS="-fvisibility=hidden" $(MAKE) -C $(REPO_BUILD_PATH)
 
 BUILD_DIR = ./build
@@ -75,16 +81,22 @@ NAME = $(GUEST_ISA)-spike-so
 BINARY = $(BUILD_DIR)/$(NAME)
 SRCS = difftest.cc
 
-$(BINARY): $(SPIKE) $(SRCS)
+$(BINARY): $(SPIKE) $(SRCS) $(SPIKE_PATCHES) $(DIFFTEST_HEADER) Makefile
 	@set -e; exec 9>$(BUILD_DIR)/.link.lock; \
 	flock 9; \
-	if [ -s "$@" ] && [ "$@" -nt "$(SPIKE)" ] && [ "$@" -nt "$(SRCS)" ]; then \
+	fresh=1; \
+	for input in "$(SPIKE)" "$(SRCS)" $(SPIKE_PATCHES) \
+	    "$(DIFFTEST_HEADER)" "$(abspath Makefile)"; do \
+	  [ "$@" -nt "$$input" ] || fresh=0; \
+	done; \
+	if [ -s "$@" ] && [ "$$fresh" = 1 ]; then \
 	  exit 0; \
 	fi; \
 	tmp="$@.tmp.$$$$"; \
 	trap 'rm -f "$$tmp"' EXIT; \
 	echo + CXXLD $@; \
 	g++ -std=c++17 -O2 -shared -fPIC -fvisibility=hidden \
+	  -DSPIKE_DIFFTEST_IMPLEMENTATION_ID=\"$(SPIKE_DIFFTEST_ID)\" \
 	  $(INC_PATH) $(SRCS) $(INC_LIBS) -o "$$tmp"; \
 	mv -f "$$tmp" "$@"; \
 	trap - EXIT
@@ -95,4 +107,4 @@ clean:
 all: $(BINARY)
 .DEFAULT_GOAL = all
 
-.PHONY: all clean $(SPIKE) $(FD_BUILD_SETUP)
+.PHONY: all clean $(SPIKE) $(PATCH_SETUP)

@@ -1,8 +1,0 @@
---- a/riscv/processor.h
-+++ b/riscv/processor.h
-@@ -297,2 +297,5 @@ public:
-   bool is_waiting_for_interrupt() { return in_wfi; };
-+  // NEMU DiffTest: NEMU uses the architecturally permitted WFI-as-NOP behavior.
-+  void resume_from_wfi() { in_wfi = false; }
-+
-   void take_trap_public(trap_t& t, reg_t epc) { take_trap(t, epc); }

@@ -1,8 +1,8 @@
 --- a/softfloat.mk
 +++ b/softfloat.mk
 @@ -225,8 +225,8 @@ softfloat_c_srcs = \
- 	ui64_to_f32.c \
- 	ui64_to_f64.c \
+	ui64_to_f32.c \
+	ui64_to_f64.c \
  
 -### overwrite for PA
 -softfloat_c_srcs = dummy_for_pa.c

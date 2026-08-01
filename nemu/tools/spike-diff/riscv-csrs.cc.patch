@@ -1,0 +1,34 @@
+diff --git a/riscv/csrs.cc b/riscv/csrs.cc
+index 2e01983..8ea1682 100644
+--- a/riscv/csrs.cc
++++ b/riscv/csrs.cc
+@@ -998,17 +998,22 @@ void wide_counter_csr_t::bump(const reg_t howmuch) noexcept {
+ 
+ bool wide_counter_csr_t::unlogged_write(const reg_t val) noexcept {
+   this->val = val;
+-  // The ISA mandates that if an instruction writes instret, the write
+-  // takes precedence over the increment to instret.  However, Spike
+-  // unconditionally increments instret after executing an instruction.
+-  // Correct for this artifact by decrementing instret here.
+-  this->val--;
++  bool increments_after_write = false;
++  if (state->counter_write_in_instruction) {
++    if (address == CSR_MCYCLE) increments_after_write = state->mcycle_increment;
++    if (address == CSR_MINSTRET) increments_after_write = state->minstret_increment;
++  }
++  // An explicit write takes precedence over this instruction's implicit
++  // increment. Compensate only when that increment is enabled.
++  if (increments_after_write) this->val--;
+   return true;
+ }
+ 
+ reg_t wide_counter_csr_t::written_value() const noexcept {
+-  // Re-adjust for upcoming bump()
+-  return this->val + 1;
++  if (!state->counter_write_in_instruction) return this->val;
++  if (address == CSR_MCYCLE && state->mcycle_increment) return this->val + 1;
++  if (address == CSR_MINSTRET && state->minstret_increment) return this->val + 1;
++  return this->val;
+ }
+ 
+ // implement class time_counter_csr_t

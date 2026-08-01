@@ -1,0 +1,114 @@
+diff --git a/riscv/execute.cc b/riscv/execute.cc
+index acf0e90..1d4022b 100644
+--- a/riscv/execute.cc
++++ b/riscv/execute.cc
+@@ -224,14 +224,27 @@ void processor_t::step(size_t n)
+ 
+   while (n > 0) {
+     size_t instret = 0;
++    size_t minstret_bump = 0;
++    size_t mcycle_bump = 0;
+     reg_t pc = state.pc;
+     mmu_t* _mmu = mmu;
+ 
++    const auto prepare_counter_control = [&]() {
++      const reg_t inhibit = state.csrmap[CSR_MCOUNTINHIBIT]->read();
++      state.mcycle_increment = !(inhibit & 0x1);
++      state.minstret_increment = !(inhibit & 0x4);
++      state.counter_write_in_instruction = true;
++    };
++    const auto count_retirement = [&]() {
++      if (state.mcycle_increment) mcycle_bump++;
++      if (state.minstret_increment) minstret_bump++;
++    };
++
+     #define advance_pc() \
+       if (unlikely(invalid_pc(pc))) { \
+         switch (pc) { \
+           case PC_SERIALIZE_BEFORE: state.serialized = true; break; \
+-          case PC_SERIALIZE_AFTER: ++instret; break; \
++          case PC_SERIALIZE_AFTER: ++instret; count_retirement(); break; \
+           default: abort(); \
+         } \
+         pc = state.pc; \
+@@ -239,6 +252,7 @@ void processor_t::step(size_t n)
+       } else { \
+         state.pc = pc; \
+         instret++; \
++        count_retirement(); \
+       }
+ 
+     try
+@@ -280,7 +294,9 @@ void processor_t::step(size_t n)
+           insn_fetch_t fetch = mmu->load_insn(pc);
+           if (debug && !state.serialized)
+             disasm(fetch.insn);
++          prepare_counter_control();
+           pc = execute_insn_logged(this, pc, fetch);
++          state.counter_write_in_instruction = false;
+           advance_pc();
+         }
+       }
+@@ -289,13 +305,16 @@ void processor_t::step(size_t n)
+         // Main simulation loop, fast path.
+         for (auto ic_entry = _mmu->access_icache(pc); ; ) {
+           auto fetch = ic_entry->data;
++          prepare_counter_control();
+           pc = execute_insn_fast(this, pc, fetch);
++          state.counter_write_in_instruction = false;
+           ic_entry = ic_entry->next;
+           if (unlikely(ic_entry->tag != pc))
+             break;
+           if (unlikely(instret + 1 == n))
+             break;
+           instret++;
++          count_retirement();
+           state.pc = pc;
+         }
+ 
+@@ -304,6 +323,7 @@ void processor_t::step(size_t n)
+     }
+     catch(trap_t& t)
+     {
++      state.counter_write_in_instruction = false;
+       take_trap(t, pc);
+       n = instret;
+ 
+@@ -318,6 +338,7 @@ void processor_t::step(size_t n)
+     }
+     catch (triggers::matched_t& t)
+     {
++      state.counter_write_in_instruction = false;
+       if (mmu->matched_trigger) {
+         delete mmu->matched_trigger;
+         mmu->matched_trigger = NULL;
+@@ -326,10 +347,12 @@ void processor_t::step(size_t n)
+     }
+     catch(trap_debug_mode&)
+     {
++      state.counter_write_in_instruction = false;
+       enter_debug_mode(DCSR_CAUSE_SWBP);
+     }
+     catch (wait_for_interrupt_t &t)
+     {
++      state.counter_write_in_instruction = false;
+       // Return to the outer simulation loop, which gives other devices/harts a
+       // chance to generate interrupts.
+       //
+@@ -337,13 +360,14 @@ void processor_t::step(size_t n)
+       // allows us to switch to other threads only once per idle loop in case
+       // there is activity.
+       n = ++instret;
++      count_retirement();
+       in_wfi = true;
+     }
+ 
+-    state.minstret->bump(instret);
++    state.minstret->bump(minstret_bump);
+ 
+     // Model a hart whose CPI is 1.
+-    state.mcycle->bump(instret);
++    state.mcycle->bump(mcycle_bump);
+ 
+     n -= instret;
+   }

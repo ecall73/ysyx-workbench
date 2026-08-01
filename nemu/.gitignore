@@ -5,10 +5,12 @@
 !*.mk
 !*.[cSh]
 !*.cc
-!/tools/spike-diff/enable-fd.patch
-!/tools/spike-diff/enable-softfloat.patch
-!/tools/spike-diff/enable-wfi-nop.patch
-!/tools/spike-diff/enable-counter-control.patch
+!/tools/spike-diff/build-riscv.mk.patch
+!/tools/spike-diff/build-softfloat.mk.patch
+!/tools/spike-diff/riscv-processor.h.patch
+!/tools/spike-diff/riscv-processor.cc.patch
+!/tools/spike-diff/riscv-csrs.cc.patch
+!/tools/spike-diff/riscv-execute.cc.patch
 !.gitignore
 !README.md
 !Kconfig

@@ -1,0 +1,25 @@
+diff --git a/riscv/processor.cc b/riscv/processor.cc
+index c757d42..1a92ab7 100644
+--- a/riscv/processor.cc
++++ b/riscv/processor.cc
+@@ -191,6 +191,9 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
+   pc = DEFAULT_RSTVEC;
+   XPR.reset();
+   FPR.reset();
++  counter_write_in_instruction = false;
++  mcycle_increment = true;
++  minstret_increment = true;
+ 
+   // This assumes xlen is always max_xlen, which is true today (see
+   // mstatus_csr_t::unlogged_write()):
+@@ -267,7 +270,9 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
+       csrmap[which_mevent] = mevent[i - 3];
+     }
+   }
+-  csrmap[CSR_MCOUNTINHIBIT] = std::make_shared<const_csr_t>(proc, CSR_MCOUNTINHIBIT, 0);
++  // NEMU DiffTest: enable Zicntr mcountinhibit CY/IR.
++  csrmap[CSR_MCOUNTINHIBIT] =
++    std::make_shared<masked_csr_t>(proc, CSR_MCOUNTINHIBIT, 0x5, 0);
+   if (proc->extension_enabled_const(EXT_SSCOFPMF))
+     csrmap[CSR_SCOUNTOVF] = std::make_shared<scountovf_csr_t>(proc, CSR_SCOUNTOVF);
+   csrmap[CSR_MIE] = mie = std::make_shared<mie_csr_t>(proc, CSR_MIE);
