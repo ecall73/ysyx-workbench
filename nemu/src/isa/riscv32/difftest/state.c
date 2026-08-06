@@ -9,16 +9,34 @@ void riscv_difftest_build_arch_state(riscv_difftest_arch_state_t *dest,
   memset(dest, 0, sizeof(*dest));
   dest->pc = src->pc;
 
-  if (profile_id == RISCV_DIFFTEST_PROFILE_RV32E_NPC_NEMU) {
-    Assert(ARRLEN(src->gpr) >= 16, "RV32E profile requires 16 GPRs");
-    dest->valid_fields = RISCV_DIFFTEST_RV32E_STATE_FIELDS;
-    dest->gpr_valid_mask = RISCV_DIFFTEST_RV32E_GPR_MASK;
-    for (size_t i = 0; i < 16; i++) dest->gpr[i] = src->gpr[i];
-    dest->priv = MODE_M;
+  if (profile_id == RISCV_DIFFTEST_PROFILE_RV32IMAC_NPC_NEMU) {
+    Assert(ARRLEN(src->gpr) >= RISCV_DIFFTEST_MAX_GPRS,
+        "RV32IMAC profile requires 32 GPRs");
+    dest->valid_fields = RISCV_DIFFTEST_RV32IMAC_STATE_FIELDS;
+    dest->gpr_valid_mask = RISCV_DIFFTEST_RV32IMAC_GPR_MASK;
+    for (size_t i = 0; i < RISCV_DIFFTEST_MAX_GPRS; i++) {
+      dest->gpr[i] = src->gpr[i];
+    }
+    dest->priv = src->priv;
     dest->mstatus = fp_normalize_mstatus(src->mstatus);
     dest->mtvec = src->mtvec;
     dest->mepc = src->mepc;
     dest->mcause = src->mcause;
+    dest->mtval = src->mtval;
+    dest->medeleg = src->medeleg;
+    dest->mideleg = src->mideleg;
+    dest->mie = src->mie;
+    dest->stvec = src->stvec;
+    dest->sepc = src->sepc;
+    dest->scause = src->scause;
+    dest->stval = src->stval;
+    dest->sscratch = src->sscratch;
+    dest->satp = src->satp;
+    dest->mscratch = src->mscratch;
+    dest->menvcfgh = src->menvcfgh;
+    dest->mcounteren = src->mcounteren;
+    dest->scounteren = src->scounteren;
+    dest->mcountinhibit = src->mcountinhibit;
     return;
   }
 
@@ -101,17 +119,17 @@ int riscv_difftest_apply_sync_state(CPU_state *dest,
     return RISCV_DIFFTEST_BAD_ABI_VERSION;
   }
   if (src->struct_size != sizeof(*src)) return RISCV_DIFFTEST_BAD_STRUCT_SIZE;
-  bool rv32e_profile = profile_id == RISCV_DIFFTEST_PROFILE_RV32E_NPC_NEMU;
-  if (!rv32e_profile &&
+  bool rv32imac_profile =
+      profile_id == RISCV_DIFFTEST_PROFILE_RV32IMAC_NPC_NEMU;
+  if (!rv32imac_profile &&
       profile_id != RISCV_DIFFTEST_PROFILE_RV32GC_NEMU_SPIKE) {
     return RISCV_DIFFTEST_UNSUPPORTED_PROFILE;
   }
-  const uint64_t allowed_fields = rv32e_profile
-      ? RISCV_DIFFTEST_RV32E_STATE_FIELDS
+  const uint64_t allowed_fields = rv32imac_profile
+      ? RISCV_DIFFTEST_RV32IMAC_STATE_FIELDS
       : RISCV_DIFFTEST_RV32GC_STATE_FIELDS;
-  const uint32_t allowed_gprs = rv32e_profile
-      ? RISCV_DIFFTEST_RV32E_GPR_MASK : UINT32_MAX;
-  const size_t gpr_count = rv32e_profile ? 16 : RISCV_DIFFTEST_MAX_GPRS;
+  const uint32_t allowed_gprs = UINT32_MAX;
+  const size_t gpr_count = RISCV_DIFFTEST_MAX_GPRS;
   if (gpr_count > ARRLEN(dest->gpr)) return RISCV_DIFFTEST_BAD_STATE;
   if ((src->state.valid_fields & ~allowed_fields) != 0 ||
       ((src->state.valid_fields & RISCV_DIFFTEST_FIELD_GPR) == 0 &&
@@ -121,32 +139,11 @@ int riscv_difftest_apply_sync_state(CPU_state *dest,
       src->state.reserved_tail != 0) {
     return RISCV_DIFFTEST_BAD_STATE;
   }
-  if (rv32e_profile &&
-      (((src->state.valid_fields & RISCV_DIFFTEST_FIELD_FCSR) &&
-       src->state.fcsr != 0) ||
-      ((src->state.valid_fields & RISCV_DIFFTEST_FIELD_PRIV) &&
-       src->state.priv != MODE_M) ||
-      ((src->state.valid_fields & RISCV_DIFFTEST_FIELD_SATP) &&
-       src->state.satp != 0))) {
-    return RISCV_DIFFTEST_BAD_STATE;
-  }
-  if (rv32e_profile &&
-      (src->state.valid_fields & RISCV_DIFFTEST_FIELD_FPR)) {
-    for (size_t i = 0; i < RISCV_DIFFTEST_FPRS; i++) {
-      if (src->state.fpr[i] != 0) return RISCV_DIFFTEST_BAD_STATE;
-    }
-  }
-  if (rv32e_profile) {
-    for (size_t i = 16; i < RISCV_DIFFTEST_MAX_GPRS; i++) {
-      if (src->state.gpr[i] != 0) return RISCV_DIFFTEST_BAD_STATE;
-    }
-  }
   if ((src->state.valid_fields & RISCV_DIFFTEST_FIELD_PRIV) &&
       src->state.priv != MODE_U && src->state.priv != MODE_S &&
       src->state.priv != MODE_M) {
     return RISCV_DIFFTEST_BAD_STATE;
   }
-
   if (src->state.valid_fields & RISCV_DIFFTEST_FIELD_GPR) {
     for (size_t i = 0; i < gpr_count; i++) {
       if (src->state.gpr_valid_mask & (UINT32_C(1) << i)) {
@@ -157,11 +154,11 @@ int riscv_difftest_apply_sync_state(CPU_state *dest,
   if (src->state.valid_fields & RISCV_DIFFTEST_FIELD_PC) {
     dest->pc = src->state.pc;
   }
-  if (!rv32e_profile &&
+  if (!rv32imac_profile &&
       (src->state.valid_fields & RISCV_DIFFTEST_FIELD_FCSR)) {
     dest->fcsr = src->state.fcsr;
   }
-  if (!rv32e_profile &&
+  if (!rv32imac_profile &&
       (src->state.valid_fields & RISCV_DIFFTEST_FIELD_FPR)) {
     for (size_t i = 0; i < RISCV_DIFFTEST_FPRS; i++) {
       dest->fpr[i] = src->state.fpr[i];
@@ -177,31 +174,22 @@ int riscv_difftest_apply_sync_state(CPU_state *dest,
   APPLY_FIELD(RISCV_DIFFTEST_FIELD_MTVEC, mtvec);
   APPLY_FIELD(RISCV_DIFFTEST_FIELD_MEPC, mepc);
   APPLY_FIELD(RISCV_DIFFTEST_FIELD_MCAUSE, mcause);
-  if (rv32e_profile) {
-    if (src->state.valid_fields & RISCV_DIFFTEST_FIELD_PRIV) {
-      dest->priv = MODE_M;
-    }
-    if (src->state.valid_fields & RISCV_DIFFTEST_FIELD_SATP) {
-      dest->satp = 0;
-    }
-  } else {
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_MTVAL, mtval);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_MEDELEG, medeleg);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_MIDELEG, mideleg);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_MIE, mie);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_STVEC, stvec);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_SEPC, sepc);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_SCAUSE, scause);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_STVAL, stval);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_SSCRATCH, sscratch);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_SATP, satp);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_MSCRATCH, mscratch);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_MENVCFGH, menvcfgh);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_MCOUNTEREN, mcounteren);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_SCOUNTEREN, scounteren);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_MCOUNTINHIBIT, mcountinhibit);
-    APPLY_FIELD(RISCV_DIFFTEST_FIELD_PRIV, priv);
-  }
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_MTVAL, mtval);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_MEDELEG, medeleg);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_MIDELEG, mideleg);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_MIE, mie);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_STVEC, stvec);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_SEPC, sepc);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_SCAUSE, scause);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_STVAL, stval);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_SSCRATCH, sscratch);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_SATP, satp);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_MSCRATCH, mscratch);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_MENVCFGH, menvcfgh);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_MCOUNTEREN, mcounteren);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_SCOUNTEREN, scounteren);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_MCOUNTINHIBIT, mcountinhibit);
+  APPLY_FIELD(RISCV_DIFFTEST_FIELD_PRIV, priv);
 #undef APPLY_FIELD
   return RISCV_DIFFTEST_OK;
 }

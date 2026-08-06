@@ -14,7 +14,7 @@ static uint64_t expected_sequence = 0;
 static uint64_t last_sequence = UINT64_MAX;
 
 static const uint64_t provided_capabilities =
-    RISCV_DIFFTEST_RV32E_REQUIRED_CAPS |
+    RISCV_DIFFTEST_RV32IMAC_REQUIRED_CAPS |
     RISCV_DIFFTEST_CAP_YSYXSOC_MEMORY_MAP;
 
 static bool words_are_zero(const uint32_t *words, size_t count) {
@@ -35,7 +35,16 @@ static int validate_profile(const riscv_difftest_profile_t *profile) {
   if (!words_are_zero(profile->reserved, ARRLEN(profile->reserved))) {
     return RISCV_DIFFTEST_BAD_ARGUMENT;
   }
-  uint64_t required_capabilities = RISCV_DIFFTEST_RV32E_REQUIRED_CAPS;
+  uint64_t required_capabilities;
+  if (profile->profile_id == RISCV_DIFFTEST_PROFILE_RV32IMAC_NPC_NEMU) {
+#ifdef CONFIG_RVE
+    return RISCV_DIFFTEST_UNSUPPORTED_PROFILE;
+#else
+    required_capabilities = RISCV_DIFFTEST_RV32IMAC_REQUIRED_CAPS;
+#endif
+  } else {
+    return RISCV_DIFFTEST_UNSUPPORTED_PROFILE;
+  }
   if (profile->memory_map == RISCV_DIFFTEST_MEMORY_MAP_YSYXSOC) {
     required_capabilities |= RISCV_DIFFTEST_CAP_YSYXSOC_MEMORY_MAP;
   } else if (profile->memory_map != RISCV_DIFFTEST_MEMORY_MAP_NEMU) {
@@ -44,12 +53,13 @@ static int validate_profile(const riscv_difftest_profile_t *profile) {
   if (profile->required_capabilities & ~provided_capabilities) {
     return RISCV_DIFFTEST_UNSUPPORTED_CAPABILITY;
   }
-  if (profile->profile_id != RISCV_DIFFTEST_PROFILE_RV32E_NPC_NEMU ||
-      profile->xlen != 32 || profile->gpr_count != 16 ||
+  if (profile->xlen != 32 || profile->gpr_count != 32 ||
       profile->fp_kind != RISCV_DIFFTEST_FP_NONE ||
-      profile->privilege_modes != RISCV_DIFFTEST_PRIV_M ||
+      profile->privilege_modes !=
+          (RISCV_DIFFTEST_PRIV_U | RISCV_DIFFTEST_PRIV_S |
+           RISCV_DIFFTEST_PRIV_M) ||
       profile->pmp_regions != 0 ||
-      profile->isa_features != RISCV_DIFFTEST_RV32E_FEATURES ||
+      profile->isa_features != RISCV_DIFFTEST_RV32IMAC_FEATURES ||
       profile->required_capabilities != required_capabilities ||
       profile->optional_capabilities != 0) {
     return RISCV_DIFFTEST_UNSUPPORTED_PROFILE;
@@ -87,9 +97,12 @@ __EXPORT int difftest_query_interface(uint32_t requested_abi,
   interface->abi_version = RISCV_DIFFTEST_ABI_VERSION;
   interface->struct_size = sizeof(*interface);
   interface->provided_capabilities = provided_capabilities;
-  interface->supported_isa_features = RISCV_DIFFTEST_RV32E_FEATURES;
+  interface->supported_isa_features = 0;
+#ifndef CONFIG_RVE
+  interface->supported_isa_features |= RISCV_DIFFTEST_RV32IMAC_FEATURES;
+#endif
   snprintf(interface->implementation_id, sizeof(interface->implementation_id),
-      "nemu-rv32-ref-abi1");
+      "nemu-rv32-ref-abi1-rv32imac");
   interface->observation_size = sizeof(riscv_difftest_observation_t);
   interface->sync_state_size = sizeof(riscv_difftest_sync_state_t);
   interface->arch_step_size = sizeof(riscv_difftest_arch_step_t);
@@ -131,8 +144,8 @@ __EXPORT int difftest_set_sync_state(
     const riscv_difftest_sync_state_t *sync) {
   if (!profile_initialized) return RISCV_DIFFTEST_BAD_STATE;
   if (sync == NULL) return RISCV_DIFFTEST_BAD_ARGUMENT;
-  if (sync->state.valid_fields != RISCV_DIFFTEST_RV32E_STATE_FIELDS ||
-      sync->state.gpr_valid_mask != RISCV_DIFFTEST_RV32E_GPR_MASK) {
+  if (sync->state.valid_fields != RISCV_DIFFTEST_RV32IMAC_STATE_FIELDS ||
+      sync->state.gpr_valid_mask != RISCV_DIFFTEST_RV32IMAC_GPR_MASK) {
     return RISCV_DIFFTEST_BAD_STATE;
   }
   return riscv_difftest_apply_sync_state(&cpu, active_profile_id, sync);
@@ -145,14 +158,21 @@ __EXPORT int difftest_arch_step(const riscv_difftest_arch_step_t *event,
     return RISCV_DIFFTEST_BAD_ARGUMENT;
   }
   if (!profile_initialized ||
-      active_profile_id != RISCV_DIFFTEST_PROFILE_RV32E_NPC_NEMU) {
+      active_profile_id != RISCV_DIFFTEST_PROFILE_RV32IMAC_NPC_NEMU) {
     return RISCV_DIFFTEST_BAD_STATE;
   }
   int status = validate_event_header(event->abi_version, event->struct_size,
       sizeof(*event), event->sequence);
   if (status != RISCV_DIFFTEST_OK) return status;
+  bool valid_length =
+      event->instruction_length == 2 || event->instruction_length == 4;
+  bool valid_encoding = event->instruction_length == 2
+      ? (event->instruction_bits & 0xffff0003u) != 0x00000003u &&
+        (event->instruction_bits & 0xffff0000u) == 0
+      : (event->instruction_bits & 0x3u) == 0x3u;
   if (!words_are_zero(event->reserved, ARRLEN(event->reserved)) ||
-      event->instruction_valid != 1 || event->instruction_length != 4 ||
+      event->instruction_valid > 1 || !valid_length ||
+      (event->instruction_valid && !valid_encoding) ||
       event->instruction_pc != cpu.pc) {
     Log("reject ARCH_STEP metadata: sequence=%" PRIu64
         " dut_pc=" FMT_WORD " ref_pc=" FMT_WORD
@@ -162,18 +182,23 @@ __EXPORT int difftest_arch_step(const riscv_difftest_arch_step_t *event,
     return RISCV_DIFFTEST_BAD_EVENT;
   }
 
-  word_t instruction = 0;
-  if (!paddr_try_read(event->instruction_pc, 4, &instruction)) {
-    Log("reject ARCH_STEP instruction fetch: sequence=%" PRIu64
-        " pc=" FMT_WORD, event->sequence, event->instruction_pc);
-    return RISCV_DIFFTEST_BAD_EVENT;
-  }
-  if (instruction != event->instruction_bits) {
-    Log("reject ARCH_STEP instruction mismatch: sequence=%" PRIu64
-        " pc=" FMT_WORD " dut=0x%08x ref=0x%08x",
-        event->sequence, event->instruction_pc,
-        event->instruction_bits, instruction);
-    return RISCV_DIFFTEST_BAD_EVENT;
+  if (event->instruction_valid) {
+    word_t instruction = 0;
+    if (!paddr_try_read(event->instruction_pc, event->instruction_length,
+          &instruction)) {
+      Log("reject ARCH_STEP instruction fetch: sequence=%" PRIu64
+          " pc=" FMT_WORD, event->sequence, event->instruction_pc);
+      return RISCV_DIFFTEST_BAD_EVENT;
+    }
+    uint32_t instruction_mask = event->instruction_length == 2
+        ? UINT32_C(0x0000ffff) : UINT32_MAX;
+    if ((instruction & instruction_mask) != event->instruction_bits) {
+      Log("reject ARCH_STEP instruction mismatch: sequence=%" PRIu64
+          " pc=" FMT_WORD " dut=0x%08x ref=0x%08x",
+          event->sequence, event->instruction_pc,
+          event->instruction_bits, instruction);
+      return RISCV_DIFFTEST_BAD_EVENT;
+    }
   }
 
   if (event->disposition == RISCV_DIFFTEST_STEP_EXECUTE) {
@@ -186,8 +211,9 @@ __EXPORT int difftest_arch_step(const riscv_difftest_arch_step_t *event,
       return RISCV_DIFFTEST_INTERNAL_ERROR;
     }
   } else if (event->disposition == RISCV_DIFFTEST_STEP_SKIP_REF) {
-    if (sync == NULL ||
-        event->skip_reason != RISCV_DIFFTEST_SKIP_MMIO_DUT_OWNED) {
+    if (!event->instruction_valid || sync == NULL ||
+        event->skip_reason <= RISCV_DIFFTEST_SKIP_NONE ||
+        event->skip_reason > RISCV_DIFFTEST_SKIP_PROFILE_OWNED_STATIC) {
       return RISCV_DIFFTEST_BAD_EVENT;
     }
     uint32_t expected_gpr_mask = 0;
@@ -195,7 +221,7 @@ __EXPORT int difftest_arch_step(const riscv_difftest_arch_step_t *event,
         event->instruction_bits, event->instruction_length,
         &expected_gpr_mask);
     if (status != RISCV_DIFFTEST_OK ||
-        (expected_gpr_mask & ~RISCV_DIFFTEST_RV32E_GPR_MASK) != 0) {
+        (expected_gpr_mask & ~RISCV_DIFFTEST_RV32IMAC_GPR_MASK) != 0) {
       return RISCV_DIFFTEST_BAD_EVENT;
     }
     uint64_t expected_fields = riscv_difftest_skip_sync_fields(
@@ -221,7 +247,27 @@ __EXPORT int difftest_arch_step(const riscv_difftest_arch_step_t *event,
 
 __EXPORT int difftest_async_intr(const riscv_difftest_async_intr_t *event,
     riscv_difftest_observation_t *observation) {
-  (void)event;
-  (void)observation;
-  return RISCV_DIFFTEST_UNSUPPORTED_CAPABILITY;
+  if (event == NULL || observation == NULL) {
+    return RISCV_DIFFTEST_BAD_ARGUMENT;
+  }
+  if (!profile_initialized ||
+      active_profile_id != RISCV_DIFFTEST_PROFILE_RV32IMAC_NPC_NEMU) {
+    return RISCV_DIFFTEST_UNSUPPORTED_CAPABILITY;
+  }
+  int status = validate_event_header(event->abi_version, event->struct_size,
+      sizeof(*event), event->sequence);
+  if (status != RISCV_DIFFTEST_OK) return status;
+  if (!words_are_zero(event->reserved, ARRLEN(event->reserved)) ||
+      event->pretrap_pc != cpu.pc ||
+      (event->interrupt_code != 1 && event->interrupt_code != 3 &&
+       event->interrupt_code != 5 && event->interrupt_code != 7)) {
+    return RISCV_DIFFTEST_BAD_EVENT;
+  }
+
+  cpu.pc = isa_raise_intr(UINT32_C(0x80000000) | event->interrupt_code,
+      event->pretrap_pc);
+  last_sequence = event->sequence;
+  expected_sequence++;
+  build_observation(observation);
+  return RISCV_DIFFTEST_OK;
 }
