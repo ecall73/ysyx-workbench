@@ -23,8 +23,9 @@ CSRC = $(filter %.c,$(HOST_SRCS))
 OBJS = $(CSRC:%.c=$(OBJ_DIR)/%.o)
 
 VERILOG_BUILD_DIR = $(WORK_DIR)/build
-CPU_VERILOG = $(abspath $(VERILOG_BUILD_DIR)/ysyx_26030082.v)
-CPU_VSRCS = $(sort $(shell find $(abspath $(NPC_HOME)/vsrc/core) -name "*.v"))
+CPU_VERILOG = $(abspath $(VERILOG_BUILD_DIR)/ysyx_26030082.sv)
+CPU_CHISEL_SRCS = $(sort $(wildcard $(NPC_HOME)/src/*.scala)) $(NPC_HOME)/build.mill $(NPC_HOME)/LICENSE.SiFive $(NPC_HOME)/LICENSE.Berkeley
+MILL ?= mill
 VSRCS_NPC = $(sort $(shell find $(abspath $(NPC_HOME)/vsrc/npc) -name "*.v"))
 VHDRS_BASE = $(shell find $(abspath $(NPC_HOME)/vsrc) -name "*.vh" -o -name "*.svh")
 HEADER_DEPS = $(shell find $(NPC_HOME)/include $(NPC_HOME)/csrc -type f \( -name "*.h" -o -name "*.hpp" \))
@@ -81,9 +82,9 @@ $(OBJ_DIR)/%.o: %.c $(BUILD_CONFIG)
 $(BUILD_DIR) $(VERILOG_BUILD_DIR):
 	@mkdir -p $@
 
-$(CPU_VERILOG): $(CPU_VSRCS) | $(VERILOG_BUILD_DIR)
-	@echo + CAT "->" $@
-	@cat $(CPU_VSRCS) > $@
+$(CPU_VERILOG): $(CPU_CHISEL_SRCS) | $(VERILOG_BUILD_DIR)
+	@echo + CHISEL "->" $@
+	@cd $(NPC_HOME) && $(MILL) -i runMain GenerateTop $@
 
 $(SRC_AUTO_BIND): $(NXDC_FILES) | $(BUILD_DIR)
 	python3 $(NVBOARD_HOME)/scripts/auto_pin_bind.py $^ $@

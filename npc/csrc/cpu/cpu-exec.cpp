@@ -1,3 +1,4 @@
+#include <cpu/arch-event.h>
 #include <cpu/cpu.h>
 #include <cpu/decode.h>
 #include <cpu/difftest.h>
@@ -24,10 +25,11 @@ static bool g_print_step = false;
 
 extern VerilatedContext *g_contextp;
 extern VerilatedVcdC *g_tfp;
-bool npc_fetch_commit(vaddr_t *pc, uint32_t *inst);
 
-static void ftrace_commit(vaddr_t pc, vaddr_t dnpc, uint32_t inst) {
+static void ftrace_commit(vaddr_t pc, vaddr_t dnpc, uint32_t inst,
+    bool instruction_valid) {
 #ifdef CONFIG_FTRACE
+  if (!instruction_valid) return;
   uint32_t opcode = inst & 0x7fu;
   int rd = BITS(inst, 11, 7);
   int rs1 = BITS(inst, 19, 15);
@@ -40,8 +42,10 @@ static void ftrace_commit(vaddr_t pc, vaddr_t dnpc, uint32_t inst) {
 #endif
 }
 
-static void etrace_commit(vaddr_t pc, vaddr_t dnpc, uint32_t inst) {
+static void etrace_commit(vaddr_t pc, vaddr_t dnpc, uint32_t inst,
+    bool instruction_valid) {
 #ifdef CONFIG_ETRACE
+  if (!instruction_valid) return;
   if (inst == 0x00000073) {
     etrace_write("raise NO=11 epc=" FMT_WORD " -> mtvec=" FMT_WORD
         " mstatus=" FMT_WORD "\n", pc, dnpc, cpu.mstatus);
@@ -56,9 +60,10 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
   if (ITRACE_COND) { itrace_write("%s\n", _this->logbuf); }
 #endif
   if (g_print_step) { IFDEF(CONFIG_ITRACE, puts(_this->logbuf)); }
-  ftrace_commit(_this->pc, dnpc, _this->isa.inst);
-  etrace_commit(_this->pc, dnpc, _this->isa.inst);
-  IFDEF(CONFIG_DIFFTEST, difftest_step(_this->pc, dnpc, _this->isa.inst));
+  ftrace_commit(_this->pc, dnpc, _this->isa.inst, _this->instruction_valid);
+  etrace_commit(_this->pc, dnpc, _this->isa.inst, _this->instruction_valid);
+  IFDEF(CONFIG_DIFFTEST, difftest_step(_this->pc, dnpc, _this->isa.inst,
+        _this->instruction_length, _this->instruction_valid));
 
 #ifdef CONFIG_WATCHPOINT
   if (wp_check()) {
@@ -92,19 +97,32 @@ static void tick_once() {
   } else if (g_no_commit_cycle >= CONFIG_MAX_NO_COMMIT_CYCLES) {
     Log("NPC has no instruction commit for %" PRIu64 " cycles at pc = " FMT_WORD,
         g_no_commit_cycle, cpu.pc);
+    npc_dump_axi_state();
     npc_state.state = NPC_ABORT;
     npc_state.halt_pc = cpu.pc;
   }
 }
 
 static bool exec_once(Decode *s) {
-  vaddr_t pc = 0;
-  uint32_t inst = 0;
-  do {
+  npc_arch_event_t event = {};
+  bool have_commit = false;
+  while (npc_state.state == NPC_RUNNING && !Verilated::gotFinish()) {
     tick_once();
     platform_update();
-  } while (npc_state.state == NPC_RUNNING
-      && !npc_fetch_commit(&pc, &inst) && !Verilated::gotFinish());
+    if (npc_state.state != NPC_RUNNING ||
+        !npc_fetch_arch_event(&event)) continue;
+    g_no_commit_cycle = 0;
+    if (event.type == NPC_ARCH_EVENT_INTERRUPT) {
+      difftest_raise_intr(event.payload.interrupt.cause,
+          event.payload.interrupt.pretrap_pc);
+      continue;
+    }
+    Assert(event.type == NPC_ARCH_EVENT_COMMIT,
+        "execution loop received invalid architecture event type=%u",
+        event.type);
+    have_commit = true;
+    break;
+  }
 
   if (npc_state.state != NPC_RUNNING) {
     return false;
@@ -112,14 +130,16 @@ static bool exec_once(Decode *s) {
     npc_state.state = NPC_ABORT;
     return false;
   }
-  g_no_commit_cycle = 0;
+  Assert(have_commit, "execution loop stopped without a commit event");
 
-  s->pc = pc;
-  s->isa.inst = inst;
+  s->pc = event.payload.commit.pc;
+  s->isa.inst = event.payload.commit.instruction;
+  s->instruction_length = event.payload.commit.instruction_length;
+  s->instruction_valid = event.payload.commit.instruction_valid;
 #ifdef CONFIG_ITRACE
   char *p = s->logbuf;
   p += snprintf(p, sizeof(s->logbuf), FMT_WORD ":", s->pc);
-  int ilen = 4;
+  int ilen = s->instruction_length;
   uint8_t *inst_bytes = (uint8_t *)&s->isa.inst;
   for (int i = ilen - 1; i >= 0; i --) {
     p += snprintf(p, 4, " %02x", inst_bytes[i]);
@@ -131,8 +151,13 @@ static bool exec_once(Decode *s) {
   memset(p, ' ', space_len);
   p += space_len;
 
-  disassemble(p, s->logbuf + sizeof(s->logbuf) - p,
-      s->pc, (uint8_t *)&s->isa.inst, ilen);
+  if (s->instruction_valid) {
+    disassemble(p, s->logbuf + sizeof(s->logbuf) - p,
+        s->pc, (uint8_t *)&s->isa.inst, ilen);
+  } else {
+    snprintf(p, s->logbuf + sizeof(s->logbuf) - p,
+        "<instruction fetch fault>");
+  }
 #endif
   return true;
 }

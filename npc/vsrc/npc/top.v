@@ -201,6 +201,7 @@ module top
     reg [2:0] wr_state;
     reg        rd_sel;
     reg [31:0] rd_addr_reg;
+    reg [ 3:0] rd_id_reg;
     reg [ 7:0] rd_len_reg;
     reg [ 1:0] rd_burst_reg;
     reg [ 7:0] rd_beats_left;
@@ -214,11 +215,17 @@ module top
     reg        wr_buf_valid;
     reg [ 1:0] wr_buf_resp;
     reg [31:0] wr_addr_reg;
+    reg [ 3:0] wr_id_reg;
+    reg [ 2:0] wr_size_reg;
+    reg [ 1:0] wr_burst_reg;
+    reg [ 8:0] wr_beats_left;
     reg [31:0] wr_data_reg;
     reg [ 3:0] wr_strb_reg;
+    reg        wr_last_reg;
     reg [31:0] uart_reg;
     reg [31:0] rd_next_addr;
     reg [31:0] rd_next_data;
+    reg [31:0] wr_next_addr;
     reg [31:0] uart_after_write;
 
     wire ar_sel;
@@ -257,6 +264,12 @@ module top
     end
 
     always @(*) begin
+        wr_next_addr = wr_addr_reg;
+        if (wr_burst_reg == 2'b01)
+            wr_next_addr = wr_addr_reg + (32'd1 << wr_size_reg);
+    end
+
+    always @(*) begin
 `ifdef __ICARUS__
         rd_next_data = pmodel_read(rd_next_addr);
 `else
@@ -282,6 +295,7 @@ module top
                 axi_arready = 1'b1;
             end
             RD_R: begin
+                axi_rid   = rd_id_reg;
                 axi_rdata  = rd_buf_data;
                 axi_rresp  = rd_buf_resp;
                 axi_rlast  = rd_buf_last;
@@ -301,6 +315,7 @@ module top
                 axi_wready  = !wr_have_w;
             end
             WR_B: begin
+                axi_bid    = wr_id_reg;
                 axi_bresp  = wr_buf_resp;
                 axi_bvalid = wr_buf_valid;
             end
@@ -315,6 +330,7 @@ module top
             wr_state      <= WR_IDLE;
             rd_sel        <= SEL_PMEM;
             rd_addr_reg   <= 32'b0;
+            rd_id_reg     <= 4'b0;
             rd_len_reg    <= 8'b0;
             rd_burst_reg  <= 2'b0;
             rd_beats_left <= 8'b0;
@@ -328,8 +344,13 @@ module top
             wr_buf_valid  <= 1'b0;
             wr_buf_resp   <= 2'b0;
             wr_addr_reg   <= 32'b0;
+            wr_id_reg     <= 4'b0;
+            wr_size_reg   <= 3'b0;
+            wr_burst_reg  <= 2'b0;
+            wr_beats_left <= 9'b0;
             wr_data_reg   <= 32'b0;
             wr_strb_reg   <= 4'b0;
+            wr_last_reg   <= 1'b0;
             uart_reg      <= 32'b0;
         end else begin
             case (rd_state)
@@ -339,6 +360,7 @@ module top
                     if (ar_fire) begin
                         rd_sel       <= ar_sel;
                         rd_addr_reg  <= axi_araddr;
+                        rd_id_reg    <= axi_arid;
                         rd_len_reg   <= axi_arlen;
                         rd_burst_reg <= axi_arburst;
                         rd_state     <= RD_PREP;
@@ -397,10 +419,15 @@ module top
                         if (aw_fire) begin
                             wr_sel      <= aw_sel;
                             wr_addr_reg <= axi_awaddr;
+                            wr_id_reg   <= axi_awid;
+                            wr_size_reg <= axi_awsize;
+                            wr_burst_reg <= axi_awburst;
+                            wr_beats_left <= {1'b0, axi_awlen} + 9'd1;
                         end
                         if (w_fire) begin
                             wr_data_reg <= axi_wdata;
                             wr_strb_reg <= axi_wstrb;
+                            wr_last_reg <= axi_wlast;
                         end
                         wr_have_aw <= aw_fire;
                         wr_have_w  <= w_fire;
@@ -412,11 +439,16 @@ module top
                     if (!wr_have_aw && aw_fire) begin
                         wr_sel      <= aw_sel;
                         wr_addr_reg <= axi_awaddr;
+                        wr_id_reg   <= axi_awid;
+                        wr_size_reg <= axi_awsize;
+                        wr_burst_reg <= axi_awburst;
+                        wr_beats_left <= {1'b0, axi_awlen} + 9'd1;
                         wr_have_aw  <= 1'b1;
                     end
                     if (!wr_have_w && w_fire) begin
                         wr_data_reg <= axi_wdata;
                         wr_strb_reg <= axi_wstrb;
+                        wr_last_reg <= axi_wlast;
                         wr_have_w   <= 1'b1;
                     end
                     if ((wr_have_aw || aw_fire) && (wr_have_w || w_fire)) begin
@@ -440,9 +472,21 @@ module top
                         pmem_write(wr_addr_reg, wr_data_reg, {4'b0000, wr_strb_reg});
 `endif
                     end
-                    wr_buf_valid <= 1'b1;
-                    wr_buf_resp  <= 2'b00;
-                    wr_state <= WR_B;
+                    if (wr_last_reg != (wr_beats_left == 9'd1)) begin
+                        wr_buf_resp <= 2'b10;
+                    end else begin
+                        wr_buf_resp <= 2'b00;
+                    end
+                    if (wr_beats_left == 9'd1) begin
+                        wr_beats_left <= 9'b0;
+                        wr_buf_valid <= 1'b1;
+                        wr_state <= WR_B;
+                    end else begin
+                        wr_beats_left <= wr_beats_left - 9'd1;
+                        wr_addr_reg <= wr_next_addr;
+                        wr_have_w <= 1'b0;
+                        wr_state <= WR_COLLECT;
+                    end
                 end
 
                 WR_B: begin
@@ -470,15 +514,12 @@ module top
             if (axi_arvalid && axi_arready && (axi_arsize > 3'd2)) begin
                 $fatal(1, "top: unsupported read size addr=%08x size=%0d", axi_araddr, axi_arsize);
             end
-            if (axi_awvalid && axi_awready &&
+            if (axi_awvalid && axi_awready && (aw_sel != SEL_PMEM) &&
                 ((axi_awlen != 8'h00) || (axi_awburst != 2'b00))) begin
-                $fatal(1, "top: burst write is not supported addr=%08x", axi_awaddr);
+                $fatal(1, "top: MMIO burst write is not supported addr=%08x", axi_awaddr);
             end
             if (axi_awvalid && axi_awready && (axi_awsize > 3'd2)) begin
                 $fatal(1, "top: unsupported write size addr=%08x size=%0d", axi_awaddr, axi_awsize);
-            end
-            if (axi_wvalid && axi_wready && (axi_wlast != 1'b1)) begin
-                $fatal(1, "top: WLAST must be 1 for single-beat write");
             end
             if (axi_wvalid && axi_wready && (axi_wstrb == 4'b0000)) begin
                 $fatal(1, "top: zero write strobe data=%08x", axi_wdata);
@@ -486,6 +527,10 @@ module top
             if (axi_arvalid && axi_arready && (ar_sel == SEL_PMEM) &&
                 (axi_arburst != 2'b00) && (axi_arburst != 2'b01)) begin
                 $fatal(1, "top: unsupported read burst type %0b", axi_arburst);
+            end
+            if (axi_awvalid && axi_awready && (aw_sel == SEL_PMEM) &&
+                (axi_awburst != 2'b00) && (axi_awburst != 2'b01)) begin
+                $fatal(1, "top: unsupported write burst type %0b", axi_awburst);
             end
         end
     end

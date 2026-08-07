@@ -6,8 +6,12 @@
 typedef struct {
   word_t gpr[32];
   vaddr_t pc;
-  // Committed RTL state. DiffTest projects it into the versioned RV32E ABI.
-  word_t mstatus, mtvec, mepc, mcause, satp;
+  // Architecturally committed state projected into the RV32IMAC DiffTest ABI.
+  word_t priv;
+  word_t mstatus, mtvec, mepc, mcause, mtval;
+  word_t medeleg, mideleg, mie;
+  word_t stvec, sepc, scause, stval, sscratch, satp;
+  word_t mscratch, menvcfgh, mcounteren, scounteren, mcountinhibit;
 } riscv32_CPU_state;
 
 // decode

@@ -1,3 +1,4 @@
+#include <cpu/arch-event.h>
 #include <isa.h>
 #include <memory/paddr.h>
 #include <monitor/monitor.h>
@@ -8,7 +9,6 @@
 
 extern VerilatedContext *g_contextp;
 extern VerilatedVcdC *g_tfp;
-void npc_reset_commit_state(vaddr_t pc);
 
 static void welcome() {
   Log("Trace: %s", MUXDEF(CONFIG_TRACE, ANSI_FMT("ON", ANSI_FG_GREEN), ANSI_FMT("OFF", ANSI_FG_RED)));
