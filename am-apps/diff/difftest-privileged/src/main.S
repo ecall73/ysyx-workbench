@@ -130,6 +130,31 @@ fault_mvendorid_write:
 after_mvendorid_write:
   bnez s4, fail
 
+  /* A zero-PMP profile does not implement the PMP CSR address ranges. */
+  la t0, fault_m_pmpaddr0_write
+  lw s0, 0(t0)
+  mv s1, t0
+  la s2, after_m_pmpaddr0_write
+  li s3, 3
+  li s4, 0
+fault_m_pmpaddr0_write:
+  csrw pmpaddr0, zero
+  j fail
+after_m_pmpaddr0_write:
+  bnez s4, fail
+
+  la t0, fault_m_pmpcfg0_write
+  lw s0, 0(t0)
+  mv s1, t0
+  la s2, after_m_pmpcfg0_write
+  li s3, 3
+  li s4, 0
+fault_m_pmpcfg0_write:
+  csrw pmpcfg0, zero
+  j fail
+after_m_pmpcfg0_write:
+  bnez s4, fail
+
   /* An FP instruction with FS=Off is illegal and cannot alter its FPR. */
   la t0, fault_m_fp_off
   lw s0, 0(t0)

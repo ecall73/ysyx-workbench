@@ -17,10 +17,8 @@ object RocketMed {
   final val FetchBytes     = 4
   final val TlbSets        = 1
   final val TlbWays        = 4
-  final val PmpRegions     = 8
-
-  final val MulUnroll = 8
-  final val DivUnroll = 1
+  final val MulUnroll      = 8
+  final val DivUnroll      = 1
 
   require(XLen == 32)
   require(CacheWays == 1)

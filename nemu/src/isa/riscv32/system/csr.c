@@ -120,9 +120,6 @@ word_t csr_read(uint32_t addr) {
     case CSR_MIP:
       difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_PENDING_OWNED);
       return riscv_mip_value();
-    // This NEMU configuration implements zero PMP entries.
-    case CSR_PMPCFG0:
-    case CSR_PMPADDR0:   return 0;
     case CSR_TIME:
       difftest_skip_ref_reason(RISCV_DIFFTEST_SKIP_TIMER_OWNED);
       return (word_t)cpu.mtime;
@@ -238,8 +235,6 @@ void csr_write(uint32_t addr, word_t data) {
       cpu.minstret = replace_counter_half(cpu.minstret, data, true);
       riscv_record_counter_write(addr);
       break;
-    case CSR_PMPCFG0:
-    case CSR_PMPADDR0:   break;
     case CSR_MVENDORID:
     case CSR_MARCHID:
     case CSR_MIMPID:

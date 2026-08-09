@@ -2,6 +2,7 @@
 #define __PLATFORM_PLATFORM_H__
 
 #include <common.h>
+#include <riscv-difftest.h>
 
 #ifdef __cplusplus
 #if defined(NPC_BUILD_PLATFORM_NPC)
@@ -42,7 +43,7 @@ bool platform_read(paddr_t addr, int len, word_t *data);
 bool platform_write(paddr_t addr, int len, word_t data);
 void platform_out_of_bound(paddr_t addr);
 bool platform_in_comparable_mem(paddr_t addr, int len);
-void platform_difftest_memcpy(void (*ref_memcpy)(paddr_t, void *, size_t, bool), bool direction);
+int platform_difftest_memcpy(difftest_load_memory_t ref_load_memory);
 uint32_t platform_difftest_memory_map(void);
 void platform_trace_read(paddr_t addr, int len, word_t data);
 void platform_trace_write(paddr_t addr, int len, word_t data);

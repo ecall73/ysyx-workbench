@@ -1,8 +1,8 @@
 // See ../LICENSE.SiFive and ../LICENSE.Berkeley for license details.
 //
 // Modified from rocket-chip CSR.scala at the locked source revision. This
-// version retains only the fixed RV32IMAC U/S/M, Sv32, counter, local
-// interrupt, and eight-region PMP state used by the NPC core.
+// version retains only the fixed RV32IMAC U/S/M, Sv32, counter, and local
+// interrupt state used by the NPC core.
 package npc.rocketmed
 
 import chisel3._
@@ -101,9 +101,6 @@ object CsrAddress {
   val Mcause        = 0x342
   val Mtval         = 0x343
   val Mip           = 0x344
-  val Pmpcfg0       = 0x3a0
-  val Pmpcfg1       = 0x3a1
-  val Pmpaddr0      = 0x3b0
   val Mcycle        = 0xb00
   val Minstret      = 0xb02
   val Mcycleh       = 0xb80
@@ -143,8 +140,6 @@ class CsrFile extends Module {
     val interruptValid = Output(Bool())
     val interruptCause = Output(UInt(32.W))
     val state          = Output(new CsrState)
-    val pmpCfg         = Output(Vec(RocketMed.PmpRegions, UInt(8.W)))
-    val pmpAddr        = Output(Vec(RocketMed.PmpRegions, UInt(30.W)))
   })
 
   private val SstatusMask      = "h000c0122".U(32.W)
@@ -180,8 +175,6 @@ class CsrFile extends Module {
   val softwareSsip  = RegInit(false.B)
   val mcycle        = RegInit(0.U(64.W))
   val minstret      = RegInit(0.U(64.W))
-  val pmpCfg        = RegInit(VecInit(Seq.fill(RocketMed.PmpRegions)(0.U(8.W))))
-  val pmpAddr       = RegInit(VecInit(Seq.fill(RocketMed.PmpRegions)(0.U(30.W))))
 
   val mip = (softwareSsip.asUInt << 1) |
     (io.interrupts.msip.asUInt << 3) |
@@ -189,8 +182,8 @@ class CsrFile extends Module {
     (io.interrupts.mtip.asUInt << 7) |
     (io.interrupts.seip.asUInt << 9)
 
-  val readData = WireDefault(0.U(32.W))
-  val exists   = WireDefault(false.B)
+  val readData          = WireDefault(0.U(32.W))
+  val exists            = WireDefault(false.B)
   switch(io.access.addr) {
     is(Sstatus.U) { exists := true.B; readData := mstatus & SstatusMask }
     is(Sie.U) { exists := true.B; readData := mie & mideleg }
@@ -220,8 +213,6 @@ class CsrFile extends Module {
     is(Mcause.U) { exists := true.B; readData := mcause }
     is(Mtval.U) { exists := true.B; readData := mtval }
     is(Mip.U) { exists := true.B; readData := mip }
-    is(Pmpcfg0.U) { exists := true.B; readData := Cat(pmpCfg.slice(0, 4).reverse) }
-    is(Pmpcfg1.U) { exists := true.B; readData := Cat(pmpCfg.slice(4, 8).reverse) }
     is(Mcycle.U) { exists := true.B; readData := mcycle(31, 0) }
     is(Minstret.U) { exists := true.B; readData := minstret(31, 0) }
     is(Mcycleh.U) { exists := true.B; readData := mcycle(63, 32) }
@@ -238,13 +229,6 @@ class CsrFile extends Module {
     is(Mhartid.U) { exists := true.B; readData := 0.U }
     is(Mconfigptr.U) { exists := true.B; readData := 0.U }
   }
-  for (i <- 0 until RocketMed.PmpRegions) {
-    when(io.access.addr === (Pmpaddr0 + i).U) {
-      exists   := true.B
-      readData := pmpAddr(i)
-    }
-  }
-
   val writing           = io.access.command =/= CsrCommand.None
   val requiredPrivilege = io.access.addr(9, 8)
   val privilegeIllegal  = priv < requiredPrivilege
@@ -391,20 +375,6 @@ class CsrFile extends Module {
       is(Minstret.U) { minstret := Cat(minstret(63, 32), csrWriteData) }
       is(Minstreth.U) { minstret := Cat(csrWriteData, minstret(31, 0)) }
     }
-    for (i <- 0 until RocketMed.PmpRegions) {
-      val cfgCsr        = if (i < 4) Pmpcfg0 else Pmpcfg1
-      when(io.access.addr === cfgCsr.U && !pmpCfg(i)(7)) {
-        val byte       = csrWriteData(8 * (i % 4) + 7, 8 * (i % 4)) & "h9f".U
-        val clearWrite = Mux(byte(1) && !byte(0), "h02".U(8.W), 0.U(8.W))
-        pmpCfg(i) := byte & ~clearWrite
-      }
-      val next          = if (i + 1 < RocketMed.PmpRegions) i + 1 else i
-      val addressLocked = pmpCfg(i)(7) ||
-        (pmpCfg(next)(7) && pmpCfg(next)(4, 3) === 1.U)
-      when(io.access.addr === (Pmpaddr0 + i).U && !addressLocked) {
-        pmpAddr(i) := csrWriteData(29, 0)
-      }
-    }
   }
 
   io.state.priv          := priv
@@ -429,6 +399,4 @@ class CsrFile extends Module {
   io.state.mcountinhibit := mcountinhibit
   io.state.mcycle        := mcycle
   io.state.minstret      := minstret
-  io.pmpCfg              := pmpCfg
-  io.pmpAddr             := pmpAddr
 }

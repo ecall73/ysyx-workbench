@@ -20,10 +20,11 @@
 #include <difftest-def.h>
 
 #ifdef CONFIG_DIFFTEST
-void difftest_skip_ref();
 void difftest_skip_ref_reason(uint32_t reason);
+#if !defined(CONFIG_ISA_riscv)
+void difftest_skip_ref(void);
 void difftest_skip_dut(int nr_ref, int nr_dut);
-void difftest_set_patch(void (*fn)(void *arg), void *arg);
+#endif
 void difftest_step(vaddr_t pc, uint32_t instruction_bits,
     uint32_t instruction_length, bool instruction_valid);
 void difftest_raise_intr_event(uint32_t interrupt_code, vaddr_t pretrap_pc);
@@ -31,10 +32,7 @@ void difftest_detach();
 void difftest_attach();
 bool difftest_is_attached();
 #else
-static inline void difftest_skip_ref() {}
 static inline void difftest_skip_ref_reason(uint32_t reason) {}
-static inline void difftest_skip_dut(int nr_ref, int nr_dut) {}
-static inline void difftest_set_patch(void (*fn)(void *arg), void *arg) {}
 static inline void difftest_step(vaddr_t pc, uint32_t instruction_bits,
     uint32_t instruction_length, bool instruction_valid) {}
 static inline void difftest_raise_intr_event(uint32_t interrupt_code,
@@ -44,19 +42,10 @@ static inline void difftest_attach() {}
 static inline bool difftest_is_attached() { return false; }
 #endif
 
-extern void (*ref_difftest_memcpy)(paddr_t addr, void *buf, size_t n, bool direction);
+#if defined(CONFIG_DIFFTEST) && !defined(CONFIG_ISA_riscv)
 extern void (*ref_difftest_regcpy)(void *dut, bool direction);
 extern void (*ref_difftest_exec)(uint64_t n);
 extern void (*ref_difftest_raise_intr)(uint64_t NO);
-
-static inline bool difftest_check_reg(const char *name, vaddr_t pc, word_t ref, word_t dut) {
-  if (ref != dut) {
-    Log("%s is different after executing instruction at pc = " FMT_WORD
-        ", right = " FMT_WORD ", wrong = " FMT_WORD ", diff = " FMT_WORD,
-        name, pc, ref, dut, ref ^ dut);
-    return false;
-  }
-  return true;
-}
+#endif
 
 #endif

@@ -19,6 +19,22 @@
 #include <memory/paddr.h>
 #include <string.h>
 
+#if defined(CONFIG_ISA_riscv)
+
+__EXPORT int difftest_load_memory(uint32_t addr, const void *buf, size_t n) {
+  if ((buf == NULL && n != 0) ||
+      (uint64_t)n > UINT64_C(1) + UINT32_MAX - (uint64_t)addr) {
+    return RISCV_DIFFTEST_BAD_ARGUMENT;
+  }
+  const uint8_t *p = (const uint8_t *)buf;
+  for (size_t i = 0; i < n; i++) {
+    paddr_write(addr + i, 1, p[i]);
+  }
+  return RISCV_DIFFTEST_OK;
+}
+
+#else
+
 __EXPORT void difftest_memcpy(paddr_t addr, void *buf, size_t n, bool direction) {
   Assert(buf != NULL,
       "difftest_memcpy with null buffer: addr=" FMT_PADDR " n=%zu direction=%d",
@@ -45,14 +61,8 @@ __EXPORT void difftest_regcpy(void *dut, bool direction) {
   Assert(dut != NULL, "difftest_regcpy with null buffer: direction=%d", direction);
   Assert(direction == DIFFTEST_TO_DUT || direction == DIFFTEST_TO_REF,
       "difftest_regcpy with bad direction: direction=%d", direction);
-#if defined(CONFIG_ISA_riscv)
-  riscv_difftest_context_t *ctx = dut;
-  if (direction == DIFFTEST_TO_REF) riscv_difftest_unpack(&cpu, ctx);
-  else riscv_difftest_pack(ctx, &cpu);
-#else
   if (direction == DIFFTEST_TO_REF) memcpy(&cpu, dut, DIFFTEST_REG_SIZE);
   else memcpy(dut, &cpu, DIFFTEST_REG_SIZE);
-#endif
 }
 
 __EXPORT void difftest_exec(uint64_t n) {
@@ -69,3 +79,5 @@ __EXPORT void difftest_init(int port) {
   /* Perform ISA dependent initialization. */
   init_isa();
 }
+
+#endif

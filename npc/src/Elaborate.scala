@@ -8,7 +8,6 @@ import npc.rocketmed.{
   IterativeMulDiv,
   MemSys,
   PageTableWalker,
-  PmpChecker,
   RocketChip,
   RocketCore,
   RvcExpander,
@@ -33,7 +32,6 @@ object Elaborate extends App {
     case Some("itlb")   => (() => new Tlb(instruction = true), args.drop(1))
     case Some("dtlb")   => (() => new Tlb(instruction = false), args.drop(1))
     case Some("ptw")    => (() => new PageTableWalker, args.drop(1))
-    case Some("pmp")    => (() => new PmpChecker, args.drop(1))
     case Some("icache") => (() => new BlockingCache(instruction = true), args.drop(1))
     case Some("dcache") => (() => new BlockingCache(instruction = false), args.drop(1))
     case Some("decode") => (() => new InstructionDecoder, args.drop(1))

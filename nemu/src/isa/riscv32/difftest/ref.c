@@ -17,13 +17,6 @@ static const uint64_t provided_capabilities =
     RISCV_DIFFTEST_RV32IMAC_REQUIRED_CAPS |
     RISCV_DIFFTEST_CAP_YSYXSOC_MEMORY_MAP;
 
-static bool words_are_zero(const uint32_t *words, size_t count) {
-  for (size_t i = 0; i < count; i++) {
-    if (words[i] != 0) return false;
-  }
-  return true;
-}
-
 static int validate_profile(const riscv_difftest_profile_t *profile) {
   if (profile == NULL) return RISCV_DIFFTEST_BAD_ARGUMENT;
   if (profile->abi_version != RISCV_DIFFTEST_ABI_VERSION) {
@@ -31,9 +24,6 @@ static int validate_profile(const riscv_difftest_profile_t *profile) {
   }
   if (profile->struct_size != sizeof(*profile)) {
     return RISCV_DIFFTEST_BAD_STRUCT_SIZE;
-  }
-  if (!words_are_zero(profile->reserved, ARRLEN(profile->reserved))) {
-    return RISCV_DIFFTEST_BAD_ARGUMENT;
   }
   uint64_t required_capabilities;
   if (profile->profile_id == RISCV_DIFFTEST_PROFILE_RV32IMAC_NPC_NEMU) {
@@ -58,10 +48,8 @@ static int validate_profile(const riscv_difftest_profile_t *profile) {
       profile->privilege_modes !=
           (RISCV_DIFFTEST_PRIV_U | RISCV_DIFFTEST_PRIV_S |
            RISCV_DIFFTEST_PRIV_M) ||
-      profile->pmp_regions != 0 ||
       profile->isa_features != RISCV_DIFFTEST_RV32IMAC_FEATURES ||
-      profile->required_capabilities != required_capabilities ||
-      profile->optional_capabilities != 0) {
+      profile->required_capabilities != required_capabilities) {
     return RISCV_DIFFTEST_UNSUPPORTED_PROFILE;
   }
   return RISCV_DIFFTEST_OK;
@@ -170,8 +158,7 @@ __EXPORT int difftest_arch_step(const riscv_difftest_arch_step_t *event,
       ? (event->instruction_bits & 0xffff0003u) != 0x00000003u &&
         (event->instruction_bits & 0xffff0000u) == 0
       : (event->instruction_bits & 0x3u) == 0x3u;
-  if (!words_are_zero(event->reserved, ARRLEN(event->reserved)) ||
-      event->instruction_valid > 1 || !valid_length ||
+  if (event->instruction_valid > 1 || !valid_length ||
       (event->instruction_valid && !valid_encoding) ||
       event->instruction_pc != cpu.pc) {
     Log("reject ARCH_STEP metadata: sequence=%" PRIu64
@@ -257,8 +244,7 @@ __EXPORT int difftest_async_intr(const riscv_difftest_async_intr_t *event,
   int status = validate_event_header(event->abi_version, event->struct_size,
       sizeof(*event), event->sequence);
   if (status != RISCV_DIFFTEST_OK) return status;
-  if (!words_are_zero(event->reserved, ARRLEN(event->reserved)) ||
-      event->pretrap_pc != cpu.pc ||
+  if (event->pretrap_pc != cpu.pc ||
       (event->interrupt_code != 1 && event->interrupt_code != 3 &&
        event->interrupt_code != 5 && event->interrupt_code != 7)) {
     return RISCV_DIFFTEST_BAD_EVENT;

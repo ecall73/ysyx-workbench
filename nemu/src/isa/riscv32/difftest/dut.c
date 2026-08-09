@@ -14,64 +14,7 @@
 ***************************************************************************************/
 
 #include <isa.h>
-#include <cpu/difftest.h>
-#include "../local-include/reg.h"
 #include "../local-include/difftest.h"
-
-static bool check_reg(const char *name, word_t ref, word_t dut, vaddr_t pc) {
-  if (ref == dut) return true;
-  printf("difftest error at pc = " FMT_WORD ": %s mismatch, ref = " FMT_WORD ", dut = " FMT_WORD "\n",
-      pc, name, ref, dut);
-  return false;
-}
-
-bool isa_difftest_checkregs(CPU_state *ref_r, vaddr_t pc) {
-  for (int i = 0; i < ARRLEN(cpu.gpr); i++) {
-    if (ref_r->gpr[i] != cpu.gpr[i]) {
-      printf("difftest error at pc = " FMT_WORD ": gpr[%d] mismatch, ref = " FMT_WORD ", dut = " FMT_WORD "\n",
-          pc, i, ref_r->gpr[i], cpu.gpr[i]);
-      return false;
-    }
-  }
-
-  for (int i = 0; i < ARRLEN(cpu.fpr); i++) {
-    if (ref_r->fpr[i] != cpu.fpr[i]) {
-      printf("difftest error at pc = " FMT_WORD ": fpr[%d] mismatch, ref = 0x%016" PRIx64
-          ", dut = 0x%016" PRIx64 ", ref-pc = " FMT_WORD ", dut-pc = " FMT_WORD
-          ", ref-mstatus = " FMT_WORD ", ref-mcause = " FMT_WORD "\n",
-          pc, i, ref_r->fpr[i], cpu.fpr[i], ref_r->pc, cpu.pc,
-          ref_r->mstatus, ref_r->mcause);
-      return false;
-    }
-  }
-
-  return check_reg("pc", ref_r->pc, cpu.pc, pc)
-      && check_reg("fcsr", ref_r->fcsr, cpu.fcsr, pc)
-      && check_reg("mstatus", ref_r->mstatus, cpu.mstatus, pc)
-      && check_reg("mtvec", ref_r->mtvec, cpu.mtvec, pc)
-      && check_reg("mepc", ref_r->mepc, cpu.mepc, pc)
-      && check_reg("mcause", ref_r->mcause, cpu.mcause, pc)
-      && check_reg("mtval", ref_r->mtval, cpu.mtval, pc)
-      && check_reg("medeleg", ref_r->medeleg, cpu.medeleg, pc)
-      && check_reg("mideleg", ref_r->mideleg, cpu.mideleg, pc)
-      && check_reg("mie", ref_r->mie, cpu.mie, pc)
-      && check_reg("stvec", ref_r->stvec, cpu.stvec, pc)
-      && check_reg("sepc", ref_r->sepc, cpu.sepc, pc)
-      && check_reg("scause", ref_r->scause, cpu.scause, pc)
-      && check_reg("stval", ref_r->stval, cpu.stval, pc)
-      && check_reg("sscratch", ref_r->sscratch, cpu.sscratch, pc)
-      && check_reg("satp", ref_r->satp, cpu.satp, pc)
-      && check_reg("mscratch", ref_r->mscratch, cpu.mscratch, pc)
-      && check_reg("menvcfgh", ref_r->menvcfgh, cpu.menvcfgh, pc)
-      && check_reg("mcounteren", ref_r->mcounteren, cpu.mcounteren, pc)
-      && check_reg("scounteren", ref_r->scounteren, cpu.scounteren, pc)
-      && check_reg("mcountinhibit", ref_r->mcountinhibit,
-          cpu.mcountinhibit, pc)
-      && check_reg("priv", ref_r->priv, cpu.priv, pc);
-}
-
-void isa_difftest_attach() {
-}
 
 static bool check_u32_field(const char *event_name, uint64_t sequence,
     vaddr_t event_pc, const char *name, uint32_t ref, uint32_t dut) {
@@ -115,10 +58,9 @@ bool riscv_difftest_check_observation(
   if (ref->state.valid_fields != RISCV_DIFFTEST_RV32GC_STATE_FIELDS ||
       dut->state.valid_fields != RISCV_DIFFTEST_RV32GC_STATE_FIELDS ||
       ref->state.gpr_valid_mask != UINT32_MAX ||
-      dut->state.gpr_valid_mask != UINT32_MAX ||
-      ref->state.reserved_tail != 0 || dut->state.reserved_tail != 0) {
+      dut->state.gpr_valid_mask != UINT32_MAX) {
     printf("DiffTest %s sequence=%" PRIu64 " at pc=" FMT_WORD
-        ": invalid field mask or reserved data\n",
+        ": invalid field mask\n",
         event_name, dut->sequence, event_pc);
     return false;
   }

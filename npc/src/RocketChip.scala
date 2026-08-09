@@ -4,8 +4,8 @@ package npc.rocketmed
 import chisel3._
 import chisel3.util.Valid
 
-// Chisel-owned semantic top. GenerateTop adds only the legacy parameterized
-// shell and simulation DPI observer around this module.
+// Chisel-owned semantic top. GenerateTop adds only the parameterized external
+// contract and simulation DPI observer around this module.
 class RocketChip extends Module {
   override def desiredName: String = "ysyx_26030082_chisel"
 
@@ -145,7 +145,7 @@ class RocketChip extends Module {
   io.asyncInterrupt := core.io.asyncInterrupt
   io.halted         := core.io.halted
 
-  // Preserve the legacy ports even though this fixed profile owns no external
+  // Preserve the external ports even though this fixed profile owns no external
   // interrupt source and accepts no inbound AXI slave transactions.
   dontTouch(io.interrupt)
   dontTouch(io.slave_awvalid)

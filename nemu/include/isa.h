@@ -65,8 +65,9 @@ void riscv_raise_memory_fault(vaddr_t addr, int type, bool page_fault)
 void riscv_raise_illegal_instruction(void) __attribute__((noreturn));
 #endif
 
-// difftest
+#if !defined(CONFIG_ISA_riscv)
 bool isa_difftest_checkregs(CPU_state *ref_r, vaddr_t pc);
 void isa_difftest_attach();
+#endif
 
 #endif

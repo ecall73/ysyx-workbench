@@ -100,17 +100,15 @@ void platform_trace_write(paddr_t addr, int len, word_t data) {
   }
 }
 
-void platform_difftest_memcpy(void (*ref_memcpy)(paddr_t, void *, size_t, bool), bool direction) {
-  Assert(ref_memcpy != NULL,
-      "platform_difftest_memcpy with null callback: direction=%d img_size=%ld",
-      direction, img_size);
-  Assert(direction == DIFFTEST_TO_DUT || direction == DIFFTEST_TO_REF,
-      "platform_difftest_memcpy with bad direction: direction=%d img_size=%ld",
-      direction, img_size);
+int platform_difftest_memcpy(difftest_load_memory_t ref_load_memory) {
+  Assert(ref_load_memory != NULL,
+      "platform_difftest_memcpy with null callback: img_size=%ld",
+      img_size);
   Assert(img_size >= 0 && img_size <= NPC_PMEM_SIZE,
       "platform_difftest_memcpy with bad image size: img_size=%ld capacity=%u",
       img_size, NPC_PMEM_SIZE);
-  if (img_size > 0) ref_memcpy(NPC_PMEM_BASE, pmem, (size_t)img_size, direction);
+  if (img_size == 0) return RISCV_DIFFTEST_OK;
+  return ref_load_memory(NPC_PMEM_BASE, pmem, (size_t)img_size);
 }
 
 uint32_t platform_difftest_memory_map(void) {

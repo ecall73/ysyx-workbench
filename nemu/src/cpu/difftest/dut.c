@@ -21,13 +21,17 @@
 #include <utils.h>
 #include <difftest-def.h>
 
-void (*ref_difftest_memcpy)(paddr_t addr, void *buf, size_t n,
-    bool direction) = NULL;
-void (*ref_difftest_regcpy)(void *dut, bool direction) = NULL;
-void (*ref_difftest_exec)(uint64_t n) = NULL;
-void (*ref_difftest_raise_intr)(uint64_t NO) = NULL;
-
 #ifdef CONFIG_DIFFTEST
+
+#if defined(CONFIG_ISA_riscv)
+static difftest_load_memory_t ref_load_memory = NULL;
+#else
+static void (*ref_difftest_memcpy)(paddr_t addr, void *buf, size_t n,
+    bool direction) = NULL;
+static void (*ref_difftest_regcpy)(void *dut, bool direction) = NULL;
+static void (*ref_difftest_exec)(uint64_t n) = NULL;
+void (*ref_difftest_raise_intr)(uint64_t NO) = NULL;
+#endif
 
 static bool is_attached = true;
 
@@ -56,7 +60,6 @@ static const char *difftest_status_name(int status) {
     case RISCV_DIFFTEST_BAD_SEQUENCE: return "bad event sequence";
     case RISCV_DIFFTEST_BAD_EVENT: return "bad architecture event";
     case RISCV_DIFFTEST_BAD_STATE: return "bad architecture state";
-    case RISCV_DIFFTEST_BAD_MEMORY: return "bad memory operation";
     case RISCV_DIFFTEST_INTERNAL_ERROR: return "reference internal error";
     default: return "unknown status";
   }
@@ -71,8 +74,8 @@ static void require_ref_status(const char *operation, int status) {
 static void *require_ref_symbol(void *handle, const char *name) {
   void *symbol = dlsym(handle, name);
   Assert(symbol != NULL,
-      "DiffTest reference does not implement versioned RV32 symbol '%s'; "
-      "legacy regcpy fallback is disabled", name);
+      "DiffTest reference does not implement required RV32 ABI v1 symbol '%s'",
+      name);
   return symbol;
 }
 
@@ -86,10 +89,8 @@ static riscv_difftest_profile_t make_rv32gc_profile(void) {
     .fp_kind = RISCV_DIFFTEST_FP_D,
     .privilege_modes = RISCV_DIFFTEST_PRIV_U | RISCV_DIFFTEST_PRIV_S |
         RISCV_DIFFTEST_PRIV_M,
-    .pmp_regions = 0,
     .isa_features = RISCV_DIFFTEST_RV32GC_FEATURES,
     .required_capabilities = RISCV_DIFFTEST_RV32GC_REQUIRED_CAPS,
-    .optional_capabilities = 0,
     .reset_pc = RESET_VECTOR,
     .memory_map = RISCV_DIFFTEST_MEMORY_MAP_NEMU,
   };
@@ -133,22 +134,13 @@ void difftest_skip_ref_reason(uint32_t reason) {
   pending_skip_reason = reason;
 }
 
-void difftest_skip_ref(void) {
-  panic("untyped DiffTest skip at pc=" FMT_WORD, cpu.pc);
-}
-
-void difftest_skip_dut(int nr_ref, int nr_dut) {
-  panic("difftest_skip_dut is not part of the versioned RISC-V protocol: "
-      "nr_ref=%d nr_dut=%d pc=" FMT_WORD, nr_ref, nr_dut, cpu.pc);
-}
-
 void difftest_detach(void) {
   is_attached = false;
 }
 
 void difftest_attach(void) {
-  ref_difftest_memcpy(PMEM_LEFT, guest_to_host(PMEM_LEFT), CONFIG_MSIZE,
-      DIFFTEST_TO_REF);
+  require_ref_status("load_memory",
+      ref_load_memory(PMEM_LEFT, guest_to_host(PMEM_LEFT), CONFIG_MSIZE));
   sync_reference("ATTACH");
   pending_skip_reason = RISCV_DIFFTEST_SKIP_NONE;
   is_attached = true;
@@ -178,8 +170,8 @@ void init_difftest(char *ref_so_file, long img_size, int port) {
       require_ref_symbol(handle, "difftest_query_interface");
   ref_init_profile = (difftest_init_profile_t)
       require_ref_symbol(handle, "difftest_init_profile");
-  ref_difftest_memcpy = (void (*)(paddr_t, void *, size_t, bool))
-      require_ref_symbol(handle, "difftest_memcpy");
+  ref_load_memory = (difftest_load_memory_t)
+      require_ref_symbol(handle, "difftest_load_memory");
   ref_get_observation = (difftest_get_observation_t)
       require_ref_symbol(handle, "difftest_get_observation");
   ref_set_sync_state = (difftest_set_sync_state_t)
@@ -199,6 +191,9 @@ void init_difftest(char *ref_so_file, long img_size, int port) {
       interface.struct_size == sizeof(interface),
       "DiffTest interface header mismatch: version=%u size=%u",
       interface.abi_version, interface.struct_size);
+  Assert(riscv_difftest_string_is_terminated(interface.implementation_id,
+          sizeof(interface.implementation_id)),
+      "DiffTest interface contains an unterminated implementation ID");
   Assert(interface.observation_size == sizeof(riscv_difftest_observation_t) &&
       interface.sync_state_size == sizeof(riscv_difftest_sync_state_t) &&
       interface.arch_step_size == sizeof(riscv_difftest_arch_step_t) &&
@@ -220,8 +215,8 @@ void init_difftest(char *ref_so_file, long img_size, int port) {
       missing_features);
   require_ref_status("init_profile", ref_init_profile(&profile));
 
-  ref_difftest_memcpy(RESET_VECTOR, guest_to_host(RESET_VECTOR), img_size,
-      DIFFTEST_TO_REF);
+  require_ref_status("load_memory",
+      ref_load_memory(RESET_VECTOR, guest_to_host(RESET_VECTOR), img_size));
   next_sequence = 0;
   pending_skip_reason = RISCV_DIFFTEST_SKIP_NONE;
   is_attached = true;

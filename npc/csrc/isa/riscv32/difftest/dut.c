@@ -25,10 +25,9 @@ bool isa_difftest_check_observation(
   if (ref->state.valid_fields != RISCV_DIFFTEST_RV32IMAC_STATE_FIELDS ||
       dut->state.valid_fields != RISCV_DIFFTEST_RV32IMAC_STATE_FIELDS ||
       ref->state.gpr_valid_mask != RISCV_DIFFTEST_RV32IMAC_GPR_MASK ||
-      dut->state.gpr_valid_mask != RISCV_DIFFTEST_RV32IMAC_GPR_MASK ||
-      ref->state.reserved_tail != 0 || dut->state.reserved_tail != 0) {
+      dut->state.gpr_valid_mask != RISCV_DIFFTEST_RV32IMAC_GPR_MASK) {
     printf("DiffTest %s sequence=%" PRIu64 " at pc=" FMT_WORD
-        ": invalid RV32IMAC field mask or reserved data\n",
+        ": invalid RV32IMAC field mask\n",
         event_name, dut->sequence, event_pc);
     return false;
   }

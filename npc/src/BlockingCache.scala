@@ -1,8 +1,8 @@
 // See ../LICENSE.SiFive and ../LICENSE.Berkeley for license details.
 //
 // Modified from rocket-chip ICache.scala and DCache.scala at the locked source
-// revision. Arrays use independent 32-bit SyncReadMem banks, while each fixed
-// 64-byte line refills or writes back as sixteen 32-bit beats.
+// revision. Each cache uses one 1024 x 32-bit 1RW data array; a 64-byte line
+// refills or writes back as sixteen sequential 32-bit beats.
 package npc.rocketmed
 
 import chisel3._
@@ -111,7 +111,8 @@ class BlockingCache(val instruction: Boolean) extends Module {
   private val LineOffsetBits = 6
   private val TagBits        = 32 - SetBits - LineOffsetBits
 
-  def cacheSet(address: UInt): UInt = address(11, 6)
+  def cacheSet(address:     UInt): UInt = address(11, 6)
+  def cacheWordAddress(set: UInt, word: UInt): UInt = Cat(set, word)
 
   val idle :: captureLookup :: decideLookup :: sendWriteAddress :: sendWriteData :: waitWriteResponse :: sendReadAddress :: receiveReadData :: restartLookup :: respond :: probeCaptureLookup :: probeDecideLookup :: probeRespond :: probeWaitAck :: flushLookup :: flushCaptureLookup :: flushDecideLookup :: flushWriteAddress :: flushWriteData :: flushWaitResponse :: flushComplete :: Nil =
     Enum(21)
@@ -124,7 +125,9 @@ class BlockingCache(val instruction: Boolean) extends Module {
   val refillError                                                                                                                                                                                                                                                                                                                                                                                = RegInit(false.B)
   val writebackBeat                                                                                                                                                                                                                                                                                                                                                                              = RegInit(0.U(4.W))
   val lookupTag                                                                                                                                                                                                                                                                                                                                                                                  = Reg(UInt(TagBits.W))
-  val lookupLine                                                                                                                                                                                                                                                                                                                                                                                 = Reg(Vec(RocketMed.RefillBeats, UInt(32.W)))
+  val lookupWord                                                                                                                                                                                                                                                                                                                                                                                 = Reg(UInt(32.W))
+  val streamData                                                                                                                                                                                                                                                                                                                                                                                 = Reg(UInt(32.W))
+  val streamDataValid                                                                                                                                                                                                                                                                                                                                                                            = RegInit(false.B)
   val probeSaved                                                                                                                                                                                                                                                                                                                                                                                 = if (!instruction) Some(Reg(new ProbeRequest)) else None
   val probeHit                                                                                                                                                                                                                                                                                                                                                                                   = if (!instruction) Some(RegInit(false.B)) else None
   val probeDirty                                                                                                                                                                                                                                                                                                                                                                                 = if (!instruction) Some(RegInit(false.B)) else None
@@ -135,31 +138,47 @@ class BlockingCache(val instruction: Boolean) extends Module {
 
   val valid      = RegInit(VecInit(Seq.fill(RocketMed.CacheSets)(false.B)))
   val dirty      = RegInit(VecInit(Seq.fill(RocketMed.CacheSets)(false.B)))
-  val tagMemory  = SyncReadMem(RocketMed.CacheSets, UInt(TagBits.W))
-  val dataMemory = Seq.fill(RocketMed.RefillBeats)(SyncReadMem(RocketMed.CacheSets, UInt(RocketMed.RowBits.W)))
+  val tagMemory  = Module(
+    new SinglePortSram(
+      RocketMed.CacheSets,
+      TagBits,
+      masked = false,
+      moduleName = if (instruction) "ICacheTagSram" else "DCacheTagSram"
+    )
+  )
+  val dataMemory = Module(
+    new SinglePortSram(
+      RocketMed.CacheSets * RocketMed.RefillBeats,
+      RocketMed.RowBits,
+      masked = !instruction,
+      moduleName = if (instruction) "ICacheDataSram" else "DCacheDataSram"
+    )
+  )
 
-  val probeLookup    = if (instruction) false.B else io.probeRequest.get.fire
-  val probeLookupSet =
+  val probeLookup       = if (instruction) false.B else io.probeRequest.get.fire
+  val probeLookupSet    =
     if (instruction) 0.U(SetBits.W)
     else cacheSet(io.probeRequest.get.bits.lineAddress)
-  val requestSet     = cacheSet(io.request.bits.addr)
-  val lookupEnable   = (io.request.fire && !io.request.bits.uncached) ||
+  val requestSet        = cacheSet(io.request.bits.addr)
+  val lookupEnable      = (io.request.fire && !io.request.bits.uncached) ||
     state === restartLookup || probeLookup || state === flushLookup
-  val lookupSet      = Mux(
+  val lookupSet         = Mux(
     state === flushLookup,
     (if (instruction) 0.U else flushSet.get),
     Mux(probeLookup, probeLookupSet, Mux(state === restartLookup, cacheSet(saved.addr), requestSet))
   )
-  val tagRead        = tagMemory.read(lookupSet, lookupEnable)
-  val lineRead       = VecInit(dataMemory.map(_.read(lookupSet, lookupEnable)))
+  val lookupWordIndex   = Mux(
+    state === flushLookup || probeLookup,
+    0.U(4.W),
+    Mux(state === restartLookup, saved.addr(5, 2), io.request.bits.addr(5, 2))
+  )
+  val lookupDataAddress = cacheWordAddress(lookupSet, lookupWordIndex)
 
   val savedSet     = cacheSet(saved.addr)
   val savedTag     = saved.addr(31, 12)
   val savedWord    = saved.addr(5, 2)
   val lineHit      = valid(savedSet) && lookupTag === savedTag
-  val oldWord      = lookupLine(savedWord)
-  val byteMask     = FillInterleaved(8, saved.mask)
-  val maskedStore  = (oldWord & ~byteMask) | (saved.data & byteMask)
+  val oldWord      = lookupWord
   val atomicResult = MuxLookup(saved.atomic, saved.data)(
     Seq(
       AtomicOperation.Swap -> saved.data,
@@ -183,13 +202,60 @@ class BlockingCache(val instruction: Boolean) extends Module {
   val isAmo              = saved.atomic >= AtomicOperation.Swap
   val hitWrites          = saved.write && saved.atomic === AtomicOperation.None ||
     (isSc && reservationMatches) || isAmo
-  val hitWriteData       = Mux(isAmo, atomicResult, maskedStore)
+  val hitWriteData       = Mux(isAmo, atomicResult, saved.data)
+  val hitWriteMask       = Mux(isAmo || isSc, "hf".U, saved.mask)
   val hitResponse        = state === decideLookup && lineHit
   val hitResponseData    = Mux(
     isSc,
     Mux(reservationMatches, 0.U, 1.U),
     Mux(saved.write && !isAmo, 0.U, oldWord)
   )
+
+  val refillTransfer   = state === receiveReadData && io.readData.fire && !saved.uncached
+  val refillAnyError   = refillError || io.readData.bits.error
+  val hitWriteTransfer = state === decideLookup && lineHit && io.response.fire && hitWrites
+  val tagWriteEnable   = refillTransfer && io.readData.bits.last && !refillAnyError
+  val dataWriteEnable  = if (instruction) refillTransfer else refillTransfer || hitWriteTransfer
+  val dataWriteAddress = Mux(
+    refillTransfer,
+    cacheWordAddress(savedSet, refillBeat),
+    cacheWordAddress(savedSet, savedWord)
+  )
+  val dataWriteData    =
+    if (instruction) io.readData.bits.data
+    else Mux(refillTransfer, io.readData.bits.data, hitWriteData)
+  val dataWriteMask    =
+    if (instruction) "hf".U(4.W)
+    else Mux(refillTransfer, "hf".U, hitWriteMask)
+
+  val streamReadEnable  = WireDefault(false.B)
+  val streamReadAddress = WireDefault(0.U(10.W))
+  val streamFire        = WireDefault(false.B)
+  val streamReadValid   = RegNext(streamReadEnable, false.B)
+
+  tagMemory.io.enable    := lookupEnable || tagWriteEnable
+  tagMemory.io.write     := tagWriteEnable
+  tagMemory.io.address   := Mux(tagWriteEnable, savedSet, lookupSet)
+  tagMemory.io.writeData := savedTag
+  tagMemory.io.writeMask := 0.U
+
+  val dataReadEnable = lookupEnable || streamReadEnable
+  dataMemory.io.enable    := dataReadEnable || dataWriteEnable
+  dataMemory.io.write     := dataWriteEnable
+  dataMemory.io.address   := Mux(
+    dataWriteEnable,
+    dataWriteAddress,
+    Mux(streamReadEnable, streamReadAddress, lookupDataAddress)
+  )
+  dataMemory.io.writeData := dataWriteData
+  dataMemory.io.writeMask := dataWriteMask
+
+  assert(!(lookupEnable && tagWriteEnable))
+  assert(!(lookupEnable && streamReadEnable))
+  assert(!(dataReadEnable && dataWriteEnable))
+  if (!instruction) {
+    assert(!(refillTransfer && hitWriteTransfer))
+  }
 
   val instructionHitTurnaround = if (instruction) {
     hitResponse && io.response.ready && !io.request.bits.uncached
@@ -212,8 +278,15 @@ class BlockingCache(val instruction: Boolean) extends Module {
   io.readData.ready          := state === receiveReadData
 
   if (!instruction) {
-    val flushingAddress = state === flushWriteAddress
-    val flushingData    = state === flushWriteData
+    val flushingAddress     = state === flushWriteAddress
+    val flushingData        = state === flushWriteData
+    val cachedWritebackData = state === sendWriteData && !saved.uncached
+    val uncachedWriteData   = state === sendWriteData && saved.uncached
+    val streamedWriteData   = cachedWritebackData || flushingData
+    val streamSourceValid   = streamDataValid || streamReadValid
+    val streamSourceData    = Mux(streamDataValid, streamData, dataMemory.io.readData)
+    val streamedWriteLast   = Mux(flushingData, flushBeat.get === 15.U, writebackBeat === 15.U)
+
     io.writeAddress.get.valid       := state === sendWriteAddress || flushingAddress
     io.writeAddress.get.bits.addr   := Mux(
       flushingAddress,
@@ -227,27 +300,43 @@ class BlockingCache(val instruction: Boolean) extends Module {
       AtomicOperation.None,
       Mux(saved.uncached, saved.atomic, AtomicOperation.None)
     )
-    io.writeData.get.valid          := state === sendWriteData || flushingData
-    io.writeData.get.bits.data      := Mux(
-      flushingData,
-      lookupLine(flushBeat.get),
-      Mux(saved.uncached, saved.data, lookupLine(writebackBeat))
-    )
-    io.writeData.get.bits.mask      := Mux(flushingData, "hf".U, Mux(saved.uncached, saved.mask, "hf".U))
-    io.writeData.get.bits.last      := Mux(flushingData, flushBeat.get === 15.U, saved.uncached || writebackBeat === 15.U)
+    io.writeData.get.valid          := uncachedWriteData || streamedWriteData && streamSourceValid
+    io.writeData.get.bits.data      := Mux(uncachedWriteData, saved.data, streamSourceData)
+    io.writeData.get.bits.mask      := Mux(uncachedWriteData, saved.mask, "hf".U)
+    io.writeData.get.bits.last      := uncachedWriteData || streamedWriteLast
     io.writeResponse.get.ready      := state === waitWriteResponse ||
       state === flushWaitResponse
 
     io.probeRequest.get.ready       := state === idle
-    io.probeResponse.get.valid      := state === probeRespond
+    io.probeResponse.get.valid      := state === probeRespond && streamSourceValid
     io.probeResponse.get.bits.hit   := probeHit.get
     io.probeResponse.get.bits.dirty := probeDirty.get
-    io.probeResponse.get.bits.data  := lookupLine(probeBeat.get)
+    io.probeResponse.get.bits.data  := streamSourceData
     io.probeResponse.get.bits.last  := !probeHit.get || !probeDirty.get ||
       probeBeat.get === 15.U
     io.probeAck.get.ready           := state === probeWaitAck
     io.flushDone.get                := state === flushComplete
     io.flushError.get               := flushFailed.get
+
+    val writeStreamFire    = streamedWriteData && io.writeData.get.fire
+    val probeStreamFire    = state === probeRespond && io.probeResponse.get.fire
+    val writeNextRead      = writeStreamFire && !streamedWriteLast
+    val probeNextRead      = probeStreamFire && probeHit.get && probeDirty.get && probeBeat.get =/= 15.U
+    val startWritebackRead = state === decideLookup && !lineHit && valid(savedSet) && dirty(savedSet)
+
+    streamFire        := writeStreamFire || probeStreamFire
+    streamReadEnable  := startWritebackRead || writeNextRead || probeNextRead
+    streamReadAddress := MuxCase(
+      0.U,
+      Seq(
+        startWritebackRead                     -> cacheWordAddress(savedSet, 0.U(4.W)),
+        (writeNextRead && flushingData)        -> cacheWordAddress(flushSet.get, flushBeat.get + 1.U),
+        (writeNextRead && cachedWritebackData) -> cacheWordAddress(savedSet, writebackBeat + 1.U),
+        probeNextRead                          -> cacheWordAddress(cacheSet(probeSaved.get.lineAddress), probeBeat.get + 1.U)
+      )
+    )
+
+    assert(!(streamDataValid && streamReadValid))
   }
 
   when(io.invalidate) {
@@ -256,6 +345,7 @@ class BlockingCache(val instruction: Boolean) extends Module {
       dirty(set) := false.B
     }
     reservationValid := false.B
+    streamDataValid := false.B
   }
   when(io.request.fire) {
     if (instruction) {
@@ -298,8 +388,8 @@ class BlockingCache(val instruction: Boolean) extends Module {
     state === captureLookup || state === probeCaptureLookup ||
       state === flushCaptureLookup
   ) {
-    lookupTag  := tagRead
-    lookupLine := lineRead
+    lookupTag  := tagMemory.io.readData
+    lookupWord := dataMemory.io.readData
     state      := Mux(
       state === probeCaptureLookup,
       probeDecideLookup,
@@ -317,11 +407,6 @@ class BlockingCache(val instruction: Boolean) extends Module {
           reservationValid := false.B
         }
         when(hitWrites) {
-          for (i <- 0 until RocketMed.RefillBeats) {
-            when(savedWord === i.U) {
-              dataMemory(i).write(savedSet, hitWriteData)
-            }
-          }
           dirty(savedSet) := true.B
         }
         state := Mux(io.request.fire, captureLookup, idle)
@@ -331,6 +416,9 @@ class BlockingCache(val instruction: Boolean) extends Module {
       if (instruction) {
         state := sendReadAddress
       } else {
+        when(valid(savedSet) && dirty(savedSet)) {
+          streamDataValid := false.B
+        }
         state := Mux(valid(savedSet) && dirty(savedSet), sendWriteAddress, sendReadAddress)
       }
     }
@@ -378,10 +466,12 @@ class BlockingCache(val instruction: Boolean) extends Module {
       val set = cacheSet(probeSaved.get.lineAddress)
       val hit = valid(set) &&
         lookupTag === probeSaved.get.lineAddress(31, 12)
-      probeHit.get   := hit
-      probeDirty.get := hit && dirty(set)
-      probeBeat.get  := 0.U
-      state          := probeRespond
+      probeHit.get    := hit
+      probeDirty.get  := hit && dirty(set)
+      probeBeat.get   := 0.U
+      streamData      := lookupWord
+      streamDataValid := true.B
+      state           := probeRespond
     }
     when(state === probeRespond && io.probeResponse.get.fire) {
       when(io.probeResponse.get.bits.last) {
@@ -403,7 +493,9 @@ class BlockingCache(val instruction: Boolean) extends Module {
     }
     when(state === flushDecideLookup) {
       when(valid(flushSet.get) && dirty(flushSet.get)) {
-        state := flushWriteAddress
+        streamData      := lookupWord
+        streamDataValid := true.B
+        state           := flushWriteAddress
       }.otherwise {
         advanceFlush()
       }
@@ -439,6 +531,14 @@ class BlockingCache(val instruction: Boolean) extends Module {
     }
   }
 
+  when(streamReadValid && !streamFire) {
+    streamData      := dataMemory.io.readData
+    streamDataValid := true.B
+  }
+  when(streamFire || io.invalidate) {
+    streamDataValid := false.B
+  }
+
   when(state === sendReadAddress && io.readAddress.fire) {
     refillBeat  := 0.U
     refillError := false.B
@@ -446,7 +546,7 @@ class BlockingCache(val instruction: Boolean) extends Module {
   }
 
   when(state === receiveReadData && io.readData.fire) {
-    val anyError = refillError || io.readData.bits.error
+    val anyError = refillAnyError
     refillError := anyError
     when(saved.uncached) {
       assert(io.readData.bits.last)
@@ -454,11 +554,6 @@ class BlockingCache(val instruction: Boolean) extends Module {
       responseError := anyError
       state         := respond
     }.otherwise {
-      for (i <- 0 until RocketMed.RefillBeats) {
-        when(refillBeat === i.U) {
-          dataMemory(i).write(savedSet, io.readData.bits.data)
-        }
-      }
       assert(io.readData.bits.last === (refillBeat === 15.U))
       when(io.readData.bits.last) {
         when(anyError) {
@@ -467,7 +562,6 @@ class BlockingCache(val instruction: Boolean) extends Module {
           responseError   := true.B
           state           := respond
         }.otherwise {
-          tagMemory.write(savedSet, savedTag)
           valid(savedSet) := true.B
           dirty(savedSet) := false.B
           state           := restartLookup

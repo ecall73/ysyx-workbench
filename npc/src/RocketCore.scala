@@ -47,28 +47,25 @@ class RocketCore extends Module {
     val halted            = Output(Bool())
   })
 
-  val ibuf           = Module(new InstructionBuffer)
-  val decoder        = Module(new InstructionDecoder)
-  val csr            = Module(new CsrFile)
-  val mulDiv         = Module(new IterativeMulDiv)
-  val itlb           = Module(new Tlb(instruction = true))
-  val dtlb           = Module(new Tlb(instruction = false))
-  val ptw            = Module(new PageTableWalker)
-  val instructionPmp = Module(new PmpChecker)
-  val dataPmp        = Module(new PmpChecker)
-  val ptwPmp         = Module(new PmpChecker)
-  val clint          = Module(new Clint)
-  val icache         = Module(new BlockingCache(instruction = true))
-  val dcache         = Module(new BlockingCache(instruction = false))
+  val ibuf    = Module(new InstructionBuffer)
+  val decoder = Module(new InstructionDecoder)
+  val csr     = Module(new CsrFile)
+  val mulDiv  = Module(new IterativeMulDiv)
+  val itlb    = Module(new Tlb(instruction = true))
+  val dtlb    = Module(new Tlb(instruction = false))
+  val ptw     = Module(new PageTableWalker)
+  val clint   = Module(new Clint)
+  val icache  = Module(new BlockingCache(instruction = true))
+  val dcache  = Module(new BlockingCache(instruction = false))
 
   val gpr             = RegInit(VecInit(Seq.fill(32)(0.U(32.W))))
   val fetchPc         = Reg(UInt(32.W))
   val architecturalPc = Reg(UInt(32.W))
   val halted          = RegInit(false.B)
 
-  val eIdle :: eExecute :: eMulDivWait :: eDataTlbRequest :: eDataTlbWait :: eDataPmp :: eDataCacheWait :: eFenceWait :: Nil =
+  val eIdle :: eExecute :: eMulDivWait :: eDataTlbRequest :: eDataTlbWait :: eDataAccess :: eDataCacheWait :: eFenceWait :: Nil =
     Enum(8)
-  val executeState                                                                                                           = RegInit(eIdle)
+  val executeState                                                                                                              = RegInit(eIdle)
 
   val savedPc                 = Reg(UInt(32.W))
   val savedRaw                = Reg(UInt(32.W))
@@ -84,13 +81,13 @@ class RocketCore extends Module {
   val savedMemoryAccess       = Reg(UInt(2.W))
   val savedEffectivePrivilege = Reg(UInt(2.W))
 
-  val fIdle :: fTlbRequest :: fTlbWait :: fPmp :: fCacheRequest :: fCacheWait :: fPush :: Nil = Enum(7)
-  val fetchState                                                                              = RegInit(fIdle)
-  val savedFetchPc                                                                            = Reg(UInt(32.W))
-  val savedFetchPhysical                                                                      = Reg(UInt(32.W))
-  val fetchPageFault                                                                          = RegInit(false.B)
-  val fetchAccessFault                                                                        = RegInit(false.B)
-  val fetchDiscard                                                                            = RegInit(false.B)
+  val fIdle :: fTlbRequest :: fTlbWait :: fCacheRequest :: fCacheWait :: fPush :: Nil = Enum(6)
+  val fetchState                                                                      = RegInit(fIdle)
+  val savedFetchPc                                                                    = Reg(UInt(32.W))
+  val savedFetchPhysical                                                              = Reg(UInt(32.W))
+  val fetchPageFault                                                                  = RegInit(false.B)
+  val fetchAccessFault                                                                = RegInit(false.B)
+  val fetchDiscard                                                                    = RegInit(false.B)
 
   val commitValid             = RegInit(false.B)
   val commitPc                = Reg(UInt(32.W))
@@ -177,11 +174,6 @@ class RocketCore extends Module {
   clint.io.stimecmpWrite := csr.io.stimecmpWrite
   clint.io.stce          := csr.io.state.menvcfgh(31)
 
-  for (checker <- Seq(instructionPmp, dataPmp, ptwPmp)) {
-    checker.io.cfg  := csr.io.pmpCfg
-    checker.io.addr := csr.io.pmpAddr
-  }
-
   val mstatus                       = csr.io.state.mstatus
   val currentPrivilege              = csr.io.state.priv
   val dataPrivilege                 = Mux(currentPrivilege === Privilege.M && mstatus(17), mstatus(12, 11), currentPrivilege)
@@ -233,7 +225,7 @@ class RocketCore extends Module {
   val cacheFetchCanAdvance     = cacheFetchResponse && ibuf.io.fetch.ready &&
     canStartFetch && canReuseFetchTranslation && !icache.io.response.bits.error
 
-  // Frontend: translate and check one aligned fetch word, then feed the IBuf.
+  // Frontend: translate one aligned fetch word, then feed the IBuf.
   itlb.io.request.valid       := fetchState === fTlbRequest
   itlb.io.request.bits.vaddr  := savedFetchPc & "hfffffffc".U
   itlb.io.request.bits.size   := 2.U
@@ -246,16 +238,7 @@ class RocketCore extends Module {
   itlb.io.response.ready      := fetchState === fTlbWait
   itlb.io.kill                := redirectPulse
 
-  instructionPmp.io.requestAddr   := Mux(
-    cacheFetchCanAdvance,
-    sequentialFetchPhysical,
-    savedFetchPhysical
-  )
-  instructionPmp.io.requestSize   := 2.U
-  instructionPmp.io.requestAccess := MemoryAccess.Fetch
-  instructionPmp.io.privilege     := currentPrivilege
-
-  val chainedFetchRequest  = cacheFetchCanAdvance && instructionPmp.io.allow
+  val chainedFetchRequest  = cacheFetchCanAdvance
   val fetchRequestPhysical = Mux(
     chainedFetchRequest,
     sequentialFetchPhysical,
@@ -285,7 +268,7 @@ class RocketCore extends Module {
   ibuf.io.kill                   := redirectPulse
 
   // The frontend is independent of the single in-order execute slot. Keeping
-  // it idle while an instruction executes serializes every I-TLB/PMP/I$ hit
+  // it idle while an instruction executes serializes every I-TLB/I$ hit
   // behind execution and defeats the existing instruction buffer.
   when(fetchState === fIdle && canStartFetch && ibuf.io.fetch.ready) {
     savedFetchPc := fetchPc
@@ -295,7 +278,7 @@ class RocketCore extends Module {
       savedFetchPhysical := fetchPc
       fetchPageFault     := false.B
       fetchAccessFault   := false.B
-      fetchState         := fPmp
+      fetchState         := fCacheRequest
     }
   }
   when(fetchState === fTlbRequest && itlb.io.request.fire) {
@@ -309,16 +292,8 @@ class RocketCore extends Module {
       itlb.io.response.bits.pageFault ||
         itlb.io.response.bits.accessFault,
       fPush,
-      fPmp
+      fCacheRequest
     )
-  }
-  when(fetchState === fPmp) {
-    when(instructionPmp.io.allow) {
-      fetchState := fCacheRequest
-    }.otherwise {
-      fetchAccessFault := true.B
-      fetchState       := fPush
-    }
   }
   when(fetchState === fCacheRequest && icache.io.request.fire) {
     fetchState := fCacheWait
@@ -334,13 +309,8 @@ class RocketCore extends Module {
         savedFetchPc       := sequentialFetchPc
         savedFetchPhysical := sequentialFetchPhysical
         fetchPageFault     := false.B
-        when(instructionPmp.io.allow) {
-          fetchAccessFault := false.B
-          fetchState       := Mux(icache.io.request.fire, fCacheWait, fCacheRequest)
-        }.otherwise {
-          fetchAccessFault := true.B
-          fetchState       := fPush
-        }
+        fetchAccessFault   := false.B
+        fetchState         := Mux(icache.io.request.fire, fCacheWait, fCacheRequest)
       }.otherwise {
         fetchState := fIdle
       }
@@ -455,13 +425,8 @@ class RocketCore extends Module {
   csrAccess.addr      := savedRaw(31, 20)
   csrAccess.command   := savedDecoded.csrCommand
   csrAccess.writeData := Mux(savedDecoded.csrImmediate, savedDecoded.rs1, savedRs1)
-  val csrChangesFetchEnvironment = savedDecoded.csrCommand =/= CsrCommand.None && (
-    csrAccess.addr === CsrAddress.Satp.U ||
-      csrAccess.addr === CsrAddress.Pmpcfg0.U ||
-      csrAccess.addr === CsrAddress.Pmpcfg1.U ||
-      (csrAccess.addr >= CsrAddress.Pmpaddr0.U &&
-        csrAccess.addr < (CsrAddress.Pmpaddr0 + RocketMed.PmpRegions).U)
-  )
+  val csrChangesFetchEnvironment = savedDecoded.csrCommand =/= CsrCommand.None &&
+    csrAccess.addr === CsrAddress.Satp.U
   ret := Mux(
     executeState === eExecute &&
       savedDecoded.system === SystemOperation.Mret,
@@ -500,47 +465,31 @@ class RocketCore extends Module {
   dtlb.io.response.ready      := executeState === eDataTlbWait
   dtlb.io.kill                := false.B
 
-  dataPmp.io.requestAddr   := savedPhysicalAddress
-  dataPmp.io.requestSize   := savedDecoded.memorySize
-  dataPmp.io.requestAccess := savedMemoryAccess
-  dataPmp.io.privilege     := savedEffectivePrivilege
-
   val byteOffset = savedVirtualAddress(1, 0)
   val baseMask   = MuxLookup(savedDecoded.memorySize, 1.U(4.W))(Seq(1.U -> 3.U(4.W), 2.U -> 15.U(4.W)))
   val storeMask  = (baseMask << byteOffset)(3, 0)
   val storeData  = (savedRs2 << (byteOffset << 3))(31, 0)
 
-  clint.io.access.valid := executeState === eDataPmp && dataPmp.io.allow &&
-    clint.io.hit
+  clint.io.access.valid := executeState === eDataAccess && clint.io.hit
   clint.io.access.addr  := savedPhysicalAddress
   clint.io.access.size  := savedDecoded.memorySize
   clint.io.access.write := savedDecoded.memoryWrite
   clint.io.access.data  := storeData
   clint.io.access.mask  := storeMask
 
-  // D$ request ownership is shared by the architectural LSU and PTW. A PMP
-  // rejection of an implicit page-table access is returned as an access fault
-  // without issuing a physical transaction.
-  val dataOwnerNone     = 0.U(2.W)
-  val dataOwnerCore     = 1.U(2.W)
-  val dataOwnerPtw      = 2.U(2.W)
-  val dataOwner         = RegInit(dataOwnerNone)
-  val deniedPtwResponse = RegInit(false.B)
-
-  ptwPmp.io.requestAddr   := ptw.io.memoryRequest.bits.addr
-  ptwPmp.io.requestSize   := 2.U
-  ptwPmp.io.requestAccess := Mux(ptw.io.memoryRequest.bits.write, MemoryAccess.Store, MemoryAccess.Load)
-  ptwPmp.io.privilege     := Privilege.S
-
+  // D$ request ownership is shared by the architectural LSU and PTW.
+  val dataOwnerNone = 0.U(2.W)
+  val dataOwnerCore = 1.U(2.W)
+  val dataOwnerPtw  = 2.U(2.W)
+  val dataOwner     = RegInit(dataOwnerNone)
   val ptwWantsData  = ptw.io.memoryRequest.valid && dataOwner === dataOwnerNone
-  val ptwDenied     = ptwWantsData && !ptwPmp.io.allow
-  val coreWantsData = executeState === eDataPmp && dataPmp.io.allow &&
+  val coreWantsData = executeState === eDataAccess &&
     !clint.io.hit &&
     !(savedDecoded.atomic =/= AtomicOperation.None &&
       !cacheable(savedPhysicalAddress))
 
   dcache.io.request.valid         := dataOwner === dataOwnerNone &&
-    ((ptwWantsData && !ptwDenied) || (!ptwWantsData && coreWantsData))
+    (ptwWantsData || (!ptwWantsData && coreWantsData))
   dcache.io.request.bits.addr     := Mux(ptwWantsData, ptw.io.memoryRequest.bits.addr, savedPhysicalAddress)
   dcache.io.request.bits.write    := Mux(ptwWantsData, ptw.io.memoryRequest.bits.write, savedDecoded.memoryWrite)
   dcache.io.request.bits.data     := Mux(ptwWantsData, ptw.io.memoryRequest.bits.data, storeData)
@@ -554,30 +503,25 @@ class RocketCore extends Module {
   io.dataProbeResponse <> dcache.io.probeResponse.get
   dcache.io.probeAck.get <> io.dataProbeAck
 
-  ptw.io.memoryRequest.ready := dataOwner === dataOwnerNone &&
-    Mux(ptwDenied, true.B, dcache.io.request.ready)
+  ptw.io.memoryRequest.ready := dataOwner === dataOwnerNone && dcache.io.request.ready
   when(ptw.io.memoryRequest.fire) {
-    dataOwner         := dataOwnerPtw
-    deniedPtwResponse := ptwDenied
+    dataOwner := dataOwnerPtw
   }
   when(dcache.io.request.fire && !ptwWantsData) {
     dataOwner    := dataOwnerCore
     executeState := eDataCacheWait
   }
 
-  ptw.io.memoryResponse.valid      := dataOwner === dataOwnerPtw &&
-    (deniedPtwResponse || dcache.io.response.valid)
+  ptw.io.memoryResponse.valid      := dataOwner === dataOwnerPtw && dcache.io.response.valid
   ptw.io.memoryResponse.bits.data  := dcache.io.response.bits.data
-  ptw.io.memoryResponse.bits.error := deniedPtwResponse ||
-    dcache.io.response.bits.error
+  ptw.io.memoryResponse.bits.error := dcache.io.response.bits.error
   dcache.io.response.ready         := Mux(
     dataOwner === dataOwnerPtw,
-    !deniedPtwResponse && ptw.io.memoryResponse.ready,
+    ptw.io.memoryResponse.ready,
     dataOwner === dataOwnerCore && executeState === eDataCacheWait
   )
   when(ptw.io.memoryResponse.fire) {
-    dataOwner         := dataOwnerNone
-    deniedPtwResponse := false.B
+    dataOwner := dataOwnerNone
   }
 
   when(executeState === eExecute) {
@@ -658,7 +602,7 @@ class RocketCore extends Module {
           executeState := eDataTlbRequest
         }.otherwise {
           savedPhysicalAddress := memoryAddress
-          executeState         := eDataPmp
+          executeState         := eDataAccess
         }
       }
     }.otherwise {
@@ -703,14 +647,13 @@ class RocketCore extends Module {
       raiseTrap(Mux(savedMemoryAccess === MemoryAccess.Store, 7.U, 5.U), savedVirtualAddress)
       executeState := eIdle
     }.otherwise {
-      executeState := eDataPmp
+      executeState := eDataAccess
     }
   }
-  when(executeState === eDataPmp) {
+  when(executeState === eDataAccess) {
     when(
-      !dataPmp.io.allow ||
-        (savedDecoded.atomic =/= AtomicOperation.None &&
-          !cacheable(savedPhysicalAddress))
+      savedDecoded.atomic =/= AtomicOperation.None &&
+        !cacheable(savedPhysicalAddress)
     ) {
       raiseTrap(Mux(savedMemoryAccess === MemoryAccess.Store, 7.U, 5.U), savedVirtualAddress)
       executeState := eIdle
@@ -789,17 +732,16 @@ class RocketCore extends Module {
     }
   }
   when(reset.asBool) {
-    fetchPc           := io.resetVector
-    architecturalPc   := io.resetVector
-    fetchState        := fIdle
-    executeState      := eIdle
-    ptwBusy           := false.B
-    dataOwner         := dataOwnerNone
-    deniedPtwResponse := false.B
-    fetchDiscard      := false.B
-    commitValid       := false.B
-    interruptValid    := false.B
-    halted            := false.B
+    fetchPc         := io.resetVector
+    architecturalPc := io.resetVector
+    fetchState      := fIdle
+    executeState    := eIdle
+    ptwBusy         := false.B
+    dataOwner       := dataOwnerNone
+    fetchDiscard    := false.B
+    commitValid     := false.B
+    interruptValid  := false.B
+    halted          := false.B
   }
   gpr(0)      := 0.U
 

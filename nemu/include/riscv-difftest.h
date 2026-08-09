@@ -20,8 +20,7 @@ enum riscv_difftest_status {
   RISCV_DIFFTEST_BAD_SEQUENCE = 6,
   RISCV_DIFFTEST_BAD_EVENT = 7,
   RISCV_DIFFTEST_BAD_STATE = 8,
-  RISCV_DIFFTEST_BAD_MEMORY = 9,
-  RISCV_DIFFTEST_INTERNAL_ERROR = 10,
+  RISCV_DIFFTEST_INTERNAL_ERROR = 9,
 };
 
 enum riscv_difftest_profile_id {
@@ -31,8 +30,7 @@ enum riscv_difftest_profile_id {
 
 enum riscv_difftest_fp_kind {
   RISCV_DIFFTEST_FP_NONE = 0,
-  RISCV_DIFFTEST_FP_F = 1,
-  RISCV_DIFFTEST_FP_D = 2,
+  RISCV_DIFFTEST_FP_D = 1,
 };
 
 enum riscv_difftest_memory_map {
@@ -43,7 +41,7 @@ enum riscv_difftest_memory_map {
 enum riscv_difftest_privilege {
   RISCV_DIFFTEST_PRIV_U = 1u << 0,
   RISCV_DIFFTEST_PRIV_S = 1u << 1,
-  RISCV_DIFFTEST_PRIV_M = 1u << 3,
+  RISCV_DIFFTEST_PRIV_M = 1u << 2,
 };
 
 enum riscv_difftest_capability {
@@ -61,19 +59,27 @@ enum riscv_difftest_capability {
 
 enum riscv_difftest_isa_feature {
   RISCV_DIFFTEST_ISA_I = UINT64_C(1) << 0,
-  RISCV_DIFFTEST_ISA_E = UINT64_C(1) << 1,
-  RISCV_DIFFTEST_ISA_M = UINT64_C(1) << 2,
-  RISCV_DIFFTEST_ISA_A = UINT64_C(1) << 3,
-  RISCV_DIFFTEST_ISA_F = UINT64_C(1) << 4,
-  RISCV_DIFFTEST_ISA_D = UINT64_C(1) << 5,
-  RISCV_DIFFTEST_ISA_C = UINT64_C(1) << 6,
-  RISCV_DIFFTEST_ISA_ZICSR = UINT64_C(1) << 7,
-  RISCV_DIFFTEST_ISA_ZIFENCEI = UINT64_C(1) << 8,
-  RISCV_DIFFTEST_ISA_ZICNTR = UINT64_C(1) << 9,
-  RISCV_DIFFTEST_ISA_SSTC = UINT64_C(1) << 10,
-  RISCV_DIFFTEST_ISA_SVADU = UINT64_C(1) << 11,
-  RISCV_DIFFTEST_ISA_SV32 = UINT64_C(1) << 12,
+  RISCV_DIFFTEST_ISA_M = UINT64_C(1) << 1,
+  RISCV_DIFFTEST_ISA_A = UINT64_C(1) << 2,
+  RISCV_DIFFTEST_ISA_F = UINT64_C(1) << 3,
+  RISCV_DIFFTEST_ISA_D = UINT64_C(1) << 4,
+  RISCV_DIFFTEST_ISA_C = UINT64_C(1) << 5,
+  RISCV_DIFFTEST_ISA_ZICSR = UINT64_C(1) << 6,
+  RISCV_DIFFTEST_ISA_ZIFENCEI = UINT64_C(1) << 7,
+  RISCV_DIFFTEST_ISA_ZICNTR = UINT64_C(1) << 8,
+  RISCV_DIFFTEST_ISA_SSTC = UINT64_C(1) << 9,
+  RISCV_DIFFTEST_ISA_SVADU = UINT64_C(1) << 10,
+  RISCV_DIFFTEST_ISA_SV32 = UINT64_C(1) << 11,
 };
+
+static inline bool riscv_difftest_string_is_terminated(const char *string,
+    size_t size) {
+  if (string == NULL) return false;
+  for (size_t i = 0; i < size; i++) {
+    if (string[i] == '\0') return true;
+  }
+  return false;
+}
 
 #define RISCV_DIFFTEST_RV32GC_FEATURES \
   (RISCV_DIFFTEST_ISA_I | RISCV_DIFFTEST_ISA_M | RISCV_DIFFTEST_ISA_A | \
@@ -255,14 +261,11 @@ typedef struct {
   uint32_t xlen;
   uint32_t gpr_count;
   uint32_t fp_kind;
-  uint32_t privilege_modes;
-  uint32_t pmp_regions;
   uint64_t isa_features;
   uint64_t required_capabilities;
-  uint64_t optional_capabilities;
+  uint32_t privilege_modes;
   uint32_t reset_pc;
   uint32_t memory_map;
-  uint32_t reserved[4];
 } riscv_difftest_profile_t;
 
 typedef struct {
@@ -276,7 +279,6 @@ typedef struct {
   uint32_t async_intr_size;
   uint32_t profile_size;
   uint32_t max_gpr_count;
-  uint32_t reserved[4];
   char implementation_id[RISCV_DIFFTEST_IMPLEMENTATION_ID_SIZE];
 } riscv_difftest_interface_t;
 
@@ -309,7 +311,6 @@ typedef struct {
   uint32_t mcounteren;
   uint32_t scounteren;
   uint32_t mcountinhibit;
-  uint32_t reserved_tail;
 } riscv_difftest_arch_state_t;
 
 typedef struct {
@@ -335,7 +336,6 @@ typedef struct {
   uint32_t instruction_valid;
   uint32_t disposition;
   uint32_t skip_reason;
-  uint32_t reserved[6];
 } riscv_difftest_arch_step_t;
 
 typedef struct {
@@ -344,9 +344,9 @@ typedef struct {
   uint64_t sequence;
   uint32_t interrupt_code;
   uint32_t pretrap_pc;
-  uint32_t reserved[4];
 } riscv_difftest_async_intr_t;
 
+typedef int (*difftest_load_memory_t)(uint32_t, const void *, size_t);
 typedef int (*difftest_query_interface_t)(uint32_t,
     riscv_difftest_interface_t *);
 typedef int (*difftest_init_profile_t)(const riscv_difftest_profile_t *);
@@ -363,9 +363,9 @@ typedef int (*difftest_async_intr_t)(const riscv_difftest_async_intr_t *,
 #define RISCV_DIFFTEST_STATIC_ASSERT(cond, message) _Static_assert(cond, message)
 #endif
 
-RISCV_DIFFTEST_STATIC_ASSERT(sizeof(riscv_difftest_profile_t) == 80,
+RISCV_DIFFTEST_STATIC_ASSERT(sizeof(riscv_difftest_profile_t) == 56,
     "unexpected DiffTest profile ABI size");
-RISCV_DIFFTEST_STATIC_ASSERT(sizeof(riscv_difftest_interface_t) == 160,
+RISCV_DIFFTEST_STATIC_ASSERT(sizeof(riscv_difftest_interface_t) == 144,
     "unexpected DiffTest interface ABI size");
 RISCV_DIFFTEST_STATIC_ASSERT(sizeof(riscv_difftest_arch_state_t) == 504,
     "unexpected DiffTest architecture-state ABI size");
@@ -373,9 +373,9 @@ RISCV_DIFFTEST_STATIC_ASSERT(sizeof(riscv_difftest_observation_t) == 520,
     "unexpected DiffTest observation ABI size");
 RISCV_DIFFTEST_STATIC_ASSERT(sizeof(riscv_difftest_sync_state_t) == 512,
     "unexpected DiffTest sync-state ABI size");
-RISCV_DIFFTEST_STATIC_ASSERT(sizeof(riscv_difftest_arch_step_t) == 64,
+RISCV_DIFFTEST_STATIC_ASSERT(sizeof(riscv_difftest_arch_step_t) == 40,
     "unexpected DiffTest ARCH_STEP ABI size");
-RISCV_DIFFTEST_STATIC_ASSERT(sizeof(riscv_difftest_async_intr_t) == 40,
+RISCV_DIFFTEST_STATIC_ASSERT(sizeof(riscv_difftest_async_intr_t) == 24,
     "unexpected DiffTest ASYNC_INTR ABI size");
 RISCV_DIFFTEST_STATIC_ASSERT(offsetof(riscv_difftest_arch_state_t, fpr) == 152,
     "unexpected DiffTest FPR offset");
@@ -383,7 +383,8 @@ RISCV_DIFFTEST_STATIC_ASSERT(offsetof(riscv_difftest_arch_state_t, mcycle) == 40
     "unexpected DiffTest mcycle offset");
 RISCV_DIFFTEST_STATIC_ASSERT(offsetof(riscv_difftest_arch_state_t, mstatus) == 424,
     "unexpected DiffTest CSR offset");
-
+RISCV_DIFFTEST_STATIC_ASSERT(offsetof(riscv_difftest_profile_t, isa_features) == 24,
+    "unexpected DiffTest profile feature offset");
 #undef RISCV_DIFFTEST_STATIC_ASSERT
 
 #endif

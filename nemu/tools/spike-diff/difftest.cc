@@ -23,8 +23,6 @@
 #define SPIKE_DIFFTEST_IMPLEMENTATION_ID "spike-unidentified"
 #endif
 
-#define NR_GPR MUXDEF(CONFIG_RVE, 16, 32)
-
 static std::vector<std::pair<reg_t, abstract_device_t*>> difftest_plugin_devices;
 static std::vector<std::string> difftest_htif_args;
 static std::vector<std::pair<reg_t, mem_t*>> difftest_mem(
@@ -41,9 +39,6 @@ static debug_module_config_t difftest_dm_config = {
   .support_impebreak = true
 };
 
-static_assert(sizeof(riscv_difftest_context_t) == DIFFTEST_REG_SIZE,
-    "Spike and NEMU legacy DiffTest register layouts must match");
-
 static const uint64_t provided_capabilities =
     RISCV_DIFFTEST_RV32GC_REQUIRED_CAPS;
 static const uint64_t supported_isa_features =
@@ -57,20 +52,12 @@ static state_t *state = nullptr;
 static uint64_t expected_sequence = 0;
 static uint64_t last_sequence = UINT64_MAX;
 
-static bool words_are_zero(const uint32_t *words, size_t count) {
-  for (size_t i = 0; i < count; i++) {
-    if (words[i] != 0) return false;
-  }
-  return true;
-}
-
 static bool profile_is_rv32gc(const riscv_difftest_profile_t *profile) {
   return profile->profile_id == RISCV_DIFFTEST_PROFILE_RV32GC_NEMU_SPIKE &&
       profile->xlen == 32 && profile->gpr_count == 32 &&
       profile->fp_kind == RISCV_DIFFTEST_FP_D &&
       profile->privilege_modes == (RISCV_DIFFTEST_PRIV_U |
           RISCV_DIFFTEST_PRIV_S | RISCV_DIFFTEST_PRIV_M) &&
-      profile->pmp_regions == 0 &&
       profile->isa_features == RISCV_DIFFTEST_RV32GC_FEATURES &&
       profile->reset_pc == DRAM_BASE &&
       profile->memory_map == RISCV_DIFFTEST_MEMORY_MAP_NEMU;
@@ -84,10 +71,6 @@ static int validate_profile(const riscv_difftest_profile_t *profile) {
   if (profile->struct_size != sizeof(*profile)) {
     return RISCV_DIFFTEST_BAD_STRUCT_SIZE;
   }
-  if (!words_are_zero(profile->reserved,
-        sizeof(profile->reserved) / sizeof(profile->reserved[0]))) {
-    return RISCV_DIFFTEST_BAD_ARGUMENT;
-  }
   if (profile->required_capabilities & ~provided_capabilities) {
     return RISCV_DIFFTEST_UNSUPPORTED_CAPABILITY;
   }
@@ -98,7 +81,7 @@ static int validate_profile(const riscv_difftest_profile_t *profile) {
                                     : RISCV_DIFFTEST_UNSUPPORTED_PROFILE;
 }
 
-static void create_spike(const riscv_difftest_profile_t *profile) {
+static void create_spike() {
   const char *isa = "RV32IMAFDC_Zicsr_Zifencei_Zicntr_Sstc_Svadu";
   cfg_t *cfg = new cfg_t(/*default_initrd_bounds=*/std::make_pair((reg_t)0, (reg_t)0),
             /*default_bootargs=*/nullptr,
@@ -107,7 +90,7 @@ static void create_spike(const riscv_difftest_profile_t *profile) {
             /*default_varch=*/DEFAULT_VARCH,
             /*default_misaligned=*/false,
             /*default_endianness=*/endianness_little,
-            /*default_pmpregions=*/profile->pmp_regions,
+            /*default_pmpregions=*/0,
             /*default_mem_layout=*/std::vector<mem_cfg_t>(),
             /*default_hartids=*/std::vector<size_t>(1),
             /*default_real_time_clint=*/false,
@@ -191,7 +174,6 @@ static int validate_sync_state(const riscv_difftest_sync_state_t *sync) {
        sync->state.gpr_valid_mask != 0) ||
       ((sync->state.gpr_valid_mask & 1u) != 0 &&
        sync->state.gpr[0] != 0) ||
-      sync->state.reserved_tail != 0 ||
       ((sync->state.valid_fields & RISCV_DIFFTEST_FIELD_PRIV) &&
        sync->state.priv != PRV_U && sync->state.priv != PRV_S &&
        sync->state.priv != PRV_M)) {
@@ -313,69 +295,6 @@ void sim_t::diff_step(uint64_t n) {
   }
 }
 
-void sim_t::diff_get_regs(void* diff_context) {
-  auto *ctx = static_cast<riscv_difftest_context_t *>(diff_context);
-  for (int i = 0; i < NR_GPR; i++) ctx->gpr[i] = state->XPR[i];
-  ctx->pc = state->pc;
-  ctx->fcsr = (state->frm->read() << 5) | state->fflags->read();
-  for (int i = 0; i < NFPR; i++) ctx->fpr[i] = state->FPR[i].v[0];
-  ctx->mstatus = state->mstatus->read();
-  ctx->mtvec = state->mtvec->read();
-  ctx->mepc = state->mepc->read();
-  ctx->mcause = state->mcause->read();
-  ctx->mtval = state->mtval->read();
-  ctx->medeleg = state->medeleg->read();
-  ctx->mideleg = state->mideleg->read();
-  ctx->mie = state->mie->read();
-  ctx->stvec = state->stvec->read();
-  ctx->sepc = state->sepc->read();
-  ctx->scause = state->scause->read();
-  ctx->stval = state->stval->read();
-  ctx->sscratch = read_csr(CSR_SSCRATCH);
-  ctx->satp = state->satp->read();
-  ctx->mscratch = read_csr(CSR_MSCRATCH);
-  ctx->menvcfgh = state->menvcfg->read() >> 32;
-  ctx->mcounteren = state->mcounteren->read();
-  ctx->scounteren = state->scounteren->read();
-  ctx->mcountinhibit = read_csr(CSR_MCOUNTINHIBIT);
-  ctx->priv = state->prv;
-}
-
-void sim_t::diff_set_regs(void* diff_context) {
-  auto *ctx = static_cast<riscv_difftest_context_t *>(diff_context);
-  for (int i = 0; i < NR_GPR; i++) state->XPR.write(i, (sword_t)ctx->gpr[i]);
-  state->pc = ctx->pc;
-  state->mstatus->write(ctx->mstatus | (MSTATUS_FS & (MSTATUS_FS >> 1)));
-  state->fflags->write(ctx->fcsr & 0x1f);
-  state->frm->write((ctx->fcsr >> 5) & 0x7);
-  for (int i = 0; i < NFPR; i++) {
-    freg_t value = {};
-    value.v[0] = ctx->fpr[i];
-    value.v[1] = UINT64_MAX;
-    state->FPR.write(i, value);
-  }
-  state->mstatus->write(ctx->mstatus);
-  state->mtvec->write(ctx->mtvec);
-  state->mepc->write(ctx->mepc);
-  state->mcause->write(ctx->mcause);
-  state->mtval->write(ctx->mtval);
-  state->medeleg->write(ctx->medeleg);
-  state->mideleg->write(ctx->mideleg);
-  state->mie->write(ctx->mie);
-  state->stvec->write(ctx->stvec);
-  state->sepc->write(ctx->sepc);
-  state->scause->write(ctx->scause);
-  state->stval->write(ctx->stval);
-  write_csr(CSR_SSCRATCH, ctx->sscratch);
-  state->satp->write(ctx->satp);
-  write_csr(CSR_MSCRATCH, ctx->mscratch);
-  write_csr(CSR_MENVCFGH, ctx->menvcfgh);
-  state->mcounteren->write(ctx->mcounteren);
-  state->scounteren->write(ctx->scounteren);
-  write_csr(CSR_MCOUNTINHIBIT, ctx->mcountinhibit);
-  p->set_privilege(ctx->priv);
-}
-
 void sim_t::diff_memcpy(reg_t dest, void* src, size_t n) {
   assert(!difftest_mem.empty());
   const auto& region = difftest_mem.front();
@@ -418,7 +337,7 @@ __EXPORT int difftest_init_profile(const riscv_difftest_profile_t *profile) {
   if (status != RISCV_DIFFTEST_OK) return status;
   if (s != nullptr) return RISCV_DIFFTEST_BAD_STATE;
   difftest_htif_args.push_back("");
-  create_spike(profile);
+  create_spike();
   return RISCV_DIFFTEST_OK;
 }
 
@@ -443,9 +362,7 @@ __EXPORT int difftest_arch_step(const riscv_difftest_arch_step_t *event,
   int status = validate_event_header(event->abi_version, event->struct_size,
       sizeof(*event), event->sequence);
   if (status != RISCV_DIFFTEST_OK) return status;
-  if (!words_are_zero(event->reserved,
-        sizeof(event->reserved) / sizeof(event->reserved[0])) ||
-      (event->instruction_valid != 0 && event->instruction_valid != 1) ||
+  if ((event->instruction_valid != 0 && event->instruction_valid != 1) ||
       (event->instruction_valid && event->instruction_length != 2 &&
        event->instruction_length != 4) ||
       (!event->instruction_valid &&
@@ -454,12 +371,11 @@ __EXPORT int difftest_arch_step(const riscv_difftest_arch_step_t *event,
     std::fprintf(stderr,
         "DiffTest bad ARCH_STEP: seq=%" PRIu64 " expected=%" PRIu64
         " pc=0x%08" PRIx64 " ref_pc=0x%08" PRIx64
-        " bits=0x%08x len=%u valid=%u disposition=%u skip=%u reserved0=%u\n",
+        " bits=0x%08x len=%u valid=%u disposition=%u skip=%u\n",
         event->sequence, expected_sequence, uint64_t(event->instruction_pc),
         uint64_t(uint32_t(state->pc)), event->instruction_bits,
         event->instruction_length,
-        event->instruction_valid, event->disposition, event->skip_reason,
-        event->reserved[0]);
+        event->instruction_valid, event->disposition, event->skip_reason);
     return RISCV_DIFFTEST_BAD_EVENT;
   }
 
@@ -508,9 +424,7 @@ __EXPORT int difftest_async_intr(const riscv_difftest_async_intr_t *event,
   int status = validate_event_header(event->abi_version, event->struct_size,
       sizeof(*event), event->sequence);
   if (status != RISCV_DIFFTEST_OK) return status;
-  if (!words_are_zero(event->reserved,
-        sizeof(event->reserved) / sizeof(event->reserved[0])) ||
-      event->pretrap_pc != uint32_t(state->pc) ||
+  if (event->pretrap_pc != uint32_t(state->pc) ||
       (event->interrupt_code != 1 && event->interrupt_code != 3 &&
        event->interrupt_code != 5 && event->interrupt_code != 7)) {
     return RISCV_DIFFTEST_BAD_EVENT;
@@ -524,44 +438,15 @@ __EXPORT int difftest_async_intr(const riscv_difftest_async_intr_t *event,
   return RISCV_DIFFTEST_OK;
 }
 
-__EXPORT void difftest_memcpy(paddr_t addr, void *buf, size_t n, bool direction) {
-  if (direction == DIFFTEST_TO_REF) s->diff_memcpy(addr, buf, n);
-  else assert(0);
-}
-
-__EXPORT void difftest_regcpy(void* dut, bool direction) {
-  if (direction == DIFFTEST_TO_REF) s->diff_set_regs(dut);
-  else s->diff_get_regs(dut);
-}
-
-__EXPORT void difftest_exec(uint64_t n) {
-  s->diff_step(n);
-}
-
-__EXPORT void difftest_init(int port) {
-  riscv_difftest_profile_t profile = {
-    .abi_version = RISCV_DIFFTEST_ABI_VERSION,
-    .struct_size = sizeof(profile),
-    .profile_id = RISCV_DIFFTEST_PROFILE_RV32GC_NEMU_SPIKE,
-    .xlen = 32,
-    .gpr_count = 32,
-    .fp_kind = RISCV_DIFFTEST_FP_D,
-    .privilege_modes = RISCV_DIFFTEST_PRIV_U | RISCV_DIFFTEST_PRIV_S |
-        RISCV_DIFFTEST_PRIV_M,
-    .pmp_regions = 0,
-    .isa_features = RISCV_DIFFTEST_RV32GC_FEATURES,
-    .required_capabilities = RISCV_DIFFTEST_RV32GC_REQUIRED_CAPS,
-    .reset_pc = DRAM_BASE,
-    .memory_map = RISCV_DIFFTEST_MEMORY_MAP_NEMU,
-  };
-  difftest_htif_args.push_back("");
-  create_spike(&profile);
-  (void)port;
-}
-
-__EXPORT void difftest_raise_intr(uint64_t cause) {
-  trap_t trap(cause);
-  p->take_trap_public(trap, state->pc);
+__EXPORT int difftest_load_memory(uint32_t addr, const void *buf, size_t n) {
+  if (s == nullptr) return RISCV_DIFFTEST_BAD_STATE;
+  if ((buf == nullptr && n != 0) ||
+      uint64_t(n) > UINT64_C(1) + UINT32_MAX - uint64_t(addr)) {
+    return RISCV_DIFFTEST_BAD_ARGUMENT;
+  }
+  if (n == 0) return RISCV_DIFFTEST_OK;
+  s->diff_memcpy(addr, const_cast<void *>(buf), n);
+  return RISCV_DIFFTEST_OK;
 }
 
 }

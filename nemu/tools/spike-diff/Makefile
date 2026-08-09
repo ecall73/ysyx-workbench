@@ -29,7 +29,7 @@ SPIKE_REVISION = $(shell git -C $(REPO_PATH) rev-parse --short=16 HEAD 2>/dev/nu
 SPIKE_BUNDLE_SHA = $(shell sha256sum $(SPIKE_PATCHES) $(DIFFTEST_HEADER) \
   $(abspath difftest.cc) $(abspath Makefile) | awk '{print $$1}' | \
   sha256sum | cut -c1-24)
-SPIKE_DIFFTEST_ID = spike-$(SPIKE_REVISION)-rv32gc-sv32-sstc-svadu-p0-$(SPIKE_BUNDLE_SHA)
+SPIKE_DIFFTEST_ID = spike-$(SPIKE_REVISION)-rv32gc-sv32-sstc-svadu-$(SPIKE_BUNDLE_SHA)
 PATCH_SETUP = patch-setup
 $(REPO_MAKEFILE):
 	@mkdir -p $(@D)

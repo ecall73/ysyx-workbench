@@ -35,8 +35,6 @@ enum {
   CSR_MCAUSE      = 0x342,
   CSR_MTVAL       = 0x343,
   CSR_MIP         = 0x344,
-  CSR_PMPCFG0     = 0x3a0,
-  CSR_PMPADDR0    = 0x3b0,
   CSR_MCYCLE      = 0xb00,
   CSR_MINSTRET    = 0xb02,
   CSR_MCYCLEH     = 0xb80,

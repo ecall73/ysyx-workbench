@@ -135,8 +135,7 @@ int riscv_difftest_apply_sync_state(CPU_state *dest,
       ((src->state.valid_fields & RISCV_DIFFTEST_FIELD_GPR) == 0 &&
        src->state.gpr_valid_mask != 0) ||
       (src->state.gpr_valid_mask & ~allowed_gprs) != 0 ||
-      ((src->state.gpr_valid_mask & 1u) != 0 && src->state.gpr[0] != 0) ||
-      src->state.reserved_tail != 0) {
+      ((src->state.gpr_valid_mask & 1u) != 0 && src->state.gpr[0] != 0)) {
     return RISCV_DIFFTEST_BAD_STATE;
   }
   if ((src->state.valid_fields & RISCV_DIFFTEST_FIELD_PRIV) &&
