@@ -21,7 +21,6 @@ class TlbRequest extends Bundle {
   val sum    = Bool()
   val mxr    = Bool()
   val satp   = UInt(32.W)
-  val adue   = Bool()
 }
 
 class TlbResponse extends Bundle {
@@ -38,7 +37,6 @@ class PtwRequest extends Bundle {
   val sum    = Bool()
   val mxr    = Bool()
   val satp   = UInt(32.W)
-  val adue   = Bool()
 }
 
 class PtwResponse extends Bundle {
@@ -168,7 +166,6 @@ class Tlb(val instruction: Boolean) extends Module {
   io.ptwRequest.bits.sum    := saved.sum
   io.ptwRequest.bits.mxr    := saved.mxr
   io.ptwRequest.bits.satp   := saved.satp
-  io.ptwRequest.bits.adue   := saved.adue
   io.ptwResponse.ready      := state === waitPtw
 
   when(io.sfence.valid) {

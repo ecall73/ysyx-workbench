@@ -45,8 +45,8 @@ static void require_ref_status(const char *operation, int status) {
 static void *require_ref_symbol(void *handle, const char *name) {
   void *symbol = dlsym(handle, name);
   Assert(symbol != NULL,
-      "DiffTest reference does not implement required RV32 ABI v1 symbol '%s'",
-      name);
+      "DiffTest reference does not implement required RV32 ABI v%u symbol '%s'",
+      RISCV_DIFFTEST_ABI_VERSION, name);
   return symbol;
 }
 
@@ -274,6 +274,20 @@ static uint32_t memory_skip_reason(paddr_t addr) {
   }
 }
 
+static bool data_access_uses_translation(
+    const riscv_difftest_observation_t *ref) {
+  const uint32_t mstatus_mpp = UINT32_C(3) << 11;
+  const uint32_t mstatus_mprv = UINT32_C(1) << 17;
+  const uint32_t privilege_m = 3;
+  uint32_t effective_privilege = ref->state.priv;
+  if (effective_privilege == privilege_m &&
+      (ref->state.mstatus & mstatus_mprv) != 0) {
+    effective_privilege = (ref->state.mstatus & mstatus_mpp) >> 11;
+  }
+  return (ref->state.satp & (UINT32_C(1) << 31)) != 0 &&
+      effective_privilege != privilege_m;
+}
+
 static uint32_t skip_reason_for_instruction(uint32_t inst,
     uint32_t instruction_length,
     const riscv_difftest_observation_t *ref) {
@@ -287,9 +301,16 @@ static uint32_t skip_reason_for_instruction(uint32_t inst,
     return RISCV_DIFFTEST_SKIP_NONE;
   }
   if (rs1 >= profile.gpr_count) return RISCV_DIFFTEST_SKIP_NONE;
-  paddr_t addr = ref->state.gpr[rs1] + imm;
-  if ((addr & (paddr_t)(len - 1)) != 0 ||
-      platform_in_comparable_mem(addr, len)) {
+  vaddr_t addr = ref->state.gpr[rs1] + imm;
+  if ((addr & (vaddr_t)(len - 1)) != 0) {
+    return RISCV_DIFFTEST_SKIP_NONE;
+  }
+  // A translated effective address cannot be classified by the physical map.
+  if (data_access_uses_translation(ref)) {
+    return platform_difftest_in_identity_mmio(addr, len)
+        ? memory_skip_reason(addr) : RISCV_DIFFTEST_SKIP_NONE;
+  }
+  if (platform_in_comparable_mem(addr, len)) {
     return RISCV_DIFFTEST_SKIP_NONE;
   }
   return memory_skip_reason(addr);

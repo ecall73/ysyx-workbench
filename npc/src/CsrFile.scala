@@ -149,7 +149,7 @@ class CsrFile extends Module {
   private val MedelegMask      = "h0000b3ff".U(32.W)
   private val CounterenMask    = 7.U(32.W)
   private val CountInhibitMask = 5.U(32.W)
-  private val MenvcfghMask     = "ha0000000".U(32.W)
+  private val MenvcfghMask     = "h80000000".U(32.W)
   private val MisaValue        = "h40001105".U(32.W)
 
   val priv          = RegInit(M)
@@ -223,7 +223,7 @@ class CsrFile extends Module {
     is(Cycleh.U) { exists := true.B; readData := mcycle(63, 32) }
     is(Timeh.U) { exists := true.B; readData := io.time(63, 32) }
     is(Instreth.U) { exists := true.B; readData := minstret(63, 32) }
-    is(Mvendorid.U) { exists := true.B; readData := "h79737978".U }
+    is(Mvendorid.U) { exists := true.B; readData := "h79737978".U(32.W) }
     is(Marchid.U) { exists := true.B; readData := 26030082.U }
     is(Mimpid.U) { exists := true.B; readData := 0.U }
     is(Mhartid.U) { exists := true.B; readData := 0.U }
@@ -271,7 +271,7 @@ class CsrFile extends Module {
     Mux(index < 32.U, (value >> index)(0), false.B)
 
   def trapVector(tvec: UInt, cause: UInt): UInt = {
-    val base = tvec & "hfffffffc".U
+    val base = tvec & "hfffffffc".U(32.W)
     Mux(cause(31) && tvec(1, 0) === 1.U, base + (cause(30, 0) << 2), base)
   }
 
@@ -296,7 +296,7 @@ class CsrFile extends Module {
   }
   io.interruptValid := interruptEligible.reduce(_ || _)
   val selectedInterrupt = PriorityMux(interruptEligible.zip(interruptCodes.map(_.U(5.W))))
-  io.interruptCause := "h80000000".U | selectedInterrupt
+  io.interruptCause := "h80000000".U(32.W) | selectedInterrupt
 
   when(!mcountinhibit(0)) {
     mcycle := mcycle + 1.U
@@ -307,16 +307,16 @@ class CsrFile extends Module {
 
   when(io.trap.valid) {
     when(trapDelegated) {
-      mstatus := (mstatus & ~"h00000122".U) |
+      mstatus := (mstatus & ~"h00000122".U(32.W)) |
         (mstatus(1) << 5) | (priv(0) << 8)
-      sepc    := io.trap.epc & "hfffffffe".U
+      sepc    := io.trap.epc & "hfffffffe".U(32.W)
       scause  := io.trap.cause
       stval   := io.trap.tval
       priv    := S
     }.otherwise {
-      mstatus := (mstatus & ~"h00001888".U) |
+      mstatus := (mstatus & ~"h00001888".U(32.W)) |
         (mstatus(3) << 7) | (priv << 11)
-      mepc    := io.trap.epc & "hfffffffe".U
+      mepc    := io.trap.epc & "hfffffffe".U(32.W)
       mcause  := io.trap.cause
       mtval   := io.trap.tval
       priv    := M
@@ -324,14 +324,14 @@ class CsrFile extends Module {
   }.elsewhen(io.ret =/= 0.U && !io.retIllegal) {
     when(mret) {
       val nextPrivilege = mstatus(12, 11)
-      val restored      = (mstatus & ~"h00021888".U) |
-        (mstatus(7) << 3) | "h00000080".U
+      val restored      = (mstatus & ~"h00021888".U(32.W)) |
+        (mstatus(7) << 3) | "h00000080".U(32.W)
       // MPRV is cleared only when xRET lowers privilege.
-      mstatus := restored | Mux(nextPrivilege === M, mstatus & "h00020000".U, 0.U)
+      mstatus := restored | Mux(nextPrivilege === M, mstatus & "h00020000".U(32.W), 0.U)
       priv    := nextPrivilege
     }.otherwise {
-      mstatus := (mstatus & ~"h00020122".U) |
-        (mstatus(5) << 1) | "h00000020".U
+      mstatus := (mstatus & ~"h00020122".U(32.W)) |
+        (mstatus(5) << 1) | "h00000020".U(32.W)
       priv    := Mux(mstatus(8), S, U)
     }
   }.elsewhen(csrWrite) {
@@ -340,10 +340,10 @@ class CsrFile extends Module {
         mstatus := (mstatus & ~SstatusMask) | (csrWriteData & SstatusMask)
       }
       is(Sie.U) { mie := (mie & ~mideleg) | (csrWriteData & mideleg & MieMask) }
-      is(Stvec.U) { stvec := csrWriteData & "hfffffffd".U }
+      is(Stvec.U) { stvec := csrWriteData & "hfffffffd".U(32.W) }
       is(Scounteren.U) { scounteren := csrWriteData & CounterenMask }
       is(Sscratch.U) { sscratch := csrWriteData }
-      is(Sepc.U) { sepc := csrWriteData & "hfffffffe".U }
+      is(Sepc.U) { sepc := csrWriteData & "hfffffffe".U(32.W) }
       is(Scause.U) { scause := csrWriteData }
       is(Stval.U) { stval := csrWriteData }
       is(Sip.U) {
@@ -355,18 +355,18 @@ class CsrFile extends Module {
         val candidateMpp = candidate(12, 11)
         val legalMpp     = candidateMpp === U || candidateMpp === S ||
           candidateMpp === M
-        mstatus := (candidate & ~"h00001800".U) |
+        mstatus := (candidate & ~"h00001800".U(32.W)) |
           (Mux(legalMpp, candidateMpp, U) << 11)
       }
       is(Medeleg.U) { medeleg := csrWriteData & MedelegMask }
       is(Mideleg.U) { mideleg := csrWriteData & MidelegMask }
       is(Mie.U) { mie := csrWriteData & MieMask }
-      is(Mtvec.U) { mtvec := csrWriteData & "hfffffffd".U }
+      is(Mtvec.U) { mtvec := csrWriteData & "hfffffffd".U(32.W) }
       is(Mcounteren.U) { mcounteren := csrWriteData & CounterenMask }
       is(Menvcfgh.U) { menvcfgh := csrWriteData & MenvcfghMask }
       is(Mcountinhibit.U) { mcountinhibit := csrWriteData & CountInhibitMask }
       is(Mscratch.U) { mscratch := csrWriteData }
-      is(Mepc.U) { mepc := csrWriteData & "hfffffffe".U }
+      is(Mepc.U) { mepc := csrWriteData & "hfffffffe".U(32.W) }
       is(Mcause.U) { mcause := csrWriteData }
       is(Mtval.U) { mtval := csrWriteData }
       is(Mip.U) { softwareSsip := csrWriteData(1) }

@@ -43,6 +43,7 @@ bool platform_read(paddr_t addr, int len, word_t *data);
 bool platform_write(paddr_t addr, int len, word_t data);
 void platform_out_of_bound(paddr_t addr);
 bool platform_in_comparable_mem(paddr_t addr, int len);
+bool platform_difftest_in_identity_mmio(paddr_t addr, int len);
 int platform_difftest_memcpy(difftest_load_memory_t ref_load_memory);
 uint32_t platform_difftest_memory_map(void);
 void platform_trace_read(paddr_t addr, int len, word_t data);

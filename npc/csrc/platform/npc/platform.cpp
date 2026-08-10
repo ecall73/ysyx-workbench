@@ -74,6 +74,12 @@ bool platform_in_comparable_mem(paddr_t addr, int len) {
       addr <= NPC_PMEM_BASE + NPC_PMEM_SIZE - (uint32_t)len;
 }
 
+bool platform_difftest_in_identity_mmio(paddr_t addr, int len) {
+  return len > 0 && (uint32_t)len <= 0x00001000u &&
+      addr >= 0x10000000u &&
+      addr <= 0x10001000u - (uint32_t)len;
+}
+
 void platform_trace_read(paddr_t addr, int len, word_t data) {
 #ifdef CONFIG_MTRACE
   const char *mem = platform_memory_name(addr);

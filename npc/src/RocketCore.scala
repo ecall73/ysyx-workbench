@@ -181,7 +181,6 @@ class RocketCore extends Module {
   val dataTranslationEnabled        = csr.io.state.satp(31) && dataPrivilege =/= Privilege.M
   val sum                           = mstatus(18)
   val mxr                           = mstatus(19)
-  val adue                          = csr.io.state.menvcfgh(29)
 
   // Shared PTW arbitration gives an outstanding walk a stable owner.
   val ptwBusy        = RegInit(false.B)
@@ -234,7 +233,6 @@ class RocketCore extends Module {
   itlb.io.request.bits.sum    := false.B
   itlb.io.request.bits.mxr    := mxr
   itlb.io.request.bits.satp   := csr.io.state.satp
-  itlb.io.request.bits.adue   := adue
   itlb.io.response.ready      := fetchState === fTlbWait
   itlb.io.kill                := redirectPulse
 
@@ -461,7 +459,6 @@ class RocketCore extends Module {
   dtlb.io.request.bits.sum    := sum
   dtlb.io.request.bits.mxr    := mxr
   dtlb.io.request.bits.satp   := csr.io.state.satp
-  dtlb.io.request.bits.adue   := adue
   dtlb.io.response.ready      := executeState === eDataTlbWait
   dtlb.io.kill                := false.B
 
@@ -491,9 +488,9 @@ class RocketCore extends Module {
   dcache.io.request.valid         := dataOwner === dataOwnerNone &&
     (ptwWantsData || (!ptwWantsData && coreWantsData))
   dcache.io.request.bits.addr     := Mux(ptwWantsData, ptw.io.memoryRequest.bits.addr, savedPhysicalAddress)
-  dcache.io.request.bits.write    := Mux(ptwWantsData, ptw.io.memoryRequest.bits.write, savedDecoded.memoryWrite)
-  dcache.io.request.bits.data     := Mux(ptwWantsData, ptw.io.memoryRequest.bits.data, storeData)
-  dcache.io.request.bits.mask     := Mux(ptwWantsData, ptw.io.memoryRequest.bits.mask, storeMask)
+  dcache.io.request.bits.write    := Mux(ptwWantsData, false.B, savedDecoded.memoryWrite)
+  dcache.io.request.bits.data     := Mux(ptwWantsData, 0.U, storeData)
+  dcache.io.request.bits.mask     := Mux(ptwWantsData, 0.U, storeMask)
   dcache.io.request.bits.size     := Mux(ptwWantsData, 2.U, savedDecoded.memorySize)
   dcache.io.request.bits.uncached := !cacheable(Mux(ptwWantsData, ptw.io.memoryRequest.bits.addr, savedPhysicalAddress))
   dcache.io.request.bits.atomic   := Mux(ptwWantsData, AtomicOperation.None, savedDecoded.atomic)

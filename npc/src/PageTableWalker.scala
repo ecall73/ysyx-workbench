@@ -9,10 +9,7 @@ import chisel3._
 import chisel3.util._
 
 class PtwMemoryRequest extends Bundle {
-  val write = Bool()
-  val addr  = UInt(32.W)
-  val data  = UInt(32.W)
-  val mask  = UInt(4.W)
+  val addr = UInt(32.W)
 }
 
 class PtwMemoryResponse extends Bundle {
@@ -35,17 +32,16 @@ class PageTableWalker extends Module {
     val sfence         = Input(Bool())
   })
 
-  val idle :: checkCache :: sendRead :: waitRead :: examine :: sendAdWrite :: waitAdWrite :: respond :: Nil = Enum(8)
-  val state                                                                                                 = RegInit(idle)
-  val saved                                                                                                 = Reg(new PtwRequest)
-  val level                                                                                                 = RegInit(1.U(1.W))
-  val tableBase                                                                                             = Reg(UInt(34.W))
-  val pteAddressReg                                                                                         = Reg(UInt(32.W))
-  val pteData                                                                                               = Reg(UInt(32.W))
-  val updatedPte                                                                                            = Reg(UInt(32.W))
-  val savedResponse                                                                                         = Reg(new PtwResponse)
-  val cache                                                                                                 = RegInit(VecInit(Seq.fill(8)(0.U.asTypeOf(new PteCacheEntry))))
-  val replacement                                                                                           = RegInit(0.U(3.W))
+  val idle :: checkCache :: sendRead :: waitRead :: examine :: respond :: Nil = Enum(6)
+  val state                                                                   = RegInit(idle)
+  val saved                                                                   = Reg(new PtwRequest)
+  val level                                                                   = RegInit(1.U(1.W))
+  val tableBase                                                               = Reg(UInt(34.W))
+  val pteAddressReg                                                           = Reg(UInt(32.W))
+  val pteData                                                                 = Reg(UInt(32.W))
+  val savedResponse                                                           = Reg(new PtwResponse)
+  val cache                                                                   = RegInit(VecInit(Seq.fill(8)(0.U.asTypeOf(new PteCacheEntry))))
+  val replacement                                                             = RegInit(0.U(3.W))
 
   val vpnIndex          = Mux(level === 1.U, saved.vaddr(31, 22), saved.vaddr(21, 12))
   val pteAddressFull    = tableBase + (vpnIndex << 2)
@@ -55,15 +51,12 @@ class PageTableWalker extends Module {
   val cacheHit          = cacheHits.reduce(_ || _)
   val cachedPpn         = Mux1H(cacheHits, cache.map(_.ppn))
 
-  io.request.ready            := state === idle
-  io.response.valid           := state === respond
-  io.response.bits            := savedResponse
-  io.memoryRequest.valid      := state === sendRead || state === sendAdWrite
-  io.memoryRequest.bits.write := state === sendAdWrite
-  io.memoryRequest.bits.addr  := pteAddressReg
-  io.memoryRequest.bits.data  := Mux(state === sendAdWrite, updatedPte, 0.U)
-  io.memoryRequest.bits.mask  := Mux(state === sendAdWrite, "hf".U, 0.U)
-  io.memoryResponse.ready     := state === waitRead || state === waitAdWrite
+  io.request.ready           := state === idle
+  io.response.valid          := state === respond
+  io.response.bits           := savedResponse
+  io.memoryRequest.valid     := state === sendRead
+  io.memoryRequest.bits.addr := pteAddressReg
+  io.memoryResponse.ready    := state === waitRead
 
   def fillResponse(pte: UInt, pageFault: Bool, accessFault: Bool): Unit = {
     savedResponse.ppn         := pte(31, 10)
@@ -144,16 +137,8 @@ class PageTableWalker extends Module {
     when(invalid) {
       fillResponse(pteData, true.B, false.B)
     }.elsewhen(leaf) {
-      when(misalignedSuperpage || permissionFault(pteData)) {
+      when(misalignedSuperpage || permissionFault(pteData) || missingAd) {
         fillResponse(pteData, true.B, false.B)
-      }.elsewhen(missingAd) {
-        when(saved.adue) {
-          updatedPte := pteData | "h00000040".U |
-            Mux(saved.access === MemoryAccess.Store, "h00000080".U, 0.U)
-          state      := sendAdWrite
-        }.otherwise {
-          fillResponse(pteData, true.B, false.B)
-        }
       }.otherwise {
         fillResponse(pteData, false.B, false.B)
       }
@@ -171,18 +156,6 @@ class PageTableWalker extends Module {
       tableBase := Cat(ppn, 0.U(12.W))
       level     := 0.U
       state     := checkCache
-    }
-  }
-
-  when(state === sendAdWrite && io.memoryRequest.fire) {
-    state := waitAdWrite
-  }
-
-  when(state === waitAdWrite && io.memoryResponse.fire) {
-    when(io.memoryResponse.bits.error) {
-      fillResponse(updatedPte, false.B, true.B)
-    }.otherwise {
-      fillResponse(updatedPte, false.B, false.B)
     }
   }
 

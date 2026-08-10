@@ -114,6 +114,18 @@ bool platform_in_comparable_mem(paddr_t addr, int len) {
       in_range(addr, len, NPC_SDRAM_BASE, NPC_SDRAM_SIZE);
 }
 
+bool platform_difftest_in_identity_mmio(paddr_t addr, int len) {
+  // ChipLink MMIO overlaps the AM user VA window and is not identifiable here.
+  return in_range(addr, len, 0x02000000u, 0x00000004u) ||
+      in_range(addr, len, 0x02004000u, 0x00000008u) ||
+      in_range(addr, len, 0x0200bff8u, 0x00000008u) ||
+      in_range(addr, len, 0x10000000u, 0x00001000u) ||
+      in_range(addr, len, 0x10001000u, 0x00001000u) ||
+      in_range(addr, len, 0x10002000u, 0x00000010u) ||
+      in_range(addr, len, 0x10011000u, 0x00000008u) ||
+      in_range(addr, len, 0x21000000u, 0x00200000u);
+}
+
 #ifdef CONFIG_MTRACE
 static const char *platform_memory_name(uint32_t addr) {
   if (in_range32(addr, 0x0f000000u, 0x0fffffffu)) return "SRAM";
