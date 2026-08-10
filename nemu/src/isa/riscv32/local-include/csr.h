@@ -83,7 +83,6 @@ enum {
 #define MIP_MTIP (1u << IRQ_MTIP)
 #define MIP_SEIP (1u << IRQ_SEIP)
 
-#define MENVCFGH_ADUE (1u << 29)
 #define MENVCFGH_STCE (1u << 31)
 
 #define MCOUNTINHIBIT_CY (1u << 0)

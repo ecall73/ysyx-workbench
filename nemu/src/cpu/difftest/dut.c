@@ -74,8 +74,8 @@ static void require_ref_status(const char *operation, int status) {
 static void *require_ref_symbol(void *handle, const char *name) {
   void *symbol = dlsym(handle, name);
   Assert(symbol != NULL,
-      "DiffTest reference does not implement required RV32 ABI v1 symbol '%s'",
-      name);
+      "DiffTest reference does not implement required RV32 ABI v%u symbol '%s'",
+      RISCV_DIFFTEST_ABI_VERSION, name);
   return symbol;
 }
 

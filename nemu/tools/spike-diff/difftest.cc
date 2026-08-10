@@ -82,7 +82,9 @@ static int validate_profile(const riscv_difftest_profile_t *profile) {
 }
 
 static void create_spike() {
-  const char *isa = "RV32IMAFDC_Zicsr_Zifencei_Zicntr_Sstc_Svadu";
+  // This locked Spike predates the Svade ISA-string name. Leaving hardware A/D
+  // updating disabled makes menvcfg.ADUE read-only zero and selects its fault path.
+  const char *isa = "RV32IMAFDC_Zicsr_Zifencei_Zicntr_Sstc";
   cfg_t *cfg = new cfg_t(/*default_initrd_bounds=*/std::make_pair((reg_t)0, (reg_t)0),
             /*default_bootargs=*/nullptr,
             /*default_isa=*/isa,

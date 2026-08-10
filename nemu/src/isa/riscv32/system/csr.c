@@ -206,7 +206,7 @@ void csr_write(uint32_t addr, word_t data) {
       break;
     case CSR_MENVCFG:    break;
     case CSR_MENVCFGH:
-      cpu.menvcfgh = data & (MENVCFGH_ADUE | MENVCFGH_STCE);
+      cpu.menvcfgh = data & MENVCFGH_STCE;
       break;
     case CSR_MSCRATCH:   cpu.mscratch = data; break;
     case CSR_MEPC:       cpu.mepc = data & ~1u; break;

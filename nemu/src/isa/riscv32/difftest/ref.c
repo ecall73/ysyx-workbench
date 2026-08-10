@@ -90,7 +90,7 @@ __EXPORT int difftest_query_interface(uint32_t requested_abi,
   interface->supported_isa_features |= RISCV_DIFFTEST_RV32IMAC_FEATURES;
 #endif
   snprintf(interface->implementation_id, sizeof(interface->implementation_id),
-      "nemu-rv32-ref-abi1-rv32imac");
+      "nemu-rv32-ref-abi2-rv32imac-svade");
   interface->observation_size = sizeof(riscv_difftest_observation_t);
   interface->sync_state_size = sizeof(riscv_difftest_sync_state_t);
   interface->arch_step_size = sizeof(riscv_difftest_arch_step_t);
@@ -169,7 +169,9 @@ __EXPORT int difftest_arch_step(const riscv_difftest_arch_step_t *event,
     return RISCV_DIFFTEST_BAD_EVENT;
   }
 
-  if (event->instruction_valid) {
+  bool direct_fetch = isa_mmu_check(event->instruction_pc,
+      event->instruction_length, MEM_TYPE_IFETCH) == MMU_DIRECT;
+  if (event->instruction_valid && direct_fetch) {
     word_t instruction = 0;
     if (!paddr_try_read(event->instruction_pc, event->instruction_length,
           &instruction)) {

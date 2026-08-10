@@ -85,13 +85,7 @@ paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
 
       word_t ad = PTE_A | (type == MEM_TYPE_WRITE ? PTE_D : 0);
       if ((pte & ad) != ad) {
-        if (!(cpu.menvcfgh & MENVCFGH_ADUE)) {
-          riscv_raise_memory_fault(vaddr, type, true);
-        }
-        pte |= ad;
-        if (!paddr_try_write(pte_addr, 4, pte)) {
-          riscv_raise_memory_fault(vaddr, type, false);
-        }
+        riscv_raise_memory_fault(vaddr, type, true);
       }
 
       word_t ppn = pte >> 10;
