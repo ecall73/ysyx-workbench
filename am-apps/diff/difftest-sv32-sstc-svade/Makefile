@@ -1,3 +1,3 @@
-NAME = difftest-sv32-sstc-svadu
+NAME = difftest-sv32-sstc-svade
 SRCS = src/main.S
 include $(AM_HOME)/Makefile

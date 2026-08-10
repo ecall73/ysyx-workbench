@@ -40,7 +40,7 @@ main:
   csrw mtvec, t0
   csrwi medeleg, 0
 
-  /* Build a single identity-mapped 4 MiB superpage at 0x80000000. */
+  /* Build one identity-mapped 4 MiB superpage containing test_data. */
   la s5, root_page_table
   mv t0, s5
   li t1, 1024
@@ -50,11 +50,14 @@ clear_root:
   addi t1, t1, -1
   bnez t1, clear_root
 
-  li t0, 2048                  /* VPN[1] for 0x80000000 is 0x200. */
-  add s6, s5, t0
-  li t0, 0x20000000 | PTE_V | PTE_R | PTE_W | PTE_X
-  sw t0, 0(s6)
   la s9, test_data
+  srli t0, s9, 22
+  slli t0, t0, 2
+  add s6, s5, t0
+  srli t0, s9, 22
+  slli t0, t0, 20
+  ori t0, t0, PTE_V | PTE_R | PTE_W | PTE_X
+  sw t0, 0(s6)
 
   srli t0, s5, 12
   li t1, 0x80000000
@@ -62,31 +65,40 @@ clear_root:
   csrw satp, t0
   sfence.vma
 
-  /* With Svadu disabled, an A=0 load faults and leaves rd/PTE unchanged. */
+  /* Svade keeps menvcfgh.ADUE read-only zero. */
   li t0, MENVCFGH_ADUE
-  csrc 0x31a, t0
+  csrs 0x31a, t0
+  csrr t1, 0x31a
+  and t1, t1, t0
+  bnez t1, fail
+
+  /* An A=0 load faults and leaves rd/PTE unchanged. */
   li a0, 0x13579bdf
-  EXPECT_FAULT(13, 0, fault_load_adue_off, after_load_adue_off, 3, 0)
+  EXPECT_FAULT(13, 0, fault_load_a_clear, after_load_a_clear, 3, 0)
   mv s1, s9
   li t0, MSTATUS_MPP | MSTATUS_MPRV
   csrc mstatus, t0
   li t0, MSTATUS_MPP_S | MSTATUS_MPRV
   csrs mstatus, t0
-fault_load_adue_off:
+fault_load_a_clear:
   lw a0, 0(s9)
-after_load_adue_off:
+after_load_a_clear:
   li t0, MSTATUS_MPRV
   csrc mstatus, t0
   bnez s4, fail
   li t0, 0x13579bdf
   bne a0, t0, fail
   lw t0, 0(s6)
-  li t1, 0x20000000 | PTE_V | PTE_R | PTE_W | PTE_X
+  srli t1, s9, 22
+  slli t1, t1, 20
+  ori t1, t1, PTE_V | PTE_R | PTE_W | PTE_X
   bne t0, t1, fail
 
-  /* Svadu sets A on a load while preserving D and the loaded value. */
-  li t0, MENVCFGH_ADUE
-  csrs 0x31a, t0
+  /* Software sets A and retries the load; D remains clear. */
+  lw t0, 0(s6)
+  ori t0, t0, PTE_A
+  sw t0, 0(s6)
+  sfence.vma
   li t0, MSTATUS_MPP | MSTATUS_MPRV
   csrc mstatus, t0
   li t0, MSTATUS_MPP_S | MSTATUS_MPRV
@@ -97,22 +109,22 @@ after_load_adue_off:
   li t0, 0x44332211
   bne a0, t0, fail
   lw t0, 0(s6)
-  li t1, 0x20000000 | PTE_V | PTE_R | PTE_W | PTE_X | PTE_A
+  srli t1, s9, 22
+  slli t1, t1, 20
+  ori t1, t1, PTE_V | PTE_R | PTE_W | PTE_X | PTE_A
   bne t0, t1, fail
 
-  /* With Svadu disabled, D=0 store faults without changing memory or PTE. */
-  li t0, MENVCFGH_ADUE
-  csrc 0x31a, t0
+  /* A D=0 store faults without changing memory or PTE. */
   li a0, 0xdeadbeef
-  EXPECT_FAULT(15, 0, fault_store_adue_off, after_store_adue_off, 3, 0)
+  EXPECT_FAULT(15, 0, fault_store_d_clear, after_store_d_clear, 3, 0)
   mv s1, s9
   li t0, MSTATUS_MPP | MSTATUS_MPRV
   csrc mstatus, t0
   li t0, MSTATUS_MPP_S | MSTATUS_MPRV
   csrs mstatus, t0
-fault_store_adue_off:
+fault_store_d_clear:
   sw a0, 0(s9)
-after_store_adue_off:
+after_store_d_clear:
   li t0, MSTATUS_MPRV
   csrc mstatus, t0
   bnez s4, fail
@@ -120,12 +132,16 @@ after_store_adue_off:
   li t1, 0x44332211
   bne t0, t1, fail
   lw t0, 0(s6)
-  li t1, 0x20000000 | PTE_V | PTE_R | PTE_W | PTE_X | PTE_A
+  srli t1, s9, 22
+  slli t1, t1, 20
+  ori t1, t1, PTE_V | PTE_R | PTE_W | PTE_X | PTE_A
   bne t0, t1, fail
 
-  /* Svadu sets D on a successful store. */
-  li t0, MENVCFGH_ADUE
-  csrs 0x31a, t0
+  /* Software sets D and retries the store successfully. */
+  lw t0, 0(s6)
+  ori t0, t0, PTE_D
+  sw t0, 0(s6)
+  sfence.vma
   li t0, MSTATUS_MPP | MSTATUS_MPRV
   csrc mstatus, t0
   li t0, MSTATUS_MPP_S | MSTATUS_MPRV
@@ -136,7 +152,9 @@ after_store_adue_off:
   lw t0, 0(s9)
   bne t0, a0, fail
   lw t0, 0(s6)
-  li t1, 0x20000000 | PTE_V | PTE_R | PTE_W | PTE_X | PTE_A | PTE_D
+  srli t1, s9, 22
+  slli t1, t1, 20
+  ori t1, t1, PTE_V | PTE_R | PTE_W | PTE_X | PTE_A | PTE_D
   bne t0, t1, fail
 
   /* An unmapped S-mode instruction fetch reports an invalid-instruction step. */
