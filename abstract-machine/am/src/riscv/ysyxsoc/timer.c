@@ -3,8 +3,14 @@
 
 static uint64_t boot_mtime = 0;
 
+#define TIMER_HZ 100ull
+#define MTIME_TICKS_PER_IRQ (NPC_CPU_FREQ_HZ / TIMER_HZ)
+
 #if (NPC_CPU_FREQ_HZ % 1000000ull) != 0
 #error "NPC_CPU_FREQ_HZ must be divisible by 1,000,000"
+#endif
+#if (NPC_CPU_FREQ_HZ % TIMER_HZ) != 0
+#error "NPC_CPU_FREQ_HZ must be divisible by TIMER_HZ"
 #endif
 
 static uint64_t read_mtime() {
@@ -16,6 +22,31 @@ static uint64_t read_mtime() {
   } while (hi1 != hi2);
 
   return ((uint64_t)hi2 << 32) | lo;
+}
+
+static void set_next_mtimecmp() {
+  uintptr_t old_mstatus;
+  uintptr_t mprv = 1u << 17;
+  asm volatile("csrrc %0, mstatus, %1"
+      : "=r"(old_mstatus) : "r"(mprv) : "memory");
+
+  uint64_t next = read_mtime() + MTIME_TICKS_PER_IRQ;
+  outl(CLINT_MTIMECMP, 0xffffffffu);
+  outl(CLINT_MTIMECMPH, next >> 32);
+  outl(CLINT_MTIMECMP, next);
+
+  if (old_mstatus & mprv) {
+    asm volatile("csrs mstatus, %0" : : "r"(mprv) : "memory");
+  }
+}
+
+void __am_timer_irq_init() {
+  set_next_mtimecmp();
+  asm volatile("csrs mie, %0" : : "r"(1u << 7));
+}
+
+void __am_timer_irq_ack() {
+  set_next_mtimecmp();
 }
 
 static int is_leap_year(int year) {

@@ -49,6 +49,8 @@
 #define UART_LCR_8N1    0x03u
 #define UART_LSR_THRE   0x20u
 #define KBD_ADDR        PS2_BASE
+#define CLINT_MTIMECMP  0x02004000u
+#define CLINT_MTIMECMPH 0x02004004u
 #define CLINT_MTIME     0x0200bff8u
 #define CLINT_MTIMEH    0x0200bffcu
 // ysyxSoC has no standalone RTC block in this map; use CLINT mtime window.
