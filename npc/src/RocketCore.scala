@@ -26,7 +26,10 @@ class CoreCommit extends Bundle {
   val csr               = new CsrState
 }
 
-class RocketCore extends Module {
+class RocketCore(
+  multiplierGenerator: () => Rv32Multiplier = () => new IterativeMultiplier,
+  dividerGenerator:    () => Rv32Divider = () => new IterativeDivider)
+    extends Module {
   val io = IO(new Bundle {
     val resetVector = Input(UInt(32.W))
     val interrupts  = Input(new LocalInterrupts)
@@ -47,16 +50,17 @@ class RocketCore extends Module {
     val halted            = Output(Bool())
   })
 
-  val ibuf    = Module(new InstructionBuffer)
-  val decoder = Module(new InstructionDecoder)
-  val csr     = Module(new CsrFile)
-  val mulDiv  = Module(new IterativeMulDiv)
-  val itlb    = Module(new Tlb(instruction = true))
-  val dtlb    = Module(new Tlb(instruction = false))
-  val ptw     = Module(new PageTableWalker)
-  val clint   = Module(new Clint)
-  val icache  = Module(new BlockingCache(instruction = true))
-  val dcache  = Module(new BlockingCache(instruction = false))
+  val ibuf       = Module(new InstructionBuffer)
+  val decoder    = Module(new InstructionDecoder)
+  val csr        = Module(new CsrFile)
+  val multiplier = Module(multiplierGenerator())
+  val divider    = Module(dividerGenerator())
+  val itlb       = Module(new Tlb)
+  val dtlb       = Module(new Tlb)
+  val ptw        = Module(new PageTableWalker)
+  val clint      = Module(new Clint)
+  val icache     = Module(new BlockingCache(instruction = true))
+  val dcache     = Module(new BlockingCache(instruction = false))
 
   val gpr             = RegInit(VecInit(Seq.fill(32)(0.U(32.W))))
   val fetchPc         = Reg(UInt(32.W))
@@ -349,7 +353,21 @@ class RocketCore extends Module {
     savedDecoded.branch =/= BranchOperation.None && !branchTaken
   val sequentialExecuteCompletion = simpleAluCompletion || untakenBranchCompletion
   val simpleAluWrites             = simpleAluCompletion && savedDecoded.writeRd && savedDecoded.rd.orR
-  val mulDivCompletion            = executeState === eMulDivWait && mulDiv.io.response.valid
+  val multiplyOperation           = savedDecoded.mulDivFunction < MulDivFn.Div
+  val multiplyResult              = Mux(
+    savedDecoded.mulDivFunction === MulDivFn.Mul,
+    multiplier.result_lo,
+    multiplier.result_hi
+  )
+  val divideResult                = Mux(
+    savedDecoded.mulDivFunction === MulDivFn.Rem ||
+      savedDecoded.mulDivFunction === MulDivFn.Remu,
+    divider.remainder,
+    divider.quotient
+  )
+  val mulDivResult                = Mux(multiplyOperation, multiplyResult, divideResult)
+  val mulDivOutValid              = Mux(multiplyOperation, multiplier.out_valid, divider.out_valid)
+  val mulDivCompletion            = executeState === eMulDivWait && mulDivOutValid
 
   val responseByteOffset     = savedVirtualAddress(1, 0)
   val responseShifted        = dcache.io.response.bits.data >> (responseByteOffset << 3)
@@ -391,7 +409,7 @@ class RocketCore extends Module {
           dataResponseResult,
           Mux(
             mulDivCompletionWrites && savedDecoded.rd === index,
-            mulDiv.io.response.bits,
+            mulDivResult,
             gpr(index)
           )
         )
@@ -437,12 +455,34 @@ class RocketCore extends Module {
     )
   )
 
-  mulDiv.io.request.valid    := executeState === eExecute &&
-    savedDecoded.mulDiv
-  mulDiv.io.request.bits.fn  := savedDecoded.mulDivFunction
-  mulDiv.io.request.bits.lhs := savedRs1
-  mulDiv.io.request.bits.rhs := savedRs2
-  mulDiv.io.response.ready   := executeState === eMulDivWait
+  multiplier.mul_valid    := executeState === eExecute &&
+    savedDecoded.mulDiv && multiplyOperation
+  multiplier.flush        := redirectPulse
+  multiplier.mul_signed   := MuxLookup(
+    savedDecoded.mulDivFunction,
+    Rv32MultiplySign.UnsignedUnsigned
+  )(
+    Seq(
+      MulDivFn.Mulh   -> Rv32MultiplySign.SignedSigned,
+      MulDivFn.Mulhsu -> Rv32MultiplySign.SignedUnsigned
+    )
+  )
+  multiplier.multiplicand := savedRs1
+  multiplier.multiplier   := savedRs2
+
+  divider.div_valid  := executeState === eExecute &&
+    savedDecoded.mulDiv && !multiplyOperation
+  divider.flush      := redirectPulse
+  divider.div_signed := savedDecoded.mulDivFunction === MulDivFn.Div ||
+    savedDecoded.mulDivFunction === MulDivFn.Rem
+  divider.dividend   := savedRs1
+  divider.divisor    := savedRs2
+
+  val mulDivRequestAccepted = Mux(
+    multiplyOperation,
+    multiplier.mul_valid && multiplier.mul_ready,
+    divider.div_valid && divider.div_ready
+  )
 
   val memoryAddress         = savedRs1 + savedDecoded.immediate
   val memoryMisaligned      =
@@ -586,7 +626,7 @@ class RocketCore extends Module {
       }
       executeState := eIdle
     }.elsewhen(savedDecoded.mulDiv) {
-      when(mulDiv.io.request.fire) { executeState := eMulDivWait }
+      when(mulDivRequestAccepted) { executeState := eMulDivWait }
     }.elsewhen(savedDecoded.memory) {
       when(memoryMisaligned) {
         raiseTrap(Mux(isStoreLike, 6.U, 4.U), memoryAddress)
@@ -626,8 +666,8 @@ class RocketCore extends Module {
     executeState          := eIdle
   }
 
-  when(executeState === eMulDivWait && mulDiv.io.response.fire) {
-    when(savedDecoded.rd.orR) { gpr(savedDecoded.rd) := mulDiv.io.response.bits }
+  when(mulDivCompletion) {
+    when(savedDecoded.rd.orR) { gpr(savedDecoded.rd) := mulDivResult }
     complete(sequentialPc, true.B)
     executeState := Mux(ibuf.io.instruction.fire, eExecute, eIdle)
   }

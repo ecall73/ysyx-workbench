@@ -76,10 +76,7 @@ class TlbEntry extends Bundle {
   val d     = Bool()
 }
 
-class Tlb(val instruction: Boolean) extends Module {
-  override def desiredName: String = if (instruction) "InstructionTlb"
-  else "DataTlb"
-
+class Tlb extends Module {
   val io = IO(new Bundle {
     val request     = Flipped(Decoupled(new TlbRequest))
     val response    = Decoupled(new TlbResponse)
@@ -89,12 +86,15 @@ class Tlb(val instruction: Boolean) extends Module {
     val kill        = Input(Bool())
   })
 
+  private val EntryCount      = 4
+  private val ReplacementBits = log2Ceil(EntryCount)
+
   val idle :: lookup :: sendPtw :: waitPtw :: respond :: Nil = Enum(5)
   val state                                                  = RegInit(idle)
   val saved                                                  = Reg(new TlbRequest)
   val savedResponse                                          = Reg(new TlbResponse)
-  val entries                                                = RegInit(VecInit(Seq.fill(RocketMed.TlbWays)(0.U.asTypeOf(new TlbEntry))))
-  val replacement                                            = RegInit(0.U(2.W))
+  val entries                                                = RegInit(VecInit(Seq.fill(EntryCount)(0.U.asTypeOf(new TlbEntry))))
+  val replacement                                            = RegInit(0.U(ReplacementBits.W))
   val killedWalk                                             = RegInit(false.B)
   val flushedWalk                                            = RegInit(false.B)
 
@@ -191,9 +191,6 @@ class Tlb(val instruction: Boolean) extends Module {
   }
 
   when(state === lookup) {
-    if (instruction) {
-      assert(saved.access === MemoryAccess.Fetch)
-    }
     when(!vmEnabled) {
       savedResponse := makeResponse(
         saved,

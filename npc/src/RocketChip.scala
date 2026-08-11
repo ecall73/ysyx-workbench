@@ -6,7 +6,10 @@ import chisel3.util.Valid
 
 // Chisel-owned semantic top. GenerateTop adds only the parameterized external
 // contract and simulation DPI observer around this module.
-class RocketChip extends Module {
+class RocketChip(
+  multiplierGenerator: () => Rv32Multiplier = () => new IterativeMultiplier,
+  dividerGenerator:    () => Rv32Divider = () => new IterativeDivider)
+    extends Module {
   override def desiredName: String = "ysyx_26030082_chisel"
 
   val io = IO(new Bundle {
@@ -78,7 +81,7 @@ class RocketChip extends Module {
     val halted         = Output(Bool())
   })
 
-  val core   = Module(new RocketCore)
+  val core   = Module(new RocketCore(multiplierGenerator, dividerGenerator))
   val memSys = Module(new MemSys)
 
   core.io.resetVector := io.resetVector

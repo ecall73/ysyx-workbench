@@ -106,12 +106,28 @@ class BlockingCache(val instruction: Boolean) extends Module {
   override def desiredName: String = if (instruction) "InstructionCache"
   else "DataCache"
 
-  val io                     = IO(new BlockingCacheIO(instruction))
-  private val SetBits        = 6
-  private val LineOffsetBits = 6
-  private val TagBits        = 32 - SetBits - LineOffsetBits
+  val io = IO(new BlockingCacheIO(instruction))
 
-  def cacheSet(address:     UInt): UInt = address(11, 6)
+  private val AddressBits     = io.request.bits.addr.getWidth
+  private val SetCount        = 64
+  private val LineBytes       = 64
+  private val RowBits         = io.readData.bits.data.getWidth
+  private val RowBytes        = RowBits / 8
+  private val RowsPerLine     = LineBytes / RowBytes
+  private val SetBits         = log2Ceil(SetCount)
+  private val RowOffsetBits   = log2Ceil(RowBytes)
+  private val RowIndexBits    = log2Ceil(RowsPerLine)
+  private val LineOffsetBits  = log2Ceil(LineBytes)
+  private val TagBits         = AddressBits - SetBits - LineOffsetBits
+  private val DataDepth       = SetCount * RowsPerLine
+  private val DataAddressBits = log2Ceil(DataDepth)
+  private val LastRow         = RowsPerLine - 1
+
+  require(RowBits   % 8 == 0)
+  require(LineBytes % RowBytes == 0)
+
+  def cacheSet(address: UInt): UInt =
+    address(LineOffsetBits + SetBits - 1, LineOffsetBits)
   def cacheWordAddress(set: UInt, word: UInt): UInt = Cat(set, word)
 
   val idle :: captureLookup :: decideLookup :: sendWriteAddress :: sendWriteData :: waitWriteResponse :: sendReadAddress :: receiveReadData :: restartLookup :: respond :: probeCaptureLookup :: probeDecideLookup :: probeRespond :: probeWaitAck :: flushLookup :: flushCaptureLookup :: flushDecideLookup :: flushWriteAddress :: flushWriteData :: flushWaitResponse :: flushComplete :: Nil =
@@ -121,9 +137,9 @@ class BlockingCache(val instruction: Boolean) extends Module {
   val responseData                                                                                                                                                                                                                                                                                                                                                                               = Reg(UInt(32.W))
   val responseError                                                                                                                                                                                                                                                                                                                                                                              = RegInit(false.B)
   val requestMiss                                                                                                                                                                                                                                                                                                                                                                                = RegInit(false.B)
-  val refillBeat                                                                                                                                                                                                                                                                                                                                                                                 = RegInit(0.U(4.W))
+  val refillBeat                                                                                                                                                                                                                                                                                                                                                                                 = RegInit(0.U(RowIndexBits.W))
   val refillError                                                                                                                                                                                                                                                                                                                                                                                = RegInit(false.B)
-  val writebackBeat                                                                                                                                                                                                                                                                                                                                                                              = RegInit(0.U(4.W))
+  val writebackBeat                                                                                                                                                                                                                                                                                                                                                                              = RegInit(0.U(RowIndexBits.W))
   val lookupTag                                                                                                                                                                                                                                                                                                                                                                                  = Reg(UInt(TagBits.W))
   val lookupWord                                                                                                                                                                                                                                                                                                                                                                                 = Reg(UInt(32.W))
   val streamData                                                                                                                                                                                                                                                                                                                                                                                 = Reg(UInt(32.W))
@@ -131,16 +147,16 @@ class BlockingCache(val instruction: Boolean) extends Module {
   val probeSaved                                                                                                                                                                                                                                                                                                                                                                                 = if (!instruction) Some(Reg(new ProbeRequest)) else None
   val probeHit                                                                                                                                                                                                                                                                                                                                                                                   = if (!instruction) Some(RegInit(false.B)) else None
   val probeDirty                                                                                                                                                                                                                                                                                                                                                                                 = if (!instruction) Some(RegInit(false.B)) else None
-  val probeBeat                                                                                                                                                                                                                                                                                                                                                                                  = if (!instruction) Some(RegInit(0.U(4.W))) else None
+  val probeBeat                                                                                                                                                                                                                                                                                                                                                                                  = if (!instruction) Some(RegInit(0.U(RowIndexBits.W))) else None
   val flushSet                                                                                                                                                                                                                                                                                                                                                                                   = if (!instruction) Some(RegInit(0.U(SetBits.W))) else None
-  val flushBeat                                                                                                                                                                                                                                                                                                                                                                                  = if (!instruction) Some(RegInit(0.U(4.W))) else None
+  val flushBeat                                                                                                                                                                                                                                                                                                                                                                                  = if (!instruction) Some(RegInit(0.U(RowIndexBits.W))) else None
   val flushFailed                                                                                                                                                                                                                                                                                                                                                                                = if (!instruction) Some(RegInit(false.B)) else None
 
-  val valid      = RegInit(VecInit(Seq.fill(RocketMed.CacheSets)(false.B)))
-  val dirty      = RegInit(VecInit(Seq.fill(RocketMed.CacheSets)(false.B)))
+  val valid      = RegInit(VecInit(Seq.fill(SetCount)(false.B)))
+  val dirty      = RegInit(VecInit(Seq.fill(SetCount)(false.B)))
   val tagMemory  = Module(
     new SinglePortSram(
-      RocketMed.CacheSets,
+      SetCount,
       TagBits,
       masked = false,
       moduleName = if (instruction) "ICacheTagSram" else "DCacheTagSram"
@@ -148,8 +164,8 @@ class BlockingCache(val instruction: Boolean) extends Module {
   )
   val dataMemory = Module(
     new SinglePortSram(
-      RocketMed.CacheSets * RocketMed.RefillBeats,
-      RocketMed.RowBits,
+      DataDepth,
+      RowBits,
       masked = !instruction,
       moduleName = if (instruction) "ICacheDataSram" else "DCacheDataSram"
     )
@@ -169,14 +185,18 @@ class BlockingCache(val instruction: Boolean) extends Module {
   )
   val lookupWordIndex   = Mux(
     state === flushLookup || probeLookup,
-    0.U(4.W),
-    Mux(state === restartLookup, saved.addr(5, 2), io.request.bits.addr(5, 2))
+    0.U(RowIndexBits.W),
+    Mux(
+      state === restartLookup,
+      saved.addr(LineOffsetBits - 1, RowOffsetBits),
+      io.request.bits.addr(LineOffsetBits - 1, RowOffsetBits)
+    )
   )
   val lookupDataAddress = cacheWordAddress(lookupSet, lookupWordIndex)
 
   val savedSet     = cacheSet(saved.addr)
-  val savedTag     = saved.addr(31, 12)
-  val savedWord    = saved.addr(5, 2)
+  val savedTag     = saved.addr(AddressBits - 1, LineOffsetBits + SetBits)
+  val savedWord    = saved.addr(LineOffsetBits - 1, RowOffsetBits)
   val lineHit      = valid(savedSet) && lookupTag === savedTag
   val oldWord      = lookupWord
   val atomicResult = MuxLookup(saved.atomic, saved.data)(
@@ -194,9 +214,9 @@ class BlockingCache(val instruction: Boolean) extends Module {
   )
 
   val reservationValid   = RegInit(false.B)
-  val reservationAddress = Reg(UInt(30.W))
+  val reservationAddress = Reg(UInt((AddressBits - RowOffsetBits).W))
   val reservationMatches = reservationValid &&
-    reservationAddress === saved.addr(31, 2)
+    reservationAddress === saved.addr(AddressBits - 1, RowOffsetBits)
   val isLr               = saved.atomic === AtomicOperation.Lr
   val isSc               = saved.atomic === AtomicOperation.Sc
   val isAmo              = saved.atomic >= AtomicOperation.Swap
@@ -229,7 +249,7 @@ class BlockingCache(val instruction: Boolean) extends Module {
     else Mux(refillTransfer, "hf".U, hitWriteMask)
 
   val streamReadEnable  = WireDefault(false.B)
-  val streamReadAddress = WireDefault(0.U(10.W))
+  val streamReadAddress = WireDefault(0.U(DataAddressBits.W))
   val streamFire        = WireDefault(false.B)
   val streamReadValid   = RegNext(streamReadEnable, false.B)
 
@@ -271,9 +291,13 @@ class BlockingCache(val instruction: Boolean) extends Module {
   io.response.bits.miss  := requestMiss
 
   io.readAddress.valid       := state === sendReadAddress
-  io.readAddress.bits.addr   := Mux(saved.uncached, saved.addr, Cat(saved.addr(31, 6), 0.U(6.W)))
-  io.readAddress.bits.len    := Mux(saved.uncached, 0.U, 15.U)
-  io.readAddress.bits.size   := Mux(saved.uncached, saved.size, 2.U)
+  io.readAddress.bits.addr   := Mux(
+    saved.uncached,
+    saved.addr,
+    Cat(saved.addr(AddressBits - 1, LineOffsetBits), 0.U(LineOffsetBits.W))
+  )
+  io.readAddress.bits.len    := Mux(saved.uncached, 0.U, LastRow.U)
+  io.readAddress.bits.size   := Mux(saved.uncached, saved.size, RowOffsetBits.U)
   io.readAddress.bits.atomic := Mux(saved.uncached, saved.atomic, AtomicOperation.None)
   io.readData.ready          := state === receiveReadData
 
@@ -285,16 +309,28 @@ class BlockingCache(val instruction: Boolean) extends Module {
     val streamedWriteData   = cachedWritebackData || flushingData
     val streamSourceValid   = streamDataValid || streamReadValid
     val streamSourceData    = Mux(streamDataValid, streamData, dataMemory.io.readData)
-    val streamedWriteLast   = Mux(flushingData, flushBeat.get === 15.U, writebackBeat === 15.U)
+    val streamedWriteLast   = Mux(
+      flushingData,
+      flushBeat.get === LastRow.U,
+      writebackBeat === LastRow.U
+    )
 
     io.writeAddress.get.valid       := state === sendWriteAddress || flushingAddress
     io.writeAddress.get.bits.addr   := Mux(
       flushingAddress,
-      Cat(lookupTag, flushSet.get, 0.U(6.W)),
-      Mux(saved.uncached, saved.addr, Cat(lookupTag, savedSet, 0.U(6.W)))
+      Cat(lookupTag, flushSet.get, 0.U(LineOffsetBits.W)),
+      Mux(saved.uncached, saved.addr, Cat(lookupTag, savedSet, 0.U(LineOffsetBits.W)))
     )
-    io.writeAddress.get.bits.len    := Mux(flushingAddress, 15.U, Mux(saved.uncached, 0.U, 15.U))
-    io.writeAddress.get.bits.size   := Mux(flushingAddress, 2.U, Mux(saved.uncached, saved.size, 2.U))
+    io.writeAddress.get.bits.len    := Mux(
+      flushingAddress,
+      LastRow.U,
+      Mux(saved.uncached, 0.U, LastRow.U)
+    )
+    io.writeAddress.get.bits.size   := Mux(
+      flushingAddress,
+      RowOffsetBits.U,
+      Mux(saved.uncached, saved.size, RowOffsetBits.U)
+    )
     io.writeAddress.get.bits.atomic := Mux(
       flushingAddress,
       AtomicOperation.None,
@@ -313,7 +349,7 @@ class BlockingCache(val instruction: Boolean) extends Module {
     io.probeResponse.get.bits.dirty := probeDirty.get
     io.probeResponse.get.bits.data  := streamSourceData
     io.probeResponse.get.bits.last  := !probeHit.get || !probeDirty.get ||
-      probeBeat.get === 15.U
+      probeBeat.get === LastRow.U
     io.probeAck.get.ready           := state === probeWaitAck
     io.flushDone.get                := state === flushComplete
     io.flushError.get               := flushFailed.get
@@ -321,7 +357,7 @@ class BlockingCache(val instruction: Boolean) extends Module {
     val writeStreamFire    = streamedWriteData && io.writeData.get.fire
     val probeStreamFire    = state === probeRespond && io.probeResponse.get.fire
     val writeNextRead      = writeStreamFire && !streamedWriteLast
-    val probeNextRead      = probeStreamFire && probeHit.get && probeDirty.get && probeBeat.get =/= 15.U
+    val probeNextRead      = probeStreamFire && probeHit.get && probeDirty.get && probeBeat.get =/= LastRow.U
     val startWritebackRead = state === decideLookup && !lineHit && valid(savedSet) && dirty(savedSet)
 
     streamFire        := writeStreamFire || probeStreamFire
@@ -329,7 +365,7 @@ class BlockingCache(val instruction: Boolean) extends Module {
     streamReadAddress := MuxCase(
       0.U,
       Seq(
-        startWritebackRead                     -> cacheWordAddress(savedSet, 0.U(4.W)),
+        startWritebackRead                     -> cacheWordAddress(savedSet, 0.U(RowIndexBits.W)),
         (writeNextRead && flushingData)        -> cacheWordAddress(flushSet.get, flushBeat.get + 1.U),
         (writeNextRead && cachedWritebackData) -> cacheWordAddress(savedSet, writebackBeat + 1.U),
         probeNextRead                          -> cacheWordAddress(cacheSet(probeSaved.get.lineAddress), probeBeat.get + 1.U)
@@ -340,7 +376,7 @@ class BlockingCache(val instruction: Boolean) extends Module {
   }
 
   when(io.invalidate) {
-    for (set <- 0 until RocketMed.CacheSets) {
+    for (set <- 0 until SetCount) {
       valid(set) := false.B
       dirty(set) := false.B
     }
@@ -368,7 +404,7 @@ class BlockingCache(val instruction: Boolean) extends Module {
 
   if (!instruction) {
     when(io.probeRequest.get.fire) {
-      assert(io.probeRequest.get.bits.lineAddress(5, 0) === 0.U)
+      assert(io.probeRequest.get.bits.lineAddress(LineOffsetBits - 1, 0) === 0.U)
       probeSaved.get   := io.probeRequest.get.bits
       reservationValid := false.B
       state            := probeCaptureLookup
@@ -402,7 +438,7 @@ class BlockingCache(val instruction: Boolean) extends Module {
       when(io.response.fire) {
         when(isLr) {
           reservationValid   := true.B
-          reservationAddress := saved.addr(31, 2)
+          reservationAddress := saved.addr(AddressBits - 1, RowOffsetBits)
         }.elsewhen(saved.write || isAmo || isSc) {
           reservationValid := false.B
         }
@@ -428,7 +464,7 @@ class BlockingCache(val instruction: Boolean) extends Module {
     def advanceFlush(): Unit = {
       valid(flushSet.get) := false.B
       dirty(flushSet.get) := false.B
-      when(flushSet.get === (RocketMed.CacheSets - 1).U) {
+      when(flushSet.get === (SetCount - 1).U) {
         state := flushComplete
       }.otherwise {
         flushSet.get := flushSet.get + 1.U
@@ -465,7 +501,7 @@ class BlockingCache(val instruction: Boolean) extends Module {
     when(state === probeDecideLookup) {
       val set = cacheSet(probeSaved.get.lineAddress)
       val hit = valid(set) &&
-        lookupTag === probeSaved.get.lineAddress(31, 12)
+        lookupTag === probeSaved.get.lineAddress(AddressBits - 1, LineOffsetBits + SetBits)
       probeHit.get    := hit
       probeDirty.get  := hit && dirty(set)
       probeBeat.get   := 0.U
@@ -516,7 +552,7 @@ class BlockingCache(val instruction: Boolean) extends Module {
       when(io.writeResponse.get.bits.error) {
         valid(flushSet.get) := true.B
         dirty(flushSet.get) := true.B
-        when(flushSet.get === (RocketMed.CacheSets - 1).U) {
+        when(flushSet.get === (SetCount - 1).U) {
           state := flushComplete
         }.otherwise {
           flushSet.get := flushSet.get + 1.U
@@ -554,7 +590,7 @@ class BlockingCache(val instruction: Boolean) extends Module {
       responseError := anyError
       state         := respond
     }.otherwise {
-      assert(io.readData.bits.last === (refillBeat === 15.U))
+      assert(io.readData.bits.last === (refillBeat === LastRow.U))
       when(io.readData.bits.last) {
         when(anyError) {
           valid(savedSet) := false.B
