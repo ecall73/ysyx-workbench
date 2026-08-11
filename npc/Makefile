@@ -58,6 +58,7 @@ include $(NPC_HOME)/scripts/config.mk
 
 ifneq ($(MAKECMDGOALS),$(filter $(config-only-goals),$(MAKECMDGOALS)))
 include $(NPC_HOME)/scripts/native.mk
+include $(NPC_HOME)/scripts/perf.mk
 iverilog-targets := sim-iverilog sim-iverilog-netlist
 ifneq ($(filter $(iverilog-targets),$(MAKECMDGOALS)),)
 include $(NPC_HOME)/scripts/iverilog.mk

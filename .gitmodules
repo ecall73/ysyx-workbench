@@ -23,3 +23,6 @@
 	path = xv6-riscv
 	url = https://github.com/ecall73/xv6-riscv.git
 	branch = rv32
+[submodule "yosys-sta"]
+	path = yosys-sta
+	url = https://github.com/OSCPU/yosys-sta.git
