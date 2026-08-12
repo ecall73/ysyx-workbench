@@ -152,8 +152,12 @@ class BlockingCache(val instruction: Boolean) extends Module {
   val flushBeat                                                                                                                                                                                                                                                                                                                                                                                  = if (!instruction) Some(RegInit(0.U(RowIndexBits.W))) else None
   val flushFailed                                                                                                                                                                                                                                                                                                                                                                                = if (!instruction) Some(RegInit(false.B)) else None
 
-  val valid      = RegInit(VecInit(Seq.fill(SetCount)(false.B)))
-  val dirty      = RegInit(VecInit(Seq.fill(SetCount)(false.B)))
+  val valid = RegInit(0.U(SetCount.W))
+  val dirty = RegInit(0.U(SetCount.W))
+
+  val validAfterInvalidate = Mux(io.invalidate, 0.U(SetCount.W), valid)
+  val dirtyAfterInvalidate = Mux(io.invalidate, 0.U(SetCount.W), dirty)
+
   val tagMemory  = Module(
     new SinglePortSram(
       SetCount,
@@ -376,12 +380,10 @@ class BlockingCache(val instruction: Boolean) extends Module {
   }
 
   when(io.invalidate) {
-    for (set <- 0 until SetCount) {
-      valid(set) := false.B
-      dirty(set) := false.B
-    }
+    valid            := 0.U
+    dirty            := 0.U
     reservationValid := false.B
-    streamDataValid := false.B
+    streamDataValid  := false.B
   }
   when(io.request.fire) {
     if (instruction) {
@@ -443,7 +445,7 @@ class BlockingCache(val instruction: Boolean) extends Module {
           reservationValid := false.B
         }
         when(hitWrites) {
-          dirty(savedSet) := true.B
+          dirty := dirtyAfterInvalidate.bitSet(savedSet, true.B)
         }
         state := Mux(io.request.fire, captureLookup, idle)
       }
@@ -462,8 +464,8 @@ class BlockingCache(val instruction: Boolean) extends Module {
 
   if (!instruction) {
     def advanceFlush(): Unit = {
-      valid(flushSet.get) := false.B
-      dirty(flushSet.get) := false.B
+      valid := validAfterInvalidate.bitSet(flushSet.get, false.B)
+      dirty := dirtyAfterInvalidate.bitSet(flushSet.get, false.B)
       when(flushSet.get === (SetCount - 1).U) {
         state := flushComplete
       }.otherwise {
@@ -493,8 +495,8 @@ class BlockingCache(val instruction: Boolean) extends Module {
         responseError := false.B
         state         := respond
       }.otherwise {
-        dirty(savedSet) := false.B
-        state           := sendReadAddress
+        dirty := dirtyAfterInvalidate.bitSet(savedSet, false.B)
+        state := sendReadAddress
       }
     }
 
@@ -522,8 +524,8 @@ class BlockingCache(val instruction: Boolean) extends Module {
         !io.probeAck.get.bits.error && probeHit.get &&
           probeSaved.get.invalidate
       ) {
-        valid(set) := false.B
-        dirty(set) := false.B
+        valid := validAfterInvalidate.bitSet(set, false.B)
+        dirty := dirtyAfterInvalidate.bitSet(set, false.B)
       }
       state := idle
     }
@@ -550,8 +552,8 @@ class BlockingCache(val instruction: Boolean) extends Module {
     when(state === flushWaitResponse && io.writeResponse.get.fire) {
       flushFailed.get := flushFailed.get || io.writeResponse.get.bits.error
       when(io.writeResponse.get.bits.error) {
-        valid(flushSet.get) := true.B
-        dirty(flushSet.get) := true.B
+        valid := validAfterInvalidate.bitSet(flushSet.get, true.B)
+        dirty := dirtyAfterInvalidate.bitSet(flushSet.get, true.B)
         when(flushSet.get === (SetCount - 1).U) {
           state := flushComplete
         }.otherwise {
@@ -593,14 +595,14 @@ class BlockingCache(val instruction: Boolean) extends Module {
       assert(io.readData.bits.last === (refillBeat === LastRow.U))
       when(io.readData.bits.last) {
         when(anyError) {
-          valid(savedSet) := false.B
-          responseData    := 0.U
-          responseError   := true.B
-          state           := respond
+          valid         := validAfterInvalidate.bitSet(savedSet, false.B)
+          responseData  := 0.U
+          responseError := true.B
+          state         := respond
         }.otherwise {
-          valid(savedSet) := true.B
-          dirty(savedSet) := false.B
-          state           := restartLookup
+          valid := validAfterInvalidate.bitSet(savedSet, true.B)
+          dirty := dirtyAfterInvalidate.bitSet(savedSet, false.B)
+          state := restartLookup
         }
       }.otherwise {
         refillBeat := refillBeat + 1.U

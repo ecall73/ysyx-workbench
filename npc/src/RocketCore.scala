@@ -112,10 +112,17 @@ class RocketCore(
   val sfencePulse           = WireDefault(false.B)
   val sfence                = WireDefault(0.U.asTypeOf(new Sfence))
   val instructionInvalidate = WireDefault(false.B)
+  val gprWriteValid         = WireDefault(false.B)
+  val gprWriteData          = WireDefault(0.U(32.W))
 
   val trap      = WireDefault(0.U.asTypeOf(new TrapRequest))
   val ret       = WireDefault(0.U(2.W))
   val csrAccess = WireDefault(0.U.asTypeOf(new CsrAccess))
+
+  def writeGpr(data: UInt): Unit = {
+    gprWriteValid := true.B
+    gprWriteData  := data
+  }
 
   def cacheable(address: UInt): Bool = {
     val highNibble = address(31, 28)
@@ -619,7 +626,7 @@ class RocketCore(
         raiseTrap(2.U, Mux(savedRvc, savedRaw & "hffff".U, savedRaw))
       }.otherwise {
         when(savedDecoded.writeRd && savedDecoded.rd.orR) {
-          gpr(savedDecoded.rd) := csr.io.readData
+          writeGpr(csr.io.readData)
         }
         complete(sequentialPc, true.B)
         when(csrChangesFetchEnvironment) { redirect(sequentialPc) }
@@ -650,7 +657,7 @@ class RocketCore(
       val nextPc       = Mux(controlTaken, jumpTarget, sequentialPc)
       val writeback    = Mux(savedDecoded.jal || savedDecoded.jalr, sequentialPc, aluResult)
       when(savedDecoded.writeRd && savedDecoded.rd.orR) {
-        gpr(savedDecoded.rd) := writeback
+        writeGpr(writeback)
       }
       complete(nextPc, true.B)
       when(controlTaken) { redirect(nextPc) }
@@ -667,7 +674,7 @@ class RocketCore(
   }
 
   when(mulDivCompletion) {
-    when(savedDecoded.rd.orR) { gpr(savedDecoded.rd) := mulDivResult }
+    when(savedDecoded.rd.orR) { writeGpr(mulDivResult) }
     complete(sequentialPc, true.B)
     executeState := Mux(ibuf.io.instruction.fire, eExecute, eIdle)
   }
@@ -702,7 +709,7 @@ class RocketCore(
         raiseTrap(Mux(savedMemoryAccess === MemoryAccess.Store, 7.U, 5.U), savedVirtualAddress)
       }.otherwise {
         when(!savedDecoded.memoryWrite && savedDecoded.rd.orR) {
-          gpr(savedDecoded.rd) := clint.io.readData
+          writeGpr(clint.io.readData)
         }
         complete(sequentialPc, true.B)
       }
@@ -719,7 +726,7 @@ class RocketCore(
       executeState := eIdle
     }.otherwise {
       when(savedDecoded.writeRd && savedDecoded.rd.orR) {
-        gpr(savedDecoded.rd) := dataResponseResult
+        writeGpr(dataResponseResult)
       }
       complete(sequentialPc, true.B)
       executeState := Mux(ibuf.io.instruction.fire, eExecute, eIdle)
@@ -779,6 +786,9 @@ class RocketCore(
     commitValid     := false.B
     interruptValid  := false.B
     halted          := false.B
+  }
+  when(gprWriteValid) {
+    gpr(savedDecoded.rd) := gprWriteData
   }
   gpr(0)      := 0.U
 

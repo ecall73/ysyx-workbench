@@ -9,22 +9,28 @@ object GenerateTop extends App {
   val parent = output.getParent
   if (parent != null) Files.createDirectories(parent)
 
-  val firtoolOptions = Array(
+  val firtoolOptions      = Array(
     "--lowering-options=" + List(
       "disallowLocalVariables",
       "disallowPackedArrays",
       "locationInfoStyle=wrapInAtSquareBracket"
     ).mkString(",")
   )
-  val generated      = ChiselStage.emitSystemVerilog(new RocketChip, Array.empty, firtoolOptions)
+  val generated           = ChiselStage.emitSystemVerilog(new RocketChip, Array.empty, firtoolOptions)
   // FIRRTL deduplicates the identical I$ and D$ tag wrappers into ICacheTagSram.
-  val sramModules    = Seq("ICacheTagSram", "ICacheDataSram", "DCacheDataSram")
-  val synthesisReady = sramModules.foldLeft(generated) { (rtl, moduleName) =>
+  val synthesisAttributes = Seq(
+    "ICacheTagSram"   -> "blackbox",
+    "ICacheDataSram"  -> "blackbox",
+    "DCacheDataSram"  -> "blackbox",
+    "Tlb"             -> "keep_hierarchy",
+    "PageTableWalker" -> "keep_hierarchy"
+  )
+  val synthesisReady      = synthesisAttributes.foldLeft(generated) { case (rtl, (moduleName, attribute)) =>
     val declaration = s"module $moduleName("
-    require(rtl.contains(declaration), s"generated RTL is missing SRAM module $moduleName")
+    require(rtl.contains(declaration), s"generated RTL is missing module $moduleName")
     rtl.replace(
       declaration,
-      s"`ifdef SYNTHESIS\n(* blackbox *)\n`endif\n$declaration"
+      s"`ifdef SYNTHESIS\n(* $attribute *)\n`endif\n$declaration"
     )
   }
 
