@@ -3,121 +3,210 @@ module ysyx_26030082_ifu #(
     parameter integer LINE_WORDS = 4,
     parameter integer LINE_COUNT = 4
 ) (
-    input             clock,
-    input             reset,
+    input  wire        clock,
+    input  wire        reset,
 
-    // EX retire feedback
-    input             ex_out_valid,
-    input             ex_redirect,
-    input      [31:0] ex_redirect_pc,
-    input             ex_fence_i,
+    // Execute/redirect side
+    input  wire        ex_out_valid,
+    input  wire        ex_out_ready,
+    input  wire [31:0] ex_pc4,
+    input  wire        ex_btype,
+    input  wire        ex_jtype,
+    input  wire        ex_ijtype,
+    input  wire        ex_BRUResult,
+    input  wire [31:0] ex_ALUResult,
+    input  wire        ex_CSRjump,
+    input  wire [31:0] ex_CSRnpc,
+    input  wire        ex_FenceI,
 
-    // IF output interface
-    output            if_out_valid,
-    input             if_out_ready,
-    output reg [31:0] if_pc,
-    output     [31:0] if_inst,
+    // ID response side
+    input  wire        id_ready,
+    output wire        id_valid,
+    output wire [31:0] id_pc,
+    output wire [31:0] id_inst,
+    output wire        flush,
+    output wire        invalidate,
 
     // AXI4 read master interface
-    output     [31:0] ifu_master_araddr,
-    output     [ 7:0] ifu_master_arlen,
-    output     [ 1:0] ifu_master_arburst,
-    output            ifu_master_arvalid,
-    input             ifu_master_arready,
-    input      [31:0] ifu_master_rdata,
-    input      [ 1:0] ifu_master_rresp,
-    input             ifu_master_rlast,
-    input             ifu_master_rvalid,
-    output            ifu_master_rready
+    output wire [31:0] ifu_axi_araddr,
+    output wire [ 7:0] ifu_axi_arlen,
+    output wire [ 1:0] ifu_axi_arburst,
+    output wire        ifu_axi_arvalid,
+    input  wire        ifu_axi_arready,
+    input  wire [31:0] ifu_axi_rdata,
+    input  wire [ 1:0] ifu_axi_rresp,
+    input  wire        ifu_axi_rlast,
+    input  wire        ifu_axi_rvalid,
+    output wire        ifu_axi_rready
 );
-    localparam integer BYTE_OFF_W   = 2;
-    localparam integer WORD_INDEX_W = $clog2(LINE_WORDS);
-    localparam integer LINE_INDEX_W = $clog2(LINE_COUNT);
-    localparam integer LINE_OFF_W   = BYTE_OFF_W + WORD_INDEX_W;
-    localparam integer TAG_W        = 32 - LINE_INDEX_W - LINE_OFF_W;
-
-    localparam [WORD_INDEX_W-1:0] LINE_LAST_WORD = {WORD_INDEX_W{1'b1}};
+    localparam integer WORD_OFF_W      = 2;
+    localparam integer LINE_ADDR_OFF_W = $clog2(LINE_WORDS);
+    localparam integer LINE_WORD_OFF_W = $clog2((LINE_WORDS < 2) ? 2 : LINE_WORDS);
+    localparam integer INDEX_W         = $clog2(LINE_COUNT);
+    localparam integer OFFSET_W        = WORD_OFF_W + LINE_ADDR_OFF_W;
+    localparam integer TAG_W           = 32 - INDEX_W - OFFSET_W;
 
     localparam [1:0] S_LOOKUP  = 2'd0;
     localparam [1:0] S_MISS_AR = 2'd1;
     localparam [1:0] S_MISS_R  = 2'd2;
-    localparam [1:0] S_DROP_R  = 2'd3;
 
+    // IFU request state
+    reg  [31:0] if_pc;
+    wire        if_valid;
+    wire        if_ready;
+    wire        req_fire;
+
+    wire        ex_btype_taken;
+    wire        ex_commit_fire;
+    wire        ex_redirect;
+
+    assign ex_btype_taken = ex_btype && ex_BRUResult;
+    assign ex_commit_fire = ex_out_valid && ex_out_ready;
+    assign ex_redirect = ex_CSRjump || ex_jtype || ex_ijtype || ex_btype_taken;
+    assign invalidate = ex_commit_fire && ex_FenceI;
+    assign flush = ex_commit_fire && (ex_redirect || ex_FenceI);
+
+    assign if_valid = !flush;
+    assign req_fire = if_valid && if_ready;
+
+    // I-cache state
     reg [1:0] state;
 
-    reg [31:0] icache_data [0:LINE_COUNT*LINE_WORDS-1];
-    reg [TAG_W-1:0] icache_tag [0:LINE_COUNT-1];
-    reg [LINE_COUNT-1:0] icache_valid;
+    localparam integer LINE_DATA_W = LINE_WORDS * 32;
+    reg [LINE_DATA_W-1:0] data_array [0:LINE_COUNT-1];
+    reg [TAG_W-1:0]       tag_array [0:LINE_COUNT-1];
+    reg [LINE_COUNT-1:0]  valid_array;
 
-    reg [WORD_INDEX_W-1:0] refill_word_idx;
+    reg [INDEX_W-1:0]     miss_index;
+    reg [TAG_W-1:0]       miss_tag;
+    reg [LINE_WORD_OFF_W-1:0] refill_word_idx;
+    reg                     need_flush;
+    reg                     drop_fill;
 
-    wire [WORD_INDEX_W-1:0] lookup_word_idx = if_pc[BYTE_OFF_W + WORD_INDEX_W - 1 : BYTE_OFF_W];
-    wire [LINE_INDEX_W-1:0] lookup_index = if_pc[LINE_OFF_W + LINE_INDEX_W - 1 : LINE_OFF_W];
-    wire [TAG_W-1:0] lookup_tag = if_pc[31 : LINE_OFF_W + LINE_INDEX_W];
-    wire [LINE_INDEX_W+WORD_INDEX_W-1:0] lookup_data_idx = {lookup_index, lookup_word_idx};
-    wire [LINE_INDEX_W+WORD_INDEX_W-1:0] refill_data_idx = {lookup_index, refill_word_idx};
+    wire [LINE_WORD_OFF_W-1:0] lookup_word_offset;
+    wire [INDEX_W-1:0]         lookup_index;
+    wire [TAG_W-1:0]           lookup_tag;
+    wire [LINE_DATA_W-1:0]     lookup_line;
+    wire                        cache_hit;
+    wire                        cache_miss;
+    wire                        lookup_resp_valid;
+    wire [TAG_W-1:0]            lookup_rd_tag;
+    wire                        lookup_rd_valid;
+    wire                        req_space;
+    wire                        ar_fire;
+    wire                        r_fire;
+    wire                        discard_resp;
+    wire                        pipe_flush;
+    wire [31:0]                 miss_line_base;
 
-    wire icache_hit = icache_valid[lookup_index] && (icache_tag[lookup_index] == lookup_tag);
+    assign lookup_word_offset =
+        if_pc[WORD_OFF_W + LINE_WORD_OFF_W - 1 : WORD_OFF_W];
+    assign lookup_index = if_pc[OFFSET_W + INDEX_W - 1 : OFFSET_W];
+    assign lookup_tag = if_pc[31 : OFFSET_W + INDEX_W];
+    assign lookup_rd_tag = tag_array[lookup_index];
+    assign lookup_rd_valid = valid_array[lookup_index];
+    assign lookup_line = data_array[lookup_index];
+    assign cache_hit = lookup_rd_valid && (lookup_rd_tag == lookup_tag);
+    assign cache_miss = (state == S_LOOKUP) && !pipe_flush && if_valid && !cache_hit;
+    assign lookup_resp_valid = (state == S_LOOKUP) && !pipe_flush && if_valid && cache_hit;
 
-    wire flush = ex_out_valid && ex_redirect;
-    wire invalidate = ex_out_valid && ex_fence_i;
-    assign if_out_valid = (state == S_LOOKUP) && icache_hit;
-    assign if_inst = icache_data[lookup_data_idx];
+    assign pipe_flush = flush || invalidate;
+    assign discard_resp = need_flush || pipe_flush;
+    assign id_valid = lookup_resp_valid;
+    assign id_pc = if_pc;
+    assign id_inst = lookup_line[{lookup_word_offset, 5'b0} +: 32];
 
-    assign ifu_master_araddr = {if_pc[31:LINE_OFF_W], {LINE_OFF_W{1'b0}}};
-    assign ifu_master_arlen = LINE_WORDS[7:0] - 8'd1;
-    assign ifu_master_arburst = 2'b01;
-    assign ifu_master_arvalid = (state == S_MISS_AR);
-    assign ifu_master_rready = (state == S_MISS_R) || (state == S_DROP_R);
+    assign req_space = lookup_resp_valid && id_ready;
+    assign if_ready = req_space;
 
-    wire ar_fire = ifu_master_arvalid && ifu_master_arready;
-    wire r_fire = ifu_master_rvalid && ifu_master_rready;
+    assign miss_line_base = {miss_tag, miss_index, {OFFSET_W{1'b0}}};
+    assign ifu_axi_araddr = miss_line_base;
+    assign ifu_axi_arlen = LINE_WORDS[7:0] - 8'd1;
+    assign ifu_axi_arburst = 2'b01;
+    assign ifu_axi_arvalid = (state == S_MISS_AR);
+    assign ifu_axi_rready = (state == S_MISS_R);
+    assign ar_fire = ifu_axi_arvalid && ifu_axi_arready;
+    assign r_fire = ifu_axi_rvalid && ifu_axi_rready;
 
     always @(posedge clock) begin
-        if (reset || invalidate) begin
-            icache_valid <= 0;
-        end else if (ar_fire) begin
-            icache_valid[lookup_index] <= 1'b0;
-        end else if ((state == S_MISS_R) && r_fire && !flush) begin
-            icache_valid[lookup_index] <= ifu_master_rlast;
+        if (reset) begin
+            if_pc <= RESET_PC;
+        end else if (flush) begin
+            if_pc <= ex_CSRjump ? ex_CSRnpc :
+                     ex_redirect ? ex_ALUResult :
+                     ex_pc4;
+        end else if (req_fire) begin
+            if_pc <= if_pc + 32'd4;
         end
     end
 
     always @(posedge clock) begin
         if (reset) begin
             state <= S_LOOKUP;
-            if_pc <= RESET_PC;
-            refill_word_idx <= 0;
+            miss_index <= {INDEX_W{1'b0}};
+            miss_tag <= {TAG_W{1'b0}};
+            refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
+            need_flush <= 1'b0;
+            drop_fill <= 1'b0;
+            valid_array <= {LINE_COUNT{1'b0}};
         end else begin
-            if (flush) begin
-                if_pc <= ex_redirect_pc;
-            end else if (if_out_valid && if_out_ready) begin
-                if_pc <= if_pc + 32'd4;
+            if (invalidate) begin
+                valid_array <= {LINE_COUNT{1'b0}};
             end
 
             case (state)
                 S_LOOKUP: begin
-                    if (!icache_hit && !flush) begin
-                        refill_word_idx <= 0;
+                    if (cache_miss) begin
+                        miss_index <= lookup_index;
+                        miss_tag <= lookup_tag;
+                        refill_word_idx <= {LINE_WORD_OFF_W{1'b0}};
+                        need_flush <= 1'b0;
+                        drop_fill <= 1'b0;
                         state <= S_MISS_AR;
                     end
                 end
 
                 S_MISS_AR: begin
-                    if (ar_fire) begin
-                        icache_tag[lookup_index] <= lookup_tag;
-                        state <= flush ? S_DROP_R : S_MISS_R;
-                    end else if (flush) begin
-                        state <= S_LOOKUP;
+                    if (invalidate) begin
+                        if (ar_fire) begin
+                            need_flush <= 1'b1;
+                            drop_fill <= 1'b1;
+                            state <= S_MISS_R;
+                        end else begin
+                            need_flush <= 1'b0;
+                            drop_fill <= 1'b0;
+                            state <= S_LOOKUP;
+                        end
+                    end else begin
+                        if (flush) begin
+                            need_flush <= 1'b1;
+                        end
+
+                        if (ar_fire) begin
+                            state <= S_MISS_R;
+                        end
                     end
                 end
 
                 S_MISS_R: begin
-                    if (flush) begin
-                        state <= (r_fire && ifu_master_rlast) ? S_LOOKUP : S_DROP_R;
-                    end else if (r_fire) begin
-                        icache_data[refill_data_idx] <= ifu_master_rdata;
-                        if (ifu_master_rlast) begin
+                    if (invalidate) begin
+                        need_flush <= 1'b1;
+                        drop_fill <= 1'b1;
+                    end else if (flush) begin
+                        need_flush <= 1'b1;
+                    end
+
+                    if (r_fire) begin
+                        data_array[miss_index][{refill_word_idx, 5'b0} +: 32] <= ifu_axi_rdata;
+                        if (ifu_axi_rlast) begin
+                            if (!drop_fill && !invalidate) begin
+                                tag_array[miss_index] <= miss_tag;
+                                valid_array[miss_index] <= 1'b1;
+                            end
+                            if (discard_resp || drop_fill || invalidate) begin
+                                need_flush <= 1'b0;
+                            end
+                            drop_fill <= 1'b0;
                             state <= S_LOOKUP;
                         end else begin
                             refill_word_idx <= refill_word_idx + 1'b1;
@@ -125,14 +214,10 @@ module ysyx_26030082_ifu #(
                     end
                 end
 
-                S_DROP_R: begin
-                    if (r_fire && ifu_master_rlast) begin
-                        state <= S_LOOKUP;
-                    end
-                end
-
                 default: begin
                     state <= S_LOOKUP;
+                    need_flush <= 1'b0;
+                    drop_fill <= 1'b0;
                 end
             endcase
         end
@@ -140,43 +225,44 @@ module ysyx_26030082_ifu #(
 
 `ifdef NPC_SIMULATION
 `ifndef SYNTHESIS
-`ifndef __ICARUS__
     initial begin
-        if ((LINE_WORDS < 2) || ((LINE_WORDS & (LINE_WORDS - 1)) != 0) || (LINE_WORDS > 256)) begin
-            $fatal(1, "icache LINE_WORDS != 2**n (1 <= n <= 8)");
+        if (LINE_WORDS < 1) begin
+            $fatal(1, "icache LINE_WORDS must be at least 1");
         end
-        if ((LINE_COUNT < 2) || ((LINE_COUNT & (LINE_COUNT - 1)) != 0)) begin
-            $fatal(1, "icache LINE_COUNT != 2**n (n >= 1)");
+        if ((LINE_WORDS & (LINE_WORDS - 1)) != 0) begin
+            $fatal(1, "icache LINE_WORDS must be a power of two");
         end
-        if (LINE_OFF_W + LINE_INDEX_W >= 32) begin
-            $fatal(1, "ifu geometry is too large for ADDR_WIDTH");
+        if (LINE_COUNT < 2) begin
+            $fatal(1, "icache LINE_COUNT must be at least 2");
+        end
+        if ((LINE_COUNT & (LINE_COUNT - 1)) != 0) begin
+            $fatal(1, "icache LINE_COUNT must be a power of two");
+        end
+        if (LINE_WORDS > 256) begin
+            $fatal(1, "icache LINE_WORDS must be <= 256");
+        end
+        if (OFFSET_W + INDEX_W >= 32) begin
+            $fatal(1, "icache geometry is too large for ADDR_WIDTH");
         end
     end
 
     always @(posedge clock) begin
-        if (!reset && if_out_valid && (if_pc[1:0] != 2'b00)) begin
-            $fatal(1, "unaligned ifu fetch pc=%08x", if_pc);
-        end
-        if (!reset && ifu_master_arvalid &&
-            (ifu_master_araddr[1:0] != 2'b00 ||
-             ifu_master_arburst != 2'b01 ||
-             ifu_master_arlen != LINE_WORDS[7:0] - 8'd1)) begin
-            $fatal(1, "ifu: bad AR request pc=%08x araddr=%08x arlen=%0d arburst=%0b",
-                if_pc, ifu_master_araddr, ifu_master_arlen, ifu_master_arburst);
+        if (!reset && req_fire && (if_pc[1:0] != 2'b00)) begin
+            $fatal(1, "unaligned icache fetch pc=%08x", if_pc);
         end
         if (!reset && (state == S_MISS_R) && r_fire) begin
-            if ((refill_word_idx == LINE_LAST_WORD) && !ifu_master_rlast) begin
-                $fatal(1, "ifu burst refill missing rlast on final beat line=%08x", ifu_master_araddr);
+            if ((refill_word_idx == (LINE_WORDS - 1)) && !ifu_axi_rlast) begin
+                $fatal(1, "icache burst refill missing rlast on final beat line=%08x", miss_line_base);
             end
-            if ((refill_word_idx != LINE_LAST_WORD) && ifu_master_rlast) begin
-                $fatal(1, "ifu burst refill saw early rlast line=%08x beat=%0d", ifu_master_araddr, refill_word_idx);
+            if ((refill_word_idx != (LINE_WORDS - 1)) && ifu_axi_rlast) begin
+                $fatal(1, "icache burst refill saw early rlast line=%08x beat=%0d", miss_line_base, refill_word_idx);
             end
         end
     end
 `endif
 `endif
-`endif
 
-    wire _unused_ok = &{1'b0, ifu_master_rresp};
+    wire _unused_ok;
+    assign _unused_ok = &{1'b0, ifu_axi_rresp};
 
 endmodule

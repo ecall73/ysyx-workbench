@@ -2,7 +2,8 @@
 
 module tb_iverilog;
 
-    localparam [31:0] EBREAK_INST = 32'h0010_0073;
+    localparam [2:0]  EBREAK_FUNCT3 = 3'b000;
+    localparam [11:0] EBREAK_CSRADDR = 12'h001;
     reg clock;
     reg reset;
 
@@ -13,6 +14,15 @@ module tb_iverilog;
         .clock                  (clock),
         .reset                  (reset)
     );
+
+    // The current RTL keeps the instruction fields in the ID/EX registers
+    // and the register file in IDU.  Detect ebreak from those architectural
+    // fields instead of depending on the old ex_inst/exu hierarchy.
+    wire ebreak_commit;
+    assign ebreak_commit = dut.Core_cpu.ex_out_valid &&
+                           dut.Core_cpu.ex_is_system &&
+                           (dut.Core_cpu.ex_funct3 === EBREAK_FUNCT3) &&
+                           (dut.Core_cpu.ex_CSRaddr === EBREAK_CSRADDR);
 
     initial begin
         clock = 1'b0;
@@ -39,17 +49,15 @@ module tb_iverilog;
                 $dumpvars(0, dut);
             end
 
-            if (dut.Core_cpu.ex_out_valid) begin
-                if (dut.Core_cpu.ex_inst === EBREAK_INST) begin
-                    if (dut.Core_cpu.exu.reg_bank[10] === 32'h0000_0000) begin
-                        $display("HIT GOOD TRAP at pc = 0x%08x cycle = %0d",
-                            dut.Core_cpu.ex_pc, cycle_count);
-                    end else begin
-                        $display("HIT BAD TRAP at pc = 0x%08x a0 = 0x%08x cycle = %0d",
-                            dut.Core_cpu.ex_pc, dut.Core_cpu.exu.reg_bank[10], cycle_count);
-                    end
-                    $finish;
+            if (ebreak_commit) begin
+                if (dut.Core_cpu.idu.reg_bank[10] === 32'h0000_0000) begin
+                    $display("HIT GOOD TRAP at pc = 0x%08x cycle = %0d",
+                        dut.Core_cpu.ex_pc, cycle_count);
+                end else begin
+                    $display("HIT BAD TRAP at pc = 0x%08x a0 = 0x%08x cycle = %0d",
+                        dut.Core_cpu.ex_pc, dut.Core_cpu.idu.reg_bank[10], cycle_count);
                 end
+                $finish;
             end
 
         end
